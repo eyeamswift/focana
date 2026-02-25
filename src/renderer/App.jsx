@@ -16,7 +16,6 @@ import ContextBox from './components/ContextBox';
 import IncognitoMode from './components/IncognitoMode';
 import TaskInput from './components/TaskInput';
 import HistoryModal from './components/HistoryModal';
-import StartSessionModal from './components/StartSessionModal';
 import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
 import QuickCaptureModal from './components/QuickCaptureModal';
@@ -38,6 +37,7 @@ export default function App() {
   const [initialTime, setInitialTime] = useState(0);
   const [isTimerVisible, setIsTimerVisible] = useState(false);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
+  const [sessionMinutes, setSessionMinutes] = useState('25');
 
   // Parking Lot state
   const [distractionJarOpen, setDistractionJarOpen] = useState(false);
@@ -88,6 +88,7 @@ export default function App() {
   const timeAwarenessRef = useRef(null);
   const celebrationCheckRef = useRef(null);
   const taskInputRef = useRef(null);
+  const thoughtsLoadedRef = useRef(false);
 
   // Helpers
   const showToast = useCallback((type, message, duration = 2000) => {
@@ -227,6 +228,7 @@ export default function App() {
 
       const savedThoughts = await window.electronAPI.storeGet('thoughts');
       if (savedThoughts) setThoughts(savedThoughts);
+      thoughtsLoadedRef.current = true;
 
       const settings = await window.electronAPI.storeGet('settings') || {};
       if (settings.shortcuts) setShortcuts(settings.shortcuts);
@@ -258,8 +260,10 @@ export default function App() {
     });
   }, [shortcuts, handleShortcutAction]);
 
-  // Save state to electron-store
+  // Save thoughts to electron-store (guarded: skip the initial mount render
+  // before the async load resolves, which would otherwise wipe persisted data)
   useEffect(() => {
+    if (!thoughtsLoadedRef.current) return;
     window.electronAPI.storeSet('thoughts', thoughts);
   }, [thoughts]);
 
@@ -461,30 +465,57 @@ export default function App() {
     return '';
   };
 
+  // Expand window to fit modals, restore when all closed
+  useEffect(() => {
+    const MODAL_SIZES = [
+      [showSettings,       420, 580],
+      [showHistoryModal,   420, 500],
+      [distractionJarOpen, 420, 500],
+      [showNotesModal,     420, 400],
+      [showQuickCapture,   420, 340],
+    ];
+    const active = MODAL_SIZES.find(([open]) => open);
+    if (active) {
+      window.electronAPI.modalOpened(active[1], active[2]);
+    } else {
+      window.electronAPI.modalClosed();
+    }
+  }, [showSettings, showHistoryModal, distractionJarOpen, showNotesModal, showQuickCapture]);
+
+  // Resize window for pill/full mode
+  useEffect(() => {
+    if (isIncognito) {
+      window.electronAPI.enterPillMode();
+    } else {
+      window.electronAPI.exitPillMode();
+    }
+  }, [isIncognito]);
+
   // Incognito mode render
   if (isIncognito) {
     return (
-      <div className="app-container">
-        <div className="electron-draggable">
-          <IncognitoMode
-            task={task}
-            isRunning={isRunning}
-            time={time}
-            onDoubleClick={() => setIsIncognito(false)}
-            onOpenDistractionJar={() => setDistractionJarOpen(true)}
-            thoughtCount={thoughts.length}
-            onPlay={handlePlay}
-            onPause={handlePause}
-            onStop={handleStop}
-            pulseEnabled={pulseSettings.incognitoEnabled}
-          />
-        </div>
+      // electron-draggable on the outer container lets users drag the pill window
+      // from the transparent corner pixels (outside the rounded pill shape).
+      // The pill itself is electron-no-drag so its mouse events fire normally.
+      <div className="app-container pill-mode electron-draggable">
+        <IncognitoMode
+          task={task}
+          isRunning={isRunning}
+          time={time}
+          onDoubleClick={() => setIsIncognito(false)}
+          onOpenDistractionJar={() => setDistractionJarOpen(true)}
+          thoughtCount={thoughts.length}
+          onPlay={handlePlay}
+          onPause={handlePause}
+          onStop={handleStop}
+          pulseEnabled={pulseSettings.incognitoEnabled}
+        />
 
         <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
         <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
         <TaskPreviewModal isOpen={showTaskPreview} onClose={() => setShowTaskPreview(false)} session={previewSession} onUseTask={handleUseTask} onUpdateNotes={handleUpdateTaskNotes} />
         <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} sessions={sessions} onUseTask={handleUseTask} />
-        <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Notepad')} />
+        <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
         <Toast toast={toast} onDismiss={() => setToast(null)} />
       </div>
     );
@@ -495,7 +526,7 @@ export default function App() {
     <div className="app-container">
       <div className={`main-card electron-draggable ${getPulseClassName()}`}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Brain style={{ width: 20, height: 20, color: '#D97706' }} />
             <h1 style={{ fontSize: '1rem', fontWeight: 700, color: '#5C4033' }}>Focana</h1>
@@ -524,7 +555,7 @@ export default function App() {
                   {thoughts.length > 0 && <span className="badge">{thoughts.length}</span>}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Open Notepad</p></TooltipContent>
+              <TooltipContent><p>Open Parking Lot</p></TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -568,6 +599,53 @@ export default function App() {
             onFocus={() => setIsNoteFocused(true)}
             onTaskSubmit={handleTaskSubmit}
           />
+
+          {isStartModalOpen && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              width: '100%',
+              marginTop: '0.625rem',
+              padding: '0.5rem 0.625rem',
+              background: '#FFF9E6',
+              borderRadius: '0.625rem',
+              border: '1px solid rgba(217, 119, 6, 0.3)',
+            }}>
+              <Button
+                onClick={() => handleStartSession('freeflow', 0)}
+                style={{ background: '#F59E0B', color: 'white', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
+              >
+                Freeflow
+              </Button>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#8B6F47', flexShrink: 0 }}>OR</span>
+              <Button
+                onClick={() => handleStartSession('timed', parseInt(sessionMinutes) || 25)}
+                style={{ background: '#F59E0B', color: 'white', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
+              >
+                Set Timer
+              </Button>
+              <input
+                type="number"
+                value={sessionMinutes}
+                onChange={(e) => setSessionMinutes(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleStartSession('timed', parseInt(sessionMinutes) || 25); }}
+                min="1"
+                max="240"
+                className="input"
+                style={{ width: '3.25rem', textAlign: 'center', height: '2rem', fontSize: '0.8125rem', padding: '0 0.25rem', flexShrink: 0 }}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#8B6F47', flexShrink: 0 }}>min</span>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={() => setIsStartModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#8B6F47', padding: '0.25rem', display: 'flex', alignItems: 'center', flexShrink: 0, borderRadius: '0.25rem' }}
+                aria-label="Cancel"
+              >
+                <X style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          )}
 
           {contextNotes && (
             <ContextBox
@@ -652,9 +730,8 @@ export default function App() {
       <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
       <TaskPreviewModal isOpen={showTaskPreview} onClose={() => setShowTaskPreview(false)} session={previewSession} onUseTask={handleUseTask} onUpdateNotes={handleUpdateTaskNotes} />
       <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} sessions={sessions} onUseTask={handleUseTask} />
-      <StartSessionModal isOpen={isStartModalOpen} onClose={() => setIsStartModalOpen(false)} task={task} onStart={handleStartSession} />
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} shortcuts={shortcuts} onShortcutsChange={setShortcuts} pulseSettings={pulseSettings} onPulseSettingsChange={setPulseSettings} />
-      <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Notepad')} />
+      <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );

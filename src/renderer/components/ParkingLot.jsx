@@ -4,7 +4,7 @@ import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Checkbox } from './ui/Checkbox';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Plus, Trash2, Edit3, Save, NotebookPen, Copy } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, NotebookPen, Copy, X } from 'lucide-react';
 
 export default function ParkingLot({
   isOpen,
@@ -69,11 +69,15 @@ export default function ParkingLot({
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '32rem' }}>
+          <button className="dialog-close-btn" onClick={() => onClose(false)} aria-label="Close Parking Lot">
+            <X style={{ width: 16, height: 16 }} />
+          </button>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <NotebookPen style={{ width: 24, height: 24, color: '#D97706' }} />
-              Notepad
+              Parking Lot
             </DialogTitle>
+            <p style={{ fontSize: '0.8rem', color: '#8B6F47', marginTop: '0.125rem' }}>Park distracting thoughts here.</p>
           </DialogHeader>
 
           <div className="space-y-4" style={{ padding: '1rem 0' }}>

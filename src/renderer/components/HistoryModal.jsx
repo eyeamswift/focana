@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ITEMS_PER_PAGE = 5;
@@ -26,6 +26,9 @@ export default function HistoryModal({ isOpen, onClose, sessions, onUseTask }) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '32rem' }}>
+        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+          <X style={{ width: 16, height: 16 }} />
+        </button>
         <DialogHeader>
           <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <History style={{ width: 24, height: 24, color: '#D97706' }} />

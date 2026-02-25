@@ -5,7 +5,7 @@ import { Input } from './ui/Input';
 import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Settings, Keyboard, RotateCcw, AlertTriangle, Zap } from 'lucide-react';
+import { Settings, Keyboard, RotateCcw, AlertTriangle, Zap, X } from 'lucide-react';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -20,7 +20,7 @@ const SHORTCUT_DESCRIPTIONS = {
   newTask: 'New/Edit Task',
   toggleIncognito: 'Toggle Incognito Mode',
   completeTask: 'Complete Task + Celebrate',
-  openParkingLot: 'Open Notepad (Quick Capture)',
+  openParkingLot: 'Open Parking Lot (Quick Capture)',
 };
 
 export default function SettingsModal({
@@ -144,7 +144,10 @@ export default function SettingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="dialog-content-lg" style={{ background: '#FFFEF8', borderColor: '#D97706', maxHeight: '80vh', overflowY: 'auto' }}>
+      <DialogContent className="dialog-content-lg" style={{ background: '#FFFEF8', borderColor: '#D97706' }}>
+        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+          <X style={{ width: 16, height: 16 }} />
+        </button>
         <DialogHeader>
           <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: '#5C4033', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Settings style={{ width: 24, height: 24, color: '#D97706' }} />
@@ -152,7 +155,7 @@ export default function SettingsModal({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="shortcuts" style={{ marginTop: '1rem' }}>
+        <Tabs defaultValue="shortcuts" style={{ marginTop: '0.75rem' }}>
           <TabsList style={{ gridTemplateColumns: '1fr 1fr' }}>
             <TabsTrigger value="shortcuts">
               <Keyboard style={{ width: 16, height: 16 }} />
@@ -164,7 +167,7 @@ export default function SettingsModal({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="shortcuts" className="space-y-6" style={{ marginTop: '1.5rem' }}>
+          <TabsContent value="shortcuts" className="space-y-4" style={{ marginTop: '1rem' }}>
             <div className="space-y-4">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
@@ -182,13 +185,13 @@ export default function SettingsModal({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '0.75rem',
+                  padding: '0.5rem 0.75rem',
                   background: '#FFF9E6',
                   borderRadius: '0.5rem',
                   border: '1px solid rgba(139,111,71,0.1)',
                 }}>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: 500, color: '#5C4033' }}>{description}</p>
+                    <p style={{ fontWeight: 500, color: '#5C4033', fontSize: '0.875rem' }}>{description}</p>
                     {conflicts[key] && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
                         <AlertTriangle style={{ width: 12, height: 12, color: '#DC2626' }} />
@@ -244,7 +247,7 @@ export default function SettingsModal({
             </div>
           </TabsContent>
 
-          <TabsContent value="pulse" className="space-y-6" style={{ marginTop: '1.5rem' }}>
+          <TabsContent value="pulse" className="space-y-4" style={{ marginTop: '1rem' }}>
             <div className="space-y-4">
               <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#5C4033' }}>Pulse Animations</h3>
 
@@ -308,7 +311,7 @@ export default function SettingsModal({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter style={{ gap: '0.5rem', marginTop: '1.5rem' }}>
+        <DialogFooter style={{ gap: '0.5rem', marginTop: '1rem' }}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button onClick={handleRestoreDefaults} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}>

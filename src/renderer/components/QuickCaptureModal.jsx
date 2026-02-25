@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
+import { X } from 'lucide-react';
 
 export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
   const [thought, setThought] = useState('');
@@ -40,9 +41,12 @@ export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '28rem' }}>
+        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+          <X style={{ width: 16, height: 16 }} />
+        </button>
         <DialogHeader>
           <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: '#5C4033', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            Quick Capture
+            Quick Capture to Parking Lot
           </DialogTitle>
           <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Capture a thought without losing focus</p>
         </DialogHeader>
@@ -68,7 +72,7 @@ export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
             Cancel (Esc)
           </Button>
           <Button onClick={handleSave} disabled={!thought.trim()} style={{ background: '#F59E0B', color: 'white' }}>
-            Save to Notepad (Enter)
+            Save to Parking Lot (Enter)
           </Button>
         </div>
       </DialogContent>

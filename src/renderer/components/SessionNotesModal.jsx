@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, X } from 'lucide-react';
 
 export default function SessionNotesModal({
   isOpen,
@@ -32,6 +32,9 @@ export default function SessionNotesModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent style={{ background: '#FFF9E6', borderColor: '#D97706', maxWidth: '28rem' }}>
+        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+          <X style={{ width: 16, height: 16 }} />
+        </button>
         <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.5rem' }}>
           <div style={{
             margin: '0 auto',

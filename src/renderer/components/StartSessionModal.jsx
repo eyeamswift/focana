@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
+import { X } from 'lucide-react';
 
 export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
   const [minutes, setMinutes] = useState('25');
@@ -21,6 +22,9 @@ export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent style={{ background: '#FFF9E6', borderColor: '#D97706', maxWidth: '24rem' }}>
+        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+          <X style={{ width: 16, height: 16 }} />
+        </button>
         <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.5rem' }}>
           <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: '#5C4033' }}>
             Ready to focus on:
