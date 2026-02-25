@@ -1,0 +1,19 @@
+appId: com.focana.app
+productName: Focana
+directories:
+  output: release
+files:
+  - dist/**/*
+  - src/main/**/*
+  - node_modules/**/*
+mac:
+  target: dmg
+  category: public.app-category.productivity
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
