@@ -80,29 +80,27 @@ const TaskInput = forwardRef(({
         }}
       />
       {showSubmitButton && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              onClick={onTaskSubmit}
-              aria-label="Start session"
-              style={{
-                position: 'absolute',
-                right: '0.5rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                height: '2.25rem',
-                width: '2.25rem',
-                borderRadius: '0.5rem',
-                background: '#F59E0B',
-                color: 'white',
-              }}
-            >
-              <CornerDownLeft style={{ width: 20, height: 20 }} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent><p>Start Session</p></TooltipContent>
-        </Tooltip>
+        <span style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)' }}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                onClick={onTaskSubmit}
+                aria-label="Start session"
+                style={{
+                  height: '2.25rem',
+                  width: '2.25rem',
+                  borderRadius: '0.5rem',
+                  background: '#F59E0B',
+                  color: 'white',
+                }}
+              >
+                <CornerDownLeft style={{ width: 20, height: 20 }} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Start Session</p></TooltipContent>
+          </Tooltip>
+        </span>
       )}
     </div>
   );

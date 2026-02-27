@@ -107,6 +107,8 @@ export default function App() {
   const pulseTimeoutRef = useRef(null);
   const celebratedMilestonesRef = useRef(new Set());
   const timeRef = useRef(0);
+  const pendingPostModalResizeRef = useRef(null);
+  const postModalResizeTimerRef = useRef(null);
 
   useEffect(() => {
     const onResize = () => setWindowHeight(window.innerHeight);
@@ -129,6 +131,7 @@ export default function App() {
       if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
       if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
       if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+      if (postModalResizeTimerRef.current) clearTimeout(postModalResizeTimerRef.current);
     };
   }, []);
 
@@ -597,6 +600,7 @@ export default function App() {
     setTime(0);
     setInitialTime(0);
     setIsRunning(false);
+    setIsIncognito(false);
     setContextNotes(session.notes || '');
     setCurrentSessionId(session.id);
     setShowNotesModal(false);
@@ -611,11 +615,10 @@ export default function App() {
     setIsTimerVisible(true);
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
-
-    // Run after modal-close bounds restoration to avoid resize races.
-    setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(500, 240);
-    }, 0);
+    pendingPostModalResizeRef.current = {
+      minWidth: 500,
+      minHeight: session.notes?.trim() ? 360 : 240,
+    };
   };
 
   const handlePreviewTask = (session) => {
@@ -685,7 +688,7 @@ export default function App() {
       [showHistoryModal,   420, 500],
       [showTaskPreview,    520, 620],
       [distractionJarOpen, 420, 500],
-      [showNotesModal,     420, 400],
+      [showNotesModal,     420, 500],
       [showCompletionModal, 420, 300],
       [showQuickCapture,   420, 340],
     ];
@@ -694,6 +697,18 @@ export default function App() {
       window.electronAPI.modalOpened(active[1], active[2]);
     } else {
       window.electronAPI.modalClosed();
+      const pendingResize = pendingPostModalResizeRef.current;
+      if (pendingResize) {
+        pendingPostModalResizeRef.current = null;
+        if (postModalResizeTimerRef.current) {
+          clearTimeout(postModalResizeTimerRef.current);
+        }
+        // Wait a tick so main-process modal-close restoration applies first.
+        postModalResizeTimerRef.current = setTimeout(() => {
+          window.electronAPI.ensureMainWindowSize?.(pendingResize.minWidth, pendingResize.minHeight);
+          postModalResizeTimerRef.current = null;
+        }, 30);
+      }
     }
   }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showNotesModal, showCompletionModal, showQuickCapture]);
 

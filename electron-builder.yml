@@ -1,13 +1,15 @@
-appId: com.focana.app
+appId: app.focana.desktop
 productName: Focana
 artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
 directories:
   output: release
   buildResources: build
 asar: true
+afterSign: scripts/notarize.js
 files:
   - dist/**/*
   - src/main/**/*
+  - scripts/**/*
   - package.json
   - node_modules/**/*
   - '!reference/**'
@@ -24,6 +26,10 @@ mac:
         - x64
         - arm64
   category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
 win:
   target:
     - target: nsis
