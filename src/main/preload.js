@@ -9,8 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Shortcuts
   registerGlobalShortcuts: (shortcuts) => ipcRenderer.send('register-shortcuts', shortcuts),
+  unregisterGlobalShortcuts: () => ipcRenderer.send('unregister-shortcuts'),
   onShortcut: (callback) => {
-    ipcRenderer.on('shortcut-triggered', (_event, action) => callback(action));
+    const handler = (_event, action) => callback(action);
+    ipcRenderer.on('shortcut-triggered', handler);
+    return () => ipcRenderer.removeListener('shortcut-triggered', handler);
   },
 
   // Store (persistence)
@@ -28,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enterPillMode: () => ipcRenderer.invoke('enter-pill-mode'),
   exitPillMode: () => ipcRenderer.invoke('exit-pill-mode'),
   setPillWidth: (width) => ipcRenderer.invoke('set-pill-width', width),
+  ensureMainWindowSize: (minWidth, minHeight) => ipcRenderer.invoke('ensure-main-window-size', minWidth, minHeight),
 
   // Pill drag (JS-based — CSS drag regions block mouse events)
   pillDragStart: () => ipcRenderer.send('pill-drag-start'),

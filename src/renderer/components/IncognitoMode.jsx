@@ -33,6 +33,7 @@ export default function IncognitoMode({
   task,
   isRunning,
   time,
+  showTaskByDefault = false,
   onDoubleClick,
   onOpenDistractionJar,
   thoughtCount = 0,
@@ -52,6 +53,7 @@ export default function IncognitoMode({
 
   // Truncate task at 25 chars
   const taskLabel = task && task.length > 25 ? task.slice(0, 25) + '\u2026' : task;
+  const isTaskVisible = isHovered || showTaskByDefault;
 
   // Pre-calculate target window widths
   const taskTextW  = useMemo(() => measureText(taskLabel), [taskLabel]);
@@ -78,7 +80,7 @@ export default function IncognitoMode({
 
     if (showControls) {
       window.electronAPI.setPillWidth(ctrlWinW);
-    } else if (isHovered) {
+    } else if (isTaskVisible) {
       window.electronAPI.setPillWidth(hoverWinW);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
@@ -87,7 +89,7 @@ export default function IncognitoMode({
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isHovered, showControls, hoverWinW, ctrlWinW]);
+  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW]);
 
   // ---------------------------------------------------------------------------
   // Pulse animation — pauses when hovered
@@ -155,23 +157,19 @@ export default function IncognitoMode({
   // Event handlers
   // ---------------------------------------------------------------------------
   const handleMouseEnter = () => {
-    console.log('[Pill] mouseenter');
     setIsHovered(true);
   };
 
   const handleMouseLeave = () => {
-    console.log('[Pill] mouseleave');
     setIsHovered(false);
   };
 
   // Single click — debounced 220ms to avoid collision with double-click
   const handlePillClick = (e) => {
     if (isDraggingRef.current) return; // suppress click that follows a drag
-    console.log('[Pill] click');
     e.stopPropagation();
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
     clickTimerRef.current = setTimeout(() => {
-      console.log('[Pill] single-click confirmed → showControls');
       setShowControls(true);
       resetControlsTimer();
     }, 220);
@@ -180,7 +178,6 @@ export default function IncognitoMode({
   // Double click — cancel pending single-click, exit compact mode
   const handlePillDoubleClick = (e) => {
     if (isDraggingRef.current) return; // suppress dblclick that follows a drag
-    console.log('[Pill] dblclick → onDoubleClick()');
     e.stopPropagation();
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
@@ -209,7 +206,7 @@ export default function IncognitoMode({
       onDoubleClick={handlePillDoubleClick}
     >
       {/* Task text — fades/slides in on hover */}
-      <div className={`pill-task${isHovered ? ' pill-task--visible' : ''}`}>
+      <div className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}>
         <span className="pill-task-text">{taskLabel}</span>
       </div>
 

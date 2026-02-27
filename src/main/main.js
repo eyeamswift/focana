@@ -12,23 +12,74 @@ let preModalBounds = null;
 let pillDragStart = null;
 
 const isDev = !app.isPackaged;
+const FULL_MIN_WIDTH = 500;
+const FULL_MIN_HEIGHT = 240;
+const PILL_MIN_WIDTH = 100;
+const PILL_HEIGHT = 52;
+let isApplyingBounds = false;
+
+function clampBounds(bounds, areaType = 'workArea') {
+  const display = screen.getDisplayMatching(bounds);
+  const area = areaType === 'display' ? display.bounds : display.workArea;
+
+  const width = Math.min(bounds.width, area.width);
+  const height = Math.min(bounds.height, area.height);
+
+  let x = bounds.x;
+  let y = bounds.y;
+
+  if (x < area.x) x = area.x;
+  if (y < area.y) y = area.y;
+  if (x + width > area.x + area.width) x = area.x + area.width - width;
+  if (y + height > area.y + area.height) y = area.y + area.height - height;
+
+  return { x, y, width, height };
+}
+
+function setMainWindowBoundsClamped(bounds, { persist = false, areaType = 'workArea' } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const clamped = clampBounds(bounds, areaType);
+  const current = mainWindow.getBounds();
+  const changed =
+    current.x !== clamped.x ||
+    current.y !== clamped.y ||
+    current.width !== clamped.width ||
+    current.height !== clamped.height;
+
+  if (changed) {
+    isApplyingBounds = true;
+    mainWindow.setBounds(clamped);
+    isApplyingBounds = false;
+  }
+
+  if (persist && !isPillMode && !isModalExpanded) {
+    store.set('windowState', clamped);
+  }
+}
 
 function createWindow() {
-  const windowState = store.get('windowState', { x: 100, y: 100, width: 400, height: 220 });
+  const windowState = store.get('windowState', { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT });
+  const initialBounds = clampBounds({
+    x: windowState.x ?? 100,
+    y: windowState.y ?? 100,
+    width: Math.max(windowState.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH),
+    height: Math.max(windowState.height || FULL_MIN_HEIGHT, FULL_MIN_HEIGHT),
+  }, 'display');
 
   mainWindow = new BrowserWindow({
-    x: windowState.x,
-    y: windowState.y,
-    width: windowState.width,
-    height: windowState.height,
+    x: initialBounds.x,
+    y: initialBounds.y,
+    width: initialBounds.width,
+    height: initialBounds.height,
     frame: false,
     transparent: true,
     hasShadow: false,
     backgroundColor: '#00000000',
     alwaysOnTop: true,
     resizable: true,
-    minWidth: 340,
-    minHeight: 200,
+    minWidth: FULL_MIN_WIDTH,
+    minHeight: FULL_MIN_HEIGHT,
     skipTaskbar: false,
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: -20, y: -20 }, // Hide native traffic lights
@@ -45,14 +96,19 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   }
 
-  // Save window bounds on move or resize (skip during pill mode or modal expansion)
-  const saveBounds = () => {
-    if (mainWindow && !mainWindow.isDestroyed() && !isPillMode && !isModalExpanded) {
-      store.set('windowState', mainWindow.getBounds());
-    }
+  // Keep window fully on-screen after any user move/resize and persist full-mode bounds.
+  const handleBoundsChange = () => {
+    if (!mainWindow || mainWindow.isDestroyed() || isApplyingBounds) return;
+    setMainWindowBoundsClamped(mainWindow.getBounds(), {
+      persist: true,
+      areaType: isModalExpanded ? 'workArea' : 'display',
+    });
   };
-  mainWindow.on('moved', saveBounds);
-  mainWindow.on('resize', saveBounds);
+  mainWindow.on('moved', handleBoundsChange);
+  mainWindow.on('resize', handleBoundsChange);
+
+  // Persist sanitized startup bounds.
+  store.set('windowState', initialBounds);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -91,6 +147,7 @@ ipcMain.handle('toggle-always-on-top', () => {
 
 ipcMain.on('bring-to-front', () => {
   if (mainWindow) {
+    setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
     mainWindow.show();
     mainWindow.focus();
   }
@@ -98,9 +155,19 @@ ipcMain.on('bring-to-front', () => {
 
 // Shortcuts
 ipcMain.on('register-shortcuts', (_event, shortcuts) => {
-  if (mainWindow) {
-    registerShortcuts(shortcuts, mainWindow);
+  if (!mainWindow) return;
+
+  const settings = store.get('settings', {});
+  if (settings.shortcutsEnabled === false) {
+    unregisterAll();
+    return;
   }
+
+  registerShortcuts(shortcuts, mainWindow);
+});
+
+ipcMain.on('unregister-shortcuts', () => {
+  unregisterAll();
 });
 
 // Store
@@ -110,12 +177,21 @@ ipcMain.handle('store-get', (_event, key) => {
 
 ipcMain.handle('store-set', (_event, key, value) => {
   store.set(key, value);
+
+  if (key === 'settings' && value && value.shortcutsEnabled === false) {
+    unregisterAll();
+  }
+
   return true;
 });
 
 // Notifications
 ipcMain.on('show-notification', (_event, { title, body }) => {
-  new Notification({ title, body }).show();
+  try {
+    new Notification({ title, body }).show();
+  } catch (e) {
+    console.error('Failed to show notification:', e);
+  }
 });
 
 // Modal window expansion
@@ -126,19 +202,28 @@ ipcMain.handle('modal-opened', (_, minWidth, minHeight) => {
     }
     isModalExpanded = true;
 
-    const newW = Math.max(preModalBounds.width, minWidth);
-    const newH = Math.max(preModalBounds.height, minHeight);
+    const current = mainWindow.getBounds();
+    const targetWidth = Math.max(
+      current.width,
+      Number.isFinite(minWidth) ? minWidth : 0,
+      FULL_MIN_WIDTH
+    );
+    const targetHeight = Math.max(
+      current.height,
+      Number.isFinite(minHeight) ? minHeight : 0,
+      FULL_MIN_HEIGHT
+    );
 
-    // Clamp position so the expanded window stays within the work area
-    const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
-    const clampedX = Math.min(preModalBounds.x, screenW - newW);
-    const clampedY = Math.min(preModalBounds.y, screenH - newH);
+    // Expand from the current center so expanded views stay interactable
+    // without requiring the user to drag the window into place.
+    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
+    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
 
-    mainWindow.setBounds({
-      x: Math.max(0, clampedX),
-      y: Math.max(0, clampedY),
-      width: newW,
-      height: newH,
+    setMainWindowBoundsClamped({
+      x: nextX,
+      y: nextY,
+      width: targetWidth,
+      height: targetHeight,
     });
   }
 });
@@ -146,7 +231,7 @@ ipcMain.handle('modal-opened', (_, minWidth, minHeight) => {
 ipcMain.handle('modal-closed', () => {
   if (mainWindow && isModalExpanded && preModalBounds) {
     isModalExpanded = false;
-    mainWindow.setBounds(preModalBounds);
+    setMainWindowBoundsClamped(preModalBounds, { areaType: 'display' });
     preModalBounds = null;
   }
 });
@@ -154,18 +239,43 @@ ipcMain.handle('modal-closed', () => {
 // Pill mode resize
 ipcMain.handle('enter-pill-mode', () => {
   if (mainWindow) {
-    lastFullBounds = mainWindow.getBounds();
+    const current = mainWindow.getBounds();
+    lastFullBounds = current;
     isPillMode = true;
-    mainWindow.setResizable(false);
+    // Allow a true compact window in pill mode; otherwise FULL_MIN_HEIGHT keeps
+    // an invisible tall window that blocks moving the visible pill higher.
+    mainWindow.setResizable(true);
+    mainWindow.setMinimumSize(PILL_MIN_WIDTH, PILL_HEIGHT);
     // Initial default size (brain + timer only, 44px pill + 8px vertical margins for drag)
-    mainWindow.setSize(124, 52);
+    const targetWidth = 124;
+    const targetHeight = PILL_HEIGHT;
+    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
+    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
+    setMainWindowBoundsClamped({
+      x: nextX,
+      y: nextY,
+      width: targetWidth,
+      height: targetHeight,
+    }, { areaType: 'display' });
+    mainWindow.setResizable(false);
   }
 });
 
 // Dynamic pill width — called by renderer as content expands/contracts
 ipcMain.handle('set-pill-width', (_, width) => {
   if (mainWindow && isPillMode) {
-    mainWindow.setSize(Math.max(100, Math.round(width)), 52);
+    const current = mainWindow.getBounds();
+    const targetWidth = Math.max(PILL_MIN_WIDTH, Math.round(width));
+    const targetHeight = PILL_HEIGHT;
+    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
+    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
+
+    setMainWindowBoundsClamped({
+      x: nextX,
+      y: nextY,
+      width: targetWidth,
+      height: targetHeight,
+    }, { areaType: 'display' });
   }
 });
 
@@ -173,16 +283,28 @@ ipcMain.handle('set-pill-width', (_, width) => {
 ipcMain.on('pill-drag-start', () => {
   if (mainWindow && isPillMode) {
     const pos = mainWindow.getPosition();
-    pillDragStart = { x: pos[0], y: pos[1] };
+    pillDragStart = { x: pos[0], y: pos[1], lastDx: 0, lastDy: 0 };
   }
 });
 
 ipcMain.on('pill-drag-move', (_, { dx, dy }) => {
   if (mainWindow && isPillMode && pillDragStart) {
-    mainWindow.setPosition(
-      Math.round(pillDragStart.x + dx),
-      Math.round(pillDragStart.y + dy),
-    );
+    const safeDx = Number.isFinite(dx) ? dx : 0;
+    const safeDy = Number.isFinite(dy) ? dy : 0;
+    const stepX = safeDx - (pillDragStart.lastDx || 0);
+    const stepY = safeDy - (pillDragStart.lastDy || 0);
+    pillDragStart.lastDx = safeDx;
+    pillDragStart.lastDy = safeDy;
+
+    if (stepX === 0 && stepY === 0) return;
+
+    const current = mainWindow.getBounds();
+    setMainWindowBoundsClamped({
+      x: Math.round(current.x + stepX),
+      y: Math.round(current.y + stepY),
+      width: current.width,
+      height: current.height,
+    }, { areaType: 'display' });
   }
 });
 
@@ -194,14 +316,52 @@ ipcMain.handle('exit-pill-mode', () => {
   if (mainWindow) {
     isPillMode = false;
     mainWindow.setResizable(true);
+    mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+    let restoreBounds;
     if (lastFullBounds) {
-      mainWindow.setSize(lastFullBounds.width, lastFullBounds.height);
+      restoreBounds = lastFullBounds;
       lastFullBounds = null;
     } else {
-      const saved = store.get('windowState', { width: 400, height: 220 });
-      mainWindow.setSize(saved.width, saved.height);
+      restoreBounds = store.get('windowState', { width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT });
     }
+
+    if (!restoreBounds || typeof restoreBounds !== 'object') {
+      restoreBounds = { width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
+    }
+
+    const restoreWidth = Math.max(restoreBounds.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH);
+    const restoreHeight = Math.max(restoreBounds.height || FULL_MIN_HEIGHT, FULL_MIN_HEIGHT);
+    const current = mainWindow.getBounds();
+    setMainWindowBoundsClamped(
+      {
+        x: current.x,
+        y: current.y,
+        width: restoreWidth,
+        height: restoreHeight,
+      },
+      { persist: true, areaType: 'display' }
+    );
   }
+});
+
+ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeight = FULL_MIN_HEIGHT) => {
+  if (!mainWindow || isPillMode) return;
+
+  const bounds = mainWindow.getBounds();
+  const targetWidth = Math.max(Number.isFinite(minWidth) ? minWidth : 0, FULL_MIN_WIDTH);
+  const targetHeight = Math.max(Number.isFinite(minHeight) ? minHeight : 0, FULL_MIN_HEIGHT);
+
+  mainWindow.setResizable(true);
+  mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+  setMainWindowBoundsClamped(
+    {
+      x: bounds.x,
+      y: bounds.y,
+      width: targetWidth,
+      height: targetHeight,
+    },
+    { persist: true, areaType: 'display' }
+  );
 });
 
 // App lifecycle

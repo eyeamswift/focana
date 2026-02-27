@@ -68,7 +68,15 @@ export default function ParkingLot({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '32rem' }}>
+        <DialogContent style={{
+          background: '#FFFEF8',
+          borderColor: '#D97706',
+          maxWidth: '32rem',
+          maxHeight: 'min(calc(100vh - 2rem), 720px)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}>
           <button className="dialog-close-btn" onClick={() => onClose(false)} aria-label="Close Parking Lot">
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -80,7 +88,14 @@ export default function ParkingLot({
             <p style={{ fontSize: '0.8rem', color: '#8B6F47', marginTop: '0.125rem' }}>Park distracting thoughts here.</p>
           </DialogHeader>
 
-          <div className="space-y-4" style={{ padding: '1rem 0' }}>
+          <div style={{
+            padding: '1rem 0',
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <Textarea
                 value={newThought}
@@ -105,10 +120,10 @@ export default function ParkingLot({
               </Tooltip>
             </div>
 
-            <div style={{ maxHeight: 256, overflowY: 'auto', paddingRight: '0.5rem' }} className="space-y-2">
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.5rem' }} className="space-y-2">
               {thoughts.map((thought, index) => (
                 <div
-                  key={index}
+                  key={thought.id || index}
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
@@ -153,7 +168,13 @@ export default function ParkingLot({
             </div>
           </div>
 
-          <DialogFooter className="dialog-footer-between">
+          <DialogFooter className="dialog-footer-between" style={{
+            marginTop: '0.75rem',
+            paddingTop: '0.75rem',
+            borderTop: '1px solid rgba(139,111,71,0.16)',
+            background: '#FFFEF8',
+            flexShrink: 0,
+          }}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" onClick={onClearCompleted} style={{ color: '#8B6F47' }}>

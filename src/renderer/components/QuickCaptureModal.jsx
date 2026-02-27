@@ -19,13 +19,20 @@ export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
 
   const handleSave = async () => {
     if (thought.trim()) {
-      // Save to thoughts in electron-store
-      const thoughts = await window.electronAPI.storeGet('thoughts') || [];
-      thoughts.push({ text: thought.trim(), completed: false });
-      await window.electronAPI.storeSet('thoughts', thoughts);
-      onSave();
-      setThought('');
-      onClose();
+      try {
+        const thoughts = await window.electronAPI.storeGet('thoughts') || [];
+        thoughts.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+          text: thought.trim(),
+          completed: false,
+        });
+        await window.electronAPI.storeSet('thoughts', thoughts);
+        onSave();
+        setThought('');
+        onClose();
+      } catch (error) {
+        console.error('Failed to save thought:', error);
+      }
     }
   };
 

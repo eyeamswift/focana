@@ -3,11 +3,14 @@ function generateId() {
 }
 
 export const SessionStore = {
-  async list(limit = 50) {
+  async list(limit) {
     const sessions = await window.electronAPI.storeGet('sessions') || [];
     // Sort by createdAt descending
     sessions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    return sessions.slice(0, limit);
+    if (Number.isFinite(limit) && limit > 0) {
+      return sessions.slice(0, limit);
+    }
+    return sessions;
   },
 
   async create(data) {

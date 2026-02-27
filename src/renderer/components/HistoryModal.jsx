@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, X } from 'lucide-react';
+import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, NotebookPen, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ITEMS_PER_PAGE = 5;
 
-export default function HistoryModal({ isOpen, onClose, sessions, onUseTask }) {
+export default function HistoryModal({ isOpen, onClose, sessions, onUseTask, onPreviewTask }) {
   const [currentPage, setCurrentPage] = useState(0);
 
   const totalPages = Math.ceil(sessions.length / ITEMS_PER_PAGE);
@@ -52,6 +52,7 @@ export default function HistoryModal({ isOpen, onClose, sessions, onUseTask }) {
               }}
               onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'}
               onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
+              onClick={() => onPreviewTask?.(session)}
             >
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <p style={{ fontWeight: 500, color: '#5C4033', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -70,19 +71,41 @@ export default function HistoryModal({ isOpen, onClose, sessions, onUseTask }) {
                   )}
                 </div>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => handleUseAndClose(session)}
-                    size="icon"
-                    variant="ghost"
-                    style={{ color: '#F59E0B', borderRadius: '9999px', flexShrink: 0, marginLeft: '0.5rem' }}
-                  >
-                    <ChevronsRight style={{ width: 20, height: 20 }} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Use this task again</p></TooltipContent>
-              </Tooltip>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.125rem', marginLeft: '0.5rem', flexShrink: 0 }}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPreviewTask?.(session);
+                      }}
+                      size="icon"
+                      variant="ghost"
+                      style={{ color: '#8B6F47', borderRadius: '9999px' }}
+                    >
+                      <NotebookPen style={{ width: 18, height: 18 }} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>View/Add notes</p></TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUseAndClose(session);
+                      }}
+                      size="icon"
+                      variant="ghost"
+                      style={{ color: '#F59E0B', borderRadius: '9999px' }}
+                    >
+                      <ChevronsRight style={{ width: 20, height: 20 }} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Use this task again</p></TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           )) : (
             <p style={{ textAlign: 'center', fontSize: '0.875rem', color: '#8B6F47', paddingTop: '4rem' }}>

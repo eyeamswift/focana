@@ -9,8 +9,8 @@ import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
 
 import ParkingLot from './components/ParkingLot';
-import StatusBar from './components/StatusBar';
 import SessionNotesModal from './components/SessionNotesModal';
+import TaskCompletionModal from './components/TaskCompletionModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal';
 import ContextBox from './components/ContextBox';
 import IncognitoMode from './components/IncognitoMode';
@@ -19,6 +19,7 @@ import HistoryModal from './components/HistoryModal';
 import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
 import QuickCaptureModal from './components/QuickCaptureModal';
+import ConfettiBurst from './components/ConfettiBurst';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -38,6 +39,9 @@ export default function App() {
   const [isTimerVisible, setIsTimerVisible] = useState(false);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState('25');
+  const [windowHeight, setWindowHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 500
+  );
 
   // Parking Lot state
   const [distractionJarOpen, setDistractionJarOpen] = useState(false);
@@ -52,12 +56,16 @@ export default function App() {
 
   // Session notes
   const [showNotesModal, setShowNotesModal] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [isStopFlowAwaitingCompletion, setIsStopFlowAwaitingCompletion] = useState(false);
+  const [pendingSessionNotes, setPendingSessionNotes] = useState('');
   const [contextNotes, setContextNotes] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
 
   // Task preview
   const [showTaskPreview, setShowTaskPreview] = useState(false);
   const [previewSession, setPreviewSession] = useState(null);
+  const [previewReturnToHistory, setPreviewReturnToHistory] = useState(false);
 
   // Incognito
   const [isIncognito, setIsIncognito] = useState(false);
@@ -68,8 +76,13 @@ export default function App() {
   // Settings
   const [showSettings, setShowSettings] = useState(false);
   const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
+  const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+  const [shortcutsHydrated, setShortcutsHydrated] = useState(false);
+  const [showTaskInCompactDefault, setShowTaskInCompactDefault] = useState(false);
   const [toast, setToast] = useState(null);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [confettiBurstId, setConfettiBurstId] = useState(0);
 
   // Pulse
   const [pulseSettings, setPulseSettings] = useState({
@@ -89,14 +102,58 @@ export default function App() {
   const celebrationCheckRef = useRef(null);
   const taskInputRef = useRef(null);
   const thoughtsLoadedRef = useRef(false);
+  const confettiTimerRef = useRef(null);
+  const pulseIntervalRef = useRef(null);
+  const pulseTimeoutRef = useRef(null);
+  const celebratedMilestonesRef = useRef(new Set());
+  const timeRef = useRef(0);
+
+  useEffect(() => {
+    const onResize = () => setWindowHeight(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    // Normalize full-view size on launch so hidden oversized window bounds
+    // from prior modal flows don't make drag feel "sticky" near bottom edge.
+    window.electronAPI.ensureMainWindowSize?.(500, 240);
+  }, []);
+
+  // Keep refs in sync with state for use in intervals/effects
+  celebratedMilestonesRef.current = celebratedMilestones;
+  timeRef.current = time;
+
+  useEffect(() => {
+    return () => {
+      if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
+      if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
+      if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+    };
+  }, []);
 
   // Helpers
   const showToast = useCallback((type, message, duration = 2000) => {
     setToast({ type, message, duration });
   }, []);
 
+  const triggerConfetti = useCallback((duration = 1800) => {
+    if (confettiTimerRef.current) {
+      clearTimeout(confettiTimerRef.current);
+    }
+    setConfettiBurstId((prev) => prev + 1);
+    setShowConfetti(true);
+    confettiTimerRef.current = setTimeout(() => {
+      setShowConfetti(false);
+    }, duration);
+  }, []);
+
+  const handleLockedTaskInputInteraction = useCallback(() => {
+    showToast('info', 'Task is locked while timer is running. Pause or stop to edit.');
+  }, [showToast]);
+
   const loadSessions = useCallback(async () => {
-    const data = await SessionStore.list(50);
+    const data = await SessionStore.list();
     setSessions(data);
   }, []);
 
@@ -109,6 +166,10 @@ export default function App() {
     setCurrentSessionId(null);
     setIsTimerVisible(false);
     setIsIncognito(false);
+    setShowNotesModal(false);
+    setShowCompletionModal(false);
+    setIsStopFlowAwaitingCompletion(false);
+    setPendingSessionNotes('');
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
   }, []);
@@ -138,16 +199,32 @@ export default function App() {
 
   // Pulse animation
   const triggerPulse = useCallback((type = 'gentle', repeats = 2) => {
+    if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
+    if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+
     setIsPulsing(type);
     let count = 0;
-    const pulseInterval = setInterval(() => {
+    pulseIntervalRef.current = setInterval(() => {
       count++;
       if (count >= repeats) {
-        clearInterval(pulseInterval);
-        setTimeout(() => setIsPulsing(false), 1000);
+        clearInterval(pulseIntervalRef.current);
+        pulseIntervalRef.current = null;
+        pulseTimeoutRef.current = setTimeout(() => {
+          setIsPulsing(false);
+          pulseTimeoutRef.current = null;
+        }, 1000);
       }
     }, 1200);
   }, []);
+
+  const handleExitIncognito = useCallback(() => {
+    setIsIncognito(false);
+
+    // Ensure full timer controls are shown again after exiting compact mode.
+    if (isRunning || time > 0 || task.trim()) {
+      setIsTimerVisible(true);
+    }
+  }, [isRunning, time, task]);
 
   // Shortcut handlers
   const handleShortcutStartPause = useCallback(() => {
@@ -160,25 +237,29 @@ export default function App() {
       }
       showToast('success', newRunning ? 'Session started' : 'Session paused');
     } else {
-      if (isIncognito) setIsIncognito(false);
+      if (isIncognito) handleExitIncognito();
       setTimeout(() => { taskInputRef.current?.focus(); }, 100);
       showToast('info', 'Enter a task to start timer');
     }
-  }, [task, isRunning, sessionStartTime, isIncognito, showToast]);
+  }, [task, isRunning, sessionStartTime, isIncognito, handleExitIncognito, showToast]);
 
   const handleShortcutNewTask = useCallback(() => {
-    if (isIncognito) setIsIncognito(false);
+    if (isIncognito) handleExitIncognito();
     setTimeout(() => {
       taskInputRef.current?.focus();
       taskInputRef.current?.select();
     }, 100);
-  }, [isIncognito]);
+  }, [isIncognito, handleExitIncognito]);
 
   const handleShortcutToggleIncognito = useCallback(() => {
     const newIncognito = !isIncognito;
-    setIsIncognito(newIncognito);
+    if (newIncognito) {
+      setIsIncognito(true);
+    } else {
+      handleExitIncognito();
+    }
     showToast('info', newIncognito ? 'Incognito Mode On' : 'Incognito Mode Off');
-  }, [isIncognito, showToast]);
+  }, [isIncognito, handleExitIncognito, showToast]);
 
   const handleShortcutCompleteTask = useCallback(async () => {
     if (task.trim()) {
@@ -196,6 +277,11 @@ export default function App() {
       const keepText = settings.keepTextAfterCompletion ?? false;
 
       if (keepText) {
+        setIsStopFlowAwaitingCompletion(false);
+        setPendingSessionNotes('');
+        if (isIncognito) {
+          handleExitIncognito();
+        }
         setShowNotesModal(true);
       } else {
         saveSessionWithNotes('');
@@ -203,7 +289,7 @@ export default function App() {
         showToast('success', 'Task completed!');
       }
     }
-  }, [task, pulseSettings.celebrationEnabled, triggerPulse, mode, time, initialTime, saveSessionWithNotes, handleClear, showToast]);
+  }, [task, pulseSettings.celebrationEnabled, triggerPulse, mode, time, initialTime, saveSessionWithNotes, handleClear, showToast, isIncognito, handleExitIncognito]);
 
   const handleShortcutAction = useCallback((action) => {
     (async () => {
@@ -224,41 +310,62 @@ export default function App() {
   // Load data from electron-store on mount
   useEffect(() => {
     (async () => {
-      await loadSessions();
+      try {
+        await loadSessions();
 
-      const savedThoughts = await window.electronAPI.storeGet('thoughts');
-      if (savedThoughts) setThoughts(savedThoughts);
-      thoughtsLoadedRef.current = true;
+        const savedThoughts = await window.electronAPI.storeGet('thoughts');
+        if (savedThoughts) setThoughts(savedThoughts);
+        thoughtsLoadedRef.current = true;
 
-      const settings = await window.electronAPI.storeGet('settings') || {};
-      if (settings.shortcuts) setShortcuts(settings.shortcuts);
-      if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
+        const settings = await window.electronAPI.storeGet('settings') || {};
+        if (settings.shortcuts) setShortcuts(settings.shortcuts);
+        if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
+        setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? false);
+        setShortcutsEnabled(settings.shortcutsEnabled ?? true);
 
-      const currentTask = await window.electronAPI.storeGet('currentTask');
-      if (currentTask) {
-        setTask(currentTask.text || '');
-        setContextNotes(currentTask.contextNote || '');
-      }
-
-      const timerState = await window.electronAPI.storeGet('timerState');
-      if (timerState) {
-        setTime(timerState.seconds || 0);
-        setMode(timerState.mode || 'freeflow');
-        setInitialTime(timerState.initialTime || 0);
-        if (timerState.seconds > 0 || timerState.mode !== 'freeflow') {
-          setIsTimerVisible(true);
+        const currentTask = await window.electronAPI.storeGet('currentTask');
+        if (currentTask) {
+          setTask(currentTask.text || '');
+          setContextNotes(currentTask.contextNote || '');
         }
+
+        const timerState = await window.electronAPI.storeGet('timerState');
+        if (timerState) {
+          setTime(timerState.seconds || 0);
+          setMode(timerState.mode || 'freeflow');
+          setInitialTime(timerState.initialTime || 0);
+          if (timerState.seconds > 0 || timerState.mode !== 'freeflow') {
+            setIsTimerVisible(true);
+          }
+        }
+      } finally {
+        setShortcutsHydrated(true);
       }
     })();
   }, [loadSessions]);
 
-  // Register shortcuts
+  // Shortcut event subscription
   useEffect(() => {
-    window.electronAPI.registerGlobalShortcuts(shortcuts);
-    window.electronAPI.onShortcut((action) => {
+    const cleanup = window.electronAPI.onShortcut((action) => {
       handleShortcutAction(action);
     });
-  }, [shortcuts, handleShortcutAction]);
+    return () => { if (cleanup) cleanup(); };
+  }, [handleShortcutAction]);
+
+  // Register/unregister global shortcuts based on settings
+  useEffect(() => {
+    if (!shortcutsHydrated) return undefined;
+
+    if (shortcutsEnabled) {
+      window.electronAPI.registerGlobalShortcuts(shortcuts);
+    } else {
+      window.electronAPI.unregisterGlobalShortcuts();
+    }
+
+    return () => {
+      window.electronAPI.unregisterGlobalShortcuts();
+    };
+  }, [shortcuts, shortcutsEnabled, shortcutsHydrated]);
 
   // Save thoughts to electron-store (guarded: skip the initial mount render
   // before the async load resolves, which would otherwise wipe persisted data)
@@ -300,15 +407,17 @@ export default function App() {
     }
   }, [pulseSettings.timeAwarenessEnabled, pulseSettings.timeAwarenessInterval, lastTimeAwarenessCheck, triggerPulse]);
 
-  // Celebration Pulse
+  // Celebration Pulse — uses refs for time/milestones to avoid re-creating
+  // the interval every second or on every milestone update
   useEffect(() => {
     if (isRunning && pulseSettings.celebrationEnabled && sessionStartTime) {
       const checkMilestones = () => {
-        const sessionDuration = mode === 'freeflow' ? time : (initialTime - time);
+        const currentTime = timeRef.current;
+        const sessionDuration = mode === 'freeflow' ? currentTime : (initialTime - currentTime);
         const minutes = Math.floor(sessionDuration / 60);
         const milestones = [5, 15, 30, 45, 60, 90, 120];
         milestones.forEach((milestone) => {
-          if (minutes >= milestone && !celebratedMilestones.has(milestone)) {
+          if (minutes >= milestone && !celebratedMilestonesRef.current.has(milestone)) {
             triggerPulse('celebration', 2);
             setCelebratedMilestones((prev) => new Set([...prev, milestone]));
           }
@@ -317,22 +426,14 @@ export default function App() {
       celebrationCheckRef.current = setInterval(checkMilestones, 10000);
       return () => clearInterval(celebrationCheckRef.current);
     }
-  }, [isRunning, pulseSettings.celebrationEnabled, time, initialTime, mode, sessionStartTime, celebratedMilestones, triggerPulse]);
+  }, [isRunning, pulseSettings.celebrationEnabled, mode, initialTime, sessionStartTime, triggerPulse]);
 
-  // Timer logic
+  // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
         setTime((prevTime) => {
           if (mode === 'timed' && prevTime <= 1) {
-            setIsRunning(false);
-            setSessionStartTime(null);
-            setCelebratedMilestones(new Set());
-            sessionToSave.current = {
-              duration: (initialTime - prevTime + 1) / 60,
-              completed: true,
-            };
-            setShowNotesModal(true);
             return 0;
           }
           return mode === 'freeflow' ? prevTime + 1 : prevTime - 1;
@@ -341,6 +442,24 @@ export default function App() {
     }
     return () => clearInterval(timerRef.current);
   }, [isRunning, mode, initialTime]);
+
+  // Handle timed session expiration — separated from setTime to avoid
+  // calling state setters inside another state setter callback
+  useEffect(() => {
+    if (mode === 'timed' && time === 0 && isRunning) {
+      setIsRunning(false);
+      setSessionStartTime(null);
+      setCelebratedMilestones(new Set());
+      setIsStopFlowAwaitingCompletion(false);
+      setPendingSessionNotes('');
+      setIsIncognito(false);
+      sessionToSave.current = {
+        duration: initialTime / 60,
+        completed: true,
+      };
+      setShowNotesModal(true);
+    }
+  }, [mode, time, isRunning, initialTime]);
 
   // Actions
   const handleToggleAlwaysOnTop = async () => {
@@ -368,6 +487,11 @@ export default function App() {
     setIsRunning(false);
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
+    if (isIncognito) {
+      handleExitIncognito();
+    }
+    setIsStopFlowAwaitingCompletion(true);
+    setPendingSessionNotes('');
     sessionToSave.current = {
       duration: mode === 'freeflow' ? time / 60 : (initialTime - time) / 60,
       completed: false,
@@ -398,15 +522,74 @@ export default function App() {
   };
 
   const handleSaveSessionNotes = async (notes) => {
+    if (isStopFlowAwaitingCompletion) {
+      setPendingSessionNotes(notes);
+      setShowNotesModal(false);
+      setShowCompletionModal(true);
+      return;
+    }
     await saveSessionWithNotes(notes);
     setShowNotesModal(false);
     handleClear();
   };
 
   const handleSkipSessionNotes = () => {
+    if (isStopFlowAwaitingCompletion) {
+      setPendingSessionNotes('');
+      setShowNotesModal(false);
+      setShowCompletionModal(true);
+      return;
+    }
     saveSessionWithNotes('');
     setShowNotesModal(false);
     handleClear();
+  };
+
+  const handleStopFlowCompletionDecision = async (completed) => {
+    if (!sessionToSave.current) {
+      setShowCompletionModal(false);
+      setIsStopFlowAwaitingCompletion(false);
+      setPendingSessionNotes('');
+      return;
+    }
+
+    sessionToSave.current = {
+      ...sessionToSave.current,
+      completed,
+    };
+
+    await saveSessionWithNotes(pendingSessionNotes);
+
+    setShowCompletionModal(false);
+    setIsStopFlowAwaitingCompletion(false);
+    setPendingSessionNotes('');
+
+    if (completed) {
+      const settings = await window.electronAPI.storeGet('settings') || {};
+      const keepText = settings.keepTextAfterCompletion ?? false;
+
+      if (keepText) {
+        setIsRunning(false);
+        setTime(0);
+        setInitialTime(0);
+        setIsTimerVisible(false);
+        setSessionStartTime(null);
+        setCelebratedMilestones(new Set());
+      } else {
+        handleClear();
+      }
+      triggerConfetti();
+      return;
+    }
+
+    // Not completed: keep task text, but reset timer/session state.
+    setIsRunning(false);
+    setTime(0);
+    setInitialTime(0);
+    setIsTimerVisible(false);
+    setSessionStartTime(null);
+    setCelebratedMilestones(new Set());
+    showToast('info', 'Session saved. Task kept active');
   };
 
   const handleUseTask = (session) => {
@@ -416,10 +599,38 @@ export default function App() {
     setIsRunning(false);
     setContextNotes(session.notes || '');
     setCurrentSessionId(session.id);
+    setShowNotesModal(false);
+    setShowCompletionModal(false);
+    setShowSettings(false);
+    setDistractionJarOpen(false);
+    setShowQuickCapture(false);
+    setShowTaskPreview(false);
+    setPreviewReturnToHistory(false);
     setShowHistoryModal(false);
+    setIsStartModalOpen(false);
     setIsTimerVisible(true);
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
+
+    // Run after modal-close bounds restoration to avoid resize races.
+    setTimeout(() => {
+      window.electronAPI.ensureMainWindowSize?.(500, 240);
+    }, 0);
+  };
+
+  const handlePreviewTask = (session) => {
+    setPreviewSession(session);
+    setPreviewReturnToHistory(true);
+    setShowTaskPreview(true);
+    setShowHistoryModal(false);
+  };
+
+  const handleCloseTaskPreview = () => {
+    setShowTaskPreview(false);
+    if (previewReturnToHistory) {
+      setShowHistoryModal(true);
+    }
+    setPreviewReturnToHistory(false);
   };
 
   const handleUpdateTaskNotes = async (sessionId, newNotes) => {
@@ -449,7 +660,7 @@ export default function App() {
     }
   };
 
-  const addThought = (text) => setThoughts((prev) => [...prev, { text, completed: false }]);
+  const addThought = (text) => setThoughts((prev) => [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2), text, completed: false }]);
   const removeThought = (index) => setThoughts((prev) => prev.filter((_, i) => i !== index));
   const toggleThought = (index) => {
     const newThoughts = [...thoughts];
@@ -465,13 +676,17 @@ export default function App() {
     return '';
   };
 
+  const isShortFullWindow = windowHeight < 300;
+
   // Expand window to fit modals, restore when all closed
   useEffect(() => {
     const MODAL_SIZES = [
       [showSettings,       420, 580],
       [showHistoryModal,   420, 500],
+      [showTaskPreview,    520, 620],
       [distractionJarOpen, 420, 500],
       [showNotesModal,     420, 400],
+      [showCompletionModal, 420, 300],
       [showQuickCapture,   420, 340],
     ];
     const active = MODAL_SIZES.find(([open]) => open);
@@ -480,7 +695,7 @@ export default function App() {
     } else {
       window.electronAPI.modalClosed();
     }
-  }, [showSettings, showHistoryModal, distractionJarOpen, showNotesModal, showQuickCapture]);
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showNotesModal, showCompletionModal, showQuickCapture]);
 
   // Resize window for pill/full mode
   useEffect(() => {
@@ -502,7 +717,8 @@ export default function App() {
           task={task}
           isRunning={isRunning}
           time={time}
-          onDoubleClick={() => setIsIncognito(false)}
+          showTaskByDefault={showTaskInCompactDefault}
+          onDoubleClick={handleExitIncognito}
           onOpenDistractionJar={() => setDistractionJarOpen(true)}
           thoughtCount={thoughts.length}
           onPlay={handlePlay}
@@ -513,10 +729,25 @@ export default function App() {
 
         <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
         <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
-        <TaskPreviewModal isOpen={showTaskPreview} onClose={() => setShowTaskPreview(false)} session={previewSession} onUseTask={handleUseTask} onUpdateNotes={handleUpdateTaskNotes} />
-        <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} sessions={sessions} onUseTask={handleUseTask} />
+        <TaskCompletionModal isOpen={showCompletionModal} taskName={task} onCompleted={() => handleStopFlowCompletionDecision(true)} onNotCompleted={() => handleStopFlowCompletionDecision(false)} />
+        <TaskPreviewModal
+          isOpen={showTaskPreview}
+          onClose={handleCloseTaskPreview}
+          session={previewSession}
+          sessions={sessions}
+          onUseTask={handleUseTask}
+          onUpdateNotes={handleUpdateTaskNotes}
+        />
+        <HistoryModal
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+          sessions={sessions}
+          onUseTask={handleUseTask}
+          onPreviewTask={handlePreviewTask}
+        />
         <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
         <Toast toast={toast} onDismiss={() => setToast(null)} />
+        {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
       </div>
     );
   }
@@ -596,8 +827,11 @@ export default function App() {
             task={task}
             setTask={setTask}
             isActive={isNoteFocused || isRunning}
+            isLocked={isRunning}
             onFocus={() => setIsNoteFocused(true)}
+            onBlur={() => setIsNoteFocused(false)}
             onTaskSubmit={handleTaskSubmit}
+            onLockedInteraction={handleLockedTaskInputInteraction}
           />
 
           {isStartModalOpen && (
@@ -657,26 +891,27 @@ export default function App() {
           )}
 
           {isTimerVisible && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: '100%', marginTop: '1rem' }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: '100%', marginTop: isShortFullWindow ? '0.5rem' : '1rem' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isShortFullWindow ? '0.5rem' : '0.75rem' }}>
                 <div style={{
-                  fontSize: '3rem',
+                  fontSize: isShortFullWindow ? '2rem' : '2.75rem',
                   fontWeight: 700,
                   transition: 'color 0.3s',
                   color: isRunning ? '#D97706' : '#8B6F47',
                   fontVariantNumeric: 'tabular-nums',
+                  lineHeight: 1,
                 }}>
                   {formatTime(time)}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isShortFullWindow ? '0.3rem' : '0.4rem' }}>
                   {!isRunning ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button onClick={handlePlay} disabled={!task.trim()} style={{
-                          width: '3rem', height: '3rem', borderRadius: '9999px',
+                          width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
                           background: '#F59E0B', color: 'white', padding: 0,
                         }}>
-                          <Play style={{ width: 24, height: 24 }} />
+                          <Play style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent><p>Resume Timer</p></TooltipContent>
@@ -685,10 +920,10 @@ export default function App() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button onClick={handlePause} style={{
-                          width: '3rem', height: '3rem', borderRadius: '9999px',
+                          width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
                           background: '#D97706', color: 'white', padding: 0,
                         }}>
-                          <Pause style={{ width: 24, height: 24 }} />
+                          <Pause style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent><p>Pause Timer</p></TooltipContent>
@@ -697,10 +932,10 @@ export default function App() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button onClick={handleStop} disabled={!task.trim()} variant="outline" style={{
-                        width: '3rem', height: '3rem', borderRadius: '9999px',
+                        width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
                         borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47', padding: 0,
                       }}>
-                        <Square style={{ width: 24, height: 24 }} />
+                        <Square style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Stop & Save Session</p></TooltipContent>
@@ -708,10 +943,10 @@ export default function App() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button onClick={handleClear} size="icon" variant="ghost" style={{
-                        width: '3rem', height: '3rem', borderRadius: '9999px',
+                        width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
                         color: '#8B6F47', padding: 0,
                       }}>
-                        <RotateCcw style={{ width: 24, height: 24 }} />
+                        <RotateCcw style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Clear Current Task & Timer</p></TooltipContent>
@@ -720,19 +955,43 @@ export default function App() {
               </div>
             </div>
           )}
-
-          <StatusBar task={task} isRunning={isRunning} time={time} isTimerVisible={isTimerVisible} />
         </div>
       </div>
 
       {/* Modals */}
       <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
       <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
-      <TaskPreviewModal isOpen={showTaskPreview} onClose={() => setShowTaskPreview(false)} session={previewSession} onUseTask={handleUseTask} onUpdateNotes={handleUpdateTaskNotes} />
-      <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} sessions={sessions} onUseTask={handleUseTask} />
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} shortcuts={shortcuts} onShortcutsChange={setShortcuts} pulseSettings={pulseSettings} onPulseSettingsChange={setPulseSettings} />
+      <TaskCompletionModal isOpen={showCompletionModal} taskName={task} onCompleted={() => handleStopFlowCompletionDecision(true)} onNotCompleted={() => handleStopFlowCompletionDecision(false)} />
+      <TaskPreviewModal
+        isOpen={showTaskPreview}
+        onClose={handleCloseTaskPreview}
+        session={previewSession}
+        sessions={sessions}
+        onUseTask={handleUseTask}
+        onUpdateNotes={handleUpdateTaskNotes}
+      />
+      <HistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        sessions={sessions}
+        onUseTask={handleUseTask}
+        onPreviewTask={handlePreviewTask}
+      />
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        shortcuts={shortcuts}
+        onShortcutsChange={setShortcuts}
+        shortcutsEnabledDefault={shortcutsEnabled}
+        onShortcutsEnabledChange={setShortcutsEnabled}
+        pulseSettings={pulseSettings}
+        onPulseSettingsChange={setPulseSettings}
+        showTaskInCompactDefault={showTaskInCompactDefault}
+        onShowTaskInCompactDefaultChange={setShowTaskInCompactDefault}
+      />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
+      {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
     </div>
   );
 }

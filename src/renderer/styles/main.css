@@ -882,12 +882,47 @@ html, body {
   animation: pulse-incognito 3s ease-in-out infinite;
 }
 
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--confetti-drift, 0px), var(--confetti-fall, 110vh), 0) rotate(var(--confetti-rotate, 540deg));
+    opacity: 0;
+  }
+}
+
+.confetti-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -16px;
+  left: 0;
+  width: var(--confetti-size, 8px);
+  height: calc(var(--confetti-size, 8px) * 1.8);
+  background: var(--confetti-color, #F59E0B);
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-fall var(--confetti-duration, 1.6s) ease-out forwards;
+}
+
 /* === App Container === */
 .app-container {
   height: 100%;
   padding: 10px;
   font-family: var(--font-family);
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: transparent;
 }
 

@@ -18,7 +18,7 @@ export function Dialog({ open, onOpenChange, children }) {
   );
 }
 
-export function DialogContent({ children, className = '' }) {
+export function DialogContent({ children, className = '', style, ...props }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -34,7 +34,13 @@ export function DialogContent({ children, className = '' }) {
   }, []);
 
   return (
-    <div ref={ref} className={`dialog-content ${className}`} onClick={(e) => e.stopPropagation()}>
+    <div
+      ref={ref}
+      className={`dialog-content ${className}`}
+      style={style}
+      onClick={(e) => e.stopPropagation()}
+      {...props}
+    >
       {children}
     </div>
   );

@@ -58,6 +58,7 @@ const schema = {
       shortcutsEnabled: { type: 'boolean', default: true },
       bringToFront: { type: 'boolean', default: true },
       keepTextAfterCompletion: { type: 'boolean', default: false },
+      showTaskInCompactDefault: { type: 'boolean', default: false },
       launchOnStartup: { type: 'boolean', default: false },
     },
     default: {},
@@ -74,6 +75,16 @@ const schema = {
   },
 };
 
-const store = new Store({ schema });
+let store;
+try {
+  store = new Store({ schema });
+} catch (e) {
+  console.error('Store initialization failed, resetting config:', e);
+  try {
+    const tempStore = new Store();
+    tempStore.clear();
+  } catch (_) {}
+  store = new Store({ schema });
+}
 
 module.exports = store;

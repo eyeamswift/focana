@@ -1,14 +1,40 @@
 appId: com.focana.app
 productName: Focana
+artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
 directories:
   output: release
+  buildResources: build
+asar: true
 files:
   - dist/**/*
   - src/main/**/*
+  - package.json
   - node_modules/**/*
+  - '!reference/**'
+  - '!release/**'
+  - '!.claude/**'
 mac:
-  target: dmg
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
   category: public.app-category.productivity
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
 dmg:
   contents:
     - x: 130

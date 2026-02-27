@@ -1,4 +1,4 @@
-const { Tray, Menu, nativeImage } = require('electron');
+const { app, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 
 let tray = null;
@@ -38,7 +38,7 @@ function createTray(mainWindow) {
     {
       label: 'Quit',
       click: () => {
-        mainWindow.destroy();
+        app.quit();
       },
     },
   ]);

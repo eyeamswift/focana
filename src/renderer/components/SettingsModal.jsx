@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -28,8 +28,12 @@ export default function SettingsModal({
   onClose,
   shortcuts,
   onShortcutsChange,
+  shortcutsEnabledDefault,
+  onShortcutsEnabledChange,
   pulseSettings,
   onPulseSettingsChange,
+  showTaskInCompactDefault,
+  onShowTaskInCompactDefaultChange,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(shortcuts || DEFAULT_SHORTCUTS);
   const [tempPulseSettings, setTempPulseSettings] = useState(pulseSettings || {
@@ -41,8 +45,18 @@ export default function SettingsModal({
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
+  const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? false);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
+  const recordingCleanupRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (recordingCleanupRef.current) {
+        recordingCleanupRef.current();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -57,12 +71,13 @@ export default function SettingsModal({
       // Load settings from electron-store
       (async () => {
         const settings = await window.electronAPI.storeGet('settings') || {};
-        setShortcutsEnabled(settings.shortcutsEnabled ?? true);
+        setShortcutsEnabled(settings.shortcutsEnabled ?? shortcutsEnabledDefault ?? true);
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
+        setShowTaskInCompact(settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? false);
       })();
     }
-  }, [isOpen, shortcuts, pulseSettings]);
+  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault]);
 
   const handleSave = async () => {
     onShortcutsChange(tempShortcuts);
@@ -72,13 +87,12 @@ export default function SettingsModal({
     settings.shortcutsEnabled = shortcutsEnabled;
     settings.bringToFront = bringToFront;
     settings.keepTextAfterCompletion = keepTextAfterCompletion;
+    settings.showTaskInCompactDefault = showTaskInCompact;
     settings.shortcuts = tempShortcuts;
     settings.pulseSettings = tempPulseSettings;
     await window.electronAPI.storeSet('settings', settings);
-
-    if (shortcutsEnabled) {
-      window.electronAPI.registerGlobalShortcuts(tempShortcuts);
-    }
+    onShortcutsEnabledChange?.(shortcutsEnabled);
+    onShowTaskInCompactDefaultChange?.(showTaskInCompact);
 
     onClose();
   };
@@ -94,10 +108,15 @@ export default function SettingsModal({
     setShortcutsEnabled(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
+    setShowTaskInCompact(false);
     setConflicts({});
   };
 
   const handleShortcutRecord = (key) => {
+    if (recordingCleanupRef.current) {
+      recordingCleanupRef.current();
+    }
+
     setRecordingKey(key);
 
     const handleKeyPress = (e) => {
@@ -121,15 +140,22 @@ export default function SettingsModal({
       }
 
       setRecordingKey(null);
+      cleanup();
+    };
+
+    const timeoutId = setTimeout(() => {
+      setRecordingKey(null);
+      cleanup();
+    }, 10000);
+
+    const cleanup = () => {
       document.removeEventListener('keydown', handleKeyPress);
+      clearTimeout(timeoutId);
+      recordingCleanupRef.current = null;
     };
 
     document.addEventListener('keydown', handleKeyPress);
-
-    setTimeout(() => {
-      setRecordingKey(null);
-      document.removeEventListener('keydown', handleKeyPress);
-    }, 10000);
+    recordingCleanupRef.current = cleanup;
   };
 
   const formatShortcutDisplay = (shortcut) => {
@@ -155,7 +181,7 @@ export default function SettingsModal({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="shortcuts" style={{ marginTop: '0.75rem' }}>
+        <Tabs defaultValue="shortcuts" style={{ marginTop: '1rem' }}>
           <TabsList style={{ gridTemplateColumns: '1fr 1fr' }}>
             <TabsTrigger value="shortcuts">
               <Keyboard style={{ width: 16, height: 16 }} />
@@ -167,9 +193,9 @@ export default function SettingsModal({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="shortcuts" className="space-y-4" style={{ marginTop: '1rem' }}>
+          <TabsContent value="shortcuts" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#5C4033' }}>Global Shortcuts</h3>
                   <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Work even when Focana isn't focused</p>
@@ -231,6 +257,10 @@ export default function SettingsModal({
                   <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Keep text after task completion</span>
                   <Switch checked={keepTextAfterCompletion} onCheckedChange={setKeepTextAfterCompletion} />
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Show task in compact mode by default</span>
+                  <Switch checked={showTaskInCompact} onCheckedChange={setShowTaskInCompact} />
+                </div>
               </div>
 
               <div style={{
@@ -247,7 +277,7 @@ export default function SettingsModal({
             </div>
           </TabsContent>
 
-          <TabsContent value="pulse" className="space-y-4" style={{ marginTop: '1rem' }}>
+          <TabsContent value="pulse" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
               <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#5C4033' }}>Pulse Animations</h3>
 
@@ -311,10 +341,17 @@ export default function SettingsModal({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter style={{ gap: '0.5rem', marginTop: '1rem' }}>
+        <DialogFooter style={{
+          gap: '0.5rem',
+          marginTop: '1.25rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid rgba(139,111,71,0.16)',
+          flexWrap: 'wrap',
+          rowGap: '0.5rem',
+        }}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleRestoreDefaults} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}>
+              <Button onClick={handleRestoreDefaults} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47', marginRight: 'auto' }}>
                 <RotateCcw style={{ width: 16, height: 16, marginRight: '0.5rem' }} />
                 Restore Defaults
               </Button>
