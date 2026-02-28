@@ -12,8 +12,10 @@
     "build:mac": "npm run build:renderer && electron-builder --mac",
     "build:win": "npm run build:renderer && electron-builder --win",
     "build:all": "npm run build:renderer && electron-builder -mwl",
-    "build:mac:release": "npm run build:renderer && electron-builder --mac --publish never",
-    "build:mac:notarize": "npm run build:mac:release"
+    "build:mac:release": "npm run build:renderer && node scripts/mac-release.js full",
+    "build:mac:notarize": "npm run build:renderer && node scripts/mac-release.js zip --require-notarization",
+    "build:mac:notarize:full": "npm run build:renderer && node scripts/mac-release.js full --require-notarization",
+    "build:mac:notarize:universal": "npm run build:renderer && node scripts/mac-release.js universal --require-notarization"
   },
   "keywords": [],
   "author": "",

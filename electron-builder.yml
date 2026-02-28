@@ -7,14 +7,15 @@ directories:
 asar: true
 afterSign: scripts/notarize.js
 files:
-  - dist/**/*
-  - src/main/**/*
-  - scripts/**/*
   - package.json
-  - node_modules/**/*
-  - '!reference/**'
-  - '!release/**'
-  - '!.claude/**'
+  - dist
+  - src/main
+  - scripts
+  - '!reference'
+  - '!release'
+  - '!.claude'
+  - '!src/renderer'
+  - '!src/assets'
 mac:
   target:
     - target: dmg
