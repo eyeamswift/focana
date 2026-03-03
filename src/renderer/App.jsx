@@ -33,6 +33,23 @@ const DEFAULT_SHORTCUTS = {
 };
 
 const THEME_STORAGE_KEY = 'focana-theme';
+const WINDOW_SIZES = {
+  baseWidth: 500,
+  idleHeight: 140,
+  timerHeight: 220,
+  contextHeight: 360,
+  timeUpHeight: 560,
+  modal: {
+    settings: [420, 580],
+    history: [420, 500],
+    taskPreview: [520, 620],
+    parkingLot: [420, 500],
+    timeUp: [460, 420],
+    notes: [420, 500],
+    completion: [420, 300],
+    quickCapture: [420, 340],
+  },
+};
 
 function getStoredTheme() {
   if (typeof window === 'undefined') return null;
@@ -119,6 +136,7 @@ export default function App() {
   const timeAwarenessRef = useRef(null);
   const celebrationCheckRef = useRef(null);
   const taskInputRef = useRef(null);
+  const mainCardRef = useRef(null);
   const thoughtsLoadedRef = useRef(false);
   const confettiTimerRef = useRef(null);
   const pulseIntervalRef = useRef(null);
@@ -127,6 +145,8 @@ export default function App() {
   const timeRef = useRef(0);
   const pendingPostModalResizeRef = useRef(null);
   const postModalResizeTimerRef = useRef(null);
+  const parkingLotReturnToIncognitoRef = useRef(false);
+  const wasParkingLotOpenRef = useRef(false);
 
   useEffect(() => {
     const onResize = () => setWindowHeight(window.innerHeight);
@@ -137,7 +157,7 @@ export default function App() {
   useEffect(() => {
     // Normalize full-view size on launch so hidden oversized window bounds
     // from prior modal flows don't make drag feel "sticky" near bottom edge.
-    window.electronAPI.ensureMainWindowSize?.(500, 240);
+    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
   }, []);
 
   useEffect(() => {
@@ -279,6 +299,12 @@ export default function App() {
     if (isRunning || time > 0 || task.trim()) {
       setIsTimerVisible(true);
     }
+
+    // Normalize to compact full-view height so bottom spacing stays tight
+    // instead of restoring a previously oversized window.
+    setTimeout(() => {
+      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
+    }, 80);
   }, [isRunning, time, task]);
 
   // Shortcut handlers
@@ -532,7 +558,7 @@ export default function App() {
     if (!showTimeUpModal) return undefined;
     // Ensure enough full-window space so timeout actions are immediately visible.
     const resizeTimer = setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(500, 560);
+      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timeUpHeight);
     }, 80);
     return () => clearTimeout(resizeTimer);
   }, [showTimeUpModal]);
@@ -546,6 +572,53 @@ export default function App() {
   const handleCloseWindow = () => {
     window.electronAPI.closeWindow();
   };
+
+  const handleOpenParkingLot = useCallback(() => {
+    if (isIncognito) {
+      parkingLotReturnToIncognitoRef.current = true;
+      handleExitIncognito();
+      setTimeout(() => setDistractionJarOpen(true), 140);
+      return;
+    }
+    parkingLotReturnToIncognitoRef.current = false;
+    setDistractionJarOpen(true);
+  }, [isIncognito, handleExitIncognito]);
+
+  const handleCloseParkingLot = useCallback(() => {
+    setDistractionJarOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const wasOpen = wasParkingLotOpenRef.current;
+    if (wasOpen && !distractionJarOpen && parkingLotReturnToIncognitoRef.current) {
+      parkingLotReturnToIncognitoRef.current = false;
+      const t = setTimeout(() => {
+        setIsIncognito(true);
+      }, 80);
+      wasParkingLotOpenRef.current = distractionJarOpen;
+      return () => clearTimeout(t);
+    }
+    wasParkingLotOpenRef.current = distractionJarOpen;
+    return undefined;
+  }, [distractionJarOpen]);
+
+  const resizeToMainCardContent = useCallback((minHeight) => {
+    const card = mainCardRef.current;
+    const measuredHeight = card
+      ? Math.ceil(card.scrollHeight || card.getBoundingClientRect().height || 0)
+      : 0;
+    const targetHeight = Math.max(minHeight, measuredHeight);
+    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
+  }, []);
+
+  const resyncFullWindowSize = useCallback(() => {
+    if (isIncognito) return;
+    const minHeight =
+      contextNotes.trim()
+        ? WINDOW_SIZES.contextHeight
+        : (isRunning || isTimerVisible ? WINDOW_SIZES.timerHeight : WINDOW_SIZES.idleHeight);
+    resizeToMainCardContent(minHeight);
+  }, [isIncognito, contextNotes, isRunning, isTimerVisible, resizeToMainCardContent]);
 
   const handlePlay = () => {
     if (task.trim()) {
@@ -849,14 +922,14 @@ export default function App() {
   // Expand window to fit modals, restore when all closed
   useEffect(() => {
     const MODAL_SIZES = [
-      [showSettings,       420, 580],
-      [showHistoryModal,   420, 500],
-      [showTaskPreview,    520, 620],
-      [distractionJarOpen, 420, 500],
-      [showTimeUpModal,    460, 420],
-      [showNotesModal,     420, 500],
-      [showCompletionModal, 420, 300],
-      [showQuickCapture,   420, 340],
+      [showSettings, ...WINDOW_SIZES.modal.settings],
+      [showHistoryModal, ...WINDOW_SIZES.modal.history],
+      [showTaskPreview, ...WINDOW_SIZES.modal.taskPreview],
+      [distractionJarOpen, ...WINDOW_SIZES.modal.parkingLot],
+      [showTimeUpModal, ...WINDOW_SIZES.modal.timeUp],
+      [showNotesModal, ...WINDOW_SIZES.modal.notes],
+      [showCompletionModal, ...WINDOW_SIZES.modal.completion],
+      [showQuickCapture, ...WINDOW_SIZES.modal.quickCapture],
     ];
     const active = MODAL_SIZES.find(([open]) => open);
     if (active) {
@@ -878,13 +951,22 @@ export default function App() {
           window.electronAPI.ensureMainWindowSize?.(pendingResize.minWidth, pendingResize.minHeight);
           postModalResizeTimerRef.current = null;
         }, 30);
+      } else {
+        // Modal close can restore older bounds from main process;
+        // re-apply current screen target after restoration settles.
+        const settleTimer = setTimeout(() => {
+          resyncFullWindowSize();
+          setTimeout(() => resyncFullWindowSize(), 140);
+        }, 60);
+        return () => clearTimeout(settleTimer);
       }
     }
     return undefined;
-  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showTimeUpModal, showNotesModal, showCompletionModal, showQuickCapture]);
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showTimeUpModal, showNotesModal, showCompletionModal, showQuickCapture, resyncFullWindowSize]);
 
-  // If we end up on the minimal idle screen (no timer/modals/notes), collapse
-  // back to the compact full-view size so extra empty space is removed.
+  // No active timer: keep full view tightly fit to content.
+  // Base height matches the compact no-timer layout, then grows with
+  // multi-line task input (and start-session chooser when shown).
   useEffect(() => {
     const hasModalOpen =
       showSettings ||
@@ -897,18 +979,56 @@ export default function App() {
       showQuickCapture;
 
     if (isIncognito || hasModalOpen) return undefined;
-    if (isRunning || isTimerVisible || task.trim() || contextNotes.trim()) return undefined;
+    if (isRunning || isTimerVisible || contextNotes.trim()) return undefined;
 
-    const collapseTimer = setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(500, 240);
+    const resizeTimer = setTimeout(() => {
+      resizeToMainCardContent(WINDOW_SIZES.idleHeight);
     }, 40);
 
-    return () => clearTimeout(collapseTimer);
+    return () => clearTimeout(resizeTimer);
   }, [
     isIncognito,
     isRunning,
     isTimerVisible,
     task,
+    contextNotes,
+    isStartModalOpen,
+    resizeToMainCardContent,
+    showSettings,
+    showHistoryModal,
+    showTaskPreview,
+    distractionJarOpen,
+    showTimeUpModal,
+    showNotesModal,
+    showCompletionModal,
+    showQuickCapture,
+  ]);
+
+  // Active full-view states: deterministic default heights by screen.
+  useEffect(() => {
+    const hasModalOpen =
+      showSettings ||
+      showHistoryModal ||
+      showTaskPreview ||
+      distractionJarOpen ||
+      showTimeUpModal ||
+      showNotesModal ||
+      showCompletionModal ||
+      showQuickCapture;
+
+    if (isIncognito || hasModalOpen) return undefined;
+    if (!isRunning && !isTimerVisible && !contextNotes.trim()) return undefined;
+
+    const targetHeight = contextNotes.trim() ? WINDOW_SIZES.contextHeight : WINDOW_SIZES.timerHeight;
+    const resizeTimer = setTimeout(() => {
+      resizeToMainCardContent(targetHeight);
+    }, 40);
+
+    return () => clearTimeout(resizeTimer);
+  }, [
+    isIncognito,
+    isRunning,
+    isTimerVisible,
     contextNotes,
     showSettings,
     showHistoryModal,
@@ -918,6 +1038,7 @@ export default function App() {
     showNotesModal,
     showCompletionModal,
     showQuickCapture,
+    resizeToMainCardContent,
   ]);
 
   // Resize window for pill/full mode
@@ -942,15 +1063,13 @@ export default function App() {
           time={time}
           showTaskByDefault={showTaskInCompactDefault}
           onDoubleClick={handleExitIncognito}
-          onOpenDistractionJar={() => setDistractionJarOpen(true)}
+          onOpenDistractionJar={handleOpenParkingLot}
           thoughtCount={thoughts.length}
           onPlay={handlePlay}
           onPause={handlePause}
           onStop={handleStop}
           pulseEnabled={pulseSettings.incognitoEnabled}
         />
-
-        <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
         <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
         <TaskCompletionModal
           isOpen={showCompletionModal}
@@ -987,7 +1106,7 @@ export default function App() {
   // Full view render
   return (
     <div className="app-container">
-      <div className={`main-card electron-draggable ${getPulseClassName()}`}>
+      <div ref={mainCardRef} className={`main-card electron-draggable ${getPulseClassName()}`}>
         {/* Header */}
         <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
@@ -1211,7 +1330,7 @@ export default function App() {
       </div>
 
       {/* Modals */}
-      <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
+      <ParkingLot isOpen={distractionJarOpen} onClose={handleCloseParkingLot} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
       <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
       <TaskCompletionModal
         isOpen={showCompletionModal}
@@ -1245,6 +1364,7 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         onOpenParkingLot={() => {
           setShowSettings(false);
+          parkingLotReturnToIncognitoRef.current = false;
           setDistractionJarOpen(true);
         }}
         onOpenSessionHistory={() => {

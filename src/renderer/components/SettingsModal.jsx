@@ -207,6 +207,11 @@ export default function SettingsModal({
             Settings
           </DialogTitle>
         </DialogHeader>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+          <Button onClick={handleSave} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+            Save Settings
+          </Button>
+        </div>
 
         <Tabs defaultValue="main" style={{ marginTop: '1rem' }}>
           <TabsList style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>

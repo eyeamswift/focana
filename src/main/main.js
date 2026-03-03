@@ -13,9 +13,10 @@ let pillDragStart = null;
 
 const isDev = !app.isPackaged;
 const FULL_MIN_WIDTH = 500;
-const FULL_MIN_HEIGHT = 240;
+const FULL_MIN_HEIGHT = 0;
 const PILL_MIN_WIDTH = 100;
-const PILL_HEIGHT = 80;
+const PILL_MIN_HEIGHT = 72;
+const PILL_MAX_HEIGHT = 260;
 let isApplyingBounds = false;
 
 // Ensure the runtime app name is Focana in dev and packaged modes.
@@ -237,12 +238,10 @@ ipcMain.handle('modal-opened', (_, minWidth, minHeight) => {
 
     const current = mainWindow.getBounds();
     const targetWidth = Math.max(
-      current.width,
       Number.isFinite(minWidth) ? minWidth : 0,
       FULL_MIN_WIDTH
     );
     const targetHeight = Math.max(
-      current.height,
       Number.isFinite(minHeight) ? minHeight : 0,
       FULL_MIN_HEIGHT
     );
@@ -280,10 +279,10 @@ ipcMain.handle('enter-pill-mode', () => {
     // Allow a true compact window in pill mode; otherwise FULL_MIN_HEIGHT keeps
     // an invisible tall window that blocks moving the visible pill higher.
     mainWindow.setResizable(true);
-    mainWindow.setMinimumSize(PILL_MIN_WIDTH, PILL_HEIGHT);
+    mainWindow.setMinimumSize(PILL_MIN_WIDTH, PILL_MIN_HEIGHT);
     // Initial default size for compact mode before renderer computes exact width.
     const targetWidth = 182;
-    const targetHeight = PILL_HEIGHT;
+    const targetHeight = PILL_MIN_HEIGHT;
     const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
     const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
     setMainWindowBoundsClamped({
@@ -301,7 +300,27 @@ ipcMain.handle('set-pill-width', (_, width) => {
   if (mainWindow && isPillMode) {
     const current = mainWindow.getBounds();
     const targetWidth = Math.max(PILL_MIN_WIDTH, Math.round(width));
-    const targetHeight = PILL_HEIGHT;
+    const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, current.height || PILL_MIN_HEIGHT));
+    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
+    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
+
+    setMainWindowBoundsClamped({
+      x: nextX,
+      y: nextY,
+      width: targetWidth,
+      height: targetHeight,
+    }, { areaType: 'display' });
+  }
+});
+
+// Dynamic pill size — preferred API for compact mode (width + height)
+ipcMain.handle('set-pill-size', (_, size) => {
+  if (mainWindow && isPillMode && size && typeof size === 'object') {
+    const current = mainWindow.getBounds();
+    const requestedWidth = Number.isFinite(size.width) ? size.width : current.width;
+    const requestedHeight = Number.isFinite(size.height) ? size.height : current.height;
+    const targetWidth = Math.max(PILL_MIN_WIDTH, Math.round(requestedWidth));
+    const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, Math.round(requestedHeight)));
     const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
     const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
 
@@ -382,9 +401,9 @@ ipcMain.handle('exit-pill-mode', () => {
 ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeight = FULL_MIN_HEIGHT) => {
   if (!mainWindow || isPillMode) return;
 
-  const bounds = mainWindow.getBounds();
   const targetWidth = Math.max(Number.isFinite(minWidth) ? minWidth : 0, FULL_MIN_WIDTH);
   const targetHeight = Math.max(Number.isFinite(minHeight) ? minHeight : 0, FULL_MIN_HEIGHT);
+  const bounds = mainWindow.getBounds();
 
   mainWindow.setResizable(true);
   mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);

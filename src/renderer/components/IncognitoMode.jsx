@@ -5,13 +5,20 @@ import { formatTime } from '../utils/time';
 // ---------------------------------------------------------------------------
 // Pill width constants (px)
 // ---------------------------------------------------------------------------
-const H_MARGIN   = 12;  // 6px transparent drag area on each side of pill
+const H_MARGIN   = 0;   // no extra side margin; window matches visible pill
 const PILL_PAD   = 40;  // 20px left + 20px right padding
+const PILL_BASE_H = 72;
+const PILL_MAX_H = 260;
 const TIMER_W    = 56;  // "MM:SS" in ui-monospace bold ~56px (conservative)
 const TASK_PAD_R = 8;   // padding-right on .pill-task-text
 const CTRL_W     = 90;  // 8px pad + 3×26px btns + 2×2px gaps = 90px
 
-const TASK_WRAP_W = 220; // fixed task area width in compact mode (wraps inside this width)
+const TASK_MIN_W = 120;
+const TASK_MAX_W = 260; // max task width before wrapping
+const TASK_LINE_H = 15;
+const TASK_V_PAD  = 26;
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 export default function IncognitoMode({
   task,
@@ -29,6 +36,7 @@ export default function IncognitoMode({
   const [isHovered, setIsHovered]       = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [shouldPulse, setShouldPulse]   = useState(false);
+  const [taskMetrics, setTaskMetrics]   = useState({ width: TASK_MIN_W, height: PILL_BASE_H });
 
   const clickTimerRef    = useRef(null);
   const controlsHideRef  = useRef(null);
@@ -38,6 +46,31 @@ export default function IncognitoMode({
   const taskLabel = task || '';
   const isTaskVisible = isHovered || showTaskByDefault;
 
+  useEffect(() => {
+    const label = (taskLabel || '').trim();
+    if (!isTaskVisible || !label) {
+      setTaskMetrics({ width: TASK_MIN_W, height: PILL_BASE_H });
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const bodyFont = window.getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
+    const font = `500 13px ${bodyFont}`;
+    let measuredTextWidth = TASK_MIN_W;
+    if (ctx) {
+      ctx.font = font;
+      measuredTextWidth = Math.ceil(ctx.measureText(label).width);
+    }
+
+    const taskWidth = clamp(measuredTextWidth, TASK_MIN_W, TASK_MAX_W);
+    const lines = Math.max(1, Math.ceil(measuredTextWidth / taskWidth));
+    const neededHeight = Math.ceil(lines * TASK_LINE_H + TASK_V_PAD);
+    const taskHeight = clamp(Math.max(PILL_BASE_H, neededHeight), PILL_BASE_H, PILL_MAX_H);
+
+    setTaskMetrics({ width: taskWidth, height: taskHeight });
+  }, [isTaskVisible, taskLabel]);
+
   // Pre-calculate target window widths
   const basePillW = useMemo(
     () => PILL_PAD + TIMER_W,
@@ -45,38 +78,50 @@ export default function IncognitoMode({
   );
   const baseWinW = useMemo(() => basePillW + H_MARGIN, [basePillW]);
   const hoverWinW  = useMemo(
-    () => basePillW + TASK_PAD_R + TASK_WRAP_W + H_MARGIN,
-    [basePillW],
+    () => basePillW + TASK_PAD_R + taskMetrics.width + H_MARGIN,
+    [basePillW, taskMetrics.width],
   );
   const ctrlWinW   = useMemo(() => hoverWinW + CTRL_W, [hoverWinW]);
+  const pillH = useMemo(
+    () => (isTaskVisible ? taskMetrics.height : PILL_BASE_H),
+    [isTaskVisible, taskMetrics.height],
+  );
 
   // ---------------------------------------------------------------------------
-  // Sync window width with pill state via IPC
+  // Sync window size with pill state via IPC
   //   Expanding: resize window first, then CSS transition fills it in (~200ms)
   //   Shrinking: CSS transition first, then resize window after (~210ms delay)
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!window.electronAPI?.setPillWidth) return;
+    if (!window.electronAPI?.setPillWidth && !window.electronAPI?.setPillSize) return;
+
+    const pushPillSize = (width, height) => {
+      if (window.electronAPI?.setPillSize) {
+        window.electronAPI.setPillSize({ width, height });
+      } else {
+        window.electronAPI.setPillWidth(width);
+      }
+    };
 
     // Initial mount — set immediately without shrink delay
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      window.electronAPI.setPillWidth(baseWinW);
+      pushPillSize(baseWinW, pillH);
       return;
     }
 
     if (showControls) {
-      window.electronAPI.setPillWidth(ctrlWinW);
+      pushPillSize(ctrlWinW, pillH);
     } else if (isTaskVisible) {
-      window.electronAPI.setPillWidth(hoverWinW);
+      pushPillSize(hoverWinW, pillH);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
       const t = setTimeout(() => {
-        window.electronAPI.setPillWidth(baseWinW);
+        pushPillSize(baseWinW, pillH);
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW]);
+  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW, pillH]);
 
   // ---------------------------------------------------------------------------
   // Pulse animation — pauses when hovered
@@ -185,6 +230,7 @@ export default function IncognitoMode({
   return (
     <div
       className={`pill pill--logo${shouldPulse && pulseEnabled && !isHovered ? ' animate-pulse-incognito' : ''}`}
+      style={{ height: pillH }}
       onMouseDown={handleMouseDown}
       onDragStart={(e) => e.preventDefault()}
       onMouseEnter={handleMouseEnter}
@@ -193,7 +239,10 @@ export default function IncognitoMode({
       onDoubleClick={handlePillDoubleClick}
     >
       {/* Task text — fades/slides in on hover */}
-      <div className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}>
+      <div
+        className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}
+        style={{ maxWidth: isTaskVisible ? taskMetrics.width : 0 }}
+      >
         <span className="pill-task-text">{taskLabel}</span>
       </div>
 

@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enterPillMode: () => ipcRenderer.invoke('enter-pill-mode'),
   exitPillMode: () => ipcRenderer.invoke('exit-pill-mode'),
   setPillWidth: (width) => ipcRenderer.invoke('set-pill-width', width),
+  setPillSize: (size) => ipcRenderer.invoke('set-pill-size', size),
   ensureMainWindowSize: (minWidth, minHeight) => ipcRenderer.invoke('ensure-main-window-size', minWidth, minHeight),
 
   // Pill drag (JS-based — CSS drag regions block mouse events)
