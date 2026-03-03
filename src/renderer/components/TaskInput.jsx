@@ -2,6 +2,7 @@ import React, { forwardRef, useEffect, useRef } from 'react';
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { CornerDownLeft } from 'lucide-react';
+import { track } from '../utils/analytics';
 
 const TaskInput = forwardRef(({
   task,
@@ -17,6 +18,7 @@ const TaskInput = forwardRef(({
   onLockedInteraction,
 }, ref) => {
   const textareaRef = useRef(null);
+  const wasPastedRef = useRef(false);
   const showSubmitButton = task.trim() && !isActive;
 
   useEffect(() => {
@@ -45,6 +47,10 @@ const TaskInput = forwardRef(({
     e.target.blur();
   };
 
+  const handlePaste = () => {
+    wasPastedRef.current = true;
+  };
+
   const handleKeyDown = (e) => {
     if (isLocked) {
       e.preventDefault();
@@ -54,6 +60,8 @@ const TaskInput = forwardRef(({
 
     if (e.key === 'Enter' && task.trim()) {
       e.preventDefault();
+      track('task_entered', { input_method: wasPastedRef.current ? 'paste' : 'typed', char_count: task.trim().length });
+      wasPastedRef.current = false;
       onTaskSubmit();
     }
   };
@@ -74,6 +82,7 @@ const TaskInput = forwardRef(({
         onMouseDown={handleMouseDown}
         onFocus={handleFocus}
         onBlur={onBlur}
+        onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         placeholder="Type your task here and hit Enter/Return"
         maxLength={120}
@@ -113,7 +122,11 @@ const TaskInput = forwardRef(({
             <TooltipTrigger asChild>
               <Button
                 size="icon"
-                onClick={onTaskSubmit}
+                onClick={() => {
+                  track('task_entered', { input_method: wasPastedRef.current ? 'paste' : 'typed', char_count: task.trim().length });
+                  wasPastedRef.current = false;
+                  onTaskSubmit();
+                }}
                 aria-label="Start session"
                 style={{
                   height: '2.25rem',

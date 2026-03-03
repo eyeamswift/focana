@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
+import { track } from './utils/analytics';
 import appLockupDark from '../assets/logo-lockup.svg';
 import appLockupLight from '../assets/logo-lockup-light.svg';
 
@@ -73,6 +74,22 @@ const CHECKIN_DETOUR_MESSAGES = [
   "Quick reset, you've got this",
   'Detours happen, refocusing now',
 ];
+
+function computeStreak(sessions) {
+  const completedDates = new Set();
+  for (const s of sessions) {
+    if (s.completed && s.createdAt) {
+      completedDates.add(new Date(s.createdAt).toDateString());
+    }
+  }
+  let streak = 0;
+  const day = new Date();
+  while (completedDates.has(day.toDateString())) {
+    streak++;
+    day.setDate(day.getDate() - 1);
+  }
+  return streak;
+}
 
 function getStoredTheme() {
   if (typeof window === 'undefined') return null;
@@ -183,6 +200,10 @@ export default function App() {
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
   const checkInStateRef = useRef('idle');
+  const consecutiveMissesRef = useRef(0);
+  const incognitoEnteredAtRef = useRef(null);
+  const lastInteractionTimeRef = useRef(Date.now());
+  const isRunningRef = useRef(false);
 
   useEffect(() => {
     const onResize = () => setWindowHeight(window.innerHeight);
@@ -194,6 +215,32 @@ export default function App() {
     // Normalize full-view size on launch so hidden oversized window bounds
     // from prior modal flows don't make drag feel "sticky" near bottom edge.
     window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
+  }, []);
+
+  // Analytics: app opened
+  useEffect(() => {
+    track('app_opened');
+
+    // Track last interaction for unresponsive session detection
+    const updateInteraction = () => { lastInteractionTimeRef.current = Date.now(); };
+    window.addEventListener('mousemove', updateInteraction);
+    window.addEventListener('keydown', updateInteraction);
+
+    const handleBeforeUnload = () => {
+      if (isRunningRef.current) {
+        const idleMs = Date.now() - lastInteractionTimeRef.current;
+        if (idleMs > 10 * 60 * 1000) {
+          track('app_unresponsive_session', { idle_minutes: Math.round(idleMs / 60000) });
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('mousemove', updateInteraction);
+      window.removeEventListener('keydown', updateInteraction);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   useEffect(() => {
@@ -231,6 +278,7 @@ export default function App() {
 
   // Keep refs in sync with state for use in intervals/effects
   timeRef.current = time;
+  isRunningRef.current = isRunning;
 
   useEffect(() => {
     return () => {
@@ -430,11 +478,20 @@ export default function App() {
     if (task.trim()) {
       setIsRunning(false);
       setSessionStartTime(null);
-  
+
+      const durationMin = mode === 'freeflow' ? time / 60 : (initialTime - time) / 60;
       sessionToSave.current = {
-        duration: mode === 'freeflow' ? time / 60 : (initialTime - time) / 60,
+        duration: durationMin,
         completed: true,
       };
+      track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'shortcut' });
+
+      // Session streak
+      try {
+        const allSessions = await SessionStore.list();
+        const streak = computeStreak(allSessions);
+        if (streak >= 2) track('session_streak', { streak_count: streak });
+      } catch (_) { /* non-critical */ }
 
       const settings = await window.electronAPI.storeGet('settings') || {};
       const keepText = settings.keepTextAfterCompletion ?? false;
@@ -530,6 +587,7 @@ export default function App() {
   useEffect(() => {
     const cleanup = window.electronAPI.onDndToggle?.((enabled) => {
       setDndEnabled(enabled);
+      track('dnd_toggled', { enabled, source: 'tray' });
       (async () => {
         const settings = await window.electronAPI.storeGet('settings') || {};
         settings.doNotDisturbEnabled = enabled;
@@ -729,6 +787,7 @@ export default function App() {
     await logCheckIn(status, elapsedSec);
 
     if (status === 'focused') {
+      track('checkin_responded', { response: 'focused' });
       if (checkInShortIntervalRef.current) {
         checkInShortIntervalRef.current = false;
         checkInForcedNextRef.current = null;
@@ -736,11 +795,17 @@ export default function App() {
       } else {
         advanceCheckInScheduleAfterResult(elapsedSec);
       }
+      consecutiveMissesRef.current = 0;
       const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
       setCheckInMessage(randomMessage);
       setCheckInCelebrating(true);
       setCheckInCelebrationType('focused');
     } else {
+      track('checkin_responded', { response: 'missed' });
+      consecutiveMissesRef.current += 1;
+      if (consecutiveMissesRef.current >= 3) {
+        track('checkin_dismissed_streak', { streak_count: consecutiveMissesRef.current });
+      }
       if (checkInShortIntervalRef.current) {
         const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
         checkInForcedNextRef.current = elapsedSec + shortInterval;
@@ -803,6 +868,8 @@ export default function App() {
 
     const elapsedSec = getElapsedSeconds();
     await logCheckIn('completed', elapsedSec);
+    track('checkin_responded', { response: 'completed' });
+    consecutiveMissesRef.current = 0;
 
     setIsRunning(false);
     setCheckInResult('completed');
@@ -824,6 +891,8 @@ export default function App() {
 
     const elapsedSec = getElapsedSeconds();
     await logCheckIn('detour', elapsedSec);
+    track('checkin_responded', { response: 'detour' });
+    consecutiveMissesRef.current = 0;
 
     const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
     checkInShortIntervalRef.current = true;
@@ -857,6 +926,7 @@ export default function App() {
     if (!isRunning || !isTimerVisible || !task.trim() || !currentSessionId) return;
     if (checkInStateRef.current !== 'idle') return;
 
+    track('checkin_triggered', { mode, elapsed_minutes: Math.round(getElapsedSeconds() / 6) / 10 });
     setCheckInState('prompting');
     setCheckInResult(null);
     setCheckInMessage('');
@@ -984,6 +1054,7 @@ export default function App() {
   };
 
   const handleOpenParkingLot = useCallback(() => {
+    track('parking_lot_opened', { source: 'manual' });
     if (isIncognito) {
       parkingLotReturnToIncognitoRef.current = true;
       handleExitIncognito();
@@ -999,6 +1070,7 @@ export default function App() {
   }, []);
 
   const handleCheckInParkIt = useCallback(() => {
+    track('detour_parked');
     const shouldReturnToIncognito = checkInReturnToIncognitoRef.current;
     checkInReturnToIncognitoRef.current = false;
     clearCheckInUi();
@@ -1131,6 +1203,7 @@ export default function App() {
     setIsTimerVisible(true);
     setIsRunning(true);
     setSessionStartTime(Date.now());
+    track('session_started', { mode: selectedMode, duration_minutes: selectedMode === 'timed' ? minutes : null });
 
     clearCheckInRuntime();
     resetCheckInSchedule(selectedMode, initialSeconds, 0);
@@ -1220,6 +1293,9 @@ export default function App() {
     setPendingSessionNotes('');
 
     if (completed) {
+      const durationMin = sessionToSave.current?.duration || 0;
+      track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
+
       const settings = await window.electronAPI.storeGet('settings') || {};
       const keepText = settings.keepTextAfterCompletion ?? false;
 
@@ -1229,15 +1305,23 @@ export default function App() {
         setInitialTime(0);
         setIsTimerVisible(false);
         setSessionStartTime(null);
-    
+
       } else {
         handleClear();
       }
       triggerConfetti();
+
+      // Session streak
+      try {
+        const allSessions = await SessionStore.list();
+        const streak = computeStreak(allSessions);
+        if (streak >= 2) track('session_streak', { streak_count: streak });
+      } catch (_) { /* non-critical */ }
       return;
     }
 
     // Not completed: keep task text, but reset timer/session state.
+    track('session_abandoned', { mode, duration_minutes: Math.round((sessionToSave.current?.duration || 0) * 10) / 10 });
     setIsRunning(false);
     setTime(0);
     setInitialTime(0);
@@ -1248,6 +1332,7 @@ export default function App() {
   };
 
   const handleTimeUpEndSession = () => {
+    track('post_session_choice', { choice: 'end_session' });
     setShowTimeUpModal(false);
     setSessionStartTime(null);
 
@@ -1256,6 +1341,7 @@ export default function App() {
   };
 
   const handleTimeUpKeepGoing = (extraMinutes) => {
+    track('post_session_choice', { choice: 'keep_going', extra_minutes: Math.min(Math.max(extraMinutes || 5, 1), 240) });
     const safeMinutes = Math.min(Math.max(extraMinutes || 5, 1), 240);
     const extraSeconds = safeMinutes * 60;
 
@@ -1270,6 +1356,7 @@ export default function App() {
 
   // Phase 3.5 — "Resume Later" from TimeUpModal
   const handleTimeUpResumeLater = () => {
+    track('post_session_choice', { choice: 'resume_later' });
     setShowTimeUpModal(false);
     setSessionStartTime(null);
 
@@ -1284,6 +1371,10 @@ export default function App() {
   };
 
   const handleUseTask = (session) => {
+    track('session_history_reused', { was_completed: session.completed ?? false });
+    if (!session.completed) {
+      track('resume_later_returned');
+    }
     setTask(session.task);
     setTime(0);
     setInitialTime(0);
@@ -1411,7 +1502,11 @@ export default function App() {
     newThoughts[index].completed = !newThoughts[index].completed;
     setThoughts(newThoughts);
   };
-  const clearCompletedThoughts = () => setThoughts((prev) => prev.filter((t) => !t.completed));
+  const clearCompletedThoughts = () => {
+    const completedCount = thoughts.filter((t) => t.completed).length;
+    if (completedCount > 0) track('parking_lot_cleared', { cleared_count: completedCount });
+    setThoughts((prev) => prev.filter((t) => !t.completed));
+  };
 
   const getPulseClassName = () => {
     if (isPulsing === 'celebration') return 'animate-pulse-celebration';
@@ -1550,8 +1645,14 @@ export default function App() {
   // Resize window for pill/full mode
   useEffect(() => {
     if (isIncognito) {
+      incognitoEnteredAtRef.current = Date.now();
       window.electronAPI.enterPillMode();
     } else {
+      if (incognitoEnteredAtRef.current) {
+        const durationSec = Math.round((Date.now() - incognitoEnteredAtRef.current) / 1000);
+        track('view_mode_session', { mode: 'compact', duration_seconds: durationSec });
+        incognitoEnteredAtRef.current = null;
+      }
       window.electronAPI.exitPillMode();
     }
   }, [isIncognito]);
@@ -2024,6 +2125,7 @@ export default function App() {
         onDndChange={(enabled) => {
           setDndEnabled(enabled);
           window.electronAPI.setDnd?.(enabled);
+          track('dnd_toggled', { enabled });
         }}
         checkInSettings={checkInSettings}
         onCheckInSettingsChange={({ enabled, intervalFreeflow }) => {

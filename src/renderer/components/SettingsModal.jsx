@@ -5,6 +5,7 @@ import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { Settings, Keyboard, RotateCcw, AlertTriangle, Zap, X, PanelTop } from 'lucide-react';
+import { track } from '../utils/analytics';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -111,7 +112,9 @@ export default function SettingsModal({
     onShortcutsChange(tempShortcuts);
     onPulseSettingsChange(tempPulseSettings);
 
-    const settings = await window.electronAPI.storeGet('settings') || {};
+    const oldSettings = await window.electronAPI.storeGet('settings') || {};
+
+    const settings = { ...oldSettings };
     settings.shortcutsEnabled = shortcutsEnabled;
     settings.bringToFront = bringToFront;
     settings.keepTextAfterCompletion = keepTextAfterCompletion;
@@ -124,6 +127,30 @@ export default function SettingsModal({
     settings.shortcuts = tempShortcuts;
     settings.pulseSettings = tempPulseSettings;
     await window.electronAPI.storeSet('settings', settings);
+
+    // Track changed settings
+    const diffs = {};
+    const trackable = {
+      shortcutsEnabled, bringToFront, keepTextAfterCompletion,
+      showTaskInCompact, pinControlsToToolbar, doNotDisturb,
+      checkInEnabled, checkInIntervalFreeflow,
+    };
+    const oldMap = {
+      shortcutsEnabled: oldSettings.shortcutsEnabled,
+      bringToFront: oldSettings.bringToFront,
+      keepTextAfterCompletion: oldSettings.keepTextAfterCompletion,
+      showTaskInCompact: oldSettings.showTaskInCompactDefault,
+      pinControlsToToolbar: oldSettings.pinControlsToToolbar,
+      doNotDisturb: oldSettings.doNotDisturbEnabled,
+      checkInEnabled: oldSettings.checkInEnabled,
+      checkInIntervalFreeflow: oldSettings.checkInIntervalFreeflow,
+    };
+    for (const [k, v] of Object.entries(trackable)) {
+      if (v !== oldMap[k]) diffs[k] = v;
+    }
+    if (Object.keys(diffs).length > 0) {
+      track('settings_changed', diffs);
+    }
     onShortcutsEnabledChange?.(shortcutsEnabled);
     onShowTaskInCompactDefaultChange?.(showTaskInCompact);
     onPinControlsToToolbarChange?.(pinControlsToToolbar);

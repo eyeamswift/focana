@@ -5,6 +5,7 @@ import { Textarea } from './ui/Textarea';
 import { Checkbox } from './ui/Checkbox';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { Plus, Trash2, Edit3, Save, NotebookPen, Copy, X } from 'lucide-react';
+import { track } from '../utils/analytics';
 
 export default function ParkingLot({
   isOpen,
@@ -36,6 +37,7 @@ export default function ParkingLot({
   const copyAllToClipboard = () => {
     const textToCopy = thoughts.map((t) => `- ${t.text}`).join('\n');
     navigator.clipboard.writeText(textToCopy);
+    track('content_copied', { source: 'parking_lot', item_count: thoughts.length });
   };
 
   const handleThoughtClick = (index) => {
@@ -55,6 +57,7 @@ export default function ParkingLot({
   const handleDeleteThought = () => {
     if (expandedThought !== null) {
       onRemoveThought(expandedThought);
+      track('parking_lot_item_deleted');
       setExpandedThought(null);
       setEditingText('');
     }

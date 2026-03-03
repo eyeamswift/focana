@@ -3,12 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { X } from 'lucide-react';
+import { track } from '../utils/analytics';
 
 export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
   const [thought, setThought] = useState('');
 
   useEffect(() => {
     if (isOpen) {
+      track('parking_lot_opened', { source: 'quick_capture' });
       setThought('');
       setTimeout(() => {
         const textarea = document.querySelector('[data-quick-capture-textarea]');
