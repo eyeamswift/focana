@@ -15,7 +15,7 @@ function loadEnvFile(envPath) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
 
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    const match = line.replace(/^export\s+/, '').match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
 
     const key = match[1];

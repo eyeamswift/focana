@@ -38,9 +38,23 @@ exports.default = async function notarizeApp(context) {
 
   console.log(`[notarize] Notarizing ${appPath}`);
 
+  // Clear env vars that @electron/notarize auto-detects to prevent
+  // "Cannot use password, API key, and keychain credentials at once" errors.
+  // Capture and restore after notarize() so subsequent arch builds still work.
+  const savedEnv = {};
+  for (const key of [
+    'APPLE_API_KEY', 'APPLE_API_KEY_PATH', 'APPLE_API_KEY_ID', 'APPLE_API_ISSUER',
+    'APPLE_ID', 'APPLE_ID_PASSWORD', 'APPLE_PASSWORD',
+    'APPLE_KEYCHAIN_PROFILE', 'APPLE_KEYCHAIN',
+  ]) {
+    if (key in process.env) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+  }
+
   const notarizeOptions = {
     appPath,
-    teamId: process.env.APPLE_TEAM_ID,
     appleApiKeyId,
     appleApiIssuer,
   };
@@ -51,6 +65,11 @@ exports.default = async function notarizeApp(context) {
     notarizeOptions.appleApiKey = appleApiKey;
   }
 
-  await notarize(notarizeOptions);
-  console.log('[notarize] Notarization complete');
+  try {
+    await notarize(notarizeOptions);
+    console.log('[notarize] Notarization complete');
+  } finally {
+    // Restore env vars for subsequent arch builds
+    Object.assign(process.env, savedEnv);
+  }
 };
