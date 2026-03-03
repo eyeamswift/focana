@@ -3,13 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { AlarmClock, Plus, X } from 'lucide-react';
+import { AlarmClock, Plus, Pause, X } from 'lucide-react';
 
 export default function TimeUpModal({
   isOpen,
   taskName,
   onKeepGoing,
   onEndSession,
+  onResumeLater,
 }) {
   const [extraMinutes, setExtraMinutes] = useState('5');
 
@@ -97,6 +98,22 @@ export default function TimeUpModal({
             </TooltipTrigger>
             <TooltipContent><p>Save this session and close the timer</p></TooltipContent>
           </Tooltip>
+
+          {onResumeLater && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={onResumeLater}
+                  variant="outline"
+                  style={{ borderColor: 'var(--brand-action)', color: 'var(--text-primary)' }}
+                >
+                  <Pause style={{ width: 14, height: 14, marginRight: '0.35rem' }} />
+                  Resume Later
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Take a break — your task stays ready</p></TooltipContent>
+            </Tooltip>
+          )}
 
           <Tooltip>
             <TooltipTrigger asChild>

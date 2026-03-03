@@ -102,6 +102,47 @@ function getCheckInsByStatus(status) {
   return readAll().filter((item) => item && item.status === status);
 }
 
+function updateCheckIn(id, updates) {
+  if (typeof id !== 'string' || !id.trim()) {
+    throw new Error('Check-in id is required');
+  }
+  if (!ensurePlainObject(updates)) {
+    throw new Error('Check-in updates must be an object');
+  }
+
+  const checkIns = readAll();
+  const index = checkIns.findIndex((item) => item && item.id === id);
+  if (index === -1) return null;
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'status')) {
+    validateStatus(updates.status);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'elapsedMinutes')) {
+    if (!Number.isFinite(updates.elapsedMinutes) || updates.elapsedMinutes < 0) {
+      throw new Error('Check-in elapsedMinutes must be a non-negative number');
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'taskText') && typeof updates.taskText !== 'string') {
+    throw new Error('Check-in taskText must be a string');
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'sessionId') && typeof updates.sessionId !== 'string') {
+    throw new Error('Check-in sessionId must be a string');
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'detourNote')) {
+    if (updates.detourNote !== undefined && typeof updates.detourNote !== 'string') {
+      throw new Error('Check-in detourNote must be a string when provided');
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'timestamp')) {
+    updates.timestamp = normalizeIsoTimestamp(updates.timestamp);
+  }
+
+  const nextRecord = { ...checkIns[index], ...updates };
+  checkIns[index] = nextRecord;
+  store.set('checkIns', checkIns);
+  return nextRecord;
+}
+
 function getAllCheckIns() {
   return readAll();
 }
@@ -115,6 +156,7 @@ module.exports = {
   addCheckIn,
   getCheckInsBySession,
   getCheckInsByStatus,
+  updateCheckIn,
   getAllCheckIns,
   clearCheckIns,
 };

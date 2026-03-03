@@ -3,7 +3,7 @@ import { Button } from './components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
   X, Play, Pause, Square, RotateCcw, Minimize2,
-  Settings, ClipboardList, History, Sun, Moon,
+  Settings, ClipboardList, History, Sun, Moon, ThumbsUp, ThumbsDown, Check, Undo2,
 } from 'lucide-react';
 import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
@@ -36,7 +36,12 @@ const THEME_STORAGE_KEY = 'focana-theme';
 const WINDOW_SIZES = {
   baseWidth: 500,
   idleHeight: 140,
+  startChooserHeight: 188,
   timerHeight: 220,
+  timerCheckInPromptHeight: 268,
+  timerCheckInDetourChoiceHeight: 284,
+  timerCheckInDetourResolvedHeight: 300,
+  timerCheckInResolvedHeight: 248,
   contextHeight: 360,
   timeUpHeight: 560,
   modal: {
@@ -50,6 +55,24 @@ const WINDOW_SIZES = {
     quickCapture: [420, 340],
   },
 };
+const CHECKIN_MESSAGES = [
+  'Nice, keep going',
+  "You're locked in",
+  'Still at it, love that',
+  'Crushing it',
+  'In the zone',
+];
+const CHECKIN_COMPLETED_MESSAGES = [
+  'Done! What a win',
+  'Checked off, nice work',
+  "That's a wrap",
+];
+const CHECKIN_DETOUR_MESSAGES = [
+  "No worries, let's get back to it",
+  'Happens to everyone, you caught it',
+  "Quick reset, you've got this",
+  'Detours happen, refocusing now',
+];
 
 function getStoredTheme() {
   if (typeof window === 'undefined') return null;
@@ -118,6 +141,16 @@ export default function App() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
+  const [checkInSettings, setCheckInSettings] = useState({
+    enabled: true,
+    intervalFreeflow: 15,
+    timedPercents: [0.4, 0.8],
+  });
+  const [checkInState, setCheckInState] = useState('idle'); // idle | prompting | detour-choice | detour-resolved | resolved
+  const [checkInResult, setCheckInResult] = useState(null); // focused | detour | completed | missed
+  const [checkInMessage, setCheckInMessage] = useState('');
+  const [checkInCelebrating, setCheckInCelebrating] = useState(false);
+  const [checkInCelebrationType, setCheckInCelebrationType] = useState('none'); // none | focused | completed
 
   // Pulse
   const [pulseSettings, setPulseSettings] = useState({
@@ -147,6 +180,16 @@ export default function App() {
   const postModalResizeTimerRef = useRef(null);
   const parkingLotReturnToIncognitoRef = useRef(false);
   const wasParkingLotOpenRef = useRef(false);
+  const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
+  const checkInReturnToIncognitoRef = useRef(false);
+  const checkInPromptTimeoutRef = useRef(null);
+  const checkInResolveTimeoutRef = useRef(null);
+  const checkInFreeflowNextRef = useRef(null);
+  const checkInTimedThresholdsRef = useRef([]);
+  const checkInTimedIndexRef = useRef(0);
+  const checkInForcedNextRef = useRef(null);
+  const checkInShortIntervalRef = useRef(false);
+  const checkInStateRef = useRef('idle');
 
   useEffect(() => {
     const onResize = () => setWindowHeight(window.innerHeight);
@@ -203,6 +246,8 @@ export default function App() {
       if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
       if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
       if (postModalResizeTimerRef.current) clearTimeout(postModalResizeTimerRef.current);
+      if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+      if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     };
   }, []);
 
@@ -247,30 +292,47 @@ export default function App() {
     setPendingSessionNotes('');
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
+    clearCheckInRuntime();
   }, []);
 
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
 
     const { duration, completed } = sessionToSave.current;
+    const activeSessionId = currentSessionId;
 
-    if (duration > 0.1) {
-      try {
-        await SessionStore.create({
-          task: task.trim(),
-          duration_minutes: duration,
-          mode,
-          completed,
-          notes: notes || undefined,
-        });
-        await loadSessions();
-      } catch (error) {
-        console.error('Error saving session:', error);
+    try {
+      if (duration > 0.1) {
+        if (activeSessionId) {
+          await SessionStore.update(activeSessionId, {
+            task: task.trim(),
+            durationMinutes: duration,
+            mode,
+            completed,
+            notes: notes || '',
+          });
+        } else {
+          await SessionStore.create({
+            task: task.trim(),
+            duration_minutes: duration,
+            mode,
+            completed,
+            notes: notes || undefined,
+          });
+        }
+      } else if (activeSessionId) {
+        // Preserve existing "very short sessions are not kept" behavior.
+        await SessionStore.delete(activeSessionId);
       }
+
+      await loadSessions();
+    } catch (error) {
+      console.error('Error saving session:', error);
     }
 
     sessionToSave.current = null;
-  }, [task, mode, loadSessions]);
+    setCurrentSessionId(null);
+  }, [task, mode, loadSessions, currentSessionId]);
 
   // Pulse animation
   const triggerPulse = useCallback((type = 'gentle', repeats = 2) => {
@@ -300,12 +362,22 @@ export default function App() {
       setIsTimerVisible(true);
     }
 
-    // Normalize to compact full-view height so bottom spacing stays tight
-    // instead of restoring a previously oversized window.
+    let exitTargetHeight = isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
+    if (contextNotes.trim()) {
+      exitTargetHeight = WINDOW_SIZES.contextHeight;
+    } else if (isRunning || isTimerVisible) {
+      if (checkInState === 'prompting') exitTargetHeight = WINDOW_SIZES.timerCheckInPromptHeight;
+      else if (checkInState === 'detour-choice') exitTargetHeight = WINDOW_SIZES.timerCheckInDetourChoiceHeight;
+      else if (checkInState === 'detour-resolved') exitTargetHeight = WINDOW_SIZES.timerCheckInDetourResolvedHeight;
+      else if (checkInState === 'resolved') exitTargetHeight = WINDOW_SIZES.timerCheckInResolvedHeight;
+      else exitTargetHeight = WINDOW_SIZES.timerHeight;
+    }
+
+    // Normalize to the current full-view screen default height on compact exit.
     setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
+      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, exitTargetHeight);
     }, 80);
-  }, [isRunning, time, task]);
+  }, [isRunning, time, task, contextNotes, isTimerVisible, checkInState, isStartModalOpen]);
 
   // Shortcut handlers
   const handleShortcutStartPause = useCallback(() => {
@@ -315,6 +387,26 @@ export default function App() {
       if (newRunning && !sessionStartTime) {
         setSessionStartTime(Date.now());
         setCelebratedMilestones(new Set());
+        if (!currentSessionId) {
+          (async () => {
+            try {
+              const created = await SessionStore.create({
+                task: task.trim(),
+                duration_minutes: 0,
+                mode,
+                completed: false,
+                notes: contextNotes || '',
+              });
+              if (created?.id) {
+                setCurrentSessionId(created.id);
+                await loadSessions();
+              }
+            } catch (error) {
+              console.error('Error creating session at shortcut start:', error);
+            }
+          })();
+        }
+        resetCheckInSchedule(mode, initialTime, getElapsedSeconds());
       }
       showToast('success', newRunning ? 'Session started' : 'Session paused');
     } else {
@@ -322,7 +414,7 @@ export default function App() {
       setTimeout(() => { taskInputRef.current?.focus(); }, 100);
       showToast('info', 'Enter a task to start timer');
     }
-  }, [task, isRunning, sessionStartTime, isIncognito, handleExitIncognito, showToast]);
+  }, [task, isRunning, sessionStartTime, isIncognito, handleExitIncognito, showToast, currentSessionId, mode, contextNotes, loadSessions, initialTime]);
 
   const handleShortcutNewTask = useCallback(() => {
     if (isIncognito) handleExitIncognito();
@@ -344,8 +436,6 @@ export default function App() {
 
   const handleShortcutCompleteTask = useCallback(async () => {
     if (task.trim()) {
-      if (pulseSettings.celebrationEnabled) triggerPulse('celebration', 1);
-
       setIsRunning(false);
       setSessionStartTime(null);
       setCelebratedMilestones(new Set());
@@ -370,7 +460,7 @@ export default function App() {
         showToast('success', 'Task completed!');
       }
     }
-  }, [task, pulseSettings.celebrationEnabled, triggerPulse, mode, time, initialTime, saveSessionWithNotes, handleClear, showToast, isIncognito, handleExitIncognito]);
+  }, [task, mode, time, initialTime, saveSessionWithNotes, handleClear, showToast, isIncognito, handleExitIncognito]);
 
   const handleShortcutAction = useCallback((action) => {
     (async () => {
@@ -401,6 +491,13 @@ export default function App() {
         const settings = await window.electronAPI.storeGet('settings') || {};
         if (settings.shortcuts) setShortcuts(settings.shortcuts);
         if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
+        setCheckInSettings({
+          enabled: settings.checkInEnabled ?? true,
+          intervalFreeflow: Number.isFinite(settings.checkInIntervalFreeflow) ? settings.checkInIntervalFreeflow : 15,
+          timedPercents: Array.isArray(settings.checkInIntervalTimed) && settings.checkInIntervalTimed.length
+            ? settings.checkInIntervalTimed
+            : [0.4, 0.8],
+        });
         const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
         if (hasExplicitCompactSetting) {
           setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? true);
@@ -482,43 +579,343 @@ export default function App() {
     }
   }, [task, time, mode, initialTime, contextNotes, isRunning]);
 
-  // Time Awareness Pulse
-  useEffect(() => {
-    if (pulseSettings.timeAwarenessEnabled) {
-      const checkTimeAwareness = () => {
-        const now = Date.now();
-        const timeSinceLastCheck = now - lastTimeAwarenessCheck;
-        const intervalMs = pulseSettings.timeAwarenessInterval * 60 * 1000;
-        if (timeSinceLastCheck >= intervalMs) {
-          triggerPulse('gentle', 3);
-          setLastTimeAwarenessCheck(now);
-        }
-      };
-      timeAwarenessRef.current = setInterval(checkTimeAwareness, 60000);
-      return () => clearInterval(timeAwarenessRef.current);
-    }
-  }, [pulseSettings.timeAwarenessEnabled, pulseSettings.timeAwarenessInterval, lastTimeAwarenessCheck, triggerPulse]);
+  const getElapsedSeconds = useCallback(() => {
+    return mode === 'freeflow' ? time : Math.max(0, initialTime - time);
+  }, [mode, time, initialTime]);
 
-  // Celebration Pulse — uses refs for time/milestones to avoid re-creating
-  // the interval every second or on every milestone update
-  useEffect(() => {
-    if (isRunning && pulseSettings.celebrationEnabled && sessionStartTime) {
-      const checkMilestones = () => {
-        const currentTime = timeRef.current;
-        const sessionDuration = mode === 'freeflow' ? currentTime : (initialTime - currentTime);
-        const minutes = Math.floor(sessionDuration / 60);
-        const milestones = [5, 15, 30, 45, 60, 90, 120];
-        milestones.forEach((milestone) => {
-          if (minutes >= milestone && !celebratedMilestonesRef.current.has(milestone)) {
-            triggerPulse('celebration', 2);
-            setCelebratedMilestones((prev) => new Set([...prev, milestone]));
-          }
-        });
-      };
-      celebrationCheckRef.current = setInterval(checkMilestones, 10000);
-      return () => clearInterval(celebrationCheckRef.current);
+  const getStandardCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
+    if (nextMode === 'freeflow') {
+      const intervalMinutes = Math.max(1, Number(checkInSettings.intervalFreeflow) || 15);
+      return intervalMinutes * 60;
     }
-  }, [isRunning, pulseSettings.celebrationEnabled, mode, initialTime, sessionStartTime, triggerPulse]);
+
+    const safeTotal = Math.max(1, Number(nextInitialTimeSec) || 0);
+    const percents = (Array.isArray(checkInSettings.timedPercents) ? checkInSettings.timedPercents : [0.4, 0.8])
+      .map((p) => Number(p))
+      .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
+      .sort((a, b) => a - b);
+
+    if (percents.length >= 2) {
+      return Math.max(60, Math.round((percents[1] - percents[0]) * safeTotal));
+    }
+
+    return Math.max(60, Math.round((percents[0] || 0.4) * safeTotal));
+  }, [mode, initialTime, checkInSettings.intervalFreeflow, checkInSettings.timedPercents]);
+
+  const getShortCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
+    const standardInterval = getStandardCheckInIntervalSeconds(nextMode, nextInitialTimeSec);
+    return Math.max(60, Math.round(standardInterval * 0.4));
+  }, [mode, initialTime, getStandardCheckInIntervalSeconds]);
+
+  const clearCheckInUi = useCallback(() => {
+    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+    if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+    checkInPromptTimeoutRef.current = null;
+    checkInResolveTimeoutRef.current = null;
+    setCheckInState('idle');
+    setCheckInResult(null);
+    setCheckInMessage('');
+    setCheckInCelebrating(false);
+    setCheckInCelebrationType('none');
+  }, []);
+
+  const clearCheckInRuntime = useCallback(() => {
+    checkInFreeflowNextRef.current = null;
+    checkInTimedThresholdsRef.current = [];
+    checkInTimedIndexRef.current = 0;
+    checkInForcedNextRef.current = null;
+    checkInShortIntervalRef.current = false;
+    checkInReturnToIncognitoRef.current = false;
+    clearCheckInUi();
+  }, [clearCheckInUi]);
+
+  const resetCheckInSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
+    checkInFreeflowNextRef.current = null;
+    checkInTimedThresholdsRef.current = [];
+    checkInTimedIndexRef.current = 0;
+    checkInForcedNextRef.current = null;
+    checkInShortIntervalRef.current = false;
+
+    if (!checkInSettings.enabled) return;
+
+    if (nextMode === 'freeflow') {
+      const intervalSeconds = getStandardCheckInIntervalSeconds(nextMode, nextInitialTimeSec);
+      checkInFreeflowNextRef.current = elapsedSec + intervalSeconds;
+      return;
+    }
+
+    const safeTotal = Math.max(1, Number(nextInitialTimeSec) || 0);
+    const percents = (Array.isArray(checkInSettings.timedPercents) ? checkInSettings.timedPercents : [0.4, 0.8])
+      .map((p) => Number(p))
+      .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
+      .sort((a, b) => a - b);
+    checkInTimedThresholdsRef.current = percents.map((p) => Math.round(safeTotal * p));
+    while (
+      checkInTimedIndexRef.current < checkInTimedThresholdsRef.current.length &&
+      elapsedSec >= checkInTimedThresholdsRef.current[checkInTimedIndexRef.current]
+    ) {
+      checkInTimedIndexRef.current += 1;
+    }
+  }, [checkInSettings.enabled, checkInSettings.timedPercents, initialTime, getStandardCheckInIntervalSeconds]);
+
+  const advanceCheckInScheduleAfterResult = useCallback((elapsedSec) => {
+    if (!checkInSettings.enabled) return;
+    if (mode === 'freeflow') {
+      const intervalSeconds = getStandardCheckInIntervalSeconds(mode, initialTime);
+      checkInFreeflowNextRef.current = elapsedSec + intervalSeconds;
+      return;
+    }
+    while (
+      checkInTimedIndexRef.current < checkInTimedThresholdsRef.current.length &&
+      elapsedSec >= checkInTimedThresholdsRef.current[checkInTimedIndexRef.current]
+    ) {
+      checkInTimedIndexRef.current += 1;
+    }
+  }, [checkInSettings.enabled, mode, initialTime, getStandardCheckInIntervalSeconds]);
+
+  const logCheckIn = useCallback(async (status, elapsedSec) => {
+    if (!currentSessionId || !task.trim()) return null;
+    try {
+      return await window.electronAPI.checkInAdd?.({
+        sessionId: currentSessionId,
+        taskText: task.trim(),
+        elapsedMinutes: Number((elapsedSec / 60).toFixed(2)),
+        status,
+      });
+    } catch (error) {
+      console.error('Failed to save check-in:', error);
+      return null;
+    }
+  }, [currentSessionId, task]);
+
+  const completeSessionFromCheckIn = useCallback(async (elapsedSec) => {
+    try {
+      const durationMinutes = Number((elapsedSec / 60).toFixed(2));
+      if (currentSessionId) {
+        await SessionStore.update(currentSessionId, {
+          task: task.trim(),
+          durationMinutes,
+          mode,
+          completed: true,
+          notes: contextNotes || '',
+        });
+      } else if (task.trim()) {
+        await SessionStore.create({
+          task: task.trim(),
+          duration_minutes: durationMinutes,
+          mode,
+          completed: true,
+          notes: contextNotes || '',
+        });
+      }
+      await loadSessions();
+    } catch (error) {
+      console.error('Failed to finalize session after check-in completion:', error);
+    }
+
+    handleClear();
+    setTimeout(() => taskInputRef.current?.focus(), 140);
+  }, [currentSessionId, task, mode, contextNotes, loadSessions, handleClear]);
+
+  const resolveCheckIn = useCallback(async (status) => {
+    if (checkInStateRef.current !== 'prompting') return;
+    const elapsedSec = getElapsedSeconds();
+    await logCheckIn(status, elapsedSec);
+
+    if (status === 'focused') {
+      if (checkInShortIntervalRef.current) {
+        checkInShortIntervalRef.current = false;
+        checkInForcedNextRef.current = null;
+        resetCheckInSchedule(mode, initialTime, elapsedSec);
+      } else {
+        advanceCheckInScheduleAfterResult(elapsedSec);
+      }
+      const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
+      setCheckInMessage(randomMessage);
+      setCheckInCelebrating(true);
+      setCheckInCelebrationType('focused');
+    } else {
+      if (checkInShortIntervalRef.current) {
+        const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
+        checkInForcedNextRef.current = elapsedSec + shortInterval;
+      } else {
+        advanceCheckInScheduleAfterResult(elapsedSec);
+      }
+      setCheckInMessage('Check-in missed');
+      setCheckInCelebrating(false);
+      setCheckInCelebrationType('none');
+    }
+
+    setCheckInResult(status);
+    setCheckInState('resolved');
+    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+
+    if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+    checkInResolveTimeoutRef.current = setTimeout(() => {
+      clearCheckInUi();
+    }, status === 'focused' ? 1500 : 800);
+  }, [
+    advanceCheckInScheduleAfterResult,
+    clearCheckInUi,
+    getElapsedSeconds,
+    getShortCheckInIntervalSeconds,
+    logCheckIn,
+    resetCheckInSchedule,
+    mode,
+    initialTime,
+  ]);
+
+  const openCheckInDetourChoice = useCallback(() => {
+    if (checkInStateRef.current !== 'prompting') return;
+    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+    const applyDetourChoiceState = () => {
+      setCheckInState('detour-choice');
+      setCheckInResult(null);
+      setCheckInMessage('');
+      setCheckInCelebrating(false);
+      setCheckInCelebrationType('none');
+    };
+
+    if (isIncognito) {
+      checkInReturnToIncognitoRef.current = true;
+      handleExitIncognito();
+      setTimeout(() => {
+        applyDetourChoiceState();
+      }, 120);
+      return;
+    }
+
+    checkInReturnToIncognitoRef.current = false;
+    applyDetourChoiceState();
+  }, [isIncognito, handleExitIncognito]);
+
+  const handleCheckInFinished = useCallback(async () => {
+    if (checkInStateRef.current !== 'detour-choice') return;
+    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+    if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+    checkInReturnToIncognitoRef.current = false; // session ending — no return to compact
+
+    const elapsedSec = getElapsedSeconds();
+    await logCheckIn('completed', elapsedSec);
+
+    setIsRunning(false);
+    setCheckInResult('completed');
+    setCheckInState('resolved');
+    setCheckInMessage(CHECKIN_COMPLETED_MESSAGES[Math.floor(Math.random() * CHECKIN_COMPLETED_MESSAGES.length)]);
+    setCheckInCelebrating(true);
+    setCheckInCelebrationType('completed');
+    triggerConfetti(2200);
+
+    checkInResolveTimeoutRef.current = setTimeout(() => {
+      completeSessionFromCheckIn(elapsedSec);
+    }, 2000);
+  }, [getElapsedSeconds, logCheckIn, triggerConfetti, completeSessionFromCheckIn]);
+
+  const handleCheckInDetour = useCallback(async () => {
+    if (checkInStateRef.current !== 'detour-choice') return;
+    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+    if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+
+    const elapsedSec = getElapsedSeconds();
+    await logCheckIn('detour', elapsedSec);
+
+    const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
+    checkInShortIntervalRef.current = true;
+    checkInForcedNextRef.current = elapsedSec + shortInterval;
+
+    setCheckInResult('detour');
+    setCheckInState('detour-resolved');
+    setCheckInMessage(CHECKIN_DETOUR_MESSAGES[Math.floor(Math.random() * CHECKIN_DETOUR_MESSAGES.length)]);
+    setCheckInCelebrating(false);
+    setCheckInCelebrationType('none');
+  }, [getElapsedSeconds, getShortCheckInIntervalSeconds, initialTime, logCheckIn, mode]);
+
+  const handleCheckInDetourDismiss = useCallback(() => {
+    if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+    const shouldReturnToIncognito = checkInReturnToIncognitoRef.current;
+    checkInReturnToIncognitoRef.current = false;
+    triggerPulse('celebration', 1);
+    setCheckInCelebrating(true);
+    setCheckInCelebrationType('focused');
+    checkInResolveTimeoutRef.current = setTimeout(() => {
+      clearCheckInUi();
+      if (shouldReturnToIncognito) {
+        setTimeout(() => setIsIncognito(true), 80);
+      }
+    }, 700);
+  }, [clearCheckInUi, triggerPulse]);
+
+  const triggerCheckInPrompt = useCallback(() => {
+    if (!checkInSettings.enabled) return;
+    if (!isRunning || !isTimerVisible || !task.trim() || !currentSessionId) return;
+    if (checkInStateRef.current !== 'idle') return;
+
+    setCheckInState('prompting');
+    setCheckInResult(null);
+    setCheckInMessage('');
+    setCheckInCelebrating(false);
+    setCheckInCelebrationType('none');
+
+    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
+    checkInPromptTimeoutRef.current = setTimeout(() => {
+      resolveCheckIn('missed');
+    }, 10000);
+  }, [checkInSettings.enabled, isRunning, isTimerVisible, task, currentSessionId, resolveCheckIn]);
+
+  useEffect(() => {
+    checkInStateRef.current = checkInState;
+  }, [checkInState]);
+
+  useEffect(() => {
+    if (!checkInSettings.enabled) {
+      clearCheckInRuntime();
+      return undefined;
+    }
+    return undefined;
+  }, [checkInSettings.enabled, clearCheckInRuntime]);
+
+  useEffect(() => {
+    if (!isRunning || !isTimerVisible || !task.trim() || !currentSessionId || !checkInSettings.enabled) return;
+    if (checkInState !== 'idle') return;
+
+    const elapsed = getElapsedSeconds();
+    if (Number.isFinite(checkInForcedNextRef.current)) {
+      if (elapsed >= checkInForcedNextRef.current) {
+        triggerCheckInPrompt();
+      }
+      return;
+    }
+
+    if (mode === 'freeflow') {
+      if (!Number.isFinite(checkInFreeflowNextRef.current)) {
+        resetCheckInSchedule('freeflow', initialTime, elapsed);
+      }
+      if (Number.isFinite(checkInFreeflowNextRef.current) && elapsed >= checkInFreeflowNextRef.current) {
+        triggerCheckInPrompt();
+      }
+      return;
+    }
+
+    const thresholds = checkInTimedThresholdsRef.current;
+    const idx = checkInTimedIndexRef.current;
+    if (idx < thresholds.length && elapsed >= thresholds[idx]) {
+      checkInTimedIndexRef.current = idx + 1;
+      triggerCheckInPrompt();
+    }
+  }, [
+    isRunning,
+    isTimerVisible,
+    task,
+    currentSessionId,
+    checkInSettings.enabled,
+    checkInState,
+    mode,
+    time,
+    initialTime,
+    getElapsedSeconds,
+    resetCheckInSchedule,
+    triggerCheckInPrompt,
+  ]);
 
   // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
@@ -546,13 +943,14 @@ export default function App() {
       setShowNotesModal(false);
       setShowCompletionModal(false);
       setIsTimerVisible(true);
+      clearCheckInRuntime();
       sessionToSave.current = {
         duration: initialTime / 60,
         completed: true,
       };
       setShowTimeUpModal(true);
     }
-  }, [mode, time, isRunning, initialTime]);
+  }, [mode, time, isRunning, initialTime, clearCheckInRuntime]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -588,6 +986,16 @@ export default function App() {
     setDistractionJarOpen(false);
   }, []);
 
+  const handleCheckInParkIt = useCallback(() => {
+    const shouldReturnToIncognito = checkInReturnToIncognitoRef.current;
+    checkInReturnToIncognitoRef.current = false;
+    clearCheckInUi();
+    // We're already in full view (exited incognito for detour UI).
+    // Pass the return-to-incognito intent to the parking lot flow.
+    parkingLotReturnToIncognitoRef.current = shouldReturnToIncognito;
+    setDistractionJarOpen(true);
+  }, [clearCheckInUi]);
+
   useEffect(() => {
     const wasOpen = wasParkingLotOpenRef.current;
     if (wasOpen && !distractionJarOpen && parkingLotReturnToIncognitoRef.current) {
@@ -611,14 +1019,26 @@ export default function App() {
     window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
   }, []);
 
+  const getActiveScreenDefaultHeight = useCallback(() => {
+    if (contextNotes.trim()) return WINDOW_SIZES.contextHeight;
+    if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
+    if (checkInState === 'detour-choice') return WINDOW_SIZES.timerCheckInDetourChoiceHeight;
+    if (checkInState === 'detour-resolved') return WINDOW_SIZES.timerCheckInDetourResolvedHeight;
+    if (checkInState === 'resolved') return WINDOW_SIZES.timerCheckInResolvedHeight;
+    return WINDOW_SIZES.timerHeight;
+  }, [contextNotes, checkInState]);
+
+  const getIdleScreenDefaultHeight = useCallback(() => {
+    return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
+  }, [isStartModalOpen]);
+
   const resyncFullWindowSize = useCallback(() => {
     if (isIncognito) return;
-    const minHeight =
-      contextNotes.trim()
-        ? WINDOW_SIZES.contextHeight
-        : (isRunning || isTimerVisible ? WINDOW_SIZES.timerHeight : WINDOW_SIZES.idleHeight);
+    const minHeight = (isRunning || isTimerVisible)
+      ? getActiveScreenDefaultHeight()
+      : getIdleScreenDefaultHeight();
     resizeToMainCardContent(minHeight);
-  }, [isIncognito, contextNotes, isRunning, isTimerVisible, resizeToMainCardContent]);
+  }, [isIncognito, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
 
   const handlePlay = () => {
     if (task.trim()) {
@@ -636,6 +1056,7 @@ export default function App() {
     setIsRunning(false);
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
+    clearCheckInRuntime();
     if (isIncognito) {
       handleExitIncognito();
     }
@@ -665,13 +1086,33 @@ export default function App() {
     setIsStartModalOpen(true);
   };
 
-  const handleStartSession = (selectedMode, minutes) => {
+  const handleStartSession = async (selectedMode, minutes) => {
+    let createdSessionId = null;
+    try {
+      const created = await SessionStore.create({
+        task: task.trim(),
+        duration_minutes: 0,
+        mode: selectedMode,
+        completed: false,
+        notes: contextNotes || '',
+      });
+      createdSessionId = created?.id || null;
+      if (createdSessionId) {
+        setCurrentSessionId(createdSessionId);
+        await loadSessions();
+      }
+    } catch (error) {
+      console.error('Error creating session at start:', error);
+    }
+
     setMode(selectedMode);
+    let initialSeconds = 0;
     if (selectedMode === 'freeflow') {
       setTime(0);
       setInitialTime(0);
     } else {
       const seconds = minutes * 60;
+      initialSeconds = seconds;
       setTime(seconds);
       setInitialTime(seconds);
     }
@@ -679,11 +1120,29 @@ export default function App() {
     setIsRunning(true);
     setSessionStartTime(Date.now());
     setCelebratedMilestones(new Set());
+    clearCheckInRuntime();
+    resetCheckInSchedule(selectedMode, initialSeconds, 0);
     setIsStartModalOpen(false);
     setTimeout(() => setIsIncognito(true), 100);
   };
 
   const handleSaveSessionNotes = async (notes) => {
+    const postAction = postSessionNotesActionRef.current;
+    postSessionNotesActionRef.current = null;
+
+    if (postAction === 'resume-later') {
+      await saveSessionWithNotes(notes);
+      setShowNotesModal(false);
+      // Keep task text, reset timer to idle
+      setIsRunning(false);
+      setTime(0);
+      setInitialTime(0);
+      setIsTimerVisible(false);
+      setSessionStartTime(null);
+      setCelebratedMilestones(new Set());
+      return;
+    }
+
     if (isStopFlowAwaitingCompletion) {
       setPendingSessionNotes(notes);
       setShowNotesModal(false);
@@ -695,14 +1154,29 @@ export default function App() {
     handleClear();
   };
 
-  const handleSkipSessionNotes = () => {
+  const handleSkipSessionNotes = async () => {
+    const postAction = postSessionNotesActionRef.current;
+    postSessionNotesActionRef.current = null;
+
+    if (postAction === 'resume-later') {
+      await saveSessionWithNotes('');
+      setShowNotesModal(false);
+      setIsRunning(false);
+      setTime(0);
+      setInitialTime(0);
+      setIsTimerVisible(false);
+      setSessionStartTime(null);
+      setCelebratedMilestones(new Set());
+      return;
+    }
+
     if (isStopFlowAwaitingCompletion) {
       setPendingSessionNotes('');
       setShowNotesModal(false);
       setShowCompletionModal(true);
       return;
     }
-    saveSessionWithNotes('');
+    await saveSessionWithNotes('');
     setShowNotesModal(false);
     handleClear();
   };
@@ -765,6 +1239,7 @@ export default function App() {
     setShowTimeUpModal(false);
     setSessionStartTime(null);
     setCelebratedMilestones(new Set());
+    clearCheckInRuntime();
     setShowNotesModal(true);
   };
 
@@ -777,7 +1252,23 @@ export default function App() {
     setIsTimerVisible(true);
     setIsRunning(true);
     setShowTimeUpModal(false);
+    resetCheckInSchedule('timed', initialTime + extraSeconds, 0);
     showToast('success', `Added ${safeMinutes} more minute${safeMinutes === 1 ? '' : 's'}`);
+  };
+
+  // Phase 3.5 — "Resume Later" from TimeUpModal
+  const handleTimeUpResumeLater = () => {
+    setShowTimeUpModal(false);
+    setSessionStartTime(null);
+    setCelebratedMilestones(new Set());
+    clearCheckInRuntime();
+    // Override completed flag — task is not finished
+    sessionToSave.current = {
+      ...sessionToSave.current,
+      completed: false,
+    };
+    postSessionNotesActionRef.current = 'resume-later';
+    setShowNotesModal(true);
   };
 
   const handleUseTask = (session) => {
@@ -803,7 +1294,7 @@ export default function App() {
     setCelebratedMilestones(new Set());
     pendingPostModalResizeRef.current = {
       minWidth: 500,
-      minHeight: session.notes?.trim() ? 360 : 240,
+      minHeight: session.notes?.trim() ? WINDOW_SIZES.contextHeight : WINDOW_SIZES.timerHeight,
     };
   };
 
@@ -982,7 +1473,7 @@ export default function App() {
     if (isRunning || isTimerVisible || contextNotes.trim()) return undefined;
 
     const resizeTimer = setTimeout(() => {
-      resizeToMainCardContent(WINDOW_SIZES.idleHeight);
+      resizeToMainCardContent(getIdleScreenDefaultHeight());
     }, 40);
 
     return () => clearTimeout(resizeTimer);
@@ -993,6 +1484,7 @@ export default function App() {
     task,
     contextNotes,
     isStartModalOpen,
+    getIdleScreenDefaultHeight,
     resizeToMainCardContent,
     showSettings,
     showHistoryModal,
@@ -1019,7 +1511,7 @@ export default function App() {
     if (isIncognito || hasModalOpen) return undefined;
     if (!isRunning && !isTimerVisible && !contextNotes.trim()) return undefined;
 
-    const targetHeight = contextNotes.trim() ? WINDOW_SIZES.contextHeight : WINDOW_SIZES.timerHeight;
+    const targetHeight = getActiveScreenDefaultHeight();
     const resizeTimer = setTimeout(() => {
       resizeToMainCardContent(targetHeight);
     }, 40);
@@ -1030,6 +1522,9 @@ export default function App() {
     isRunning,
     isTimerVisible,
     contextNotes,
+    checkInState,
+    checkInResult,
+    checkInMessage,
     showSettings,
     showHistoryModal,
     showTaskPreview,
@@ -1038,6 +1533,7 @@ export default function App() {
     showNotesModal,
     showCompletionModal,
     showQuickCapture,
+    getActiveScreenDefaultHeight,
     resizeToMainCardContent,
   ]);
 
@@ -1069,6 +1565,14 @@ export default function App() {
           onPause={handlePause}
           onStop={handleStop}
           pulseEnabled={pulseSettings.incognitoEnabled}
+          checkInState={checkInState}
+          checkInMessage={checkInMessage}
+          onCheckInFocused={() => resolveCheckIn('focused')}
+          onCheckInThumbsDown={openCheckInDetourChoice}
+          onCheckInFinished={handleCheckInFinished}
+          onCheckInDetour={handleCheckInDetour}
+          onCheckInParkIt={handleCheckInParkIt}
+          onCheckInDismiss={handleCheckInDetourDismiss}
         />
         <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
         <TaskCompletionModal
@@ -1078,7 +1582,7 @@ export default function App() {
           onNotCompleted={() => handleStopFlowCompletionDecision(false)}
           onDismiss={handleStopFlowCompletionDismiss}
         />
-        <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} />
+        <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} onResumeLater={handleTimeUpResumeLater} />
         <TaskPreviewModal
           isOpen={showTaskPreview}
           onClose={handleCloseTaskPreview}
@@ -1199,11 +1703,118 @@ export default function App() {
             setTask={setTask}
             isActive={isNoteFocused || isRunning}
             isLocked={isRunning}
+            checkInPromptActive={checkInState === 'prompting' || checkInState === 'detour-choice'}
+            checkInCelebrating={checkInCelebrating}
+            checkInCelebrationType={checkInCelebrationType}
             onFocus={() => setIsNoteFocused(true)}
             onBlur={() => setIsNoteFocused(false)}
             onTaskSubmit={handleTaskSubmit}
             onLockedInteraction={handleLockedTaskInputInteraction}
           />
+
+          {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || checkInState === 'resolved') && (
+            <div
+              style={{
+                width: '100%',
+                maxWidth: checkInState === 'detour-choice' || checkInState === 'detour-resolved' ? 480 : 460,
+                marginTop: '0.5rem',
+                border: `1px solid ${checkInState === 'prompting' || checkInState === 'detour-choice' ? '#D97706' : 'var(--border-subtle)'}`,
+                borderRadius: '0.5rem',
+                padding: '0.5rem 0.625rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                background: 'var(--bg-card)',
+                transition: 'all 0.25s ease',
+                opacity: checkInState === 'resolved' && checkInResult === 'missed' ? 0.75 : 1,
+              }}
+            >
+              {(checkInState === 'prompting' || checkInState === 'resolved') && (
+                <>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {checkInState === 'prompting' ? 'Still focused?' : (checkInMessage || (checkInResult === 'missed' ? 'Check-in missed' : ''))}
+                  </span>
+                  {checkInState === 'prompting' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => resolveCheckIn('focused')}
+                        style={{ width: '1.9rem', height: '1.9rem', borderRadius: '9999px' }}
+                        title="Still focused"
+                      >
+                        <ThumbsUp style={{ width: 14, height: 14 }} />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={openCheckInDetourChoice}
+                        style={{ width: '1.9rem', height: '1.9rem', borderRadius: '9999px' }}
+                        title="Not focused"
+                      >
+                        <ThumbsDown style={{ width: 14, height: 14 }} />
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {checkInState === 'detour-choice' && (
+                <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600, flexShrink: 0 }}>
+                    What happened?
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginLeft: 'auto' }}>
+                    <Button
+                      size="sm"
+                      onClick={handleCheckInFinished}
+                      style={{ height: '1.9rem', borderRadius: '9999px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      title="Finished"
+                    >
+                      <Check style={{ width: 13, height: 13 }} />
+                      Finished
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCheckInDetour}
+                      style={{ height: '1.9rem', borderRadius: '9999px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      title="Took a detour"
+                    >
+                      <Undo2 style={{ width: 13, height: 13 }} />
+                      Took a detour
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {checkInState === 'detour-resolved' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {checkInMessage}
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleCheckInParkIt}
+                    style={{ height: '1.85rem', borderRadius: '9999px', flexShrink: 0 }}
+                    title="Open Parking Lot"
+                  >
+                    Park it?
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={handleCheckInDetourDismiss}
+                    style={{ width: '1.85rem', height: '1.85rem', borderRadius: '9999px', flexShrink: 0 }}
+                    title="Dismiss"
+                  >
+                    <X style={{ width: 12, height: 12 }} />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {isStartModalOpen && (
             <div style={{
@@ -1339,7 +1950,6 @@ export default function App() {
         onNotCompleted={() => handleStopFlowCompletionDecision(false)}
         onDismiss={handleStopFlowCompletionDismiss}
       />
-      <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} />
       <TaskPreviewModal
         isOpen={showTaskPreview}
         onClose={handleCloseTaskPreview}

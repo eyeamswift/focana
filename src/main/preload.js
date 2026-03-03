@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setPillSize: (size) => ipcRenderer.invoke('set-pill-size', size),
   ensureMainWindowSize: (minWidth, minHeight) => ipcRenderer.invoke('ensure-main-window-size', minWidth, minHeight),
 
+  // Check-ins
+  checkInAdd: (data) => ipcRenderer.invoke('checkin:add', data),
+  checkInGetBySession: (sessionId) => ipcRenderer.invoke('checkin:getBySession', sessionId),
+  checkInUpdate: (id, updates) => ipcRenderer.invoke('checkin:update', id, updates),
+
   // Pill drag (JS-based — CSS drag regions block mouse events)
   pillDragStart: () => ipcRenderer.send('pill-drag-start'),
   pillDragMove: (dx, dy) => ipcRenderer.send('pill-drag-move', { dx, dy }),

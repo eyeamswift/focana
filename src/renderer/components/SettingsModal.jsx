@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
-import { Input } from './ui/Input';
 import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
@@ -430,50 +429,7 @@ export default function SettingsModal({
 
           <TabsContent value="pulse" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
-              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Pulse Animations</h3>
-
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)',
-              }}>
-                <div>
-                  <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Time Awareness Pulse</p>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Gentle reminder every few minutes</p>
-                </div>
-                <Switch
-                  checked={tempPulseSettings.timeAwarenessEnabled}
-                  onCheckedChange={(checked) => setTempPulseSettings({ ...tempPulseSettings, timeAwarenessEnabled: checked })}
-                />
-              </div>
-
-              {tempPulseSettings.timeAwarenessEnabled && (
-                <div style={{ marginLeft: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Interval:</span>
-                  <Input
-                    type="number"
-                    value={tempPulseSettings.timeAwarenessInterval}
-                    onChange={(e) => setTempPulseSettings({ ...tempPulseSettings, timeAwarenessInterval: parseInt(e.target.value) || 30 })}
-                    min="5"
-                    max="120"
-                    style={{ width: '5rem', textAlign: 'center' }}
-                  />
-                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>minutes</span>
-                </div>
-              )}
-
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)',
-              }}>
-                <div>
-                  <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Celebration Pulse</p>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Celebrate focus milestones (5, 15, 30+ min)</p>
-                </div>
-                <Switch
-                  checked={tempPulseSettings.celebrationEnabled}
-                  onCheckedChange={(checked) => setTempPulseSettings({ ...tempPulseSettings, celebrationEnabled: checked })}
-                />
-              </div>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Incognito Pulse</h3>
 
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',

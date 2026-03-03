@@ -79,6 +79,12 @@ const schema = {
       keepTextAfterCompletion: { type: 'boolean', default: false },
       showTaskInCompactDefault: { type: 'boolean', default: true },
       showTaskInCompactCustomized: { type: 'boolean', default: false },
+      checkInEnabled: { type: 'boolean', default: true },
+      checkInIntervalFreeflow: { type: 'number', default: 15 },
+      checkInIntervalTimed: {
+        type: 'array',
+        default: [0.4, 0.8],
+      },
       launchOnStartup: { type: 'boolean', default: false },
     },
     default: {},

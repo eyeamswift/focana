@@ -3,6 +3,7 @@ const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
 const { createTray } = require('./tray');
+const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 
 let mainWindow = null;
 let isPillMode = false;
@@ -217,6 +218,19 @@ ipcMain.handle('store-set', (_event, key, value) => {
   }
 
   return true;
+});
+
+// Check-ins
+ipcMain.handle('checkin:add', (_event, data) => {
+  return addCheckIn(data);
+});
+
+ipcMain.handle('checkin:getBySession', (_event, sessionId) => {
+  return getCheckInsBySession(sessionId);
+});
+
+ipcMain.handle('checkin:update', (_event, id, updates) => {
+  return updateCheckIn(id, updates);
 });
 
 // Notifications

@@ -8,6 +8,9 @@ const TaskInput = forwardRef(({
   setTask,
   isActive,
   isLocked = false,
+  checkInPromptActive = false,
+  checkInCelebrating = false,
+  checkInCelebrationType = 'none',
   onFocus,
   onBlur,
   onTaskSubmit,
@@ -85,12 +88,18 @@ const TaskInput = forwardRef(({
           borderWidth: 2,
           borderStyle: 'solid',
           borderRadius: '0.625rem',
-          borderColor: isActive ? 'var(--brand-action)' : 'var(--border-strong)',
+          borderColor: checkInPromptActive ? '#D97706' : (isActive ? 'var(--brand-action)' : 'var(--border-strong)'),
           background: 'var(--bg-surface)',
           fontFamily: 'Inter, system-ui, sans-serif',
           color: 'var(--text-primary)',
-          transition: 'all 0.3s',
-          boxShadow: isActive ? '0 0 0 2px var(--focus-ring)' : 'none',
+          transition: 'all 0.5s ease',
+          boxShadow: checkInCelebrating
+            ? (checkInCelebrationType === 'completed'
+              ? '0 0 0 3px rgba(245, 158, 11, 0.75), 0 0 20px rgba(245, 158, 11, 0.45)'
+              : '0 0 0 2px rgba(245, 158, 11, 0.55)')
+            : (checkInPromptActive
+              ? '0 0 0 2px rgba(217, 119, 6, 0.35)'
+              : (isActive ? '0 0 0 2px var(--focus-ring)' : 'none')),
           resize: 'none',
           overflow: 'hidden',
           lineHeight: 1.35,
