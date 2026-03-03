@@ -97,7 +97,10 @@ html, body {
 html[data-window-mode='pill'],
 html[data-window-mode='pill'] body,
 html[data-window-mode='pill'] #root {
-  background: transparent;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  backdrop-filter: none !important;
 }
 
 /* === Electron Drag Regions === */
@@ -1078,7 +1081,10 @@ html[data-window-mode='pill'] #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  backdrop-filter: none !important;
 }
 
 .main-card {

@@ -275,6 +275,8 @@ ipcMain.handle('enter-pill-mode', () => {
     const current = mainWindow.getBounds();
     lastFullBounds = current;
     isPillMode = true;
+    mainWindow.setBackgroundColor('#00000000');
+    mainWindow.setHasShadow(false);
     // Allow a true compact window in pill mode; otherwise FULL_MIN_HEIGHT keeps
     // an invisible tall window that blocks moving the visible pill higher.
     mainWindow.setResizable(true);

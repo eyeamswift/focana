@@ -61,7 +61,7 @@ export default function SettingsModal({
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
-  const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? false);
+  const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
   const [pinControlsToToolbar, setPinControlsToToolbar] = useState(pinControlsToToolbarDefault ?? false);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
@@ -91,7 +91,12 @@ export default function SettingsModal({
         setShortcutsEnabled(settings.shortcutsEnabled ?? shortcutsEnabledDefault ?? true);
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
-        setShowTaskInCompact(settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? false);
+        const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
+        setShowTaskInCompact(
+          hasExplicitCompactSetting
+            ? (settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? true)
+            : true
+        );
         setPinControlsToToolbar(settings.pinControlsToToolbar ?? pinControlsToToolbarDefault ?? false);
       })();
     }
@@ -106,6 +111,7 @@ export default function SettingsModal({
     settings.bringToFront = bringToFront;
     settings.keepTextAfterCompletion = keepTextAfterCompletion;
     settings.showTaskInCompactDefault = showTaskInCompact;
+    settings.showTaskInCompactCustomized = true;
     settings.pinControlsToToolbar = pinControlsToToolbar;
     settings.shortcuts = tempShortcuts;
     settings.pulseSettings = tempPulseSettings;
@@ -128,7 +134,7 @@ export default function SettingsModal({
     setShortcutsEnabled(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
-    setShowTaskInCompact(false);
+    setShowTaskInCompact(true);
     setPinControlsToToolbar(false);
     setConflicts({});
   };

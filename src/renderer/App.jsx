@@ -95,7 +95,7 @@ export default function App() {
   const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [shortcutsHydrated, setShortcutsHydrated] = useState(false);
-  const [showTaskInCompactDefault, setShowTaskInCompactDefault] = useState(false);
+  const [showTaskInCompactDefault, setShowTaskInCompactDefault] = useState(true);
   const [pinControlsToToolbar, setPinControlsToToolbar] = useState(false);
   const [toast, setToast] = useState(null);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
@@ -375,7 +375,17 @@ export default function App() {
         const settings = await window.electronAPI.storeGet('settings') || {};
         if (settings.shortcuts) setShortcuts(settings.shortcuts);
         if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
-        setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? false);
+        const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
+        if (hasExplicitCompactSetting) {
+          setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? true);
+        } else {
+          // Migration: older installs may still have legacy false persisted.
+          // New default behavior is task visible in compact mode.
+          settings.showTaskInCompactDefault = true;
+          settings.showTaskInCompactCustomized = false;
+          await window.electronAPI.storeSet('settings', settings);
+          setShowTaskInCompactDefault(true);
+        }
         setPinControlsToToolbar(settings.pinControlsToToolbar ?? false);
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
 
@@ -928,7 +938,6 @@ export default function App() {
       <div className="app-container pill-mode electron-draggable">
         <IncognitoMode
           task={task}
-          theme={theme}
           isRunning={isRunning}
           time={time}
           showTaskByDefault={showTaskInCompactDefault}

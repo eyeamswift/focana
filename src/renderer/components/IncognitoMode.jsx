@@ -6,48 +6,18 @@ import { formatTime } from '../utils/time';
 // Pill width constants (px)
 // ---------------------------------------------------------------------------
 const H_MARGIN   = 12;  // 6px transparent drag area on each side of pill
-const PILL_PAD_WITH_LOGO = 40; // 20px left + 20px right padding
-const COMPACT_LOGO_W = 64; // compact logo width
-const GAP_LOGO_TIMER = 0; // no gap between compact logo and timer
+const PILL_PAD   = 40;  // 20px left + 20px right padding
 const TIMER_W    = 56;  // "MM:SS" in ui-monospace bold ~56px (conservative)
 const TASK_PAD_R = 8;   // padding-right on .pill-task-text
 const CTRL_W     = 90;  // 8px pad + 3×26px btns + 2×2px gaps = 90px
 
 const TASK_WRAP_W = 220; // fixed task area width in compact mode (wraps inside this width)
 
-function CompactLogo({ color = '#B94E10' }) {
-  return (
-    <svg
-      width="100%"
-      height="100%"
-      viewBox="0 0 64 64"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      preserveAspectRatio="xMidYMid meet"
-      aria-hidden="true"
-      style={{ display: 'block', overflow: 'visible' }}
-    >
-      {/* Frame — open rectangle with corner breaks */}
-      <path d="M22 10H52" stroke={color} strokeWidth="3" strokeLinecap="round" />
-      <path d="M10 18V52" stroke={color} strokeWidth="3" strokeLinecap="round" />
-      <path d="M10 10H18" stroke={color} strokeWidth="3" strokeLinecap="round" />
-      <path d="M10 52H44" stroke={color} strokeWidth="3" strokeLinecap="round" />
-      <path d="M52 18V26" stroke={color} strokeWidth="3" strokeLinecap="round" />
-      {/* Filled block "F" letterform */}
-      <path
-        d="M24 20H42V25H30V29.5H39V34.5H30V44H24Z"
-        fill={color}
-      />
-    </svg>
-  );
-}
-
 export default function IncognitoMode({
   task,
-  theme = 'light',
   isRunning,
   time,
-  showTaskByDefault = false,
+  showTaskByDefault = true,
   onDoubleClick,
   onOpenDistractionJar,
   thoughtCount = 0,
@@ -67,11 +37,10 @@ export default function IncognitoMode({
 
   const taskLabel = task || '';
   const isTaskVisible = isHovered || showTaskByDefault;
-  const isDarkTheme = theme === 'dark';
 
   // Pre-calculate target window widths
   const basePillW = useMemo(
-    () => PILL_PAD_WITH_LOGO + COMPACT_LOGO_W + GAP_LOGO_TIMER + TIMER_W,
+    () => PILL_PAD + TIMER_W,
     [],
   );
   const baseWinW = useMemo(() => basePillW + H_MARGIN, [basePillW]);
@@ -117,7 +86,7 @@ export default function IncognitoMode({
     const interval = setInterval(() => {
       setShouldPulse(true);
       setTimeout(() => setShouldPulse(false), 3000);
-    }, 8000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [pulseEnabled, isHovered]);
 
@@ -228,25 +197,8 @@ export default function IncognitoMode({
         <span className="pill-task-text">{taskLabel}</span>
       </div>
 
-      {/* Compact logo + timer */}
+      {/* Timer */}
       <div className="pill-core">
-        <div
-          role="img"
-          aria-label="Focana logo"
-          style={{
-            width: COMPACT_LOGO_W,
-            height: COMPACT_LOGO_W,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'visible',
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          <CompactLogo color={isDarkTheme ? '#FFF9E6' : '#B94E10'} />
-        </div>
         <span className="pill-timer" style={{ color: timerColor }}>
           {formatTime(time)}
         </span>
