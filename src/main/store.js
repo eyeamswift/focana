@@ -28,6 +28,25 @@ const schema = {
     type: 'array',
     default: [],
   },
+  checkIns: {
+    type: 'array',
+    default: [],
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        timestamp: { type: 'string' },
+        sessionId: { type: 'string' },
+        taskText: { type: 'string' },
+        elapsedMinutes: { type: 'number' },
+        status: {
+          type: 'string',
+          enum: ['focused', 'completed', 'detour', 'missed'],
+        },
+        detourNote: { type: 'string' },
+      },
+    },
+  },
   thoughts: {
     type: 'array',
     default: [],
