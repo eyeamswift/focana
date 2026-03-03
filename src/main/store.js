@@ -68,9 +68,6 @@ const schema = {
       pulseSettings: {
         type: 'object',
         default: {
-          timeAwarenessEnabled: true,
-          timeAwarenessInterval: 30,
-          celebrationEnabled: true,
           incognitoEnabled: true,
         },
       },

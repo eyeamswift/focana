@@ -155,27 +155,19 @@ export default function App() {
 
   // Pulse
   const [pulseSettings, setPulseSettings] = useState({
-    timeAwarenessEnabled: true,
-    timeAwarenessInterval: 30,
-    celebrationEnabled: true,
     incognitoEnabled: true,
   });
   const [isPulsing, setIsPulsing] = useState(false);
-  const [lastTimeAwarenessCheck, setLastTimeAwarenessCheck] = useState(Date.now());
   const [sessionStartTime, setSessionStartTime] = useState(null);
-  const [celebratedMilestones, setCelebratedMilestones] = useState(new Set());
 
   const timerRef = useRef(null);
   const sessionToSave = useRef(null);
-  const timeAwarenessRef = useRef(null);
-  const celebrationCheckRef = useRef(null);
   const taskInputRef = useRef(null);
   const mainCardRef = useRef(null);
   const thoughtsLoadedRef = useRef(false);
   const confettiTimerRef = useRef(null);
   const pulseIntervalRef = useRef(null);
   const pulseTimeoutRef = useRef(null);
-  const celebratedMilestonesRef = useRef(new Set());
   const timeRef = useRef(0);
   const pendingPostModalResizeRef = useRef(null);
   const postModalResizeTimerRef = useRef(null);
@@ -238,7 +230,6 @@ export default function App() {
   }, [isThemeManual]);
 
   // Keep refs in sync with state for use in intervals/effects
-  celebratedMilestonesRef.current = celebratedMilestones;
   timeRef.current = time;
 
   useEffect(() => {
@@ -292,7 +283,7 @@ export default function App() {
     setIsStopFlowAwaitingCompletion(false);
     setPendingSessionNotes('');
     setSessionStartTime(null);
-    setCelebratedMilestones(new Set());
+
     clearCheckInRuntime();
   }, []);
 
@@ -387,7 +378,7 @@ export default function App() {
       setIsRunning(newRunning);
       if (newRunning && !sessionStartTime) {
         setSessionStartTime(Date.now());
-        setCelebratedMilestones(new Set());
+    
         if (!currentSessionId) {
           (async () => {
             try {
@@ -439,7 +430,7 @@ export default function App() {
     if (task.trim()) {
       setIsRunning(false);
       setSessionStartTime(null);
-      setCelebratedMilestones(new Set());
+  
       sessionToSave.current = {
         duration: mode === 'freeflow' ? time / 60 : (initialTime - time) / 60,
         completed: true,
@@ -887,8 +878,13 @@ export default function App() {
       clearCheckInRuntime();
       return undefined;
     }
+    // Re-schedule with new interval if a session is active
+    if (isRunning && isTimerVisible && task.trim() && currentSessionId) {
+      const elapsed = getElapsedSeconds();
+      resetCheckInSchedule(mode, initialTime, elapsed);
+    }
     return undefined;
-  }, [checkInSettings.enabled, clearCheckInRuntime]);
+  }, [checkInSettings.enabled, checkInSettings.intervalFreeflow, clearCheckInRuntime, isRunning, isTimerVisible, task, currentSessionId, getElapsedSeconds, resetCheckInSchedule, mode, initialTime]);
 
   useEffect(() => {
     if (!isRunning || !isTimerVisible || !task.trim() || !currentSessionId || !checkInSettings.enabled) return;
@@ -1061,7 +1057,7 @@ export default function App() {
       setIsRunning(true);
       if (!sessionStartTime) {
         setSessionStartTime(Date.now());
-        setCelebratedMilestones(new Set());
+    
       }
     }
   };
@@ -1071,7 +1067,7 @@ export default function App() {
   const handleStop = () => {
     setIsRunning(false);
     setSessionStartTime(null);
-    setCelebratedMilestones(new Set());
+
     clearCheckInRuntime();
     if (isIncognito) {
       handleExitIncognito();
@@ -1135,7 +1131,7 @@ export default function App() {
     setIsTimerVisible(true);
     setIsRunning(true);
     setSessionStartTime(Date.now());
-    setCelebratedMilestones(new Set());
+
     clearCheckInRuntime();
     resetCheckInSchedule(selectedMode, initialSeconds, 0);
     setIsStartModalOpen(false);
@@ -1155,7 +1151,7 @@ export default function App() {
       setInitialTime(0);
       setIsTimerVisible(false);
       setSessionStartTime(null);
-      setCelebratedMilestones(new Set());
+  
       return;
     }
 
@@ -1182,7 +1178,7 @@ export default function App() {
       setInitialTime(0);
       setIsTimerVisible(false);
       setSessionStartTime(null);
-      setCelebratedMilestones(new Set());
+  
       return;
     }
 
@@ -1233,7 +1229,7 @@ export default function App() {
         setInitialTime(0);
         setIsTimerVisible(false);
         setSessionStartTime(null);
-        setCelebratedMilestones(new Set());
+    
       } else {
         handleClear();
       }
@@ -1247,14 +1243,14 @@ export default function App() {
     setInitialTime(0);
     setIsTimerVisible(false);
     setSessionStartTime(null);
-    setCelebratedMilestones(new Set());
+
     showToast('info', 'Session saved. Task kept active');
   };
 
   const handleTimeUpEndSession = () => {
     setShowTimeUpModal(false);
     setSessionStartTime(null);
-    setCelebratedMilestones(new Set());
+
     clearCheckInRuntime();
     setShowNotesModal(true);
   };
@@ -1276,7 +1272,7 @@ export default function App() {
   const handleTimeUpResumeLater = () => {
     setShowTimeUpModal(false);
     setSessionStartTime(null);
-    setCelebratedMilestones(new Set());
+
     clearCheckInRuntime();
     // Override completed flag — task is not finished
     sessionToSave.current = {
@@ -1307,7 +1303,7 @@ export default function App() {
     setIsStartModalOpen(false);
     setIsTimerVisible(true);
     setSessionStartTime(null);
-    setCelebratedMilestones(new Set());
+
     pendingPostModalResizeRef.current = {
       minWidth: 500,
       minHeight: session.notes?.trim() ? WINDOW_SIZES.contextHeight : WINDOW_SIZES.timerHeight,
@@ -1418,8 +1414,6 @@ export default function App() {
   const clearCompletedThoughts = () => setThoughts((prev) => prev.filter((t) => !t.completed));
 
   const getPulseClassName = () => {
-    if (!isPulsing) return '';
-    if (isPulsing === 'gentle') return 'animate-pulse-gentle';
     if (isPulsing === 'celebration') return 'animate-pulse-celebration';
     return '';
   };
@@ -2030,6 +2024,14 @@ export default function App() {
         onDndChange={(enabled) => {
           setDndEnabled(enabled);
           window.electronAPI.setDnd?.(enabled);
+        }}
+        checkInSettings={checkInSettings}
+        onCheckInSettingsChange={({ enabled, intervalFreeflow }) => {
+          setCheckInSettings((prev) => ({
+            ...prev,
+            enabled: enabled ?? prev.enabled,
+            intervalFreeflow: Number.isFinite(intervalFreeflow) ? intervalFreeflow : prev.intervalFreeflow,
+          }));
         }}
       />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />

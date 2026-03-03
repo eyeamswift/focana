@@ -51,12 +51,11 @@ export default function SettingsModal({
   onShowTaskInCompactDefaultChange,
   dndEnabled,
   onDndChange,
+  checkInSettings,
+  onCheckInSettingsChange,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(shortcuts || DEFAULT_SHORTCUTS);
   const [tempPulseSettings, setTempPulseSettings] = useState(pulseSettings || {
-    timeAwarenessEnabled: true,
-    timeAwarenessInterval: 30,
-    celebrationEnabled: true,
     incognitoEnabled: true,
   });
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
@@ -65,6 +64,8 @@ export default function SettingsModal({
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
   const [pinControlsToToolbar, setPinControlsToToolbar] = useState(pinControlsToToolbarDefault ?? false);
   const [doNotDisturb, setDoNotDisturb] = useState(dndEnabled ?? false);
+  const [checkInEnabled, setCheckInEnabled] = useState(checkInSettings?.enabled ?? true);
+  const [checkInIntervalFreeflow, setCheckInIntervalFreeflow] = useState(checkInSettings?.intervalFreeflow ?? 15);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
   const recordingCleanupRef = useRef(null);
@@ -81,9 +82,6 @@ export default function SettingsModal({
     if (isOpen) {
       setTempShortcuts(shortcuts || DEFAULT_SHORTCUTS);
       setTempPulseSettings(pulseSettings || {
-        timeAwarenessEnabled: true,
-        timeAwarenessInterval: 30,
-        celebrationEnabled: true,
         incognitoEnabled: true,
       });
 
@@ -101,9 +99,13 @@ export default function SettingsModal({
         );
         setPinControlsToToolbar(settings.pinControlsToToolbar ?? pinControlsToToolbarDefault ?? false);
         setDoNotDisturb(settings.doNotDisturbEnabled ?? dndEnabled ?? false);
+        setCheckInEnabled(settings.checkInEnabled ?? checkInSettings?.enabled ?? true);
+        setCheckInIntervalFreeflow(
+          Number.isFinite(settings.checkInIntervalFreeflow) ? settings.checkInIntervalFreeflow : (checkInSettings?.intervalFreeflow ?? 15)
+        );
       })();
     }
-  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault, pinControlsToToolbarDefault, dndEnabled]);
+  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault, pinControlsToToolbarDefault, dndEnabled, checkInSettings]);
 
   const handleSave = async () => {
     onShortcutsChange(tempShortcuts);
@@ -117,6 +119,8 @@ export default function SettingsModal({
     settings.showTaskInCompactCustomized = true;
     settings.pinControlsToToolbar = pinControlsToToolbar;
     settings.doNotDisturbEnabled = doNotDisturb;
+    settings.checkInEnabled = checkInEnabled;
+    settings.checkInIntervalFreeflow = checkInIntervalFreeflow;
     settings.shortcuts = tempShortcuts;
     settings.pulseSettings = tempPulseSettings;
     await window.electronAPI.storeSet('settings', settings);
@@ -124,6 +128,7 @@ export default function SettingsModal({
     onShowTaskInCompactDefaultChange?.(showTaskInCompact);
     onPinControlsToToolbarChange?.(pinControlsToToolbar);
     onDndChange?.(doNotDisturb);
+    onCheckInSettingsChange?.({ enabled: checkInEnabled, intervalFreeflow: checkInIntervalFreeflow });
 
     onClose();
   };
@@ -131,9 +136,6 @@ export default function SettingsModal({
   const handleRestoreDefaults = () => {
     setTempShortcuts(DEFAULT_SHORTCUTS);
     setTempPulseSettings({
-      timeAwarenessEnabled: true,
-      timeAwarenessInterval: 30,
-      celebrationEnabled: true,
       incognitoEnabled: true,
     });
     setShortcutsEnabled(true);
@@ -142,6 +144,8 @@ export default function SettingsModal({
     setShowTaskInCompact(true);
     setPinControlsToToolbar(false);
     setDoNotDisturb(false);
+    setCheckInEnabled(true);
+    setCheckInIntervalFreeflow(15);
     setConflicts({});
   };
 
@@ -350,6 +354,50 @@ export default function SettingsModal({
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Show theme, history, and restart in the top bar</p>
                   </div>
                   <Switch checked={pinControlsToToolbar} onCheckedChange={setPinControlsToToolbar} />
+                </div>
+              </div>
+
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }} className="space-y-3">
+                <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Focus Check-ins</h4>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Focus check-ins</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Periodic nudges to check if you're still focused</p>
+                  </div>
+                  <Switch checked={checkInEnabled} onCheckedChange={setCheckInEnabled} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: checkInEnabled ? 1 : 0.5 }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Check-in interval (freeflow)</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Minutes between check-ins in freeflow sessions</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <input
+                      type="number"
+                      min="5"
+                      max="60"
+                      value={checkInIntervalFreeflow}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (Number.isFinite(val)) setCheckInIntervalFreeflow(Math.min(60, Math.max(5, val)));
+                      }}
+                      disabled={!checkInEnabled}
+                      className="input"
+                      style={{
+                        width: '3.5rem',
+                        textAlign: 'center',
+                        height: '2rem',
+                        fontSize: '0.8125rem',
+                        padding: '0 0.25rem',
+                      }}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>min</span>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
