@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage } = requi
 const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
-const { createTray } = require('./tray');
+const { createTray, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 
 let mainWindow = null;
@@ -231,6 +231,11 @@ ipcMain.handle('checkin:getBySession', (_event, sessionId) => {
 
 ipcMain.handle('checkin:update', (_event, id, updates) => {
   return updateCheckIn(id, updates);
+});
+
+// Do Not Disturb — renderer → tray sync
+ipcMain.on('set-dnd', (_event, enabled) => {
+  setDndState(!!enabled);
 });
 
 // Notifications

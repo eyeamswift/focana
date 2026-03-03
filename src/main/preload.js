@@ -40,6 +40,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkInGetBySession: (sessionId) => ipcRenderer.invoke('checkin:getBySession', sessionId),
   checkInUpdate: (id, updates) => ipcRenderer.invoke('checkin:update', id, updates),
 
+  // Do Not Disturb — tray ↔ renderer sync
+  onDndToggle: (callback) => {
+    const handler = (_event, enabled) => callback(enabled);
+    ipcRenderer.on('dnd-toggled', handler);
+    return () => ipcRenderer.removeListener('dnd-toggled', handler);
+  },
+  setDnd: (enabled) => ipcRenderer.send('set-dnd', enabled),
+
   // Pill drag (JS-based — CSS drag regions block mouse events)
   pillDragStart: () => ipcRenderer.send('pill-drag-start'),
   pillDragMove: (dx, dy) => ipcRenderer.send('pill-drag-move', { dx, dy }),

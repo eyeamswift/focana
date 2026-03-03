@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Square, ClipboardList, ThumbsUp, ThumbsDown, Check, Undo2, X } from 'lucide-react';
+import { Play, Pause, Square, ClipboardList, ThumbsUp, ThumbsDown, Check, Undo2, X, BellOff } from 'lucide-react';
 import { formatTime } from '../utils/time';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,7 @@ export default function IncognitoMode({
   onPause,
   onStop,
   pulseEnabled = true,
+  dndActive = false,
   checkInState = 'idle',
   checkInMessage = '',
   onCheckInFocused,
@@ -147,13 +148,13 @@ export default function IncognitoMode({
   // Pulse animation — pauses when hovered
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!pulseEnabled || isHovered) return;
+    if (!pulseEnabled || dndActive || isHovered) return;
     const interval = setInterval(() => {
       setShouldPulse(true);
       setTimeout(() => setShouldPulse(false), 3000);
     }, 60000);
     return () => clearInterval(interval);
-  }, [pulseEnabled, isHovered]);
+  }, [pulseEnabled, dndActive, isHovered]);
 
   // Reset controls auto-hide timer (call after any button interaction)
   const resetControlsTimer = () => {
@@ -253,7 +254,7 @@ export default function IncognitoMode({
 
   return (
     <div
-      className={`pill pill--logo${shouldPulse && pulseEnabled && !isHovered ? ' animate-pulse-incognito' : ''}`}
+      className={`pill pill--logo${shouldPulse && pulseEnabled && !dndActive && !isHovered ? ' animate-pulse-incognito' : ''}`}
       style={pillStyle}
       onMouseDown={handleMouseDown}
       onDragStart={(e) => e.preventDefault()}
@@ -276,6 +277,13 @@ export default function IncognitoMode({
           {formatTime(time)}
         </span>
       </div>
+
+      {/* DND indicator */}
+      {dndActive && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.45, marginLeft: 2 }}>
+          <BellOff style={{ width: 11, height: 11, color: 'var(--incognito-text)' }} />
+        </span>
+      )}
 
       {/* Controls — fade/slide in on single click, auto-hide after 3s */}
       <div

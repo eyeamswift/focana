@@ -85,6 +85,7 @@ const schema = {
         type: 'array',
         default: [0.4, 0.8],
       },
+      doNotDisturbEnabled: { type: 'boolean', default: false },
       launchOnStartup: { type: 'boolean', default: false },
     },
     default: {},

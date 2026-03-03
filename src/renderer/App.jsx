@@ -3,7 +3,7 @@ import { Button } from './components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
   X, Play, Pause, Square, RotateCcw, Minimize2,
-  Settings, ClipboardList, History, Sun, Moon, ThumbsUp, ThumbsDown, Check, Undo2,
+  Settings, ClipboardList, History, Sun, Moon, ThumbsUp, ThumbsDown, Check, Undo2, BellOff,
 } from 'lucide-react';
 import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
@@ -141,6 +141,7 @@ export default function App() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
+  const [dndEnabled, setDndEnabled] = useState(false);
   const [checkInSettings, setCheckInSettings] = useState({
     enabled: true,
     intervalFreeflow: 15,
@@ -511,6 +512,7 @@ export default function App() {
         }
         setPinControlsToToolbar(settings.pinControlsToToolbar ?? false);
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
+        setDndEnabled(settings.doNotDisturbEnabled ?? false);
 
         const currentTask = await window.electronAPI.storeGet('currentTask');
         if (currentTask) {
@@ -532,6 +534,19 @@ export default function App() {
       }
     })();
   }, [loadSessions]);
+
+  // DND — listen for tray toggle and sync state + persist
+  useEffect(() => {
+    const cleanup = window.electronAPI.onDndToggle?.((enabled) => {
+      setDndEnabled(enabled);
+      (async () => {
+        const settings = await window.electronAPI.storeGet('settings') || {};
+        settings.doNotDisturbEnabled = enabled;
+        await window.electronAPI.storeSet('settings', settings);
+      })();
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, []);
 
   // Shortcut event subscription
   useEffect(() => {
@@ -847,6 +862,7 @@ export default function App() {
 
   const triggerCheckInPrompt = useCallback(() => {
     if (!checkInSettings.enabled) return;
+    if (dndEnabled) return;
     if (!isRunning || !isTimerVisible || !task.trim() || !currentSessionId) return;
     if (checkInStateRef.current !== 'idle') return;
 
@@ -860,7 +876,7 @@ export default function App() {
     checkInPromptTimeoutRef.current = setTimeout(() => {
       resolveCheckIn('missed');
     }, 10000);
-  }, [checkInSettings.enabled, isRunning, isTimerVisible, task, currentSessionId, resolveCheckIn]);
+  }, [checkInSettings.enabled, dndEnabled, isRunning, isTimerVisible, task, currentSessionId, resolveCheckIn]);
 
   useEffect(() => {
     checkInStateRef.current = checkInState;
@@ -1565,6 +1581,7 @@ export default function App() {
           onPause={handlePause}
           onStop={handleStop}
           pulseEnabled={pulseSettings.incognitoEnabled}
+          dndActive={dndEnabled}
           checkInState={checkInState}
           checkInMessage={checkInMessage}
           onCheckInFocused={() => resolveCheckIn('focused')}
@@ -1676,6 +1693,16 @@ export default function App() {
               </TooltipTrigger>
               <TooltipContent><p>Open Parking Lot</p></TooltipContent>
             </Tooltip>
+            {dndEnabled && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '2rem', width: '2rem', color: 'var(--brand-action)', opacity: 0.7 }}>
+                    <BellOff style={{ width: 15, height: 15 }} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent><p>Do Not Disturb is on</p></TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button onClick={() => setIsIncognito(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
@@ -1999,6 +2026,11 @@ export default function App() {
         onShowTaskInCompactDefaultChange={setShowTaskInCompactDefault}
         pinControlsToToolbarDefault={pinControlsToToolbar}
         onPinControlsToToolbarChange={setPinControlsToToolbar}
+        dndEnabled={dndEnabled}
+        onDndChange={(enabled) => {
+          setDndEnabled(enabled);
+          window.electronAPI.setDnd?.(enabled);
+        }}
       />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />

@@ -49,6 +49,8 @@ export default function SettingsModal({
   pinControlsToToolbarDefault,
   onPinControlsToToolbarChange,
   onShowTaskInCompactDefaultChange,
+  dndEnabled,
+  onDndChange,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(shortcuts || DEFAULT_SHORTCUTS);
   const [tempPulseSettings, setTempPulseSettings] = useState(pulseSettings || {
@@ -62,6 +64,7 @@ export default function SettingsModal({
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
   const [pinControlsToToolbar, setPinControlsToToolbar] = useState(pinControlsToToolbarDefault ?? false);
+  const [doNotDisturb, setDoNotDisturb] = useState(dndEnabled ?? false);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
   const recordingCleanupRef = useRef(null);
@@ -97,9 +100,10 @@ export default function SettingsModal({
             : true
         );
         setPinControlsToToolbar(settings.pinControlsToToolbar ?? pinControlsToToolbarDefault ?? false);
+        setDoNotDisturb(settings.doNotDisturbEnabled ?? dndEnabled ?? false);
       })();
     }
-  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault, pinControlsToToolbarDefault]);
+  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault, pinControlsToToolbarDefault, dndEnabled]);
 
   const handleSave = async () => {
     onShortcutsChange(tempShortcuts);
@@ -112,12 +116,14 @@ export default function SettingsModal({
     settings.showTaskInCompactDefault = showTaskInCompact;
     settings.showTaskInCompactCustomized = true;
     settings.pinControlsToToolbar = pinControlsToToolbar;
+    settings.doNotDisturbEnabled = doNotDisturb;
     settings.shortcuts = tempShortcuts;
     settings.pulseSettings = tempPulseSettings;
     await window.electronAPI.storeSet('settings', settings);
     onShortcutsEnabledChange?.(shortcutsEnabled);
     onShowTaskInCompactDefaultChange?.(showTaskInCompact);
     onPinControlsToToolbarChange?.(pinControlsToToolbar);
+    onDndChange?.(doNotDisturb);
 
     onClose();
   };
@@ -135,6 +141,7 @@ export default function SettingsModal({
     setKeepTextAfterCompletion(false);
     setShowTaskInCompact(true);
     setPinControlsToToolbar(false);
+    setDoNotDisturb(false);
     setConflicts({});
   };
 
@@ -343,6 +350,13 @@ export default function SettingsModal({
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Show theme, history, and restart in the top bar</p>
                   </div>
                   <Switch checked={pinControlsToToolbar} onCheckedChange={setPinControlsToToolbar} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Do Not Disturb</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Mute check-in prompts and ambient pulse</p>
+                  </div>
+                  <Switch checked={doNotDisturb} onCheckedChange={setDoNotDisturb} />
                 </div>
               </div>
             </div>

@@ -2,8 +2,49 @@ const { app, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 
 let tray = null;
+let dndEnabled = false;
+let cachedMainWindow = null;
+
+function rebuildMenu() {
+  if (!tray || !cachedMainWindow) return;
+  const mainWindow = cachedMainWindow;
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show/Hide',
+      click: () => {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Do Not Disturb',
+      type: 'checkbox',
+      checked: dndEnabled,
+      click: (menuItem) => {
+        dndEnabled = menuItem.checked;
+        mainWindow.webContents.send('dnd-toggled', dndEnabled);
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+  tray.setContextMenu(contextMenu);
+}
 
 function createTray(mainWindow) {
+  cachedMainWindow = mainWindow;
+
   // Create a simple 16x16 tray icon
   const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
   let icon;
@@ -22,28 +63,7 @@ function createTray(mainWindow) {
   tray = new Tray(icon);
   tray.setToolTip('Focana');
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show/Hide',
-      click: () => {
-        if (mainWindow.isVisible()) {
-          mainWindow.hide();
-        } else {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        app.quit();
-      },
-    },
-  ]);
-
-  tray.setContextMenu(contextMenu);
+  rebuildMenu();
 
   tray.on('click', () => {
     if (mainWindow.isVisible()) {
@@ -86,4 +106,9 @@ function createFallbackIcon() {
   return nativeImage.createFromBuffer(canvas, { width: size, height: size });
 }
 
-module.exports = { createTray };
+function setDndState(enabled) {
+  dndEnabled = !!enabled;
+  rebuildMenu();
+}
+
+module.exports = { createTray, setDndState };
