@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-const COLORS = ['#F59E0B', '#D97706', '#FCD34D', '#FB923C', '#A16207', '#FED7AA'];
+const COLORS = ['var(--brand-primary)', 'var(--brand-action)', '#FCD34D', '#FB923C', '#A16207', '#FED7AA'];
 
 export default function ConfettiBurst({ burstId = 0, count = 56 }) {
   const pieces = useMemo(() => {

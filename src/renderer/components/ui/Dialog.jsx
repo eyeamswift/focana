@@ -11,7 +11,7 @@ export function Dialog({ open, onOpenChange, children }) {
   };
 
   return createPortal(
-    <div className="dialog-overlay" onClick={handleOverlayClick}>
+    <div className="dialog-overlay electron-no-drag" onClick={handleOverlayClick}>
       {children}
     </div>,
     document.body
@@ -36,7 +36,7 @@ export function DialogContent({ children, className = '', style, ...props }) {
   return (
     <div
       ref={ref}
-      className={`dialog-content ${className}`}
+      className={`dialog-content electron-no-drag ${className}`}
       style={style}
       onClick={(e) => e.stopPropagation()}
       {...props}

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage } = require('electron');
 const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
@@ -15,8 +15,34 @@ const isDev = !app.isPackaged;
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 240;
 const PILL_MIN_WIDTH = 100;
-const PILL_HEIGHT = 52;
+const PILL_HEIGHT = 80;
 let isApplyingBounds = false;
+
+// Ensure the runtime app name is Focana in dev and packaged modes.
+app.setName('Focana');
+
+function setDockIcon() {
+  if (process.platform !== 'darwin' || !app.dock) return;
+
+  const candidatePaths = [
+    // Dev: generated high-resolution app icon.
+    path.join(__dirname, '..', '..', 'build', 'icon.png'),
+    // Fallback: packaged/runtime asset icon.
+    path.join(__dirname, '..', 'assets', 'icon.png'),
+  ];
+
+  for (const iconPath of candidatePaths) {
+    try {
+      const icon = nativeImage.createFromPath(iconPath);
+      if (!icon.isEmpty()) {
+        app.dock.setIcon(icon);
+        return;
+      }
+    } catch (_) {
+      // Try next candidate path.
+    }
+  }
+}
 
 function clampBounds(bounds, areaType = 'workArea') {
   const display = screen.getDisplayMatching(bounds);
@@ -59,6 +85,8 @@ function setMainWindowBoundsClamped(bounds, { persist = false, areaType = 'workA
 }
 
 function createWindow() {
+  setDockIcon();
+
   const windowState = store.get('windowState', { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT });
   const initialBounds = clampBounds({
     x: windowState.x ?? 100,
@@ -130,6 +158,11 @@ function createWindow() {
 // Window control
 ipcMain.on('close-window', () => {
   if (mainWindow) mainWindow.close();
+});
+
+ipcMain.on('restart-app', () => {
+  app.relaunch();
+  app.exit(0);
 });
 
 ipcMain.on('minimize-to-tray', () => {
@@ -246,8 +279,8 @@ ipcMain.handle('enter-pill-mode', () => {
     // an invisible tall window that blocks moving the visible pill higher.
     mainWindow.setResizable(true);
     mainWindow.setMinimumSize(PILL_MIN_WIDTH, PILL_HEIGHT);
-    // Initial default size (brain + timer only, 44px pill + 8px vertical margins for drag)
-    const targetWidth = 124;
+    // Initial default size for compact mode before renderer computes exact width.
+    const targetWidth = 182;
     const targetHeight = PILL_HEIGHT;
     const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
     const nextY = Math.round(current.y + (current.height - targetHeight) / 2);

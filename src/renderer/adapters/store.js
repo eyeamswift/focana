@@ -39,4 +39,27 @@ export const SessionStore = {
     }
     return null;
   },
+
+  async delete(id) {
+    const sessions = await window.electronAPI.storeGet('sessions') || [];
+    const filtered = sessions.filter((s) => s.id !== id);
+    if (filtered.length === sessions.length) return false;
+    await window.electronAPI.storeSet('sessions', filtered);
+    return true;
+  },
+
+  async deleteMany(ids = []) {
+    const idSet = new Set(ids.filter(Boolean));
+    if (idSet.size === 0) return 0;
+
+    const sessions = await window.electronAPI.storeGet('sessions') || [];
+    const filtered = sessions.filter((s) => !idSet.has(s.id));
+    const removedCount = sessions.length - filtered.length;
+
+    if (removedCount > 0) {
+      await window.electronAPI.storeSet('sessions', filtered);
+    }
+
+    return removedCount;
+  },
 };

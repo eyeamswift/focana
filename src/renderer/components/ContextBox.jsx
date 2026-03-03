@@ -35,18 +35,18 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#8B6F47', marginBottom: '0.25rem' }}>
+          <p style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
             Where you left off:
           </p>
           {!isEditing ? (
-            <p style={{ fontSize: '0.875rem', color: '#5C4033', lineHeight: 1.6 }}>{notes}</p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>{notes}</p>
           ) : (
             <div className="space-y-2">
               <Textarea
                 value={editedNotes}
                 onChange={(e) => setEditedNotes(e.target.value)}
                 maxLength={500}
-                style={{ minHeight: 60, fontSize: '0.875rem', borderColor: 'rgba(139,111,71,0.3)', background: '#FFFEF8' }}
+                style={{ minHeight: 60, fontSize: '0.875rem', borderColor: 'var(--border-strong)', background: 'var(--bg-surface)' }}
               />
               <div style={{ display: 'flex', gap: '0.25rem' }}>
                 <Tooltip>
@@ -54,7 +54,7 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
                     <Button
                       onClick={handleSave}
                       size="sm"
-                      style={{ height: '1.75rem', padding: '0 0.5rem', background: '#F59E0B', color: 'white' }}
+                      style={{ height: '1.75rem', padding: '0 0.5rem', background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
                     >
                       <Save style={{ width: 12, height: 12, marginRight: '0.25rem' }} />
                       Save
@@ -68,7 +68,7 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
                       onClick={handleCancel}
                       size="sm"
                       variant="outline"
-                      style={{ height: '1.75rem', padding: '0 0.5rem', borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}
+                      style={{ height: '1.75rem', padding: '0 0.5rem', borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                     >
                       Cancel
                     </Button>
@@ -88,7 +88,7 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
                   onClick={() => setIsEditing(true)}
                   size="icon"
                   variant="ghost"
-                  style={{ height: '1.5rem', width: '1.5rem', color: '#8B6F47' }}
+                  style={{ height: '1.5rem', width: '1.5rem', color: 'var(--text-secondary)' }}
                 >
                   <Edit3 style={{ width: 12, height: 12 }} />
                 </Button>
@@ -101,7 +101,7 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
                   onClick={onDismiss}
                   size="icon"
                   variant="ghost"
-                  style={{ height: '1.5rem', width: '1.5rem', color: '#8B6F47' }}
+                  style={{ height: '1.5rem', width: '1.5rem', color: 'var(--text-secondary)' }}
                 >
                   <X style={{ width: 12, height: 12 }} />
                 </Button>

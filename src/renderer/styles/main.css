@@ -6,31 +6,83 @@
 }
 
 :root {
-  /* Light Mode Brand Kit */
-  --bg-body: #F5F5F0;
-  --bg-window: #FEFDFB;
-  --bg-input: #F9FAFB;
+  /* Focana Brand - Light */
+  --brand-primary: #F59E0B;   /* Golden Highlight */
+  --brand-action: #B94E10;    /* Ember */
+  --brand-hover: #B94E10;
+  --brand-warm: #4A3329;      /* Warm Brown */
+  --brand-deep: #2E1F18;      /* Deep Cocoa */
+  --neutral-calm: #6B7280;    /* Calm Gray */
+  --neutral-cream: #FFF9E6;   /* Soft Cream */
+
+  --bg-window: #FFF9E6;
+  --bg-surface: #FFF9E6;
   --bg-card: #FFF9E6;
-  --bg-surface: #FFFEF8;
-  --text-primary: #5C4033;
-  --text-secondary: #8B6F47;
-  --text-placeholder: #8B6F47;
-  --brand-primary: #F59E0B;
-  --brand-hover: #D97706;
-  --brand-action: #D97706;
-  --focus-ring: #6366F1;
+  --bg-input: #FFF9E6;
+  --incognito-pill: #FFF9E6;
+  --incognito-text: #2E1F18;
+
+  --text-primary: #2E1F18;
+  --text-secondary: #6B7280;
+  --text-placeholder: #6B7280;
+  --timer-text: #2E1F18;
+  --timer-running: #B94E10;
+  --pause-bg: var(--brand-deep);
+  --pause-fg: var(--neutral-cream);
+  --text-on-brand: #2E1F18;
+
   --success: #10B981;
   --error: #DC2626;
-  --border-default: rgba(139, 111, 71, 0.2);
-  --border-focus: #D97706;
+
+  --border-default: rgba(46, 31, 24, 0.08);
+  --border-subtle: rgba(46, 31, 24, 0.06);
+  --border-strong: rgba(46, 31, 24, 0.18);
+  --border-focus: #B94E10;
+  --focus-ring: #B94E10;
+
+  --overlay: rgba(46, 31, 24, 0.34);
+  --shadow-minimal: 0 1px 2px rgba(46, 31, 24, 0.12);
+  --tooltip-bg: #2E1F18;
+  --tooltip-fg: #FFF9E6;
+  --tooltip-border: rgba(255, 249, 230, 0.22);
 
   --font-family: Inter, -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+:root[data-theme='dark'] {
+  --bg-window: #2E1F18;
+  --bg-surface: #2E1F18;
+  --bg-card: #4A3329;
+  --bg-input: #4A3329;
+  --incognito-pill: #4A3329;
+  --incognito-text: #FFF9E6;
+
+  --text-primary: #FFF9E6;
+  --text-secondary: rgba(255, 249, 230, 0.78);
+  --text-placeholder: rgba(255, 249, 230, 0.62);
+  --timer-text: #FFF9E6;
+  --timer-running: #FFF9E6;
+  --pause-bg: var(--neutral-cream);
+  --pause-fg: var(--brand-deep);
+  --text-on-brand: #2E1F18;
+
+  --border-default: rgba(255, 249, 230, 0.12);
+  --border-subtle: rgba(255, 249, 230, 0.08);
+  --border-strong: rgba(255, 249, 230, 0.24);
+  --border-focus: #F59E0B;
+  --focus-ring: #F59E0B;
+
+  --overlay: rgba(0, 0, 0, 0.42);
+  --shadow-minimal: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --tooltip-bg: #FFF9E6;
+  --tooltip-fg: #2E1F18;
+  --tooltip-border: rgba(46, 31, 24, 0.22);
 }
 
 html, body {
   font-family: var(--font-family);
   color: var(--text-primary);
-  background: transparent;
+  background: var(--bg-window);
   overflow: hidden;
   height: 100%;
   -webkit-font-smoothing: antialiased;
@@ -39,6 +91,12 @@ html, body {
 
 #root {
   height: 100%;
+  background: transparent;
+}
+
+html[data-window-mode='pill'],
+html[data-window-mode='pill'] body,
+html[data-window-mode='pill'] #root {
   background: transparent;
 }
 
@@ -257,7 +315,7 @@ html, body {
 
 .btn-primary {
   background-color: var(--brand-primary);
-  color: white;
+  color: var(--text-on-brand);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -283,6 +341,24 @@ html, body {
   background-color: var(--bg-card);
 }
 
+/* Timer play/pause should visually match stop by default, with stronger pressed contrast. */
+.timer-run-btn {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+}
+
+.timer-run-btn:hover:not(:disabled) {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+
+.timer-run-btn:active:not(:disabled) {
+  background: var(--brand-primary) !important;
+  color: var(--text-on-brand) !important;
+  border-color: var(--brand-primary) !important;
+  transform: scale(0.98);
+}
+
 .btn-icon {
   padding: 0;
   width: 2rem;
@@ -303,7 +379,7 @@ html, body {
   font-size: 0.875rem;
   font-family: var(--font-family);
   color: var(--text-primary);
-  background: white;
+  background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: 0.375rem;
   outline: none;
@@ -312,7 +388,9 @@ html, body {
 
 .input:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+  box-shadow: none;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .input::placeholder {
@@ -327,7 +405,7 @@ html, body {
   font-size: 0.875rem;
   font-family: var(--font-family);
   color: var(--text-primary);
-  background: white;
+  background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: 0.375rem;
   outline: none;
@@ -338,7 +416,9 @@ html, body {
 
 .textarea:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+  box-shadow: none;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .textarea::placeholder {
@@ -402,7 +482,7 @@ html, body {
 }
 
 .switch[data-state="unchecked"] {
-  background-color: #D1D5DB;
+  background-color: var(--border-strong);
 }
 
 .switch[data-state="checked"] {
@@ -414,8 +494,8 @@ html, body {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 9999px;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: var(--bg-surface);
+  box-shadow: none;
   transition: transform 0.2s ease;
   position: absolute;
   top: 0.125rem;
@@ -431,6 +511,7 @@ html, body {
   display: grid;
   width: 100%;
   background: var(--bg-card);
+  border: 1px solid var(--border-default);
   border-radius: 0.5rem;
   padding: 0.25rem;
   gap: 0.25rem;
@@ -458,9 +539,11 @@ html, body {
 }
 
 .tabs-trigger[data-state="active"] {
-  background: white;
+  background: rgba(245, 158, 11, 0.14);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(185, 78, 16, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
+  font-weight: 600;
 }
 
 .tabs-content {
@@ -475,7 +558,7 @@ html, body {
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   z-index: 50;
   animation: fadeIn 0.15s ease;
 }
@@ -487,9 +570,9 @@ html, body {
   transform: translate(-50%, -50%);
   z-index: 51;
   background: var(--bg-surface);
-  border: 1px solid var(--brand-action);
+  border: 1px solid var(--border-default);
   border-radius: 0.75rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-minimal);
   padding: 1.5rem;
   width: calc(100% - 2rem);
   max-width: 28rem;
@@ -533,14 +616,20 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
   border-radius: 0.375rem;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   padding: 0;
   transition: all 0.15s ease;
   flex-shrink: 0;
+  opacity: 1;
+}
+
+.dialog-close-btn svg {
+  display: block;
+  opacity: 1;
 }
 
 .dialog-close-btn:hover {
@@ -557,7 +646,7 @@ html, body {
   padding: 1rem;
   border-radius: 0.5rem;
   border: 1px solid;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-minimal);
   max-width: 20rem;
   transition: all 0.3s ease-out;
 }
@@ -578,6 +667,36 @@ html, body {
   border-color: #BFDBFE;
   background: #EFF6FF;
   color: #1E40AF;
+}
+
+.toast-close-btn {
+  color: currentColor;
+  opacity: 1;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+}
+
+.toast-success .toast-close-btn {
+  color: #166534;
+  border-color: rgba(22, 101, 52, 0.26);
+  background: rgba(22, 101, 52, 0.08);
+}
+
+.toast-warning .toast-close-btn {
+  color: #854D0E;
+  border-color: rgba(133, 77, 14, 0.26);
+  background: rgba(133, 77, 14, 0.08);
+}
+
+.toast-info .toast-close-btn {
+  color: #1E40AF;
+  border-color: rgba(30, 64, 175, 0.26);
+  background: rgba(30, 64, 175, 0.08);
+}
+
+.toast .toast-close-btn:hover:not(:disabled) {
+  filter: brightness(0.96);
 }
 
 .toast-enter {
@@ -607,9 +726,9 @@ html, body {
 
 /* === Incognito Pill === */
 
-/* Pill — auto-sizes to content (inline-flex). Height fixed at 44px.
+/* Pill — auto-sizes to content (inline-flex). Base height 44px.
    Window is set via IPC to pill-content-width + 12px margins (6px each side).
-   Window height is 52px (4px top/bottom drag area + 44px pill).
+   Window height is 80px (4px top/bottom drag area + up to 72px dark-logo pill).
    -webkit-app-region: no-drag so hover/click/dblclick events fire normally.
    The outer electron-draggable container provides dragging from the transparent edges. */
 .pill {
@@ -617,14 +736,18 @@ html, body {
   align-items: center;
   height: 44px;
   padding: 0 16px;
-  background: rgba(255, 254, 248, 0.95);
-  backdrop-filter: blur(12px);
+  background: var(--incognito-pill);
   border-radius: 9999px;
-  box-shadow: 0 4px 20px rgba(92, 64, 51, 0.2), 0 1px 4px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(139, 111, 71, 0.15);
+  box-shadow: var(--shadow-minimal);
+  border: 1px solid var(--border-default);
   cursor: default;
   user-select: none;
   -webkit-app-region: no-drag;
+}
+
+.pill.pill--logo {
+  height: 72px;
+  padding: 0 20px;
 }
 
 /* Task text — slides/fades in on hover */
@@ -632,7 +755,6 @@ html, body {
   max-width: 0;
   opacity: 0;
   overflow: hidden;
-  white-space: nowrap;
   transition: max-width 0.2s ease, opacity 0.2s ease;
 }
 
@@ -645,8 +767,12 @@ html, body {
   display: block;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #5C4033;
+  color: var(--incognito-text);
   padding-right: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.15;
 }
 
 /* Brain icon + timer */
@@ -657,10 +783,14 @@ html, body {
   flex-shrink: 0;
 }
 
+.pill.pill--logo .pill-core {
+  gap: 0;
+}
+
 .pill-timer {
   font-size: 0.9375rem;
   font-family: ui-monospace, monospace;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   transition: color 0.2s;
 }
@@ -677,6 +807,7 @@ html, body {
 .pill-controls--visible {
   max-width: 110px;
   opacity: 1;
+  overflow: visible;
 }
 
 .pill-controls-inner {
@@ -684,6 +815,7 @@ html, body {
   align-items: center;
   gap: 2px;
   padding-left: 8px;
+  overflow: visible;
 }
 
 /* Control buttons */
@@ -697,7 +829,7 @@ html, body {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #8B6F47;
+  color: var(--incognito-text);
   padding: 0;
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
@@ -705,8 +837,8 @@ html, body {
 }
 
 .pill-btn:hover:not(:disabled) {
-  background: rgba(139, 111, 71, 0.12);
-  color: #5C4033;
+  background: var(--border-subtle);
+  color: var(--incognito-text);
 }
 
 .pill-btn:disabled {
@@ -716,14 +848,15 @@ html, body {
 
 .pill-btn--notepad {
   position: relative;
+  overflow: visible;
 }
 
 .pill-badge {
   position: absolute;
   top: -3px;
   right: -3px;
-  background: #F59E0B;
-  color: white;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
   font-size: 0.625rem;
   font-weight: 600;
   border-radius: 9999px;
@@ -743,7 +876,7 @@ html, body {
   top: -0.25rem;
   right: -0.25rem;
   background: var(--brand-primary);
-  color: white;
+  color: var(--text-on-brand);
   font-size: 0.75rem;
   border-radius: 9999px;
   min-width: 1rem;
@@ -802,8 +935,10 @@ html, body {
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--text-primary);
-  color: white;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
+  border: 1px solid var(--tooltip-border);
+  box-shadow: var(--shadow-minimal);
   padding: 0.25rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.75rem;
@@ -816,6 +951,12 @@ html, body {
 
 .tooltip-wrapper:hover .tooltip-content {
   opacity: 1;
+}
+
+/* Header toolbar sits near the top edge; show tooltips below to avoid clipping. */
+.top-toolbar .tooltip-content {
+  bottom: auto;
+  top: calc(100% + 6px);
 }
 
 /* === Keyframe Animations === */
@@ -910,7 +1051,7 @@ html, body {
   left: 0;
   width: var(--confetti-size, 8px);
   height: calc(var(--confetti-size, 8px) * 1.8);
-  background: var(--confetti-color, #F59E0B);
+  background: var(--confetti-color, var(--brand-primary));
   border-radius: 2px;
   opacity: 0;
   animation: confetti-fall var(--confetti-duration, 1.6s) ease-out forwards;
@@ -919,10 +1060,11 @@ html, body {
 /* === App Container === */
 .app-container {
   height: 100%;
-  padding: 10px;
+  padding: 0;
   font-family: var(--font-family);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
   background: transparent;
 }
 
@@ -936,16 +1078,20 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
 }
 
 .main-card {
   width: 100%;
-  background: rgba(255, 254, 248, 0.97);
-  backdrop-filter: blur(12px);
-  border-radius: 1rem;
-  box-shadow: 0 8px 32px rgba(92, 64, 51, 0.18), 0 2px 8px rgba(0, 0, 0, 0.07);
-  border: 1px solid var(--border-default);
+  height: auto;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .main-card > * + * {

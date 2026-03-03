@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // Window control
   closeWindow: () => ipcRenderer.send('close-window'),
+  restartApp: () => ipcRenderer.send('restart-app'),
   minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),

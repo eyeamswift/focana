@@ -69,8 +69,8 @@ export default function ParkingLot({
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent style={{
-          background: '#FFFEF8',
-          borderColor: '#D97706',
+          background: 'var(--bg-surface)',
+          borderColor: 'var(--brand-action)',
           maxWidth: '32rem',
           maxHeight: 'min(calc(100vh - 2rem), 720px)',
           display: 'flex',
@@ -82,10 +82,10 @@ export default function ParkingLot({
           </button>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <NotebookPen style={{ width: 24, height: 24, color: '#D97706' }} />
+              <NotebookPen style={{ width: 24, height: 24, color: 'var(--brand-action)' }} />
               Parking Lot
             </DialogTitle>
-            <p style={{ fontSize: '0.8rem', color: '#8B6F47', marginTop: '0.125rem' }}>Park distracting thoughts here.</p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.125rem' }}>Park distracting thoughts here.</p>
           </DialogHeader>
 
           <div style={{
@@ -102,7 +102,7 @@ export default function ParkingLot({
                 onChange={(e) => setNewThought(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Capture a thought... (Enter to add)"
-                style={{ flex: 1, minHeight: 40, fontSize: '1rem', borderColor: 'rgba(139,111,71,0.3)', color: '#5C4033', background: 'white' }}
+                style={{ flex: 1, minHeight: 40, fontSize: '1rem', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', background: 'var(--bg-input)' }}
               />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -111,7 +111,7 @@ export default function ParkingLot({
                     size="icon"
                     disabled={!newThought.trim()}
                     aria-label="Add Note"
-                    style={{ background: '#F59E0B', color: 'white', flexShrink: 0 }}
+                    style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', flexShrink: 0 }}
                   >
                     <Plus style={{ width: 20, height: 20 }} />
                   </Button>
@@ -129,12 +129,12 @@ export default function ParkingLot({
                     alignItems: 'flex-start',
                     gap: '0.75rem',
                     padding: '0.5rem',
-                    background: '#FFF9E6',
+                    background: 'var(--bg-card)',
                     borderRadius: '0.375rem',
                     border: '1px solid transparent',
                     transition: 'border-color 0.15s',
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--border-focus)'}
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', paddingTop: '0.125rem' }}>
@@ -150,20 +150,20 @@ export default function ParkingLot({
                       flex: 1,
                       fontSize: '0.875rem',
                       cursor: 'pointer',
-                      color: thought.completed ? '#8B6F47' : '#5C4033',
+                      color: thought.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
                       textDecoration: thought.completed ? 'line-through' : 'none',
                     }}
                     onClick={() => handleThoughtClick(index)}
                   >
                     <p className="line-clamp-2 break-words">{thought.text}</p>
                     {thought.text.length > 60 && (
-                      <p style={{ fontSize: '0.75rem', color: '#8B6F47', marginTop: '0.25rem' }}>Click to expand...</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Click to expand...</p>
                     )}
                   </div>
                 </div>
               ))}
               {thoughts.length === 0 && (
-                <p style={{ textAlign: 'center', fontSize: '0.875rem', color: '#8B6F47', padding: '1rem 0' }}>No notes yet.</p>
+                <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-secondary)', padding: '1rem 0' }}>No notes yet.</p>
               )}
             </div>
           </div>
@@ -171,13 +171,13 @@ export default function ParkingLot({
           <DialogFooter className="dialog-footer-between" style={{
             marginTop: '0.75rem',
             paddingTop: '0.75rem',
-            borderTop: '1px solid rgba(139,111,71,0.16)',
-            background: '#FFFEF8',
+            borderTop: '1px solid var(--border-default)',
+            background: 'var(--bg-surface)',
             flexShrink: 0,
           }}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" onClick={onClearCompleted} style={{ color: '#8B6F47' }}>
+                <Button variant="ghost" onClick={onClearCompleted} style={{ color: 'var(--text-secondary)' }}>
                   Clear Completed
                 </Button>
               </TooltipTrigger>
@@ -193,7 +193,7 @@ export default function ParkingLot({
                 </TooltipTrigger>
                 <TooltipContent><p>Copy all notes to clipboard</p></TooltipContent>
               </Tooltip>
-              <Button onClick={() => onClose(false)} style={{ background: '#F59E0B', color: 'white' }}>
+              <Button onClick={() => onClose(false)} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
                 Close
               </Button>
             </div>
@@ -203,10 +203,10 @@ export default function ParkingLot({
 
       {/* Expanded Note Modal */}
       <Dialog open={expandedThought !== null} onOpenChange={(open) => !open && handleCloseExpanded()}>
-        <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '28rem' }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Edit3 style={{ width: 20, height: 20, color: '#F59E0B' }} />
+              <Edit3 style={{ width: 20, height: 20, color: 'var(--brand-primary)' }} />
               Edit Note
             </DialogTitle>
           </DialogHeader>
@@ -216,9 +216,9 @@ export default function ParkingLot({
               value={editingText}
               onChange={(e) => setEditingText(e.target.value)}
               placeholder="Edit your note..."
-              style={{ minHeight: 120, fontSize: '1rem', borderColor: 'rgba(139,111,71,0.3)', color: '#5C4033', background: 'white' }}
+              style={{ minHeight: 120, fontSize: '1rem', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', background: 'var(--bg-input)' }}
             />
-            <p style={{ fontSize: '0.75rem', color: '#8B6F47', marginTop: '0.25rem', textAlign: 'right' }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', textAlign: 'right' }}>
               {editingText.length} characters
             </p>
           </div>
@@ -235,14 +235,14 @@ export default function ParkingLot({
             <Button
               onClick={handleCloseExpanded}
               variant="outline"
-              style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
             >
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
               disabled={!editingText.trim()}
-              style={{ background: '#F59E0B', color: 'white' }}
+              style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
             >
               <Save style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
               Save

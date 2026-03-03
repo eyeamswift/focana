@@ -47,15 +47,15 @@ export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '28rem' }}>
+      <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
         <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
         <DialogHeader>
-          <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: '#5C4033', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Quick Capture to Parking Lot
           </DialogTitle>
-          <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Capture a thought without losing focus</p>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Capture a thought without losing focus</p>
         </DialogHeader>
 
         <div style={{ padding: '1rem 0' }}>
@@ -67,18 +67,18 @@ export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
             placeholder="What's on your mind? Press Enter to save, Esc to cancel..."
             maxLength={500}
             className="no-resize"
-            style={{ minHeight: 100, borderColor: 'rgba(139,111,71,0.3)', background: '#FFF9E6', color: '#5C4033' }}
+            style={{ minHeight: 100, borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
           />
-          <p style={{ fontSize: '0.75rem', color: '#8B6F47', marginTop: '0.25rem', textAlign: 'right' }}>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', textAlign: 'right' }}>
             {thought.length}/500 characters
           </p>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Button onClick={onClose} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}>
+          <Button onClick={onClose} variant="outline" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
             Cancel (Esc)
           </Button>
-          <Button onClick={handleSave} disabled={!thought.trim()} style={{ background: '#F59E0B', color: 'white' }}>
+          <Button onClick={handleSave} disabled={!thought.trim()} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
             Save to Parking Lot (Enter)
           </Button>
         </div>

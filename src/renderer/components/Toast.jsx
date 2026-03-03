@@ -48,9 +48,10 @@ export default function Toast({ toast, onDismiss }) {
           onClick={handleDismiss}
           size="icon"
           variant="ghost"
+          className="toast-close-btn"
           style={{ height: '1.5rem', width: '1.5rem', padding: 0 }}
         >
-          <X style={{ width: 16, height: 16 }} />
+          <X style={{ width: 16, height: 16 }} strokeWidth={2.5} />
         </Button>
       </div>
     </div>

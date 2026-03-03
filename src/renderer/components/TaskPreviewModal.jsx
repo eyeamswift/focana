@@ -67,8 +67,8 @@ export default function TaskPreviewModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent style={{
-        background: '#FFFEF8',
-        borderColor: '#D97706',
+        background: 'var(--bg-surface)',
+        borderColor: 'var(--brand-action)',
         maxWidth: '32rem',
         maxHeight: 'min(calc(100vh - 2rem), 720px)',
         display: 'flex',
@@ -81,19 +81,19 @@ export default function TaskPreviewModal({
           aria-label="Close"
           style={{
             zIndex: 3,
-            background: '#FFF9E6',
-            borderColor: 'rgba(139,111,71,0.25)',
-            color: '#8B6F47',
+            background: 'var(--bg-surface)',
+            borderColor: 'var(--border-strong)',
+            color: 'var(--text-primary)',
           }}
         >
           <X style={{ width: 16, height: 16 }} />
         </button>
         <DialogHeader>
-          <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: '#5C4033', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FileText style={{ width: 20, height: 20, color: '#F59E0B' }} />
+          <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileText style={{ width: 20, height: 20, color: 'var(--brand-primary)' }} />
             "{session.task}"
           </DialogTitle>
-          <div style={{ color: '#8B6F47', fontSize: '0.875rem', lineHeight: 1.5 }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5 }}>
             <p>Last session: {formatMinutes(lastSession.durationMinutes || 0)}</p>
             <p>Total work time: {formatMinutes(totalWorkMinutes || (session.durationMinutes || 0))}</p>
           </div>
@@ -102,44 +102,44 @@ export default function TaskPreviewModal({
         <div style={{ padding: '1rem 0.25rem 0.5rem 0', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           {session.notes && !isEditing ? (
             <div className="space-y-3">
-              <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#8B6F47' }}>
+              <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
                 Last notes:
               </p>
-              <div style={{ padding: '0.75rem', background: '#FFF9E6', borderRadius: '0.5rem', border: '1px solid rgba(139,111,71,0.1)' }}>
-                <p style={{ color: '#5C4033', fontSize: '0.875rem', lineHeight: 1.6 }}>{session.notes}</p>
+              <div style={{ padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                <p style={{ color: 'var(--text-primary)', fontSize: '0.875rem', lineHeight: 1.6 }}>{session.notes}</p>
               </div>
             </div>
           ) : isEditing ? (
             <div className="space-y-3">
-              <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#8B6F47' }}>Edit your notes:</p>
+              <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Edit your notes:</p>
               <Textarea
                 value={editedNotes}
                 onChange={(e) => setEditedNotes(e.target.value)}
                 maxLength={500}
                 placeholder="Where did you leave off?"
-                style={{ minHeight: 100, borderColor: 'rgba(139,111,71,0.3)', background: '#FFF9E6', color: '#5C4033' }}
+                style={{ minHeight: 100, borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
               />
-              <p style={{ fontSize: '0.75rem', color: '#8B6F47', textAlign: 'right' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
                 {editedNotes.length}/500 characters
               </p>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button onClick={handleSaveNotes} size="sm" style={{ background: '#F59E0B', color: 'white' }}>
+                <Button onClick={handleSaveNotes} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
                   Save Changes
                 </Button>
-                <Button onClick={handleCancelEdit} size="sm" variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}>
+                <Button onClick={handleCancelEdit} size="sm" variant="outline" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
                   Cancel
                 </Button>
               </div>
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-              <p style={{ color: '#8B6F47', fontSize: '0.875rem' }}>No notes from your last session</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>No notes from your last session</p>
             </div>
           )}
         </div>
 
-        <DialogFooter style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(139,111,71,0.16)' }}>
-          <Button onClick={onClose} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}>
+        <DialogFooter style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-default)' }}>
+          <Button onClick={onClose} variant="outline" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
             Cancel
           </Button>
 
@@ -147,7 +147,7 @@ export default function TaskPreviewModal({
             <Button
               onClick={() => setIsEditing(true)}
               variant="outline"
-              style={{ borderColor: '#F59E0B', color: '#F59E0B' }}
+              style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}
             >
               <Edit3 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
               {session.notes ? 'Edit Notes' : 'Add Notes'}
@@ -155,7 +155,7 @@ export default function TaskPreviewModal({
           )}
 
           {!isEditing && (
-            <Button onClick={handleUseTask} style={{ background: '#F59E0B', color: 'white' }}>
+            <Button onClick={handleUseTask} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
               Use This Task
             </Button>
           )}

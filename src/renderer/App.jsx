@@ -2,15 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from './components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
-  Brain, X, Play, Pause, Square, RotateCcw, Minimize2,
-  History, Pin, Settings, ClipboardList,
+  X, Play, Pause, Square, RotateCcw, Minimize2,
+  Settings, ClipboardList, History, Sun, Moon,
 } from 'lucide-react';
 import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
+import appLockupDark from '../assets/logo-lockup.svg';
+import appLockupLight from '../assets/logo-lockup-light.svg';
 
 import ParkingLot from './components/ParkingLot';
 import SessionNotesModal from './components/SessionNotesModal';
 import TaskCompletionModal from './components/TaskCompletionModal.jsx';
+import TimeUpModal from './components/TimeUpModal';
 import TaskPreviewModal from './components/TaskPreviewModal';
 import ContextBox from './components/ContextBox';
 import IncognitoMode from './components/IncognitoMode';
@@ -28,6 +31,20 @@ const DEFAULT_SHORTCUTS = {
   completeTask: 'CommandOrControl+Enter',
   openParkingLot: 'CommandOrControl+Shift+P',
 };
+
+const THEME_STORAGE_KEY = 'focana-theme';
+
+function getStoredTheme() {
+  if (typeof window === 'undefined') return null;
+  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (saved === 'light' || saved === 'dark') return saved;
+  return null;
+}
+
+function getSystemTheme() {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 export default function App() {
   // Core state
@@ -57,6 +74,7 @@ export default function App() {
   // Session notes
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showTimeUpModal, setShowTimeUpModal] = useState(false);
   const [isStopFlowAwaitingCompletion, setIsStopFlowAwaitingCompletion] = useState(false);
   const [pendingSessionNotes, setPendingSessionNotes] = useState('');
   const [contextNotes, setContextNotes] = useState('');
@@ -70,15 +88,15 @@ export default function App() {
   // Incognito
   const [isIncognito, setIsIncognito] = useState(false);
 
-  // Always on top
-  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
-
   // Settings
   const [showSettings, setShowSettings] = useState(false);
+  const [theme, setTheme] = useState(() => getStoredTheme() || getSystemTheme());
+  const [isThemeManual, setIsThemeManual] = useState(() => Boolean(getStoredTheme()));
   const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [shortcutsHydrated, setShortcutsHydrated] = useState(false);
   const [showTaskInCompactDefault, setShowTaskInCompactDefault] = useState(false);
+  const [pinControlsToToolbar, setPinControlsToToolbar] = useState(false);
   const [toast, setToast] = useState(null);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -121,6 +139,39 @@ export default function App() {
     // from prior modal flows don't make drag feel "sticky" near bottom edge.
     window.electronAPI.ensureMainWindowSize?.(500, 240);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (isThemeManual) {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } else {
+      window.localStorage.removeItem(THEME_STORAGE_KEY);
+    }
+  }, [theme, isThemeManual]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-window-mode', isIncognito ? 'pill' : 'full');
+    return () => {
+      document.documentElement.removeAttribute('data-window-mode');
+    };
+  }, [isIncognito]);
+
+  useEffect(() => {
+    if (isThemeManual || !window.matchMedia) return undefined;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = (event) => {
+      setTheme(event.matches ? 'dark' : 'light');
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleThemeChange);
+      return () => mediaQuery.removeEventListener('change', handleThemeChange);
+    }
+
+    mediaQuery.addListener(handleThemeChange);
+    return () => mediaQuery.removeListener(handleThemeChange);
+  }, [isThemeManual]);
 
   // Keep refs in sync with state for use in intervals/effects
   celebratedMilestonesRef.current = celebratedMilestones;
@@ -171,6 +222,7 @@ export default function App() {
     setIsIncognito(false);
     setShowNotesModal(false);
     setShowCompletionModal(false);
+    setShowTimeUpModal(false);
     setIsStopFlowAwaitingCompletion(false);
     setPendingSessionNotes('');
     setSessionStartTime(null);
@@ -324,6 +376,7 @@ export default function App() {
         if (settings.shortcuts) setShortcuts(settings.shortcuts);
         if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
         setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? false);
+        setPinControlsToToolbar(settings.pinControlsToToolbar ?? false);
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
 
         const currentTask = await window.electronAPI.storeGet('currentTask');
@@ -451,23 +504,33 @@ export default function App() {
   useEffect(() => {
     if (mode === 'timed' && time === 0 && isRunning) {
       setIsRunning(false);
-      setSessionStartTime(null);
-      setCelebratedMilestones(new Set());
       setIsStopFlowAwaitingCompletion(false);
       setPendingSessionNotes('');
       setIsIncognito(false);
+      setShowNotesModal(false);
+      setShowCompletionModal(false);
+      setIsTimerVisible(true);
       sessionToSave.current = {
         duration: initialTime / 60,
         completed: true,
       };
-      setShowNotesModal(true);
+      setShowTimeUpModal(true);
     }
   }, [mode, time, isRunning, initialTime]);
 
+  useEffect(() => {
+    if (!showTimeUpModal) return undefined;
+    // Ensure enough full-window space so timeout actions are immediately visible.
+    const resizeTimer = setTimeout(() => {
+      window.electronAPI.ensureMainWindowSize?.(500, 560);
+    }, 80);
+    return () => clearTimeout(resizeTimer);
+  }, [showTimeUpModal]);
+
   // Actions
-  const handleToggleAlwaysOnTop = async () => {
-    const result = await window.electronAPI.toggleAlwaysOnTop();
-    setIsAlwaysOnTop(result);
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setIsThemeManual(true);
   };
 
   const handleCloseWindow = () => {
@@ -503,7 +566,20 @@ export default function App() {
   };
 
   const handleTaskSubmit = () => {
-    if (task.trim()) setIsStartModalOpen(true);
+    if (!task.trim()) return;
+
+    const hasPausedSessionToResume =
+      isTimerVisible &&
+      !isRunning &&
+      (time > 0 || mode !== 'freeflow' || initialTime > 0 || sessionStartTime !== null);
+
+    if (hasPausedSessionToResume) {
+      setIsStartModalOpen(false);
+      handlePlay();
+      return;
+    }
+
+    setIsStartModalOpen(true);
   };
 
   const handleStartSession = (selectedMode, minutes) => {
@@ -546,6 +622,13 @@ export default function App() {
     saveSessionWithNotes('');
     setShowNotesModal(false);
     handleClear();
+  };
+
+  const handleStopFlowCompletionDismiss = () => {
+    setShowCompletionModal(false);
+    setIsStopFlowAwaitingCompletion(false);
+    setPendingSessionNotes('');
+    sessionToSave.current = null;
   };
 
   const handleStopFlowCompletionDecision = async (completed) => {
@@ -595,6 +678,25 @@ export default function App() {
     showToast('info', 'Session saved. Task kept active');
   };
 
+  const handleTimeUpEndSession = () => {
+    setShowTimeUpModal(false);
+    setSessionStartTime(null);
+    setCelebratedMilestones(new Set());
+    setShowNotesModal(true);
+  };
+
+  const handleTimeUpKeepGoing = (extraMinutes) => {
+    const safeMinutes = Math.min(Math.max(extraMinutes || 5, 1), 240);
+    const extraSeconds = safeMinutes * 60;
+
+    setInitialTime((prev) => prev + extraSeconds);
+    setTime(extraSeconds);
+    setIsTimerVisible(true);
+    setIsRunning(true);
+    setShowTimeUpModal(false);
+    showToast('success', `Added ${safeMinutes} more minute${safeMinutes === 1 ? '' : 's'}`);
+  };
+
   const handleUseTask = (session) => {
     setTask(session.task);
     setTime(0);
@@ -605,6 +707,7 @@ export default function App() {
     setCurrentSessionId(session.id);
     setShowNotesModal(false);
     setShowCompletionModal(false);
+    setShowTimeUpModal(false);
     setShowSettings(false);
     setDistractionJarOpen(false);
     setShowQuickCapture(false);
@@ -651,6 +754,58 @@ export default function App() {
     }
   };
 
+  const handleDeleteSession = async (sessionId) => {
+    try {
+      const removed = await SessionStore.delete(sessionId);
+      if (!removed) return;
+
+      await loadSessions();
+
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        setContextNotes('');
+      }
+
+      if (previewSession?.id === sessionId) {
+        setShowTaskPreview(false);
+        setPreviewSession(null);
+        setPreviewReturnToHistory(false);
+      }
+
+      showToast('success', 'Session deleted');
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      showToast('warning', 'Could not delete session');
+    }
+  };
+
+  const handleDeleteSessions = async (sessionIds) => {
+    if (!Array.isArray(sessionIds) || sessionIds.length === 0) return;
+
+    try {
+      const removedCount = await SessionStore.deleteMany(sessionIds);
+      if (!removedCount) return;
+
+      await loadSessions();
+
+      if (currentSessionId && sessionIds.includes(currentSessionId)) {
+        setCurrentSessionId(null);
+        setContextNotes('');
+      }
+
+      if (previewSession?.id && sessionIds.includes(previewSession.id)) {
+        setShowTaskPreview(false);
+        setPreviewSession(null);
+        setPreviewReturnToHistory(false);
+      }
+
+      showToast('success', `Deleted ${removedCount} session${removedCount === 1 ? '' : 's'}`);
+    } catch (error) {
+      console.error('Error deleting sessions:', error);
+      showToast('warning', 'Could not delete selected sessions');
+    }
+  };
+
   const handleUpdateContextNotes = async (newNotes) => {
     setContextNotes(newNotes);
     if (currentSessionId && newNotes !== contextNotes) {
@@ -688,6 +843,7 @@ export default function App() {
       [showHistoryModal,   420, 500],
       [showTaskPreview,    520, 620],
       [distractionJarOpen, 420, 500],
+      [showTimeUpModal,    460, 420],
       [showNotesModal,     420, 500],
       [showCompletionModal, 420, 300],
       [showQuickCapture,   420, 340],
@@ -695,6 +851,10 @@ export default function App() {
     const active = MODAL_SIZES.find(([open]) => open);
     if (active) {
       window.electronAPI.modalOpened(active[1], active[2]);
+      const retryTimer = setTimeout(() => {
+        window.electronAPI.modalOpened(active[1], active[2]);
+      }, 120);
+      return () => clearTimeout(retryTimer);
     } else {
       window.electronAPI.modalClosed();
       const pendingResize = pendingPostModalResizeRef.current;
@@ -710,7 +870,45 @@ export default function App() {
         }, 30);
       }
     }
-  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showNotesModal, showCompletionModal, showQuickCapture]);
+    return undefined;
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showTimeUpModal, showNotesModal, showCompletionModal, showQuickCapture]);
+
+  // If we end up on the minimal idle screen (no timer/modals/notes), collapse
+  // back to the compact full-view size so extra empty space is removed.
+  useEffect(() => {
+    const hasModalOpen =
+      showSettings ||
+      showHistoryModal ||
+      showTaskPreview ||
+      distractionJarOpen ||
+      showTimeUpModal ||
+      showNotesModal ||
+      showCompletionModal ||
+      showQuickCapture;
+
+    if (isIncognito || hasModalOpen) return undefined;
+    if (isRunning || isTimerVisible || task.trim() || contextNotes.trim()) return undefined;
+
+    const collapseTimer = setTimeout(() => {
+      window.electronAPI.ensureMainWindowSize?.(500, 240);
+    }, 40);
+
+    return () => clearTimeout(collapseTimer);
+  }, [
+    isIncognito,
+    isRunning,
+    isTimerVisible,
+    task,
+    contextNotes,
+    showSettings,
+    showHistoryModal,
+    showTaskPreview,
+    distractionJarOpen,
+    showTimeUpModal,
+    showNotesModal,
+    showCompletionModal,
+    showQuickCapture,
+  ]);
 
   // Resize window for pill/full mode
   useEffect(() => {
@@ -730,6 +928,7 @@ export default function App() {
       <div className="app-container pill-mode electron-draggable">
         <IncognitoMode
           task={task}
+          theme={theme}
           isRunning={isRunning}
           time={time}
           showTaskByDefault={showTaskInCompactDefault}
@@ -744,7 +943,14 @@ export default function App() {
 
         <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
         <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
-        <TaskCompletionModal isOpen={showCompletionModal} taskName={task} onCompleted={() => handleStopFlowCompletionDecision(true)} onNotCompleted={() => handleStopFlowCompletionDecision(false)} />
+        <TaskCompletionModal
+          isOpen={showCompletionModal}
+          taskName={task}
+          onCompleted={() => handleStopFlowCompletionDecision(true)}
+          onNotCompleted={() => handleStopFlowCompletionDecision(false)}
+          onDismiss={handleStopFlowCompletionDismiss}
+        />
+        <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} />
         <TaskPreviewModal
           isOpen={showTaskPreview}
           onClose={handleCloseTaskPreview}
@@ -759,6 +965,8 @@ export default function App() {
           sessions={sessions}
           onUseTask={handleUseTask}
           onPreviewTask={handlePreviewTask}
+          onDeleteSession={handleDeleteSession}
+          onDeleteSessions={handleDeleteSessions}
         />
         <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
         <Toast toast={toast} onDismiss={() => setToast(null)} />
@@ -772,15 +980,56 @@ export default function App() {
     <div className="app-container">
       <div className={`main-card electron-draggable ${getPulseClassName()}`}>
         {/* Header */}
-        <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Brain style={{ width: 20, height: 20, color: '#D97706' }} />
-            <h1 style={{ fontSize: '1rem', fontWeight: 700, color: '#5C4033' }}>Focana</h1>
+        <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+            <img
+              src={theme === 'light' ? appLockupLight : appLockupDark}
+              alt="Focana"
+              style={{
+                height: 36,
+                width: '100%',
+                maxWidth: 1296,
+                objectFit: 'contain',
+                objectPosition: 'left center',
+                flexShrink: 1,
+                display: 'block',
+              }}
+            />
           </div>
-          <div className="electron-no-drag" style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="electron-no-drag top-toolbar" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            {pinControlsToToolbar && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={handleToggleTheme} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                      {theme === 'dark'
+                        ? <Sun style={{ width: 18, height: 18 }} />
+                        : <Moon style={{ width: 18, height: 18 }} />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>{theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={() => setShowHistoryModal(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                      <History style={{ width: 18, height: 18 }} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Session History</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={() => window.electronAPI.restartApp?.()} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                      <RotateCcw style={{ width: 18, height: 18 }} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Restart App</p></TooltipContent>
+                </Tooltip>
+              </>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: '#8B6F47' }}>
+                <Button onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                   <Settings style={{ width: 20, height: 20 }} />
                 </Button>
               </TooltipTrigger>
@@ -788,15 +1037,7 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={() => setShowHistoryModal(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: '#8B6F47' }}>
-                  <History style={{ width: 20, height: 20 }} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>View Session History</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button onClick={() => setDistractionJarOpen(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: '#8B6F47', position: 'relative' }}>
+                <Button onClick={() => setDistractionJarOpen(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)', position: 'relative' }}>
                   <ClipboardList style={{ width: 20, height: 20 }} />
                   {thoughts.length > 0 && <span className="badge">{thoughts.length}</span>}
                 </Button>
@@ -805,20 +1046,7 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  onClick={handleToggleAlwaysOnTop}
-                  size="icon"
-                  variant="ghost"
-                  style={{ height: '2rem', width: '2rem', color: isAlwaysOnTop ? '#D97706' : '#8B6F47' }}
-                >
-                  <Pin style={{ width: 16, height: 16 }} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>{isAlwaysOnTop ? 'Disable' : 'Enable'} Always on Top</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button onClick={() => setIsIncognito(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: '#8B6F47' }}>
+                <Button onClick={() => setIsIncognito(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                   <Minimize2 style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>
@@ -826,7 +1054,7 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={handleCloseWindow} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: '#8B6F47' }}>
+                <Button onClick={handleCloseWindow} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                   <X style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>
@@ -857,20 +1085,20 @@ export default function App() {
               width: '100%',
               marginTop: '0.625rem',
               padding: '0.5rem 0.625rem',
-              background: '#FFF9E6',
+              background: 'var(--bg-card)',
               borderRadius: '0.625rem',
-              border: '1px solid rgba(217, 119, 6, 0.3)',
+              border: '1px solid var(--border-strong)',
             }}>
               <Button
                 onClick={() => handleStartSession('freeflow', 0)}
-                style={{ background: '#F59E0B', color: 'white', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
+                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
               >
                 Freeflow
               </Button>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#8B6F47', flexShrink: 0 }}>OR</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>OR</span>
               <Button
                 onClick={() => handleStartSession('timed', parseInt(sessionMinutes) || 25)}
-                style={{ background: '#F59E0B', color: 'white', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
+                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
               >
                 Set Timer
               </Button>
@@ -884,11 +1112,11 @@ export default function App() {
                 className="input"
                 style={{ width: '3.25rem', textAlign: 'center', height: '2rem', fontSize: '0.8125rem', padding: '0 0.25rem', flexShrink: 0 }}
               />
-              <span style={{ fontSize: '0.75rem', color: '#8B6F47', flexShrink: 0 }}>min</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', flexShrink: 0 }}>min</span>
               <div style={{ flex: 1 }} />
               <button
                 onClick={() => setIsStartModalOpen(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#8B6F47', padding: '0.25rem', display: 'flex', alignItems: 'center', flexShrink: 0, borderRadius: '0.25rem' }}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.25rem', display: 'flex', alignItems: 'center', flexShrink: 0, borderRadius: '0.25rem' }}
                 aria-label="Cancel"
               >
                 <X style={{ width: 14, height: 14 }} />
@@ -912,7 +1140,7 @@ export default function App() {
                   fontSize: isShortFullWindow ? '2rem' : '2.75rem',
                   fontWeight: 700,
                   transition: 'color 0.3s',
-                  color: isRunning ? '#D97706' : '#8B6F47',
+                  color: isRunning ? 'var(--timer-running)' : 'var(--text-secondary)',
                   fontVariantNumeric: 'tabular-nums',
                   lineHeight: 1,
                 }}>
@@ -922,9 +1150,9 @@ export default function App() {
                   {!isRunning ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button onClick={handlePlay} disabled={!task.trim()} style={{
+                        <Button onClick={handlePlay} disabled={!task.trim()} variant="outline" className="timer-run-btn" style={{
                           width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                          background: '#F59E0B', color: 'white', padding: 0,
+                          borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
                         }}>
                           <Play style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                         </Button>
@@ -934,9 +1162,9 @@ export default function App() {
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button onClick={handlePause} style={{
+                        <Button onClick={handlePause} variant="outline" className="timer-run-btn" style={{
                           width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                          background: '#D97706', color: 'white', padding: 0,
+                          borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
                         }}>
                           <Pause style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                         </Button>
@@ -948,7 +1176,7 @@ export default function App() {
                     <TooltipTrigger asChild>
                       <Button onClick={handleStop} disabled={!task.trim()} variant="outline" style={{
                         width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                        borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47', padding: 0,
+                        borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
                       }}>
                         <Square style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                       </Button>
@@ -959,7 +1187,7 @@ export default function App() {
                     <TooltipTrigger asChild>
                       <Button onClick={handleClear} size="icon" variant="ghost" style={{
                         width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                        color: '#8B6F47', padding: 0,
+                        color: 'var(--text-secondary)', padding: 0,
                       }}>
                         <RotateCcw style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                       </Button>
@@ -976,7 +1204,14 @@ export default function App() {
       {/* Modals */}
       <ParkingLot isOpen={distractionJarOpen} onClose={() => setDistractionJarOpen(false)} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
       <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
-      <TaskCompletionModal isOpen={showCompletionModal} taskName={task} onCompleted={() => handleStopFlowCompletionDecision(true)} onNotCompleted={() => handleStopFlowCompletionDecision(false)} />
+      <TaskCompletionModal
+        isOpen={showCompletionModal}
+        taskName={task}
+        onCompleted={() => handleStopFlowCompletionDecision(true)}
+        onNotCompleted={() => handleStopFlowCompletionDecision(false)}
+        onDismiss={handleStopFlowCompletionDismiss}
+      />
+      <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} />
       <TaskPreviewModal
         isOpen={showTaskPreview}
         onClose={handleCloseTaskPreview}
@@ -991,10 +1226,30 @@ export default function App() {
         sessions={sessions}
         onUseTask={handleUseTask}
         onPreviewTask={handlePreviewTask}
+        onDeleteSession={handleDeleteSession}
+        onDeleteSessions={handleDeleteSessions}
       />
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        onOpenParkingLot={() => {
+          setShowSettings(false);
+          setDistractionJarOpen(true);
+        }}
+        onOpenSessionHistory={() => {
+          setShowSettings(false);
+          setShowHistoryModal(true);
+        }}
+        onRestartApp={() => {
+          setShowSettings(false);
+          window.electronAPI.restartApp?.();
+        }}
+        onCloseApp={() => {
+          setShowSettings(false);
+          handleCloseWindow();
+        }}
         shortcuts={shortcuts}
         onShortcutsChange={setShortcuts}
         shortcutsEnabledDefault={shortcutsEnabled}
@@ -1003,6 +1258,8 @@ export default function App() {
         onPulseSettingsChange={setPulseSettings}
         showTaskInCompactDefault={showTaskInCompactDefault}
         onShowTaskInCompactDefaultChange={setShowTaskInCompactDefault}
+        pinControlsToToolbarDefault={pinControlsToToolbar}
+        onPinControlsToToolbarChange={setPinControlsToToolbar}
       />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />

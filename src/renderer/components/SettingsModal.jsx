@@ -5,7 +5,7 @@ import { Input } from './ui/Input';
 import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Settings, Keyboard, RotateCcw, AlertTriangle, Zap, X } from 'lucide-react';
+import { Settings, Keyboard, RotateCcw, AlertTriangle, Zap, X, PanelTop } from 'lucide-react';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -23,9 +23,23 @@ const SHORTCUT_DESCRIPTIONS = {
   openParkingLot: 'Open Parking Lot (Quick Capture)',
 };
 
+const MAIN_SCREEN_ACTIONS = [
+  'Light mode/Dark mode',
+  'View Parking Lot',
+  'View Session History',
+  'Restart',
+  'Close',
+];
+
 export default function SettingsModal({
   isOpen,
   onClose,
+  theme = 'light',
+  onToggleTheme,
+  onOpenParkingLot,
+  onOpenSessionHistory,
+  onRestartApp,
+  onCloseApp,
   shortcuts,
   onShortcutsChange,
   shortcutsEnabledDefault,
@@ -33,6 +47,8 @@ export default function SettingsModal({
   pulseSettings,
   onPulseSettingsChange,
   showTaskInCompactDefault,
+  pinControlsToToolbarDefault,
+  onPinControlsToToolbarChange,
   onShowTaskInCompactDefaultChange,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(shortcuts || DEFAULT_SHORTCUTS);
@@ -46,6 +62,7 @@ export default function SettingsModal({
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? false);
+  const [pinControlsToToolbar, setPinControlsToToolbar] = useState(pinControlsToToolbarDefault ?? false);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
   const recordingCleanupRef = useRef(null);
@@ -75,9 +92,10 @@ export default function SettingsModal({
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
         setShowTaskInCompact(settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? false);
+        setPinControlsToToolbar(settings.pinControlsToToolbar ?? pinControlsToToolbarDefault ?? false);
       })();
     }
-  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault]);
+  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault, pinControlsToToolbarDefault]);
 
   const handleSave = async () => {
     onShortcutsChange(tempShortcuts);
@@ -88,11 +106,13 @@ export default function SettingsModal({
     settings.bringToFront = bringToFront;
     settings.keepTextAfterCompletion = keepTextAfterCompletion;
     settings.showTaskInCompactDefault = showTaskInCompact;
+    settings.pinControlsToToolbar = pinControlsToToolbar;
     settings.shortcuts = tempShortcuts;
     settings.pulseSettings = tempPulseSettings;
     await window.electronAPI.storeSet('settings', settings);
     onShortcutsEnabledChange?.(shortcutsEnabled);
     onShowTaskInCompactDefaultChange?.(showTaskInCompact);
+    onPinControlsToToolbarChange?.(pinControlsToToolbar);
 
     onClose();
   };
@@ -109,6 +129,7 @@ export default function SettingsModal({
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
     setShowTaskInCompact(false);
+    setPinControlsToToolbar(false);
     setConflicts({});
   };
 
@@ -170,19 +191,23 @@ export default function SettingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="dialog-content-lg" style={{ background: '#FFFEF8', borderColor: '#D97706' }}>
+      <DialogContent className="dialog-content-lg" style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)' }}>
         <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
         <DialogHeader>
-          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: '#5C4033', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Settings style={{ width: 24, height: 24, color: '#D97706' }} />
+          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Settings style={{ width: 24, height: 24, color: 'var(--brand-action)' }} />
             Settings
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="shortcuts" style={{ marginTop: '1rem' }}>
-          <TabsList style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <Tabs defaultValue="main" style={{ marginTop: '1rem' }}>
+          <TabsList style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+            <TabsTrigger value="main">
+              <PanelTop style={{ width: 16, height: 16 }} />
+              Main
+            </TabsTrigger>
             <TabsTrigger value="shortcuts">
               <Keyboard style={{ width: 16, height: 16 }} />
               Shortcuts
@@ -193,31 +218,161 @@ export default function SettingsModal({
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="main" className="space-y-4" style={{ marginTop: '1.25rem' }}>
+            <div className="space-y-4">
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Main Screen Controls</h3>
+                <div className="space-y-2" style={{ marginTop: '0.75rem' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[0]}</span>
+                    <Switch
+                      checked={theme === 'dark'}
+                      onCheckedChange={(checked) => {
+                        if ((theme === 'dark') !== checked) onToggleTheme?.();
+                      }}
+                    />
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[1]}</span>
+                    <Button size="sm" variant="outline" onClick={onOpenParkingLot} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
+                      Open
+                    </Button>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[2]}</span>
+                    <Button size="sm" variant="outline" onClick={onOpenSessionHistory} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
+                      Open
+                    </Button>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[3]}</span>
+                    <Button size="sm" variant="outline" onClick={onRestartApp} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
+                      Restart
+                    </Button>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.5rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[4]}</span>
+                    <Button size="sm" variant="outline" onClick={onCloseApp} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }} className="space-y-3">
+                <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Behavior Settings</h4>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Lock task in compact mode</span>
+                  <Switch checked={showTaskInCompact} onCheckedChange={setShowTaskInCompact} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Bring Focana to front on shortcut</span>
+                  <Switch checked={bringToFront} onCheckedChange={setBringToFront} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Keep text after task completion</span>
+                  <Switch checked={keepTextAfterCompletion} onCheckedChange={setKeepTextAfterCompletion} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Pin controls to toolbar</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Show theme, history, and restart in the top bar</p>
+                  </div>
+                  <Switch checked={pinControlsToToolbar} onCheckedChange={setPinControlsToToolbar} />
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="shortcuts" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <div>
-                  <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#5C4033' }}>Global Shortcuts</h3>
-                  <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Work even when Focana isn't focused</p>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Global Shortcuts</h3>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Click the action to set shortcut</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Enable All</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Enable All</span>
                   <Switch checked={shortcutsEnabled} onCheckedChange={setShortcutsEnabled} />
                 </div>
               </div>
 
               {Object.entries(SHORTCUT_DESCRIPTIONS).map(([key, description]) => (
-                <div key={key} style={{
+                <button
+                  type="button"
+                  key={key}
+                  onClick={() => handleShortcutRecord(key)}
+                  disabled={!shortcutsEnabled}
+                  style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  width: '100%',
                   padding: '0.5rem 0.75rem',
-                  background: '#FFF9E6',
+                  background: 'var(--bg-card)',
                   borderRadius: '0.5rem',
-                  border: '1px solid rgba(139,111,71,0.1)',
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: 500, color: '#5C4033', fontSize: '0.875rem' }}>{description}</p>
+                  border: '1px solid var(--border-subtle)',
+                  cursor: shortcutsEnabled ? 'pointer' : 'not-allowed',
+                  opacity: shortcutsEnabled ? 1 : 0.65,
+                  textAlign: 'left',
+                }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{description}</p>
                     {conflicts[key] && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
                         <AlertTriangle style={{ width: 12, height: 12, color: '#DC2626' }} />
@@ -225,43 +380,28 @@ export default function SettingsModal({
                       </div>
                     )}
                   </div>
-                  <Button
-                    onClick={() => handleShortcutRecord(key)}
-                    variant="outline"
-                    disabled={!shortcutsEnabled}
+                  <span
                     style={{
                       minWidth: 120,
+                      marginLeft: '0.75rem',
                       fontFamily: 'ui-monospace, monospace',
-                      background: recordingKey === key ? '#F59E0B' : 'transparent',
-                      color: recordingKey === key ? 'white' : '#5C4033',
-                      borderColor: recordingKey === key ? '#F59E0B' : 'rgba(139,111,71,0.3)',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      borderRadius: '0.375rem',
+                      padding: '0.375rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      whiteSpace: 'nowrap',
+                      background: recordingKey === key ? 'var(--brand-primary)' : 'var(--pause-bg)',
+                      color: recordingKey === key ? 'var(--text-on-brand)' : 'var(--pause-fg)',
+                      border: recordingKey === key ? '1px solid var(--brand-primary)' : '1px solid var(--border-strong)',
                     }}
                   >
                     {recordingKey === key ? 'Press keys...' : formatShortcutDisplay(tempShortcuts[key])}
-                  </Button>
-                </div>
+                  </span>
+                </button>
               ))}
-
-              <div style={{
-                padding: '0.75rem',
-                background: '#FFF9E6',
-                borderRadius: '0.5rem',
-                border: '1px solid rgba(139,111,71,0.1)',
-              }} className="space-y-3">
-                <h4 style={{ fontWeight: 500, color: '#5C4033' }}>Behavior Settings</h4>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Bring Focana to front on shortcut</span>
-                  <Switch checked={bringToFront} onCheckedChange={setBringToFront} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Keep text after task completion</span>
-                  <Switch checked={keepTextAfterCompletion} onCheckedChange={setKeepTextAfterCompletion} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Show task in compact mode by default</span>
-                  <Switch checked={showTaskInCompact} onCheckedChange={setShowTaskInCompact} />
-                </div>
-              </div>
 
               <div style={{
                 fontSize: '0.75rem',
@@ -279,15 +419,15 @@ export default function SettingsModal({
 
           <TabsContent value="pulse" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
-              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#5C4033' }}>Pulse Animations</h3>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Pulse Animations</h3>
 
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem', background: '#FFF9E6', borderRadius: '0.5rem', border: '1px solid rgba(139,111,71,0.1)',
+                padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)',
               }}>
                 <div>
-                  <p style={{ fontWeight: 500, color: '#5C4033' }}>Time Awareness Pulse</p>
-                  <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Gentle reminder every few minutes</p>
+                  <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Time Awareness Pulse</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Gentle reminder every few minutes</p>
                 </div>
                 <Switch
                   checked={tempPulseSettings.timeAwarenessEnabled}
@@ -297,7 +437,7 @@ export default function SettingsModal({
 
               {tempPulseSettings.timeAwarenessEnabled && (
                 <div style={{ marginLeft: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Interval:</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Interval:</span>
                   <Input
                     type="number"
                     value={tempPulseSettings.timeAwarenessInterval}
@@ -306,17 +446,17 @@ export default function SettingsModal({
                     max="120"
                     style={{ width: '5rem', textAlign: 'center' }}
                   />
-                  <span style={{ fontSize: '0.875rem', color: '#8B6F47' }}>minutes</span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>minutes</span>
                 </div>
               )}
 
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem', background: '#FFF9E6', borderRadius: '0.5rem', border: '1px solid rgba(139,111,71,0.1)',
+                padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)',
               }}>
                 <div>
-                  <p style={{ fontWeight: 500, color: '#5C4033' }}>Celebration Pulse</p>
-                  <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Celebrate focus milestones (5, 15, 30+ min)</p>
+                  <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Celebration Pulse</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Celebrate focus milestones (5, 15, 30+ min)</p>
                 </div>
                 <Switch
                   checked={tempPulseSettings.celebrationEnabled}
@@ -326,11 +466,11 @@ export default function SettingsModal({
 
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem', background: '#FFF9E6', borderRadius: '0.5rem', border: '1px solid rgba(139,111,71,0.1)',
+                padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)',
               }}>
                 <div>
-                  <p style={{ fontWeight: 500, color: '#5C4033' }}>Incognito Mode Pulse</p>
-                  <p style={{ fontSize: '0.875rem', color: '#8B6F47' }}>Subtle presence indicator in pill view</p>
+                  <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Incognito Mode Pulse</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Subtle presence indicator in pill view</p>
                 </div>
                 <Switch
                   checked={tempPulseSettings.incognitoEnabled}
@@ -345,23 +485,23 @@ export default function SettingsModal({
           gap: '0.5rem',
           marginTop: '1.25rem',
           paddingTop: '0.75rem',
-          borderTop: '1px solid rgba(139,111,71,0.16)',
+          borderTop: '1px solid var(--border-default)',
           flexWrap: 'wrap',
           rowGap: '0.5rem',
         }}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleRestoreDefaults} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47', marginRight: 'auto' }}>
+              <Button onClick={handleRestoreDefaults} variant="outline" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', marginRight: 'auto' }}>
                 <RotateCcw style={{ width: 16, height: 16, marginRight: '0.5rem' }} />
                 Restore Defaults
               </Button>
             </TooltipTrigger>
             <TooltipContent><p>Reset all settings to default values</p></TooltipContent>
           </Tooltip>
-          <Button onClick={onClose} variant="outline" style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}>
+          <Button onClick={onClose} variant="outline" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
             Cancel
           </Button>
-          <Button onClick={handleSave} style={{ background: '#F59E0B', color: 'white' }}>
+          <Button onClick={handleSave} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
             Save Settings
           </Button>
         </DialogFooter>

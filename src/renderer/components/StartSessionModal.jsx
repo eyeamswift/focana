@@ -21,15 +21,15 @@ export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent style={{ background: '#FFF9E6', borderColor: '#D97706', maxWidth: '24rem' }}>
+      <DialogContent style={{ background: 'var(--bg-card)', borderColor: 'var(--brand-action)', maxWidth: '24rem' }}>
         <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
         <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.5rem' }}>
-          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: '#5C4033' }}>
+          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             Ready to focus on:
           </DialogTitle>
-          <p style={{ color: '#D97706', fontWeight: 600, padding: '0 1rem', wordBreak: 'break-word' }}>
+          <p style={{ color: 'var(--brand-action)', fontWeight: 600, padding: '0 1rem', wordBreak: 'break-word' }}>
             "{task}"
           </p>
         </DialogHeader>
@@ -43,8 +43,8 @@ export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
                   width: '100%',
                   height: '3rem',
                   fontSize: '1.125rem',
-                  background: '#F59E0B',
-                  color: 'white',
+                  background: 'var(--brand-primary)',
+                  color: 'var(--text-on-brand)',
                   borderRadius: '0.5rem',
                 }}
               >
@@ -66,8 +66,8 @@ export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
             justifyContent: 'space-between',
             gap: '0.5rem',
             padding: '0.5rem',
-            background: '#FFFEF8',
-            border: '1px solid rgba(139, 111, 71, 0.2)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
             borderRadius: '0.5rem',
           }}>
             <Input
@@ -82,9 +82,9 @@ export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
                 width: '6rem',
                 height: '2.25rem',
                 textAlign: 'center',
-                borderColor: 'rgba(139, 111, 71, 0.3)',
-                color: '#5C4033',
-                background: 'white',
+                borderColor: 'var(--border-strong)',
+                color: 'var(--text-primary)',
+                background: 'var(--bg-input)',
               }}
             />
             <Tooltip>
@@ -95,9 +95,9 @@ export default function StartSessionModal({ isOpen, onClose, task, onStart }) {
                   style={{
                     flex: 1,
                     height: '2.25rem',
-                    background: 'white',
-                    color: '#D97706',
-                    border: '1px solid #D97706',
+                    background: 'var(--bg-input)',
+                    color: 'var(--brand-action)',
+                    border: '1px solid var(--brand-action)',
                   }}
                 >
                   Set Timer

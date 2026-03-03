@@ -1,36 +1,50 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Brain, Play, Pause, Square, ClipboardList } from 'lucide-react';
+import { Play, Pause, Square, ClipboardList } from 'lucide-react';
 import { formatTime } from '../utils/time';
 
 // ---------------------------------------------------------------------------
 // Pill width constants (px)
 // ---------------------------------------------------------------------------
 const H_MARGIN   = 12;  // 6px transparent drag area on each side of pill
-const PILL_PAD   = 32;  // 16px left + 16px right padding inside pill
-const BRAIN_W    = 16;  // brain icon width
-const GAP1       = 6;   // gap between brain icon and timer
+const PILL_PAD_WITH_LOGO = 40; // 20px left + 20px right padding
+const COMPACT_LOGO_W = 64; // compact logo width
+const GAP_LOGO_TIMER = 0; // no gap between compact logo and timer
 const TIMER_W    = 56;  // "MM:SS" in ui-monospace bold ~56px (conservative)
 const TASK_PAD_R = 8;   // padding-right on .pill-task-text
 const CTRL_W     = 90;  // 8px pad + 3×26px btns + 2×2px gaps = 90px
 
-const DEFAULT_PILL_W = PILL_PAD + BRAIN_W + GAP1 + TIMER_W; // 110
-const DEFAULT_WIN_W  = DEFAULT_PILL_W + H_MARGIN;             // 122
+const TASK_WRAP_W = 220; // fixed task area width in compact mode (wraps inside this width)
 
-// Measure text width using canvas (matches .pill-task-text styles)
-function measureText(text) {
-  if (!text) return 0;
-  try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    ctx.font = '500 13px Inter, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    return Math.ceil(ctx.measureText(text).width);
-  } catch {
-    return text.length * 7.5; // fallback estimate
-  }
+function CompactLogo({ color = '#B94E10' }) {
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 64 64"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+      style={{ display: 'block', overflow: 'visible' }}
+    >
+      {/* Frame — open rectangle with corner breaks */}
+      <path d="M22 10H52" stroke={color} strokeWidth="3" strokeLinecap="round" />
+      <path d="M10 18V52" stroke={color} strokeWidth="3" strokeLinecap="round" />
+      <path d="M10 10H18" stroke={color} strokeWidth="3" strokeLinecap="round" />
+      <path d="M10 52H44" stroke={color} strokeWidth="3" strokeLinecap="round" />
+      <path d="M52 18V26" stroke={color} strokeWidth="3" strokeLinecap="round" />
+      {/* Filled block "F" letterform */}
+      <path
+        d="M24 20H42V25H30V29.5H39V34.5H30V44H24Z"
+        fill={color}
+      />
+    </svg>
+  );
 }
 
 export default function IncognitoMode({
   task,
+  theme = 'light',
   isRunning,
   time,
   showTaskByDefault = false,
@@ -51,15 +65,19 @@ export default function IncognitoMode({
   const hasInitialized   = useRef(false);
   const isDraggingRef    = useRef(false);
 
-  // Truncate task at 25 chars
-  const taskLabel = task && task.length > 25 ? task.slice(0, 25) + '\u2026' : task;
+  const taskLabel = task || '';
   const isTaskVisible = isHovered || showTaskByDefault;
+  const isDarkTheme = theme === 'dark';
 
   // Pre-calculate target window widths
-  const taskTextW  = useMemo(() => measureText(taskLabel), [taskLabel]);
+  const basePillW = useMemo(
+    () => PILL_PAD_WITH_LOGO + COMPACT_LOGO_W + GAP_LOGO_TIMER + TIMER_W,
+    [],
+  );
+  const baseWinW = useMemo(() => basePillW + H_MARGIN, [basePillW]);
   const hoverWinW  = useMemo(
-    () => DEFAULT_PILL_W + TASK_PAD_R + taskTextW + H_MARGIN,
-    [taskTextW],
+    () => basePillW + TASK_PAD_R + TASK_WRAP_W + H_MARGIN,
+    [basePillW],
   );
   const ctrlWinW   = useMemo(() => hoverWinW + CTRL_W, [hoverWinW]);
 
@@ -74,7 +92,7 @@ export default function IncognitoMode({
     // Initial mount — set immediately without shrink delay
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      window.electronAPI.setPillWidth(DEFAULT_WIN_W);
+      window.electronAPI.setPillWidth(baseWinW);
       return;
     }
 
@@ -85,11 +103,11 @@ export default function IncognitoMode({
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
       const t = setTimeout(() => {
-        window.electronAPI.setPillWidth(DEFAULT_WIN_W);
+        window.electronAPI.setPillWidth(baseWinW);
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW]);
+  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW]);
 
   // ---------------------------------------------------------------------------
   // Pulse animation — pauses when hovered
@@ -193,13 +211,13 @@ export default function IncognitoMode({
     resetControlsTimer();
   };
 
-  const timerColor = isRunning ? '#D97706' : '#8B6F47';
-  const iconColor  = isRunning ? '#D97706' : '#8B6F47';
+  const timerColor = isRunning ? 'var(--timer-running)' : 'var(--text-secondary)';
 
   return (
     <div
-      className={`pill${shouldPulse && pulseEnabled && !isHovered ? ' animate-pulse-incognito' : ''}`}
+      className={`pill pill--logo${shouldPulse && pulseEnabled && !isHovered ? ' animate-pulse-incognito' : ''}`}
       onMouseDown={handleMouseDown}
+      onDragStart={(e) => e.preventDefault()}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handlePillClick}
@@ -210,9 +228,25 @@ export default function IncognitoMode({
         <span className="pill-task-text">{taskLabel}</span>
       </div>
 
-      {/* Brain icon + timer — always visible */}
+      {/* Compact logo + timer */}
       <div className="pill-core">
-        <Brain style={{ width: 16, height: 16, color: iconColor, flexShrink: 0, transition: 'color 0.2s' }} />
+        <div
+          role="img"
+          aria-label="Focana logo"
+          style={{
+            width: COMPACT_LOGO_W,
+            height: COMPACT_LOGO_W,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'visible',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          <CompactLogo color={isDarkTheme ? '#FFF9E6' : '#B94E10'} />
+        </div>
         <span className="pill-timer" style={{ color: timerColor }}>
           {formatTime(time)}
         </span>
@@ -228,6 +262,7 @@ export default function IncognitoMode({
             className="pill-btn"
             onClick={ctrl(isRunning ? onPause : onPlay)}
             title={isRunning ? 'Pause' : 'Resume'}
+            style={isRunning ? { background: 'var(--pause-bg)', color: 'var(--pause-fg)' } : undefined}
           >
             {isRunning
               ? <Pause  style={{ width: 14, height: 14 }} />
@@ -255,6 +290,7 @@ export default function IncognitoMode({
           </button>
         </div>
       </div>
+
     </div>
   );
 }

@@ -9,11 +9,12 @@ export default function TaskCompletionModal({
   taskName,
   onCompleted,
   onNotCompleted,
+  onDismiss,
 }) {
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onNotCompleted(); }}>
-      <DialogContent style={{ background: '#FFFEF8', borderColor: '#D97706', maxWidth: '28rem' }}>
-        <button className="dialog-close-btn" onClick={onNotCompleted} aria-label="Close">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onDismiss?.(); }}>
+      <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
+        <button className="dialog-close-btn" onClick={onDismiss} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
 
@@ -22,21 +23,21 @@ export default function TaskCompletionModal({
             margin: '0 auto',
             width: '3rem',
             height: '3rem',
-            background: '#FFF9E6',
+            background: 'var(--bg-card)',
             borderRadius: '9999px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: '0.75rem',
-            border: '1px solid rgba(139,111,71,0.2)',
+            border: '1px solid var(--border-default)',
           }}>
-            <CircleDot style={{ width: 20, height: 20, color: '#D97706' }} />
+            <CircleDot style={{ width: 20, height: 20, color: 'var(--brand-action)' }} />
           </div>
 
-          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: '#5C4033' }}>
+          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             Did you complete this task?
           </DialogTitle>
-          <p style={{ color: '#8B6F47', fontSize: '0.875rem' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             "{taskName || 'Untitled task'}"
           </p>
         </DialogHeader>
@@ -47,7 +48,7 @@ export default function TaskCompletionModal({
               <Button
                 onClick={onNotCompleted}
                 variant="outline"
-                style={{ borderColor: 'rgba(139,111,71,0.3)', color: '#8B6F47' }}
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
               >
                 No
               </Button>
@@ -57,7 +58,7 @@ export default function TaskCompletionModal({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={onCompleted} style={{ background: '#F59E0B', color: 'white' }}>
+              <Button onClick={onCompleted} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
                 <CheckCircle2 style={{ width: 16, height: 16, marginRight: '0.4rem' }} />
                 Yes
               </Button>

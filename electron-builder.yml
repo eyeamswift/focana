@@ -10,13 +10,14 @@ files:
   - package.json
   - dist
   - src/main
+  - src/assets
   - scripts
   - '!reference'
   - '!release'
   - '!.claude'
   - '!src/renderer'
-  - '!src/assets'
 mac:
+  icon: build/icon.icns
   target:
     - target: dmg
       arch:

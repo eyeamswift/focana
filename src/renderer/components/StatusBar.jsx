@@ -7,9 +7,9 @@ export default function StatusBar({ task, isRunning, time, isMinimal = false, is
   };
 
   const getStatusColor = () => {
-    if (isRunning) return '#D97706';
-    if (isTimerVisible && task) return '#F59E0B';
-    return '#8B6F47';
+    if (isRunning) return 'var(--brand-action)';
+    if (isTimerVisible && task) return 'var(--brand-primary)';
+    return 'var(--text-secondary)';
   };
 
   const statusText = getStatusText();

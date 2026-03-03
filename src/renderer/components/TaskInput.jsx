@@ -1,6 +1,5 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useEffect, useRef } from 'react';
 import { Button } from './ui/Button';
-import { Input } from './ui/Input';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { CornerDownLeft } from 'lucide-react';
 
@@ -14,7 +13,15 @@ const TaskInput = forwardRef(({
   onTaskSubmit,
   onLockedInteraction,
 }, ref) => {
+  const textareaRef = useRef(null);
   const showSubmitButton = task.trim() && !isActive;
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    el.style.height = `${Math.max(48, el.scrollHeight)}px`;
+  }, [task]);
 
   const handleLockedInteraction = () => {
     if (isLocked) onLockedInteraction?.();
@@ -50,8 +57,12 @@ const TaskInput = forwardRef(({
 
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: 460 }}>
-      <Input
-        ref={ref}
+      <textarea
+        ref={(node) => {
+          textareaRef.current = node;
+          if (typeof ref === 'function') ref(node);
+          else if (ref) ref.current = node;
+        }}
         value={task}
         onChange={(e) => {
           if (isLocked) return;
@@ -64,19 +75,27 @@ const TaskInput = forwardRef(({
         placeholder="Type your task here and hit Enter/Return"
         maxLength={120}
         readOnly={isLocked}
+        rows={1}
         style={{
           width: '100%',
           textAlign: 'left',
           fontSize: task.trim() ? '1.125rem' : '1rem',
           padding: showSubmitButton ? '0.75rem 3.5rem 0.75rem 1rem' : '0.75rem 1rem',
-          height: '3rem',
+          minHeight: '3rem',
           borderWidth: 2,
-          borderColor: isActive ? '#D97706' : 'rgba(139, 111, 71, 0.3)',
-          background: '#FFFEF8',
+          borderStyle: 'solid',
+          borderRadius: '0.625rem',
+          borderColor: isActive ? 'var(--brand-action)' : 'var(--border-strong)',
+          background: 'var(--bg-surface)',
           fontFamily: 'Inter, system-ui, sans-serif',
-          color: '#5C4033',
+          color: 'var(--text-primary)',
           transition: 'all 0.3s',
-          boxShadow: isActive ? '0 4px 6px -1px rgba(0,0,0,0.1), 0 0 0 2px rgba(217,119,6,0.2)' : 'none',
+          boxShadow: isActive ? '0 0 0 2px var(--focus-ring)' : 'none',
+          resize: 'none',
+          overflow: 'hidden',
+          lineHeight: 1.35,
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
         }}
       />
       {showSubmitButton && (
@@ -91,8 +110,8 @@ const TaskInput = forwardRef(({
                   height: '2.25rem',
                   width: '2.25rem',
                   borderRadius: '0.5rem',
-                  background: '#F59E0B',
-                  color: 'white',
+                  background: 'var(--brand-primary)',
+                  color: 'var(--text-on-brand)',
                 }}
               >
                 <CornerDownLeft style={{ width: 20, height: 20 }} />
