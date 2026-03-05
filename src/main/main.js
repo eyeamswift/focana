@@ -11,6 +11,11 @@ let lastFullBounds = null;
 let isModalExpanded = false;
 let preModalBounds = null;
 let pillDragStart = null;
+let floatingIconWindow = null;
+let isFloatingMinimized = false;
+let floatingPulseTimeout = null;
+let floatingPulseInterval = null;
+let floatingIconDragStart = null;
 
 const isDev = !app.isPackaged && process.env.FOCANA_E2E !== '1';
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
@@ -19,6 +24,9 @@ const FULL_MIN_HEIGHT = 120;
 const PILL_MIN_WIDTH = 100;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
+const FLOATING_ICON_SIZE = 64;
+const FLOATING_ICON_PULSE_INITIAL_MS = 10 * 60 * 1000;
+const FLOATING_ICON_PULSE_REPEAT_MS = 15 * 60 * 1000;
 let isApplyingBounds = false;
 
 // Ensure the runtime app name is Focana in dev and packaged modes.
@@ -98,6 +106,154 @@ function sanitizeStoredWindowState(rawState) {
   return { x, y, width, height };
 }
 
+function isToggleFloatingShortcut(input) {
+  if (!input || input.type !== 'keyDown' || typeof input.key !== 'string') return false;
+  const key = input.key.toLowerCase();
+  if (key !== 'm') return false;
+  const hasPrimary = process.platform === 'darwin' ? input.meta : input.control;
+  return !!hasPrimary && !input.alt;
+}
+
+function wireToggleFloatingShortcut(window) {
+  if (!window || window.isDestroyed()) return;
+  window.webContents.on('before-input-event', (event, input) => {
+    if (!isToggleFloatingShortcut(input)) return;
+    event.preventDefault();
+    toggleFloatingMinimize();
+  });
+}
+
+function getFloatingBoundsNearMain(mainBounds) {
+  const fallback = { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
+  const source = mainBounds && typeof mainBounds === 'object' ? mainBounds : fallback;
+  const target = {
+    x: Math.round(source.x + source.width - FLOATING_ICON_SIZE - 8),
+    y: Math.round(source.y + 8),
+    width: FLOATING_ICON_SIZE,
+    height: FLOATING_ICON_SIZE,
+  };
+  return clampBounds(target, 'workArea');
+}
+
+function setFloatingIconBoundsClamped(bounds) {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
+  const clamped = clampBounds(bounds, 'workArea');
+  const current = floatingIconWindow.getBounds();
+  const changed =
+    current.x !== clamped.x ||
+    current.y !== clamped.y ||
+    current.width !== clamped.width ||
+    current.height !== clamped.height;
+  if (changed) {
+    floatingIconWindow.setBounds(clamped);
+  }
+}
+
+function stopFloatingPulseSchedule() {
+  if (floatingPulseTimeout) {
+    clearTimeout(floatingPulseTimeout);
+    floatingPulseTimeout = null;
+  }
+  if (floatingPulseInterval) {
+    clearInterval(floatingPulseInterval);
+    floatingPulseInterval = null;
+  }
+}
+
+function sendFloatingPulse() {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !floatingIconWindow.isVisible()) return;
+  floatingIconWindow.webContents.send('floating-icon-pulse');
+}
+
+function startFloatingPulseSchedule() {
+  stopFloatingPulseSchedule();
+  floatingPulseTimeout = setTimeout(() => {
+    sendFloatingPulse();
+    floatingPulseInterval = setInterval(sendFloatingPulse, FLOATING_ICON_PULSE_REPEAT_MS);
+  }, FLOATING_ICON_PULSE_INITIAL_MS);
+}
+
+function createFloatingIconWindow() {
+  if (floatingIconWindow && !floatingIconWindow.isDestroyed()) return;
+
+  const mainBounds = mainWindow && !mainWindow.isDestroyed()
+    ? mainWindow.getBounds()
+    : { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
+  const initialBounds = getFloatingBoundsNearMain(mainBounds);
+
+  floatingIconWindow = new BrowserWindow({
+    x: initialBounds.x,
+    y: initialBounds.y,
+    width: initialBounds.width,
+    height: initialBounds.height,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    alwaysOnTop: isE2EBackground ? false : true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    movable: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'floatingPreload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  floatingIconWindow.loadFile(path.join(__dirname, 'floating-icon.html'));
+  wireToggleFloatingShortcut(floatingIconWindow);
+
+  floatingIconWindow.on('closed', () => {
+    floatingIconWindow = null;
+    floatingIconDragStart = null;
+    stopFloatingPulseSchedule();
+    isFloatingMinimized = false;
+  });
+}
+
+function enterFloatingIconMode() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  createFloatingIconWindow();
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
+
+  setFloatingIconBoundsClamped(getFloatingBoundsNearMain(mainWindow.getBounds()));
+  mainWindow.hide();
+  floatingIconWindow.show();
+  floatingIconWindow.focus();
+  isFloatingMinimized = true;
+  startFloatingPulseSchedule();
+}
+
+function exitFloatingIconMode({ focusMain = true } = {}) {
+  stopFloatingPulseSchedule();
+  floatingIconDragStart = null;
+  isFloatingMinimized = false;
+
+  if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
+    floatingIconWindow.hide();
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
+    mainWindow.show();
+    if (focusMain) mainWindow.focus();
+  }
+}
+
+function toggleFloatingMinimize() {
+  if (isFloatingMinimized) {
+    exitFloatingIconMode();
+    return;
+  }
+  enterFloatingIconMode();
+}
+
 function createWindow() {
   setDockIcon();
 
@@ -127,8 +283,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
   });
+  wireToggleFloatingShortcut(mainWindow);
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
@@ -151,7 +309,25 @@ function createWindow() {
   store.set('windowState', initialBounds);
 
   mainWindow.on('closed', () => {
+    if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
+      floatingIconWindow.close();
+    }
     mainWindow = null;
+  });
+
+  mainWindow.on('show', () => {
+    if (isFloatingMinimized) {
+      stopFloatingPulseSchedule();
+      isFloatingMinimized = false;
+      if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
+        floatingIconWindow.hide();
+      }
+    }
+  });
+
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault();
+    enterFloatingIconMode();
   });
 
   // Create tray
@@ -178,7 +354,7 @@ ipcMain.on('restart-app', () => {
 });
 
 ipcMain.on('minimize-to-tray', () => {
-  if (mainWindow) mainWindow.hide();
+  enterFloatingIconMode();
 });
 
 ipcMain.handle('toggle-always-on-top', () => {
@@ -191,11 +367,59 @@ ipcMain.handle('toggle-always-on-top', () => {
 });
 
 ipcMain.on('bring-to-front', () => {
-  if (mainWindow) {
-    setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
-    mainWindow.show();
-    mainWindow.focus();
+  if (!mainWindow) return;
+  if (isFloatingMinimized) {
+    exitFloatingIconMode();
+    return;
   }
+  setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
+  mainWindow.show();
+  mainWindow.focus();
+});
+
+ipcMain.on('toggle-floating-minimize', () => {
+  toggleFloatingMinimize();
+});
+
+ipcMain.on('expand-from-floating', () => {
+  if (!isFloatingMinimized) return;
+  exitFloatingIconMode();
+});
+
+ipcMain.on('floating-icon-drag-start', () => {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !isFloatingMinimized) return;
+  const bounds = floatingIconWindow.getBounds();
+  floatingIconDragStart = {
+    x: bounds.x,
+    y: bounds.y,
+    lastDx: 0,
+    lastDy: 0,
+  };
+});
+
+ipcMain.on('floating-icon-drag-move', (_, { dx, dy }) => {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !floatingIconDragStart) return;
+
+  const safeDx = Number.isFinite(dx) ? dx : 0;
+  const safeDy = Number.isFinite(dy) ? dy : 0;
+  const stepX = safeDx - (floatingIconDragStart.lastDx || 0);
+  const stepY = safeDy - (floatingIconDragStart.lastDy || 0);
+  floatingIconDragStart.lastDx = safeDx;
+  floatingIconDragStart.lastDy = safeDy;
+
+  if (stepX === 0 && stepY === 0) return;
+
+  const current = floatingIconWindow.getBounds();
+  setFloatingIconBoundsClamped({
+    x: Math.round(current.x + stepX),
+    y: Math.round(current.y + stepY),
+    width: current.width,
+    height: current.height,
+  });
+});
+
+ipcMain.on('floating-icon-drag-end', () => {
+  floatingIconDragStart = null;
 });
 
 // Shortcuts
@@ -451,16 +675,27 @@ ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeig
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+  stopFloatingPulseSchedule();
   unregisterAll();
   app.quit();
 });
 
 app.on('will-quit', () => {
+  stopFloatingPulseSchedule();
   unregisterAll();
 });
 
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
+    return;
+  }
+  if (isFloatingMinimized) {
+    exitFloatingIconMode();
+    return;
+  }
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+    mainWindow.focus();
   }
 });

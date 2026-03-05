@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Focana Floating Icon</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #icon-button {
+        width: 64px;
+        height: 64px;
+        border-radius: 9999px;
+        border: 0;
+        padding: 0;
+        margin: 0;
+        background: transparent !important;
+        appearance: none;
+        -webkit-appearance: none;
+        box-shadow: none;
+        outline: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      #icon-button:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.85);
+        outline-offset: 2px;
+      }
+
+      #icon-image {
+        width: 64px;
+        height: 64px;
+        border-radius: 9999px;
+        display: block;
+        user-select: none;
+        pointer-events: none;
+        -webkit-user-drag: none;
+        object-fit: cover;
+      }
+
+      #icon-button.pulse {
+        animation: floatingPulse 1.8s ease-in-out 2;
+      }
+
+      @keyframes floatingPulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+          filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0));
+        }
+        50% {
+          transform: scale(1.08);
+          opacity: 0.88;
+          filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.5));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="icon-button" role="button" tabindex="0" aria-label="Expand Focana">
+      <img id="icon-image" src="../assets/logo-floating-circle.svg" alt="Focana" draggable="false" />
+    </div>
+
+    <script>
+      const iconButton = document.getElementById('icon-button');
+      const dragThresholdPx = 6;
+      let dragActive = false;
+      let dragMoved = false;
+      let dragStartScreenX = 0;
+      let dragStartScreenY = 0;
+      let expandedOnMouseUp = false;
+
+      function getFloatingAPI() {
+        return window.floatingAPI;
+      }
+
+      function expandMainWindow() {
+        getFloatingAPI()?.expand?.();
+      }
+
+      function triggerPulse() {
+        iconButton.classList.remove('pulse');
+        // Restart CSS animation reliably on repeated reminders.
+        void iconButton.offsetWidth;
+        iconButton.classList.add('pulse');
+      }
+
+      function beginDrag(screenX, screenY) {
+        dragActive = true;
+        dragMoved = false;
+        expandedOnMouseUp = false;
+        dragStartScreenX = screenX;
+        dragStartScreenY = screenY;
+        getFloatingAPI()?.dragStart?.();
+      }
+
+      function moveDrag(screenX, screenY) {
+        if (!dragActive) return;
+        const dx = screenX - dragStartScreenX;
+        const dy = screenY - dragStartScreenY;
+        if (Math.abs(dx) > dragThresholdPx || Math.abs(dy) > dragThresholdPx) {
+          dragMoved = true;
+        }
+        getFloatingAPI()?.dragMove?.(dx, dy);
+      }
+
+      function finishDrag() {
+        if (!dragActive) return;
+        dragActive = false;
+        getFloatingAPI()?.dragEnd?.();
+
+        if (!dragMoved) {
+          expandMainWindow();
+          expandedOnMouseUp = true;
+          return;
+        }
+        expandedOnMouseUp = false;
+      }
+
+      iconButton.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return;
+        beginDrag(event.screenX, event.screenY);
+      });
+
+      window.addEventListener('mousemove', (event) => {
+        if (!dragActive) return;
+        moveDrag(event.screenX, event.screenY);
+      });
+
+      window.addEventListener('mouseup', (event) => {
+        if (!dragActive || event.button !== 0) return;
+        finishDrag();
+      });
+
+      window.addEventListener('blur', () => {
+        if (!dragActive) return;
+        dragActive = false;
+        getFloatingAPI()?.dragEnd?.();
+      });
+
+      iconButton.addEventListener('click', (event) => {
+        if (dragMoved) {
+          dragMoved = false;
+          event.preventDefault();
+          return;
+        }
+        if (expandedOnMouseUp) {
+          expandedOnMouseUp = false;
+          event.preventDefault();
+          return;
+        }
+        expandMainWindow();
+      });
+
+      iconButton.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          expandMainWindow();
+          return;
+        }
+        const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+        const primaryHeld = navigator.platform.includes('Mac') ? event.metaKey : event.ctrlKey;
+        if (key === 'm' && primaryHeld && !event.altKey) {
+          event.preventDefault();
+          getFloatingAPI()?.toggle?.();
+        }
+      });
+
+      getFloatingAPI()?.onPulse?.(triggerPulse);
+    </script>
+  </body>
+</html>

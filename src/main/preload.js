@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.send('close-window'),
   restartApp: () => ipcRenderer.send('restart-app'),
   minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
+  toggleFloatingMinimize: () => ipcRenderer.send('toggle-floating-minimize'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),
 

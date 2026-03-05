@@ -6,7 +6,7 @@ const { test, expect, _electron: electron } = require('@playwright/test');
 const APP_ROOT = path.resolve(__dirname, '..', '..');
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 
-async function launchApp({ seedConfig = null } = {}) {
+async function launchApp({ seedConfig = null, background = true } = {}) {
   const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focana-e2e-'));
   if (seedConfig) {
     fs.writeFileSync(
@@ -22,7 +22,7 @@ async function launchApp({ seedConfig = null } = {}) {
     env: {
       ...process.env,
       FOCANA_E2E: '1',
-      FOCANA_E2E_BACKGROUND: '1',
+      FOCANA_E2E_BACKGROUND: background ? '1' : '0',
       FOCANA_STORE_CWD: storeDir,
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
     },
@@ -50,6 +50,32 @@ async function triggerShortcutAction(electronApp, action) {
     if (!win) return;
     win.webContents.send('shortcut-triggered', incomingAction);
   }, action);
+}
+
+function parseTimerTextToSeconds(timerText) {
+  if (typeof timerText !== 'string') return null;
+  const match = timerText.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  return (minutes * 60) + seconds;
+}
+
+async function readDisplayedTimerSeconds(page) {
+  const timerText = await page.evaluate(() => {
+    const allText = Array.from(document.querySelectorAll('div, span'))
+      .map((el) => (el.textContent || '').trim())
+      .filter((text) => /^\d{2}:\d{2}$/.test(text));
+    return allText.length > 0 ? allText[0] : null;
+  });
+
+  return parseTimerTextToSeconds(timerText);
+}
+
+function isMainAppWindow(win) {
+  const url = win.url();
+  return url.includes('localhost:5173') || (url.includes('/index.html') && !url.includes('floating-icon.html'));
 }
 
 test('quick capture thought persists after parking lot interactions', async () => {
@@ -101,7 +127,8 @@ test('reusing a task from history does not overwrite historical session id', asy
     await expect(page.getByText('History seed task')).toBeVisible();
     await page.getByRole('button', { name: 'Use This Task' }).first().click();
 
-    const taskInput = page.locator(TASK_INPUT_SELECTOR);
+    let mainPage = page;
+    const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
     await expect(taskInput).toHaveValue('History seed task');
     await taskInput.press('Enter');
     await page.getByRole('button', { name: 'Freeflow' }).click();
@@ -257,6 +284,67 @@ test('editing a parking lot note preserves completion state', async () => {
 
     await expect(page.getByText('updated thought')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Copy Selected' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('minimize to floating icon restores task and keeps timer progressing', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    let mainPage = page;
+    const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
+    const minimizeFloatingButton = mainPage.locator('button[aria-label="Minimize to Floating Icon"]');
+    await taskInput.fill('floating-state-test');
+    await taskInput.press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await expect(minimizeFloatingButton).toBeVisible();
+    await mainPage.waitForTimeout(2200);
+
+    const beforeSeconds = await readDisplayedTimerSeconds(mainPage);
+    expect(beforeSeconds).not.toBeNull();
+
+    await mainPage.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(() => {
+      const windows = electronApp.windows();
+      return windows.some((win) => win.url().includes('floating-icon.html'));
+    }, { timeout: 7000 }).toBe(true);
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+    await floatingWindow.evaluate(() => window.floatingAPI.expand());
+
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const windows = BrowserWindow.getAllWindows().map((win) => ({
+        url: win.webContents.getURL(),
+        visible: win.isVisible(),
+      }));
+      const main = windows.find((win) => (
+        win.url.includes('localhost:5173')
+        || (win.url.includes('/index.html') && !win.url.includes('floating-icon.html'))
+      ));
+      return main ? main.visible : false;
+    }), { timeout: 7000 }).toBe(true);
+
+    const resolvedMainWindow = electronApp.windows().find((win) => isMainAppWindow(win));
+    expect(resolvedMainWindow).toBeTruthy();
+    mainPage = resolvedMainWindow;
+
+    const restoredTask = await mainPage.evaluate(async () => {
+      const taskState = await window.electronAPI.storeGet('currentTask');
+      return taskState?.text || '';
+    });
+    expect(restoredTask).toBe('floating-state-test');
+    await mainPage.waitForTimeout(1200);
+
+    const afterSeconds = await readDisplayedTimerSeconds(mainPage);
+    expect(afterSeconds).not.toBeNull();
+    expect(afterSeconds).toBeGreaterThan(beforeSeconds);
   } finally {
     await cleanup();
   }

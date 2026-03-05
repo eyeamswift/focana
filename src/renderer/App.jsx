@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { Button } from './components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
-  X, Play, Pause, Square, RotateCcw, Minimize2,
+  X, Play, Pause, Square, RotateCcw, Minimize2, Minus,
   Settings, ClipboardList, History, Sun, Moon, Check, Undo2, BellOff,
 } from 'lucide-react';
 import { SessionStore } from './adapters/store';
@@ -1228,6 +1228,10 @@ export default function App() {
     window.electronAPI.closeWindow();
   };
 
+  const handleMinimizeToFloating = () => {
+    window.electronAPI.toggleFloatingMinimize?.();
+  };
+
   const handleOpenParkingLot = useCallback(() => {
     track('parking_lot_opened', { source: 'manual' });
     if (isCompact) {
@@ -2210,6 +2214,14 @@ export default function App() {
                 <TooltipContent><p>Do Not Disturb is on</p></TooltipContent>
               </Tooltip>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button aria-label="Minimize to Floating Icon" onClick={handleMinimizeToFloating} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Minus style={{ width: 16, height: 16 }} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Minimize to Floating Icon</p></TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button aria-label="Enter Compact Mode" onClick={() => setIsCompact(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
