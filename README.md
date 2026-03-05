@@ -6,7 +6,7 @@ Landing page for [focana.app](https://focana.app) — the desktop focus app for 
 
 - **Astro** with React integration
 - **Vercel** adapter for deployment
-- **Supabase** for waitlist storage
+- **Supabase** for beta signup storage
 - **Loops** for email marketing
 
 ## Setup
@@ -28,9 +28,8 @@ Required env vars:
 - `PUBLIC_SUPABASE_ANON_KEY` — Your Supabase anon/public key
 - `LOOPS_API_KEY` — Your Loops API key (server-side only)
 
-3. Create a `waitlist` table in Supabase with columns:
+3. Create a `Beta_Downloads` table in Supabase with columns:
    - `email` (text, unique)
-   - `phone` (text, nullable)
    - `created_at` (timestamptz)
 
 4. Run the dev server:

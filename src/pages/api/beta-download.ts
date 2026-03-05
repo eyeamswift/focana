@@ -5,7 +5,7 @@ export const prerender = false;
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
-    const { email, phone } = body;
+    const { email } = body;
 
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'Email is required.' }), {
@@ -19,7 +19,7 @@ export const POST: APIRoute = async ({ request }) => {
     const loopsApiKey = import.meta.env.LOOPS_API_KEY;
 
     // Insert into Supabase
-    const supabaseRes = await fetch(`${supabaseUrl}/rest/v1/waitlist`, {
+    const supabaseRes = await fetch(`${supabaseUrl}/rest/v1/Beta_Downloads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -29,7 +29,6 @@ export const POST: APIRoute = async ({ request }) => {
       },
       body: JSON.stringify({
         email,
-        phone: phone || null,
         created_at: new Date().toISOString(),
       }),
     });
@@ -38,13 +37,13 @@ export const POST: APIRoute = async ({ request }) => {
       const errText = await supabaseRes.text();
       // Handle duplicate email gracefully
       if (supabaseRes.status === 409 || errText.includes('duplicate')) {
-        return new Response(JSON.stringify({ error: 'This email is already on the waitlist!' }), {
+        return new Response(JSON.stringify({ error: 'This email has already signed up for the beta!' }), {
           status: 409,
           headers: { 'Content-Type': 'application/json' },
         });
       }
       console.error('Supabase error:', errText);
-      return new Response(JSON.stringify({ error: 'Failed to join waitlist. Please try again.' }), {
+      return new Response(JSON.stringify({ error: 'Failed to sign up. Please try again.' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -61,8 +60,7 @@ export const POST: APIRoute = async ({ request }) => {
           },
           body: JSON.stringify({
             email,
-            ...(phone ? { phone } : {}),
-            source: 'waitlist',
+            source: 'beta_download',
           }),
         });
       } catch (loopsErr) {
@@ -76,7 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    console.error('Waitlist API error:', err);
+    console.error('Beta signup API error:', err);
     return new Response(JSON.stringify({ error: 'Something went wrong. Please try again.' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

@@ -130,7 +130,6 @@ function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
 // Waitlist form component
 function WaitlistForm({ variant = "dark" }) {
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -142,10 +141,10 @@ function WaitlistForm({ variant = "dark" }) {
     setErrorMsg("");
 
     try {
-      const res = await fetch("/api/waitlist", {
+      const res = await fetch("/api/beta-download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, phone: phone || undefined }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await res.json();
@@ -172,7 +171,7 @@ function WaitlistForm({ variant = "dark" }) {
         margin: "0 auto",
       }}>
         <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981" }}>
-          You're on the list! We'll be in touch soon.
+          Check your email! Your download link is on its way.
         </p>
       </div>
     );
@@ -205,25 +204,9 @@ function WaitlistForm({ variant = "dark" }) {
             }}
           />
           <button className="cta-btn" type="submit" disabled={status === "loading"} style={{ animation: "pulse 2.5s infinite" }}>
-            {status === "loading" ? "Joining..." : "Join Waitlist →"}
+            {status === "loading" ? "Sending..." : "Download the Beta →"}
           </button>
         </div>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="Phone number (optional)"
-          style={{
-            padding: "14px 20px",
-            borderRadius: "12px",
-            border: `2px solid ${isDark ? COLORS.coffeeBrown + "44" : COLORS.beigeBorder}`,
-            background: isDark ? "rgba(255,255,255,0.08)" : "white",
-            color: isDark ? "white" : COLORS.warmBrown,
-            fontSize: "15px",
-            fontFamily: "'DM Sans', sans-serif",
-            outline: "none",
-          }}
-        />
       </form>
       {status === "error" && (
         <p style={{ color: "#EF4444", fontSize: "14px", marginTop: "8px" }}>
@@ -336,7 +319,7 @@ export default function FocanaLanding() {
             <a href="#how-it-works" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500 }}>How it Works</a>
             <a href="#features" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500 }}>Features</a>
             <a href="#faq" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500 }}>FAQ</a>
-            <a href="#get-access" className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Get Early Access</a>
+            <a href="#get-access" className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Download the Beta</a>
           </div>
         </div>
       </nav>
@@ -389,7 +372,7 @@ export default function FocanaLanding() {
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <a href="#get-access" className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
-                Get Early Access — Free
+                Download the Beta
                 <span style={{ fontSize: "22px" }}>→</span>
               </a>
               <a href="#how-it-works" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
@@ -397,8 +380,15 @@ export default function FocanaLanding() {
               </a>
             </div>
 
+            <p style={{
+              marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
+              animation: "fadeUp 0.6s ease 0.35s both",
+            }}>
+              Available now for macOS. Windows coming soon.
+            </p>
+
             <div style={{
-              marginTop: "40px",
+              marginTop: "24px",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "16px",
               animation: "fadeUp 0.6s ease 0.4s both",
             }}>
@@ -415,7 +405,7 @@ export default function FocanaLanding() {
                 ))}
               </div>
               <span style={{ fontSize: "14px", color: COLORS.coffeeBrown }}>
-                Join <strong>500+</strong> people on the waitlist
+                Join <strong>50</strong> beta testers helping build the future of focus
               </span>
             </div>
           </div>
@@ -761,7 +751,7 @@ export default function FocanaLanding() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
             {[
               { quote: "Finally someone who understands ADHD brains. This is the only focus app I've used for more than a week.", name: "Early Beta User", role: "Software Developer" },
-              { quote: "It's like having a gentle friend remind you what you're doing. Simple. Warm. Actually helpful.", name: "Waitlist Member", role: "UX Designer with ADHD" },
+              { quote: "It's like having a gentle friend remind you what you're doing. Simple. Warm. Actually helpful.", name: "Beta Tester", role: "UX Designer with ADHD" },
               { quote: "The fact that it stays on top of everything is a game-changer for remote work. My productivity has skyrocketed.", name: "Beta Tester", role: "Freelance Writer" },
             ].map((t, i) => (
               <div key={i} style={{
@@ -822,11 +812,11 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="Is Focana available for Mac and Windows?"
-            answer="Focana is being developed for both macOS and Windows. Join the waitlist to get early access and be notified the moment your platform is ready."
+            answer="Focana is available now for macOS. Windows is in development — sign up to get notified the moment it's ready."
           />
           <FAQItem
             question="How much does Focana cost?"
-            answer="We'll be offering an introductory lifetime deal for early supporters, plus an affordable monthly subscription. Join the waitlist to lock in the best price when we launch."
+            answer="Focana is free during the beta. We'll be offering an introductory lifetime deal for early supporters, plus an affordable monthly subscription when we officially launch."
           />
           <FAQItem
             question="Do I need to have ADHD to use Focana?"
@@ -858,7 +848,7 @@ export default function FocanaLanding() {
             <span style={{ color: COLORS.sunshineYellow }}>invisible tools</span>
           </h2>
           <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.warmGray, marginBottom: "40px" }}>
-            Join hundreds of distracted minds waiting for the focus app that finally stays where you can see it.
+            Try the focus app that finally stays where you can see it. Free during beta — available now for macOS.
           </p>
 
           <WaitlistForm variant="dark" />
