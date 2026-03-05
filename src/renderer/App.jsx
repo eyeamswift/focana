@@ -1722,6 +1722,11 @@ export default function App() {
   };
 
   const addThought = (text) => setThoughts((prev) => [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2), text, completed: false }]);
+  const handleQuickCaptureSave = useCallback((text) => {
+    if (!text?.trim()) return;
+    setThoughts((prev) => [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2), text: text.trim(), completed: false }]);
+    showToast('success', 'Saved to Parking Lot');
+  }, [showToast]);
   const removeThought = (index) => setThoughts((prev) => prev.filter((_, i) => i !== index));
   const toggleThought = (index) => {
     const newThoughts = [...thoughts];
@@ -1984,7 +1989,7 @@ export default function App() {
           onDeleteSession={handleDeleteSession}
           onDeleteSessions={handleDeleteSessions}
         />
-        <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
+        <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
         <Toast toast={toast} onDismiss={() => setToast(null)} />
         {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
       </div>
@@ -2405,7 +2410,7 @@ export default function App() {
         onDetour={openCheckInDetourChoice}
         variant="full"
       />
-      <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={() => showToast('success', 'Saved to Parking Lot')} />
+      <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
       {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
     </div>
