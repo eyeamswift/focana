@@ -12,6 +12,7 @@ export default function ParkingLot({
   onClose,
   thoughts,
   onAddThought,
+  onUpdateThought,
   onRemoveThought,
   onToggleThought,
   onClearCompleted,
@@ -50,8 +51,12 @@ export default function ParkingLot({
 
   const handleSaveEdit = () => {
     if (editingText.trim() && expandedThought !== null) {
-      onRemoveThought(expandedThought);
-      onAddThought(editingText.trim());
+      if (typeof onUpdateThought === 'function') {
+        onUpdateThought(expandedThought, editingText.trim());
+      } else {
+        onRemoveThought(expandedThought);
+        onAddThought(editingText.trim());
+      }
     }
     setExpandedThought(null);
     setEditingText('');

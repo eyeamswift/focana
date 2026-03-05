@@ -224,6 +224,9 @@ export default function App() {
   const lastInteractionTimeRef = useRef(Date.now());
   const isRunningRef = useRef(false);
   const sessionCreatePromiseRef = useRef(null);
+  const sessionCreateEpochRef = useRef(0);
+  const getElapsedSecondsRef = useRef(() => 0);
+  const resetCheckInScheduleRef = useRef(() => {});
   const suppressToolbarTooltipTimerRef = useRef(null);
   const pendingCompactExitHeightRef = useRef(null);
   const compactRevealTimerRef = useRef(null);
@@ -234,8 +237,11 @@ export default function App() {
   const windowModeActualRef = useRef('full');
   const windowModeSyncingRef = useRef(false);
 
-  const pushModal = (modalName) => { modalStackRef.current.push(modalName); };
-  const popAndOpenPrevModal = () => {
+  const pushModal = useCallback((modalName) => {
+    modalStackRef.current.push(modalName);
+  }, []);
+
+  const popAndOpenPrevModal = useCallback(() => {
     const prev = modalStackRef.current.pop();
     if (prev) {
       const openers = {
@@ -246,7 +252,7 @@ export default function App() {
       };
       openers[prev]?.();
     }
-  };
+  }, []);
 
   useEffect(() => {
     const onResize = () => setWindowHeight(window.innerHeight);
@@ -376,6 +382,11 @@ export default function App() {
     setSessions(data);
   }, []);
 
+  const invalidatePendingSessionCreation = useCallback(() => {
+    sessionCreateEpochRef.current += 1;
+    sessionCreatePromiseRef.current = null;
+  }, []);
+
   const ensureCurrentSessionId = useCallback(async (source = 'unknown') => {
     if (currentSessionId) return currentSessionId;
     const trimmedTask = task.trim();
@@ -385,6 +396,7 @@ export default function App() {
       return sessionCreatePromiseRef.current;
     }
 
+    const epochAtStart = sessionCreateEpochRef.current;
     sessionCreatePromiseRef.current = (async () => {
       try {
         const created = await SessionStore.create({
@@ -395,6 +407,9 @@ export default function App() {
           notes: contextNotes || '',
         });
         const nextSessionId = created?.id || null;
+        if (sessionCreateEpochRef.current !== epochAtStart) {
+          return null;
+        }
         if (nextSessionId) {
           setCurrentSessionId(nextSessionId);
           await loadSessions();
@@ -404,7 +419,9 @@ export default function App() {
         console.error(`Error creating session (${source}):`, error);
         return null;
       } finally {
-        sessionCreatePromiseRef.current = null;
+        if (sessionCreateEpochRef.current === epochAtStart) {
+          sessionCreatePromiseRef.current = null;
+        }
       }
     })();
 
@@ -425,10 +442,10 @@ export default function App() {
     setShowTimeUpModal(false);
     setIsStopFlowAwaitingCompletion(false);
     setSessionStartTime(null);
-    sessionCreatePromiseRef.current = null;
+    invalidatePendingSessionCreation();
 
     clearCheckInRuntime();
-  }, []);
+  }, [invalidatePendingSessionCreation]);
 
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
@@ -541,7 +558,7 @@ export default function App() {
       if (newRunning && !sessionStartTime) {
         setSessionStartTime(Date.now());
         if (!currentSessionId) void ensureCurrentSessionId('shortcut start');
-        resetCheckInSchedule(mode, initialTime, getElapsedSeconds());
+        resetCheckInScheduleRef.current(mode, initialTime, getElapsedSecondsRef.current());
       }
       showToast('success', newRunning ? 'Session started' : 'Session paused');
     } else {
@@ -684,11 +701,7 @@ export default function App() {
     const cleanup = window.electronAPI.onDndToggle?.((enabled) => {
       setDndEnabled(enabled);
       track('dnd_toggled', { enabled, source: 'tray' });
-      (async () => {
-        const settings = await window.electronAPI.storeGet('settings') || {};
-        settings.doNotDisturbEnabled = enabled;
-        await window.electronAPI.storeSet('settings', settings);
-      })();
+      window.electronAPI.storeSet('settings.doNotDisturbEnabled', enabled);
     });
     return () => { if (cleanup) cleanup(); };
   }, []);
@@ -853,6 +866,14 @@ export default function App() {
     checkInTimedThresholdsRef.current = nextThresholds;
     checkInTimedIndexRef.current = nextTimedIndex;
   }, [checkInSettings.enabled, checkInSettings.timedPercents, initialTime, getStandardCheckInIntervalSeconds]);
+
+  useEffect(() => {
+    getElapsedSecondsRef.current = getElapsedSeconds;
+  }, [getElapsedSeconds]);
+
+  useEffect(() => {
+    resetCheckInScheduleRef.current = resetCheckInSchedule;
+  }, [resetCheckInSchedule]);
 
   const advanceCheckInScheduleAfterResult = useCallback((elapsedSec) => {
     if (!checkInSettings.enabled) return;
@@ -1158,7 +1179,10 @@ export default function App() {
           if (mode === 'timed' && prevTime <= 1) {
             return 0;
           }
-          return mode === 'freeflow' ? prevTime + 1 : prevTime - 1;
+          if (mode === 'freeflow') {
+            return prevTime + 1;
+          }
+          return Math.max(prevTime - 1, 0);
         });
       }, 1000);
     }
@@ -1219,7 +1243,7 @@ export default function App() {
   const handleCloseParkingLot = useCallback(() => {
     setDistractionJarOpen(false);
     popAndOpenPrevModal();
-  }, []);
+  }, [popAndOpenPrevModal]);
 
   const handleCheckInParkIt = useCallback(() => {
     track('detour_parked');
@@ -1234,8 +1258,22 @@ export default function App() {
 
   useEffect(() => {
     const wasOpen = wasParkingLotOpenRef.current;
+    const hasInterveningModal = (
+      showSettings
+      || showHistoryModal
+      || showTaskPreview
+      || showNotesModal
+      || showCompletionModal
+      || showTimeUpModal
+      || showQuickCapture
+    );
+
     if (wasOpen && !distractionJarOpen && parkingLotReturnToCompactRef.current) {
       parkingLotReturnToCompactRef.current = false;
+      if (hasInterveningModal) {
+        wasParkingLotOpenRef.current = distractionJarOpen;
+        return undefined;
+      }
       const t = setTimeout(() => {
         setIsCompact(true);
       }, 80);
@@ -1244,7 +1282,16 @@ export default function App() {
     }
     wasParkingLotOpenRef.current = distractionJarOpen;
     return undefined;
-  }, [distractionJarOpen]);
+  }, [
+    distractionJarOpen,
+    showSettings,
+    showHistoryModal,
+    showTaskPreview,
+    showNotesModal,
+    showCompletionModal,
+    showTimeUpModal,
+    showQuickCapture,
+  ]);
 
   const resizeToMainCardContent = useCallback((minHeight) => {
     const card = mainCardRef.current;
@@ -1307,7 +1354,8 @@ export default function App() {
     if (!currentSessionId) {
       void ensureCurrentSessionId('compact play');
     }
-  }, [task, isTimerVisible, sessionStartTime, currentSessionId, ensureCurrentSessionId]);
+    resetCheckInScheduleRef.current(mode, initialTime, getElapsedSecondsRef.current());
+  }, [task, isTimerVisible, sessionStartTime, currentSessionId, ensureCurrentSessionId, mode, initialTime]);
 
   const handlePause = () => setIsRunning(false);
 
@@ -1370,7 +1418,8 @@ export default function App() {
       setTime(0);
       setInitialTime(0);
     } else {
-      const seconds = minutes * 60;
+      const safeMinutes = Number.isFinite(minutes) ? Math.min(Math.max(Math.floor(minutes), 1), 240) : 25;
+      const seconds = safeMinutes * 60;
       initialSeconds = seconds;
       setTime(seconds);
       setInitialTime(seconds);
@@ -1378,7 +1427,12 @@ export default function App() {
     setIsTimerVisible(true);
     setIsRunning(true);
     setSessionStartTime(Date.now());
-    track('session_started', { mode: selectedMode, duration_minutes: selectedMode === 'timed' ? minutes : null });
+    track('session_started', {
+      mode: selectedMode,
+      duration_minutes: selectedMode === 'timed'
+        ? (Number.isFinite(minutes) ? Math.min(Math.max(Math.floor(minutes), 1), 240) : 25)
+        : null,
+    });
 
     clearCheckInRuntime();
     resetCheckInSchedule(selectedMode, initialSeconds, 0);
@@ -1634,6 +1688,7 @@ export default function App() {
     // Prevent stale modal-stack reopen when "Use task" already performs
     // explicit modal closing.
     modalStackRef.current = [];
+    invalidatePendingSessionCreation();
     suppressHistoryPopRef.current = true;
     setTask(nextTask);
     setTime(0);
@@ -1680,6 +1735,12 @@ export default function App() {
       minHeight: nextNotes.trim() ? WINDOW_SIZES.contextHeight : WINDOW_SIZES.timerHeight,
     };
   };
+
+  const getSafeSessionMinutes = useCallback(() => {
+    const parsed = Number.parseInt(sessionMinutes, 10);
+    if (!Number.isFinite(parsed)) return 25;
+    return Math.min(Math.max(parsed, 1), 240);
+  }, [sessionMinutes]);
 
   const handlePreviewTask = (session) => {
     setPreviewSession(session);
@@ -1786,11 +1847,14 @@ export default function App() {
     showToast('success', 'Saved to Parking Lot');
   }, [showToast]);
   const removeThought = (index) => setThoughts((prev) => prev.filter((_, i) => i !== index));
-  const toggleThought = (index) => {
-    const newThoughts = [...thoughts];
-    newThoughts[index].completed = !newThoughts[index].completed;
-    setThoughts(newThoughts);
-  };
+  const updateThought = useCallback((index, text) => {
+    const nextText = typeof text === 'string' ? text.trim() : '';
+    if (!nextText) return;
+    setThoughts((prev) => prev.map((thought, i) => (i === index ? { ...thought, text: nextText } : thought)));
+  }, []);
+  const toggleThought = useCallback((index) => {
+    setThoughts((prev) => prev.map((thought, i) => (i === index ? { ...thought, completed: !thought.completed } : thought)));
+  }, []);
   const clearCompletedThoughts = () => {
     const completedCount = thoughts.filter((t) => t.completed).length;
     if (completedCount > 0) track('parking_lot_cleared', { cleared_count: completedCount });
@@ -2289,7 +2353,7 @@ export default function App() {
               </Button>
               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>OR</span>
               <Button
-                onClick={() => handleStartSession('timed', parseInt(sessionMinutes) || 25)}
+                onClick={() => handleStartSession('timed', getSafeSessionMinutes())}
                 style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
               >
                 Set Timer
@@ -2298,7 +2362,7 @@ export default function App() {
                 type="number"
                 value={sessionMinutes}
                 onChange={(e) => setSessionMinutes(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleStartSession('timed', parseInt(sessionMinutes) || 25); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleStartSession('timed', getSafeSessionMinutes()); }}
                 min="1"
                 max="240"
                 className="input"
@@ -2394,7 +2458,16 @@ export default function App() {
       </div>
 
       {/* Modals */}
-      <ParkingLot isOpen={distractionJarOpen} onClose={handleCloseParkingLot} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
+      <ParkingLot
+        isOpen={distractionJarOpen}
+        onClose={handleCloseParkingLot}
+        thoughts={thoughts}
+        onAddThought={addThought}
+        onUpdateThought={updateThought}
+        onRemoveThought={removeThought}
+        onToggleThought={toggleThought}
+        onClearCompleted={clearCompletedThoughts}
+      />
       <SessionNotesModal
         isOpen={showNotesModal}
         onClose={handleSkipSessionNotes}
@@ -2472,11 +2545,14 @@ export default function App() {
           track('dnd_toggled', { enabled });
         }}
         checkInSettings={checkInSettings}
-        onCheckInSettingsChange={({ enabled, intervalFreeflow }) => {
+        onCheckInSettingsChange={({ enabled, intervalFreeflow, timedPercents }) => {
           setCheckInSettings((prev) => ({
             ...prev,
             enabled: enabled ?? prev.enabled,
             intervalFreeflow: Number.isFinite(intervalFreeflow) ? intervalFreeflow : prev.intervalFreeflow,
+            timedPercents: Array.isArray(timedPercents) && timedPercents.length
+              ? timedPercents
+              : prev.timedPercents,
           }));
         }}
       />

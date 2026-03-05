@@ -1,3 +1,14 @@
 import posthog from 'posthog-js';
 
-export const track = (event, properties) => posthog.capture(event, properties);
+let analyticsDisabled = false;
+
+export const track = (event, properties) => {
+  if (analyticsDisabled) return;
+  try {
+    if (typeof posthog?.capture !== 'function') return;
+    posthog.capture(event, properties);
+  } catch (error) {
+    analyticsDisabled = true;
+    console.warn('Analytics capture disabled after PostHog error:', error);
+  }
+};

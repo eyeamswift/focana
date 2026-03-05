@@ -149,6 +149,28 @@ test('shortcut recorder handles modifier and escape without lockup', async () =>
   }
 });
 
+test('closing settings while recording shortcuts does not leave keyboard lock', async () => {
+  const { page, cleanup } = await launchApp();
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('tab', { name: 'Shortcuts' }).click();
+
+    const row = page.getByRole('button', { name: /Start\/Pause Timer/i }).first();
+    await row.click();
+    await expect(page.getByText('Press keys...')).toBeVisible();
+
+    await page.locator('.dialog-content-lg .dialog-close-btn').click();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toHaveCount(0);
+
+    const taskInput = page.locator(TASK_INPUT_SELECTOR);
+    await taskInput.click();
+    await page.keyboard.type('keyboard cleanup check');
+    await expect(taskInput).toHaveValue('keyboard cleanup check');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('escape closes only the top-most dialog', async () => {
   const { electronApp, page, cleanup } = await launchApp();
   try {
@@ -166,6 +188,26 @@ test('escape closes only the top-most dialog', async () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('heading', { name: 'Edit Note' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Parking Lot' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed start clamps invalid minute input to safe range', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    const taskInput = page.locator(TASK_INPUT_SELECTOR);
+    await taskInput.fill('Timed clamp task');
+    await taskInput.press('Enter');
+
+    const minutesInput = page.locator('input[type="number"]').first();
+    await minutesInput.fill('-5');
+    await page.getByRole('button', { name: 'Set Timer' }).click();
+
+    await expect(page.getByText(/0[01]:[0-5][0-9]/)).toBeVisible();
+    await page.waitForTimeout(2000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -190,6 +232,31 @@ test('window state with zero height is sanitized at startup', async () => {
     });
 
     expect(height).toBeGreaterThanOrEqual(120);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('editing a parking lot note preserves completion state', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+
+    const thoughtInput = page.getByPlaceholder('Capture a thought... (Enter to add)');
+    await thoughtInput.fill('stateful thought');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+
+    await page.locator('.checkbox').first().click();
+    await expect(page.getByRole('button', { name: 'Copy Selected' })).toBeVisible();
+
+    await page.getByText('stateful thought').click();
+    await expect(page.getByRole('heading', { name: 'Edit Note' })).toBeVisible();
+    await page.getByPlaceholder('Edit your note...').fill('updated thought');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByText('updated thought')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Copy Selected' })).toBeVisible();
   } finally {
     await cleanup();
   }

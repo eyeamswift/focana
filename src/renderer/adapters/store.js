@@ -1,10 +1,37 @@
 function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 11);
+}
+
+async function readSessions() {
+  const sessions = await window.electronAPI.storeGet('sessions');
+  return Array.isArray(sessions) ? sessions : [];
+}
+
+let sessionsMutationQueue = Promise.resolve();
+
+function queueSessionsMutation(mutation) {
+  const run = async () => {
+    const sessions = await readSessions();
+    const result = await mutation(sessions);
+
+    if (!result || result.persist === false) {
+      return result?.value ?? null;
+    }
+
+    await window.electronAPI.storeSet('sessions', result.sessions);
+    return result.value;
+  };
+
+  const queued = sessionsMutationQueue.then(run, run);
+  sessionsMutationQueue = queued.then(() => undefined, () => undefined);
+  return queued;
 }
 
 export const SessionStore = {
   async list(limit) {
-    const sessions = await window.electronAPI.storeGet('sessions') || [];
+    // Ensure reads happen after pending writes so callers don't observe stale data.
+    await sessionsMutationQueue;
+    const sessions = await readSessions();
     // Sort by createdAt descending
     sessions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (Number.isFinite(limit) && limit > 0) {
@@ -14,52 +41,66 @@ export const SessionStore = {
   },
 
   async create(data) {
-    const sessions = await window.electronAPI.storeGet('sessions') || [];
     const session = {
       id: generateId(),
-      task: data.task || '',
-      durationMinutes: data.duration_minutes || 0,
-      mode: data.mode || 'freeflow',
-      completed: data.completed || false,
-      notes: data.notes || '',
+      task: typeof data?.task === 'string' ? data.task : '',
+      durationMinutes: Number.isFinite(data?.duration_minutes) ? data.duration_minutes : 0,
+      mode: typeof data?.mode === 'string' ? data.mode : 'freeflow',
+      completed: data?.completed ?? false,
+      notes: typeof data?.notes === 'string' ? data.notes : '',
       createdAt: new Date().toISOString(),
     };
-    sessions.unshift(session);
-    await window.electronAPI.storeSet('sessions', sessions);
-    return session;
+
+    return queueSessionsMutation((sessions) => ({
+      sessions: [session, ...sessions],
+      value: session,
+    }));
   },
 
   async update(id, data) {
-    const sessions = await window.electronAPI.storeGet('sessions') || [];
-    const index = sessions.findIndex((s) => s.id === id);
-    if (index !== -1) {
-      sessions[index] = { ...sessions[index], ...data };
-      await window.electronAPI.storeSet('sessions', sessions);
-      return sessions[index];
-    }
-    return null;
+    return queueSessionsMutation((sessions) => {
+      const index = sessions.findIndex((s) => s.id === id);
+      if (index === -1) {
+        return { persist: false, value: null };
+      }
+      const nextSessions = [...sessions];
+      nextSessions[index] = { ...nextSessions[index], ...data };
+      return {
+        sessions: nextSessions,
+        value: nextSessions[index],
+      };
+    });
   },
 
   async delete(id) {
-    const sessions = await window.electronAPI.storeGet('sessions') || [];
-    const filtered = sessions.filter((s) => s.id !== id);
-    if (filtered.length === sessions.length) return false;
-    await window.electronAPI.storeSet('sessions', filtered);
-    return true;
+    return queueSessionsMutation((sessions) => {
+      const filtered = sessions.filter((s) => s.id !== id);
+      if (filtered.length === sessions.length) {
+        return { persist: false, value: false };
+      }
+      return {
+        sessions: filtered,
+        value: true,
+      };
+    });
   },
 
   async deleteMany(ids = []) {
     const idSet = new Set(ids.filter(Boolean));
     if (idSet.size === 0) return 0;
 
-    const sessions = await window.electronAPI.storeGet('sessions') || [];
-    const filtered = sessions.filter((s) => !idSet.has(s.id));
-    const removedCount = sessions.length - filtered.length;
+    return queueSessionsMutation((sessions) => {
+      const filtered = sessions.filter((s) => !idSet.has(s.id));
+      const removedCount = sessions.length - filtered.length;
 
-    if (removedCount > 0) {
-      await window.electronAPI.storeSet('sessions', filtered);
-    }
+      if (removedCount === 0) {
+        return { persist: false, value: 0 };
+      }
 
-    return removedCount;
+      return {
+        sessions: filtered,
+        value: removedCount,
+      };
+    });
   },
 };

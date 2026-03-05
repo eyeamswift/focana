@@ -93,6 +93,14 @@ export default function SettingsModal({
   }, []);
 
   useEffect(() => {
+    if (isOpen) return;
+    if (recordingCleanupRef.current) {
+      recordingCleanupRef.current();
+    }
+    setRecordingKey(null);
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen) {
       setTempShortcuts(shortcuts || DEFAULT_SHORTCUTS);
 
