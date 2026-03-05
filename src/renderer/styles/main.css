@@ -19,8 +19,8 @@
   --bg-surface: #FFF9E6;
   --bg-card: #FFF9E6;
   --bg-input: #FFF9E6;
-  --incognito-pill: #FFF9E6;
-  --incognito-text: #2E1F18;
+  --compact-pill: #FFF9E6;
+  --compact-text: #2E1F18;
 
   --text-primary: #2E1F18;
   --text-secondary: #6B7280;
@@ -54,8 +54,8 @@
   --bg-surface: #2E1F18;
   --bg-card: #4A3329;
   --bg-input: #4A3329;
-  --incognito-pill: #4A3329;
-  --incognito-text: #FFF9E6;
+  --compact-pill: #4A3329;
+  --compact-text: #FFF9E6;
 
   --text-primary: #FFF9E6;
   --text-secondary: rgba(255, 249, 230, 0.78);
@@ -727,7 +727,7 @@ html[data-window-mode='pill'] #root {
   border: 1px solid var(--border-default);
 }
 
-/* === Incognito Pill === */
+/* === Compact Mode Pill === */
 
 /* Pill — auto-sizes to content (inline-flex). Base height 44px.
    Window is set via IPC to pill-content-width + 12px margins (6px each side).
@@ -736,10 +736,11 @@ html[data-window-mode='pill'] #root {
    The outer electron-draggable container provides dragging from the transparent edges. */
 .pill {
   display: inline-flex;
+  position: relative;
   align-items: center;
   height: 44px;
   padding: 0 16px;
-  background: var(--incognito-pill);
+  background: var(--compact-pill);
   border-radius: 9999px;
   box-shadow: var(--shadow-minimal);
   border: 1px solid var(--border-default);
@@ -770,7 +771,7 @@ html[data-window-mode='pill'] #root {
   display: block;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--incognito-text);
+  color: var(--compact-text);
   padding-right: 8px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -796,6 +797,63 @@ html[data-window-mode='pill'] #root {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   transition: color 0.2s;
+}
+
+.pill-help {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.pill-help-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--brand-primary) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+  color: var(--compact-text);
+  opacity: 0.95;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: default;
+}
+
+.pill-help-hint {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
+  border: 1px solid var(--tooltip-border);
+  box-shadow: var(--shadow-minimal);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: left;
+  z-index: 8;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.pill-help-hint::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  background: var(--tooltip-bg);
+  border-left: 1px solid var(--tooltip-border);
+  border-top: 1px solid var(--tooltip-border);
+  transform: rotate(45deg);
+  text-align: left;
 }
 
 /* Controls — slide/fade in on click */
@@ -832,7 +890,7 @@ html[data-window-mode='pill'] #root {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--incognito-text);
+  color: var(--compact-text);
   padding: 0;
   flex-shrink: 0;
   transition: background 0.15s, color 0.15s;
@@ -841,7 +899,7 @@ html[data-window-mode='pill'] #root {
 
 .pill-btn:hover:not(:disabled) {
   background: var(--border-subtle);
-  color: var(--incognito-text);
+  color: var(--compact-text);
 }
 
 .pill-btn:disabled {
@@ -960,6 +1018,94 @@ html[data-window-mode='pill'] #root {
 .top-toolbar .tooltip-content {
   bottom: auto;
   top: calc(100% + 6px);
+  max-width: min(16rem, calc(100vw - 1rem));
+  white-space: normal;
+  text-align: center;
+}
+
+.top-toolbar .tooltip-wrapper:first-child .tooltip-content {
+  left: 0;
+  transform: none;
+}
+
+.top-toolbar .tooltip-wrapper:last-child .tooltip-content {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* In modal footers, keep tooltips inside the dialog bounds. */
+.dialog-footer .tooltip-content {
+  max-width: min(16rem, calc(100vw - 2rem));
+  white-space: normal;
+  text-align: center;
+}
+
+.dialog-footer .tooltip-wrapper:first-child .tooltip-content {
+  left: 0;
+  transform: none;
+}
+
+.dialog-footer .tooltip-wrapper:last-child .tooltip-content {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* === Check-in Prompt Popup === */
+.checkin-popup-overlay {
+  position: fixed;
+  top: 0.625rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 170;
+  pointer-events: none;
+  width: calc(100% - 1rem);
+  display: flex;
+  justify-content: center;
+}
+
+.checkin-popup {
+  pointer-events: auto;
+  width: min(26rem, calc(100vw - 1rem));
+  background: var(--bg-surface);
+  border: 1px solid #D97706;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 28px rgba(46, 31, 24, 0.24);
+  padding: 0.75rem 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  will-change: transform, box-shadow, filter;
+}
+
+.checkin-popup-full {
+  animation: checkin-popup-wobble-full 0.5s ease-out 1, checkin-popup-glow-full 2.2s ease-in-out 0.5s infinite;
+  transform-origin: center center;
+}
+
+.checkin-popup-compact {
+  animation: checkin-popup-wobble-compact 0.5s ease-out 1, checkin-popup-glow-compact 2.2s ease-in-out 0.5s infinite;
+  transform-origin: center center;
+}
+
+.checkin-popup-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.checkin-popup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.checkin-popup-btn {
+  min-width: 7rem;
+  justify-content: center;
 }
 
 /* === Keyframe Animations === */
@@ -971,6 +1117,48 @@ html[data-window-mode='pill'] #root {
 @keyframes dialogIn {
   from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes checkin-popup-wobble-full {
+  0% { transform: translateX(0) rotate(0deg); }
+  15% { transform: translateX(-7px) rotate(-2.2deg); }
+  30% { transform: translateX(7px) rotate(2.2deg); }
+  45% { transform: translateX(-5px) rotate(-1.5deg); }
+  60% { transform: translateX(5px) rotate(1.5deg); }
+  75% { transform: translateX(-3px) rotate(-0.9deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+@keyframes checkin-popup-wobble-compact {
+  0% { transform: translateX(0) rotate(0deg); }
+  15% { transform: translateX(-5px) rotate(-1.8deg); }
+  30% { transform: translateX(5px) rotate(1.8deg); }
+  45% { transform: translateX(-4px) rotate(-1.3deg); }
+  60% { transform: translateX(4px) rotate(1.3deg); }
+  75% { transform: translateX(-2px) rotate(-0.8deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+@keyframes checkin-popup-glow-full {
+  0%, 100% {
+    box-shadow: 0 10px 22px rgba(46, 31, 24, 0.22), 0 0 0 1px rgba(245, 158, 11, 0.35);
+    filter: saturate(1);
+  }
+  50% {
+    box-shadow: 0 16px 30px rgba(46, 31, 24, 0.26), 0 0 0 3px rgba(245, 158, 11, 0.75), 0 0 28px rgba(245, 158, 11, 0.5);
+    filter: saturate(1.08);
+  }
+}
+
+@keyframes checkin-popup-glow-compact {
+  0%, 100% {
+    box-shadow: 0 10px 22px rgba(46, 31, 24, 0.2), 0 0 0 1px rgba(245, 158, 11, 0.22);
+    filter: saturate(1);
+  }
+  50% {
+    box-shadow: 0 14px 28px rgba(46, 31, 24, 0.24), 0 0 0 2px rgba(245, 158, 11, 0.62), 0 0 22px rgba(245, 158, 11, 0.42);
+    filter: saturate(1.06);
+  }
 }
 
 @keyframes pulse-celebration {
@@ -988,7 +1176,7 @@ html[data-window-mode='pill'] #root {
   }
 }
 
-@keyframes pulse-incognito {
+@keyframes pulse-compact {
   0%, 100% {
     opacity: 0.7;
     transform: scale(1);
@@ -1005,8 +1193,8 @@ html[data-window-mode='pill'] #root {
   animation: pulse-celebration 1s ease-in-out;
 }
 
-.animate-pulse-incognito {
-  animation: pulse-incognito 3s ease-in-out infinite;
+.animate-pulse-compact {
+  animation: pulse-compact 3s ease-in-out infinite;
 }
 
 @keyframes confetti-fall {
@@ -1054,7 +1242,11 @@ html[data-window-mode='pill'] #root {
   background: transparent;
 }
 
-/* Pill/incognito mode — centers the pill in the window.
+.app-container--suppress-tooltips .tooltip-content {
+  opacity: 0 !important;
+}
+
+/* Pill/compact mode — centers the pill in the window.
    electron-draggable is applied in App.jsx; transparent edges drag the window. */
 .app-container.pill-mode {
   width: 100%;
@@ -1068,6 +1260,10 @@ html[data-window-mode='pill'] #root {
   box-shadow: none !important;
   border: none !important;
   backdrop-filter: none !important;
+}
+
+.app-container.pill-mode.pill-mode--transitioning {
+  opacity: 0;
 }
 
 .main-card {

@@ -19,7 +19,7 @@ function registerShortcuts(shortcuts, mainWindow) {
   const actionMap = {
     startPause: 'startPause',
     newTask: 'newTask',
-    toggleIncognito: 'toggleIncognito',
+    toggleCompact: 'toggleCompact',
     completeTask: 'completeTask',
     openParkingLot: 'openParkingLot',
   };

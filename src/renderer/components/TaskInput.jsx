@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef } from 'react';
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { CornerDownLeft } from 'lucide-react';
@@ -20,13 +20,26 @@ const TaskInput = forwardRef(({
   const textareaRef = useRef(null);
   const wasPastedRef = useRef(false);
   const showSubmitButton = task.trim() && !isActive;
+  const MIN_INPUT_HEIGHT = 48;
+  const MAX_INPUT_HEIGHT = 120;
 
-  useEffect(() => {
+  const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = '0px';
-    el.style.height = `${Math.max(48, el.scrollHeight)}px`;
-  }, [task]);
+    const nextHeight = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, el.scrollHeight));
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
+  }, []);
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [task, resizeTextarea]);
+
+  useEffect(() => {
+    window.addEventListener('resize', resizeTextarea);
+    return () => window.removeEventListener('resize', resizeTextarea);
+  }, [resizeTextarea]);
 
   const handleLockedInteraction = () => {
     if (isLocked) onLockedInteraction?.();

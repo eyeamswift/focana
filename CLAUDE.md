@@ -44,7 +44,7 @@ focana/
 │   │   │   ├── Timer.jsx
 │   │   │   ├── ContextBox.jsx
 │   │   │   ├── ParkingLot.jsx       # Was DistractionJar
-│   │   │   ├── IncognitoMode.jsx
+│   │   │   ├── CompactMode.jsx
 │   │   │   ├── HistoryModal.jsx
 │   │   │   ├── SessionNotesModal.jsx
 │   │   │   ├── StartSessionModal.jsx
@@ -125,7 +125,7 @@ focana/
     shortcuts: {
       startPause: 'CommandOrControl+Shift+S',
       newTask: 'CommandOrControl+N',
-      toggleIncognito: 'CommandOrControl+Shift+I',
+      toggleCompact: 'CommandOrControl+Shift+I',
       completeTask: 'CommandOrControl+Enter',
       openParkingLot: 'CommandOrControl+Shift+P'
     },
@@ -133,7 +133,7 @@ focana/
       timeAwarenessEnabled: true,
       timeAwarenessInterval: 30,
       celebrationEnabled: true,
-      incognitoEnabled: true
+      compactEnabled: true
     },
     shortcutsEnabled: true,
     bringToFront: true,
@@ -145,7 +145,7 @@ focana/
 ```
 
 ## Window Behavior
-- Default size: 400x220 (expanded), ~400x48 (pill/incognito mode)
+- Default size: 400x220 (expanded), ~400x48 (pill/compact mode)
 - Always-on-top: ON by default, toggleable via pin button
 - Frameless: true (custom drag region in header area)
 - Resizable: false
@@ -181,7 +181,7 @@ window.electronAPI = {
 2. **Freeflow timer counts UP** from 00:00
 3. **Timed mode counts DOWN** from user-specified minutes
 4. **Stop saves session** and opens Session Notes modal (optional notes about where you left off)
-5. **Incognito/pill mode**: collapses to minimal rounded pill showing task + timer + play/pause/stop
+5. **Compact/pill mode**: collapses to minimal rounded pill showing task + timer + play/pause/stop
 6. **Double-click pill to expand** back to full view
 7. **Parking Lot (Notepad)**: slide-out dialog for capturing distracting thoughts
 8. **Session History**: paginated list of past sessions, click to reuse a task

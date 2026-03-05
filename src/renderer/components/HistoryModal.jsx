@@ -18,10 +18,16 @@ export default function HistoryModal({
 }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('needs-attention');
 
-  const totalPages = Math.max(1, Math.ceil(sessions.length / ITEMS_PER_PAGE));
+  const filteredSessions = sessions.filter((session) => {
+    if (activeFilter === 'completed') return !!session?.completed;
+    return !session?.completed;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE));
   const startIndex = currentPage * ITEMS_PER_PAGE;
-  const paginatedSessions = sessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedSessions = filteredSessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   const pageSessionIds = paginatedSessions.map((session) => session.id);
   const allOnPageSelected = pageSessionIds.length > 0 && pageSessionIds.every((id) => selectedIds.includes(id));
 
@@ -29,18 +35,18 @@ export default function HistoryModal({
     if (isOpen) {
       setCurrentPage(0);
       setSelectedIds([]);
+      setActiveFilter('needs-attention');
     }
   }, [isOpen]);
 
   useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(sessions.length / ITEMS_PER_PAGE) - 1);
+    const maxPage = Math.max(0, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE) - 1);
     setCurrentPage((prev) => Math.min(prev, maxPage));
-    setSelectedIds((prev) => prev.filter((id) => sessions.some((session) => session.id === id)));
-  }, [sessions]);
+    setSelectedIds((prev) => prev.filter((id) => filteredSessions.some((session) => session.id === id)));
+  }, [filteredSessions]);
 
   const handleUseAndClose = (session) => {
     onUseTask(session);
-    onClose();
   };
 
   const toggleSessionSelection = (sessionId) => {
@@ -85,6 +91,27 @@ export default function HistoryModal({
           </DialogTitle>
         </DialogHeader>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <Button
+            type="button"
+            size="sm"
+            variant={activeFilter === 'needs-attention' ? 'default' : 'outline'}
+            onClick={() => setActiveFilter('needs-attention')}
+            style={activeFilter === 'needs-attention' ? { background: 'var(--brand-primary)', color: 'var(--text-on-brand)' } : undefined}
+          >
+            Needs Attention
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={activeFilter === 'completed' ? 'default' : 'outline'}
+            onClick={() => setActiveFilter('completed')}
+            style={activeFilter === 'completed' ? { background: 'var(--brand-primary)', color: 'var(--text-on-brand)' } : undefined}
+          >
+            Completed
+          </Button>
+        </div>
+
         <div className="space-y-3" style={{ padding: '1rem 0', minHeight: 250 }}>
           {paginatedSessions.length > 0 ? paginatedSessions.map((session) => (
             <div
@@ -113,7 +140,7 @@ export default function HistoryModal({
                   style={{ width: 16, height: 16, accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
                 />
               </label>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {session.task}
                 </p>
@@ -182,14 +209,14 @@ export default function HistoryModal({
             </div>
           )) : (
             <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-secondary)', paddingTop: '4rem' }}>
-              No sessions recorded yet.
+              No sessions for the current filter.
             </p>
           )}
         </div>
 
-        <DialogFooter className="dialog-footer-between" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {sessions.length > 0 && (
+        <DialogFooter className="dialog-footer-between" style={{ flexWrap: 'nowrap', alignItems: 'flex-end', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', rowGap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+            {filteredSessions.length > 0 && (
               <>
                 <Button variant="outline" onClick={handleToggleSelectPage}>
                   {allOnPageSelected ? 'Unselect Page' : 'Select Page'}
@@ -204,7 +231,7 @@ export default function HistoryModal({
                 </Button>
               </>
             )}
-            {sessions.length > ITEMS_PER_PAGE && (
+            {filteredSessions.length > ITEMS_PER_PAGE && (
               <>
                 <Button variant="outline" size="icon" onClick={() => setCurrentPage((p) => Math.max(p - 1, 0))} disabled={currentPage === 0}>
                   <ChevronLeft style={{ width: 16, height: 16 }} />
@@ -218,7 +245,7 @@ export default function HistoryModal({
               </>
             )}
           </div>
-          <Button onClick={() => onClose()} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+          <Button onClick={() => onClose()} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', flexShrink: 0 }}>
             Close
           </Button>
         </DialogFooter>

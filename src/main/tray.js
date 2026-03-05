@@ -23,6 +23,31 @@ function rebuildMenu() {
     },
     { type: 'separator' },
     {
+      label: 'Session History',
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('tray-open-history');
+      },
+    },
+    {
+      label: 'Light Mode',
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('tray-theme-select', 'light');
+      },
+    },
+    {
+      label: 'Dark Mode',
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('tray-theme-select', 'dark');
+      },
+    },
+    { type: 'separator' },
+    {
       label: 'Do Not Disturb',
       type: 'checkbox',
       checked: dndEnabled,
@@ -66,12 +91,11 @@ function createTray(mainWindow) {
   rebuildMenu();
 
   tray.on('click', () => {
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    tray.popUpContextMenu();
+  });
+
+  tray.on('right-click', () => {
+    tray.popUpContextMenu();
   });
 
   return tray;

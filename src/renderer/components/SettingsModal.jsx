@@ -4,13 +4,13 @@ import { Button } from './ui/Button';
 import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Settings, Keyboard, RotateCcw, AlertTriangle, Zap, X, PanelTop } from 'lucide-react';
+import { Settings, Keyboard, RotateCcw, AlertTriangle, X, PanelTop, Pin, Sun, Moon, History, ClipboardList, ToggleLeft, ToggleRight } from 'lucide-react';
 import { track } from '../utils/analytics';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
-  toggleIncognito: 'CommandOrControl+Shift+I',
+  toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
   openParkingLot: 'CommandOrControl+Shift+P',
 };
@@ -18,17 +18,32 @@ const DEFAULT_SHORTCUTS = {
 const SHORTCUT_DESCRIPTIONS = {
   startPause: 'Start/Pause Timer',
   newTask: 'New/Edit Task',
-  toggleIncognito: 'Toggle Incognito Mode',
+  toggleCompact: 'Toggle Compact Mode',
   completeTask: 'Complete Task + Celebrate',
   openParkingLot: 'Open Parking Lot (Quick Capture)',
 };
 
-const MAIN_SCREEN_ACTIONS = [
-  'Light mode/Dark mode',
-  'View Parking Lot',
-  'View Session History',
-  'Restart',
-  'Close',
+const PINNED_CONTROLS_DEFAULT = {
+  theme: true,
+  parkingLot: true,
+  history: true,
+  restart: false,
+  close: true,
+};
+const ENABLED_CONTROLS_DEFAULT = {
+  theme: true,
+  parkingLot: true,
+  history: true,
+  restart: true,
+  close: true,
+};
+
+const MAIN_SCREEN_CONTROLS = [
+  { key: 'theme', label: 'Light mode/Dark mode', icon: Sun },
+  { key: 'parkingLot', label: 'View Parking Lot', icon: ClipboardList },
+  { key: 'history', label: 'View Session History', icon: History },
+  { key: 'restart', label: 'Restart', icon: RotateCcw },
+  { key: 'close', label: 'Close', icon: X },
 ];
 
 export default function SettingsModal({
@@ -44,11 +59,11 @@ export default function SettingsModal({
   onShortcutsChange,
   shortcutsEnabledDefault,
   onShortcutsEnabledChange,
-  pulseSettings,
-  onPulseSettingsChange,
   showTaskInCompactDefault,
-  pinControlsToToolbarDefault,
-  onPinControlsToToolbarChange,
+  pinnedControlsDefault,
+  onPinnedControlsChange,
+  enabledControlsDefault,
+  onEnabledControlsChange,
   onShowTaskInCompactDefaultChange,
   dndEnabled,
   onDndChange,
@@ -56,14 +71,12 @@ export default function SettingsModal({
   onCheckInSettingsChange,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(shortcuts || DEFAULT_SHORTCUTS);
-  const [tempPulseSettings, setTempPulseSettings] = useState(pulseSettings || {
-    incognitoEnabled: true,
-  });
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
-  const [pinControlsToToolbar, setPinControlsToToolbar] = useState(pinControlsToToolbarDefault ?? false);
+  const [pinnedControls, setPinnedControls] = useState({ ...PINNED_CONTROLS_DEFAULT, ...(pinnedControlsDefault || {}) });
+  const [enabledControls, setEnabledControls] = useState({ ...ENABLED_CONTROLS_DEFAULT, ...(enabledControlsDefault || {}) });
   const [doNotDisturb, setDoNotDisturb] = useState(dndEnabled ?? false);
   const [checkInEnabled, setCheckInEnabled] = useState(checkInSettings?.enabled ?? true);
   const [checkInIntervalFreeflow, setCheckInIntervalFreeflow] = useState(checkInSettings?.intervalFreeflow ?? 15);
@@ -82,9 +95,6 @@ export default function SettingsModal({
   useEffect(() => {
     if (isOpen) {
       setTempShortcuts(shortcuts || DEFAULT_SHORTCUTS);
-      setTempPulseSettings(pulseSettings || {
-        incognitoEnabled: true,
-      });
 
       // Load settings from electron-store
       (async () => {
@@ -98,7 +108,8 @@ export default function SettingsModal({
             ? (settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? true)
             : true
         );
-        setPinControlsToToolbar(settings.pinControlsToToolbar ?? pinControlsToToolbarDefault ?? false);
+        setPinnedControls({ ...PINNED_CONTROLS_DEFAULT, ...(pinnedControlsDefault || {}), ...(settings.pinnedControls || {}) });
+        setEnabledControls({ ...ENABLED_CONTROLS_DEFAULT, ...(enabledControlsDefault || {}), ...(settings.mainScreenControlsEnabled || {}) });
         setDoNotDisturb(settings.doNotDisturbEnabled ?? dndEnabled ?? false);
         setCheckInEnabled(settings.checkInEnabled ?? checkInSettings?.enabled ?? true);
         setCheckInIntervalFreeflow(
@@ -106,11 +117,10 @@ export default function SettingsModal({
         );
       })();
     }
-  }, [isOpen, shortcuts, pulseSettings, showTaskInCompactDefault, shortcutsEnabledDefault, pinControlsToToolbarDefault, dndEnabled, checkInSettings]);
+  }, [isOpen, shortcuts, showTaskInCompactDefault, shortcutsEnabledDefault, pinnedControlsDefault, enabledControlsDefault, dndEnabled, checkInSettings]);
 
   const handleSave = async () => {
     onShortcutsChange(tempShortcuts);
-    onPulseSettingsChange(tempPulseSettings);
 
     const oldSettings = await window.electronAPI.storeGet('settings') || {};
 
@@ -120,19 +130,19 @@ export default function SettingsModal({
     settings.keepTextAfterCompletion = keepTextAfterCompletion;
     settings.showTaskInCompactDefault = showTaskInCompact;
     settings.showTaskInCompactCustomized = true;
-    settings.pinControlsToToolbar = pinControlsToToolbar;
+    settings.pinnedControls = pinnedControls;
+    settings.mainScreenControlsEnabled = enabledControls;
     settings.doNotDisturbEnabled = doNotDisturb;
     settings.checkInEnabled = checkInEnabled;
     settings.checkInIntervalFreeflow = checkInIntervalFreeflow;
     settings.shortcuts = tempShortcuts;
-    settings.pulseSettings = tempPulseSettings;
     await window.electronAPI.storeSet('settings', settings);
 
     // Track changed settings
     const diffs = {};
     const trackable = {
       shortcutsEnabled, bringToFront, keepTextAfterCompletion,
-      showTaskInCompact, pinControlsToToolbar, doNotDisturb,
+      showTaskInCompact, pinnedControls, enabledControls, doNotDisturb,
       checkInEnabled, checkInIntervalFreeflow,
     };
     const oldMap = {
@@ -140,7 +150,8 @@ export default function SettingsModal({
       bringToFront: oldSettings.bringToFront,
       keepTextAfterCompletion: oldSettings.keepTextAfterCompletion,
       showTaskInCompact: oldSettings.showTaskInCompactDefault,
-      pinControlsToToolbar: oldSettings.pinControlsToToolbar,
+      pinnedControls: oldSettings.pinnedControls,
+      enabledControls: oldSettings.mainScreenControlsEnabled,
       doNotDisturb: oldSettings.doNotDisturbEnabled,
       checkInEnabled: oldSettings.checkInEnabled,
       checkInIntervalFreeflow: oldSettings.checkInIntervalFreeflow,
@@ -153,7 +164,8 @@ export default function SettingsModal({
     }
     onShortcutsEnabledChange?.(shortcutsEnabled);
     onShowTaskInCompactDefaultChange?.(showTaskInCompact);
-    onPinControlsToToolbarChange?.(pinControlsToToolbar);
+    onPinnedControlsChange?.(pinnedControls);
+    onEnabledControlsChange?.(enabledControls);
     onDndChange?.(doNotDisturb);
     onCheckInSettingsChange?.({ enabled: checkInEnabled, intervalFreeflow: checkInIntervalFreeflow });
 
@@ -162,14 +174,12 @@ export default function SettingsModal({
 
   const handleRestoreDefaults = () => {
     setTempShortcuts(DEFAULT_SHORTCUTS);
-    setTempPulseSettings({
-      incognitoEnabled: true,
-    });
     setShortcutsEnabled(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
     setShowTaskInCompact(true);
-    setPinControlsToToolbar(false);
+    setPinnedControls(PINNED_CONTROLS_DEFAULT);
+    setEnabledControls(ENABLED_CONTROLS_DEFAULT);
     setDoNotDisturb(false);
     setCheckInEnabled(true);
     setCheckInIntervalFreeflow(15);
@@ -251,7 +261,7 @@ export default function SettingsModal({
         </div>
 
         <Tabs defaultValue="main" style={{ marginTop: '1rem' }}>
-          <TabsList style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <TabsList style={{ gridTemplateColumns: '1fr 1fr' }}>
             <TabsTrigger value="main">
               <PanelTop style={{ width: 16, height: 16 }} />
               Main
@@ -259,10 +269,6 @@ export default function SettingsModal({
             <TabsTrigger value="shortcuts">
               <Keyboard style={{ width: 16, height: 16 }} />
               Shortcuts
-            </TabsTrigger>
-            <TabsTrigger value="pulse">
-              <Zap style={{ width: 16, height: 16 }} />
-              Pulse
             </TabsTrigger>
           </TabsList>
 
@@ -276,83 +282,81 @@ export default function SettingsModal({
               }}>
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Main Screen Controls</h3>
                 <div className="space-y-2" style={{ marginTop: '0.75rem' }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[0]}</span>
-                    <Switch
-                      checked={theme === 'dark'}
-                      onCheckedChange={(checked) => {
-                        if ((theme === 'dark') !== checked) onToggleTheme?.();
-                      }}
-                    />
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[1]}</span>
-                    <Button size="sm" variant="outline" onClick={onOpenParkingLot} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
-                      Open
-                    </Button>
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[2]}</span>
-                    <Button size="sm" variant="outline" onClick={onOpenSessionHistory} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
-                      Open
-                    </Button>
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[3]}</span>
-                    <Button size="sm" variant="outline" onClick={onRestartApp} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
-                      Restart
-                    </Button>
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.5rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>{MAIN_SCREEN_ACTIONS[4]}</span>
-                    <Button size="sm" variant="outline" onClick={onCloseApp} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
-                      Close
-                    </Button>
-                  </div>
+                  {MAIN_SCREEN_CONTROLS.map(({ key, label, icon: Icon }) => {
+                    const pinned = !!pinnedControls[key];
+                    const enabled = !!enabledControls[key];
+                    return (
+                      <div
+                        key={key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.75rem',
+                          padding: '0.5rem 0.625rem',
+                          borderRadius: '0.375rem',
+                          border: '1px solid var(--border-subtle)',
+                          opacity: enabled ? 1 : 0.55,
+                        }}
+                      >
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                          <Icon style={{ width: 18, height: 18, color: 'var(--brand-action)', flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        </div>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0 }}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => setEnabledControls((prev) => ({ ...prev, [key]: !prev[key] }))}
+                                title={enabled ? `Turn off ${label}` : `Turn on ${label}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '2.5rem',
+                                  height: '2rem',
+                                  borderRadius: '0.5rem',
+                                  border: `1px solid ${enabled ? 'var(--brand-primary)' : 'var(--border-strong)'}`,
+                                  background: enabled ? 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' : 'transparent',
+                                  color: enabled ? 'var(--brand-primary)' : 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {enabled ? <ToggleRight style={{ width: 16, height: 16 }} /> : <ToggleLeft style={{ width: 16, height: 16 }} />}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Toggle: turn this control on or off.</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => setPinnedControls((prev) => ({ ...prev, [key]: !prev[key] }))}
+                                title={pinned ? `Unpin ${label}` : `Pin ${label}`}
+                                disabled={!enabled}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '2.5rem',
+                                  height: '2rem',
+                                  borderRadius: '0.5rem',
+                                  border: `1px solid ${pinned ? 'var(--brand-primary)' : 'var(--border-strong)'}`,
+                                  background: pinned ? 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' : 'transparent',
+                                  color: pinned ? 'var(--brand-primary)' : 'var(--text-secondary)',
+                                  cursor: enabled ? 'pointer' : 'not-allowed',
+                                }}
+                              >
+                                <Pin style={{ width: 14, height: 14, fill: pinned ? 'currentColor' : 'none' }} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Pin: add this control as a home-screen shortcut.</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -374,13 +378,6 @@ export default function SettingsModal({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Keep text after task completion</span>
                   <Switch checked={keepTextAfterCompletion} onCheckedChange={setKeepTextAfterCompletion} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Pin controls to toolbar</span>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Show theme, history, and restart in the top bar</p>
-                  </div>
-                  <Switch checked={pinControlsToToolbar} onCheckedChange={setPinControlsToToolbar} />
                 </div>
               </div>
 
@@ -516,25 +513,6 @@ export default function SettingsModal({
             </div>
           </TabsContent>
 
-          <TabsContent value="pulse" className="space-y-4" style={{ marginTop: '1.25rem' }}>
-            <div className="space-y-4">
-              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Incognito Pulse</h3>
-
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)',
-              }}>
-                <div>
-                  <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Incognito Mode Pulse</p>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Subtle presence indicator in pill view</p>
-                </div>
-                <Switch
-                  checked={tempPulseSettings.incognitoEnabled}
-                  onCheckedChange={(checked) => setTempPulseSettings({ ...tempPulseSettings, incognitoEnabled: checked })}
-                />
-              </div>
-            </div>
-          </TabsContent>
         </Tabs>
 
         <DialogFooter style={{

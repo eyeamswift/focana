@@ -60,7 +60,7 @@ const schema = {
         default: {
           startPause: 'CommandOrControl+Shift+S',
           newTask: 'CommandOrControl+N',
-          toggleIncognito: 'CommandOrControl+Shift+I',
+          toggleCompact: 'CommandOrControl+Shift+I',
           completeTask: 'CommandOrControl+Enter',
           openParkingLot: 'CommandOrControl+Shift+P',
         },
@@ -68,7 +68,7 @@ const schema = {
       pulseSettings: {
         type: 'object',
         default: {
-          incognitoEnabled: true,
+          compactEnabled: true,
         },
       },
       shortcutsEnabled: { type: 'boolean', default: true },
@@ -76,6 +76,16 @@ const schema = {
       keepTextAfterCompletion: { type: 'boolean', default: false },
       showTaskInCompactDefault: { type: 'boolean', default: true },
       showTaskInCompactCustomized: { type: 'boolean', default: false },
+      mainScreenControlsEnabled: {
+        type: 'object',
+        default: {
+          theme: true,
+          parkingLot: true,
+          history: true,
+          restart: true,
+          close: true,
+        },
+      },
       checkInEnabled: { type: 'boolean', default: true },
       checkInIntervalFreeflow: { type: 'number', default: 15 },
       checkInIntervalTimed: {

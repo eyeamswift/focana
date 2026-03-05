@@ -34,10 +34,13 @@ export default function ParkingLot({
     }
   };
 
-  const copyAllToClipboard = () => {
-    const textToCopy = thoughts.map((t) => `- ${t.text}`).join('\n');
+  const hasChecked = thoughts.some((t) => t.completed);
+
+  const copyToClipboard = () => {
+    const items = hasChecked ? thoughts.filter((t) => t.completed) : thoughts;
+    const textToCopy = items.map((t) => `- ${t.text}`).join('\n');
     navigator.clipboard.writeText(textToCopy);
-    track('content_copied', { source: 'parking_lot', item_count: thoughts.length });
+    track('content_copied', { source: 'parking_lot', item_count: items.length, mode: hasChecked ? 'selected' : 'all' });
   };
 
   const handleThoughtClick = (index) => {
@@ -189,9 +192,9 @@ export default function ParkingLot({
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={copyAllToClipboard}>
+                  <Button variant="outline" onClick={copyToClipboard}>
                     <Copy style={{ width: 16, height: 16, marginRight: '0.5rem' }} />
-                    Copy All
+                    {hasChecked ? 'Copy Selected' : 'Copy All'}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent><p>Copy all notes to clipboard</p></TooltipContent>

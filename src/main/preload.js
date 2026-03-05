@@ -46,6 +46,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('dnd-toggled', handler);
     return () => ipcRenderer.removeListener('dnd-toggled', handler);
   },
+  onTrayOpenHistory: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray-open-history', handler);
+    return () => ipcRenderer.removeListener('tray-open-history', handler);
+  },
+  onTrayThemeSelect: (callback) => {
+    const handler = (_event, theme) => callback(theme);
+    ipcRenderer.on('tray-theme-select', handler);
+    return () => ipcRenderer.removeListener('tray-theme-select', handler);
+  },
   setDnd: (enabled) => ipcRenderer.send('set-dnd', enabled),
 
   // Pill drag (JS-based — CSS drag regions block mouse events)
