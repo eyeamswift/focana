@@ -1571,7 +1571,6 @@ export default function App() {
       || (typeof session.contextNote === 'string' && session.contextNote)
       || ''
     );
-    const nextSessionId = session.id ?? null;
 
     // Prevent stale modal-stack reopen when "Use task" already performs
     // explicit modal closing.
@@ -1583,7 +1582,7 @@ export default function App() {
     setIsRunning(false);
     setIsCompact(false);
     setContextNotes(nextNotes);
-    setCurrentSessionId(nextSessionId);
+    setCurrentSessionId(null);
     setShowNotesModal(false);
     setShowCompletionModal(false);
     setShowTimeUpModal(false);
