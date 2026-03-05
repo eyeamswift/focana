@@ -197,6 +197,16 @@ export default function SettingsModal({
       e.preventDefault();
       e.stopPropagation();
 
+      if (e.key === 'Escape') {
+        setRecordingKey(null);
+        cleanup();
+        return;
+      }
+
+      if (['Meta', 'Control', 'Shift', 'Alt'].includes(e.key)) {
+        return;
+      }
+
       const modifiers = [];
       if (e.metaKey || e.ctrlKey) modifiers.push(e.metaKey ? 'Cmd' : 'Ctrl');
       if (e.shiftKey) modifiers.push('Shift');
@@ -205,13 +215,25 @@ export default function SettingsModal({
       const keyName = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
       const shortcut = modifiers.length > 0 ? `${modifiers.join('+')}+${keyName}` : keyName;
 
-      const existingKey = Object.entries(tempShortcuts).find(([k, v]) => k !== key && v === shortcut);
-      if (existingKey) {
-        setConflicts({ [key]: `Conflicts with ${SHORTCUT_DESCRIPTIONS[existingKey[0]]}` });
-      } else {
-        setConflicts({ ...conflicts, [key]: null });
-        setTempShortcuts({ ...tempShortcuts, [key]: shortcut });
-      }
+      setTempShortcuts((prev) => {
+        const existingKey = Object.entries(prev).find(([k, v]) => k !== key && v === shortcut);
+        if (existingKey) {
+          setConflicts((conflictPrev) => ({
+            ...conflictPrev,
+            [key]: `Conflicts with ${SHORTCUT_DESCRIPTIONS[existingKey[0]]}`,
+          }));
+          return prev;
+        }
+
+        setConflicts((conflictPrev) => ({
+          ...conflictPrev,
+          [key]: null,
+        }));
+        return {
+          ...prev,
+          [key]: shortcut,
+        };
+      });
 
       setRecordingKey(null);
       cleanup();
