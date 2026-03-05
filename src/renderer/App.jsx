@@ -1319,12 +1319,13 @@ export default function App() {
     if (isCompact) {
       handleExitCompact();
     }
-    setIsStopFlowAwaitingCompletion(false);
+    setIsStopFlowAwaitingCompletion(true);
     sessionToSave.current = {
       duration: mode === 'freeflow' ? time / 60 : (initialTime - time) / 60,
       completed: false,
     };
-    setShowCompletionModal(true);
+    setShowCompletionModal(false);
+    setShowNotesModal(true);
   };
 
   const handleTaskSubmit = () => {
@@ -1462,6 +1463,57 @@ export default function App() {
     setSessionStartTime(null);
     showToast('info', 'Session saved. Task kept active');
   }, [mode, saveSessionWithNotes, showToast]);
+
+  const handleStopFlowNotesDecision = useCallback(async (completed, notes = '') => {
+    if (!sessionToSave.current) {
+      setShowNotesModal(false);
+      setIsStopFlowAwaitingCompletion(false);
+      return;
+    }
+
+    const durationMin = sessionToSave.current?.duration || 0;
+    sessionToSave.current = {
+      ...sessionToSave.current,
+      completed,
+    };
+    await saveSessionWithNotes(notes);
+
+    setShowNotesModal(false);
+    setIsStopFlowAwaitingCompletion(false);
+
+    if (completed) {
+      track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
+
+      const settings = await window.electronAPI.storeGet('settings') || {};
+      const keepText = settings.keepTextAfterCompletion ?? false;
+
+      if (keepText) {
+        setIsRunning(false);
+        setTime(0);
+        setInitialTime(0);
+        setIsTimerVisible(false);
+        setSessionStartTime(null);
+      } else {
+        handleClear();
+      }
+      triggerConfetti();
+
+      try {
+        const allSessions = await SessionStore.list();
+        const streak = computeStreak(allSessions);
+        if (streak >= 2) track('session_streak', { streak_count: streak });
+      } catch (_) { /* non-critical */ }
+      return;
+    }
+
+    track('session_abandoned', { mode, duration_minutes: Math.round(durationMin * 10) / 10 });
+    setIsRunning(false);
+    setTime(0);
+    setInitialTime(0);
+    setIsTimerVisible(false);
+    setSessionStartTime(null);
+    showToast('info', 'Session saved. Task kept active');
+  }, [mode, saveSessionWithNotes, showToast, handleClear, triggerConfetti]);
 
   const handleStopFlowCompletionDismiss = () => {
     setShowCompletionModal(false);
@@ -1973,9 +2025,11 @@ export default function App() {
           isOpen={showNotesModal}
           onClose={handleSkipSessionNotes}
           onSave={handleSaveSessionNotes}
+          onCompletionChoice={handleStopFlowNotesDecision}
           sessionDuration={sessionToSave.current?.duration || 0}
           taskName={task}
           sessionFlowKey={sessionNotesFlowKey}
+          showCompletionChoice={isStopFlowAwaitingCompletion}
         />
         <TaskCompletionModal
           isOpen={showCompletionModal}
@@ -2345,9 +2399,11 @@ export default function App() {
         isOpen={showNotesModal}
         onClose={handleSkipSessionNotes}
         onSave={handleSaveSessionNotes}
+        onCompletionChoice={handleStopFlowNotesDecision}
         sessionDuration={sessionToSave.current?.duration || 0}
         taskName={task}
         sessionFlowKey={sessionNotesFlowKey}
+        showCompletionChoice={isStopFlowAwaitingCompletion}
       />
       <TaskCompletionModal
         isOpen={showCompletionModal}
