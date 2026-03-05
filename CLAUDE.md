@@ -195,3 +195,10 @@ window.electronAPI = {
 - No analytics dashboard
 - No calendar integration
 - No auto-updates (manual distribution for now)
+
+## Sprint 3 Cleanup Queue
+- **Remove `TaskCompletionModal` fully** (temporary technical debt after SessionNotes Yes/No integration)
+  1. No remaining imports/usages in `/Users/swift/focana/src/renderer/App.jsx`
+  2. Remove related state/handlers (`showCompletionModal`, legacy decision handlers)
+  3. Delete `/Users/swift/focana/src/renderer/components/TaskCompletionModal.jsx`
+  4. `npm run build:renderer` passes and post-session regressions pass
