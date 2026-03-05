@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
@@ -11,8 +11,18 @@ export default function SessionNotesModal({
   onSave,
   sessionDuration,
   taskName,
+  sessionFlowKey,
 }) {
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    setNotes('');
+  }, [isOpen, sessionFlowKey]);
+
+  const handleRequestClose = () => {
+    setNotes('');
+    onClose();
+  };
 
   const handleSave = () => {
     onSave(notes.trim());
@@ -20,8 +30,7 @@ export default function SessionNotesModal({
   };
 
   const handleSkip = () => {
-    onClose();
-    setNotes('');
+    handleRequestClose();
   };
 
   const formatDuration = (minutes) => {
@@ -30,9 +39,9 @@ export default function SessionNotesModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleRequestClose(); }}>
       <DialogContent style={{ background: 'var(--bg-card)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
-        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+        <button className="dialog-close-btn" onClick={handleRequestClose} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
         <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.5rem' }}>

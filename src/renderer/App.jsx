@@ -145,6 +145,7 @@ export default function App() {
 
   // Session notes
   const [showNotesModal, setShowNotesModal] = useState(false);
+  const [sessionNotesFlowKey, setSessionNotesFlowKey] = useState(0);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [showTimeUpModal, setShowTimeUpModal] = useState(false);
   const [isStopFlowAwaitingCompletion, setIsStopFlowAwaitingCompletion] = useState(false);
@@ -334,6 +335,12 @@ export default function App() {
       if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (showNotesModal) {
+      setSessionNotesFlowKey((prev) => prev + 1);
+    }
+  }, [showNotesModal]);
 
   // Helpers
   const showToast = useCallback((type, message, duration = 2000) => {
@@ -1962,7 +1969,14 @@ export default function App() {
           onDetour={openCheckInDetourChoice}
           variant="compact"
         />
-        <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
+        <SessionNotesModal
+          isOpen={showNotesModal}
+          onClose={handleSkipSessionNotes}
+          onSave={handleSaveSessionNotes}
+          sessionDuration={sessionToSave.current?.duration || 0}
+          taskName={task}
+          sessionFlowKey={sessionNotesFlowKey}
+        />
         <TaskCompletionModal
           isOpen={showCompletionModal}
           taskName={task}
@@ -2327,7 +2341,14 @@ export default function App() {
 
       {/* Modals */}
       <ParkingLot isOpen={distractionJarOpen} onClose={handleCloseParkingLot} thoughts={thoughts} onAddThought={addThought} onRemoveThought={removeThought} onToggleThought={toggleThought} onClearCompleted={clearCompletedThoughts} />
-      <SessionNotesModal isOpen={showNotesModal} onClose={handleSkipSessionNotes} onSave={handleSaveSessionNotes} sessionDuration={sessionToSave.current?.duration || 0} taskName={task} />
+      <SessionNotesModal
+        isOpen={showNotesModal}
+        onClose={handleSkipSessionNotes}
+        onSave={handleSaveSessionNotes}
+        sessionDuration={sessionToSave.current?.duration || 0}
+        taskName={task}
+        sessionFlowKey={sessionNotesFlowKey}
+      />
       <TaskCompletionModal
         isOpen={showCompletionModal}
         taskName={task}
