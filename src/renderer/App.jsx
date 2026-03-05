@@ -2088,7 +2088,7 @@ export default function App() {
             {enabledMainControls.restart && pinnedControls.restart && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={() => window.electronAPI.restartApp?.()} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Restart App" onClick={() => window.electronAPI.restartApp?.()} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                     <RotateCcw style={{ width: 18, height: 18 }} />
                   </Button>
                 </TooltipTrigger>
@@ -2097,7 +2097,7 @@ export default function App() {
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                <Button aria-label="Open Settings" onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                   <Settings style={{ width: 20, height: 20 }} />
                 </Button>
               </TooltipTrigger>
@@ -2106,7 +2106,7 @@ export default function App() {
             {enabledMainControls.theme && pinnedControls.theme && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={handleToggleTheme} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Toggle Theme" onClick={handleToggleTheme} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                     {theme === 'dark'
                       ? <Sun style={{ width: 18, height: 18 }} />
                       : <Moon style={{ width: 18, height: 18 }} />}
@@ -2118,7 +2118,7 @@ export default function App() {
             {enabledMainControls.history && pinnedControls.history && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={() => setShowHistoryModal(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Open Session History" onClick={() => setShowHistoryModal(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                     <History style={{ width: 18, height: 18 }} />
                   </Button>
                 </TooltipTrigger>
@@ -2128,7 +2128,7 @@ export default function App() {
             {enabledMainControls.parkingLot && pinnedControls.parkingLot && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={() => setDistractionJarOpen(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)', position: 'relative' }}>
+                  <Button aria-label="Open Parking Lot" onClick={() => setDistractionJarOpen(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)', position: 'relative' }}>
                     <ClipboardList style={{ width: 20, height: 20 }} />
                     {thoughts.length > 0 && <span className="badge">{thoughts.length}</span>}
                   </Button>
@@ -2148,7 +2148,7 @@ export default function App() {
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={() => setIsCompact(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                <Button aria-label="Enter Compact Mode" onClick={() => setIsCompact(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                   <Minimize2 style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>
@@ -2157,7 +2157,7 @@ export default function App() {
             {enabledMainControls.close && pinnedControls.close && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={handleCloseWindow} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Close Application" onClick={handleCloseWindow} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                     <X style={{ width: 16, height: 16 }} />
                   </Button>
                 </TooltipTrigger>
@@ -2369,7 +2369,7 @@ export default function App() {
                       <Button onClick={handleStop} disabled={!task.trim()} variant="outline" style={{
                         width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
                         borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
-                      }}>
+                      }} aria-label="Stop and Save Session">
                         <Square style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
                       </Button>
                     </TooltipTrigger>

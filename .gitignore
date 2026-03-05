@@ -3,6 +3,8 @@ dist/
 release/
 .DS_Store
 *.log
+playwright-report/
+test-results/
 .env
 .env.*
 !.env.release.example

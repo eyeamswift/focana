@@ -110,15 +110,21 @@ const schema = {
 };
 
 let store;
+const storeCwd = process.env.FOCANA_STORE_CWD;
+
+const storeOptions = storeCwd
+  ? { schema, cwd: storeCwd }
+  : { schema };
+
 try {
-  store = new Store({ schema });
+  store = new Store(storeOptions);
 } catch (e) {
   console.error('Store initialization failed, resetting config:', e);
   try {
-    const tempStore = new Store();
+    const tempStore = storeCwd ? new Store({ cwd: storeCwd }) : new Store();
     tempStore.clear();
   } catch (_) {}
-  store = new Store({ schema });
+  store = new Store(storeOptions);
 }
 
 module.exports = store;

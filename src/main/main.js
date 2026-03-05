@@ -12,7 +12,8 @@ let isModalExpanded = false;
 let preModalBounds = null;
 let pillDragStart = null;
 
-const isDev = !app.isPackaged;
+const isDev = !app.isPackaged && process.env.FOCANA_E2E !== '1';
+const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
 const PILL_MIN_WIDTH = 100;
@@ -114,11 +115,12 @@ function createWindow() {
     transparent: true,
     hasShadow: false,
     backgroundColor: '#00000000',
-    alwaysOnTop: true,
+    alwaysOnTop: isE2EBackground ? false : true,
     resizable: true,
     minWidth: FULL_MIN_WIDTH,
     minHeight: FULL_MIN_HEIGHT,
-    skipTaskbar: false,
+    skipTaskbar: isE2EBackground ? true : false,
+    show: isE2EBackground ? false : true,
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: -20, y: -20 }, // Hide native traffic lights
     webPreferences: {

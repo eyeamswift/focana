@@ -161,6 +161,7 @@ export default function HistoryModal({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      aria-label="Preview Session Notes"
                       onClick={(e) => {
                         e.stopPropagation();
                         onPreviewTask?.(session);
@@ -178,6 +179,7 @@ export default function HistoryModal({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      aria-label="Use This Task"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleUseAndClose(session);
@@ -195,6 +197,7 @@ export default function HistoryModal({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      aria-label="Delete Session"
                       onClick={(e) => handleDeleteOne(e, session.id)}
                       size="icon"
                       variant="ghost"

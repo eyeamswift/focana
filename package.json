@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node scripts/patch-dev-plist.js && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "start": "node scripts/patch-dev-plist.js && electron .",
+    "test:e2e": "npm run build:renderer && playwright test",
     "build": "npm run build:renderer && electron-builder",
     "build:renderer": "vite build",
     "build:dir": "npm run build:renderer && electron-builder --dir",
@@ -22,6 +23,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^33.3.1",
