@@ -443,11 +443,13 @@ export default function FocanaLanding() {
               fontWeight: 800, marginTop: "16px", marginBottom: "20px", color: COLORS.warmBrown,
               lineHeight: 1.15,
             }}>
-              Stop downloading productivity apps that don't work.
+              "What was I just doing" 🤔
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              You set a focus intention. Then you switch tabs. Open Slack. Check email.
-              And just like that — your intention is buried. Out of sight, out of mind.
+              You open your laptop to work on a project. Naturally you open a few new tabs, check slack, respond to an email...And just like that — "Wait, what was I even doing?"
+              <br /><br />
+              Sound familiar?
+              <br /><br />
               For busy brains, if a task isn't visible, it doesn't exist.
             </p>
           </div>
@@ -502,9 +504,16 @@ export default function FocanaLanding() {
             </p>
           </div>
 
+          <h3 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
+            color: COLORS.warmBrown, marginTop: "70px", marginBottom: "0",
+          }}>
+            How it works:
+          </h3>
+
           <div style={{
             display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "32px", marginTop: "70px",
+            gap: "32px", marginTop: "32px",
           }}>
             {[
               { step: "1", title: "Type your task", desc: "Write what you're focusing on. Just one thing. That's the whole point.", icon: "✏️" },
@@ -540,20 +549,14 @@ export default function FocanaLanding() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "100px 0", background: "white" }}>
+      <section id="features" style={{ padding: "10px 0 100px 0", background: "white" }}>
         <div className="section">
-          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
-            <span style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>Features</span>
-            <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 44px)",
-              fontWeight: 800, marginTop: "16px", color: COLORS.warmBrown, lineHeight: 1.15,
-            }}>
-              Designed for how your brain actually works
-            </h2>
-          </div>
+          <h3 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
+            color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px",
+          }}>
+            Features:
+          </h3>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "24px" }}>
             {[
