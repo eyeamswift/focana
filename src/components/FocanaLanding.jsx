@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 const COLORS = {
   sunshineYellow: "#F59E0B",
@@ -13,36 +13,6 @@ const COLORS = {
   beigeBorder: "#E5D4B1",
   warmGray: "#A08968",
 };
-
-// Animated counter component
-function AnimatedNumber({ target, suffix = "", duration = 2000 }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  const [started, setStarted] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && !started) setStarted(true); },
-      { threshold: 0.5 }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [started]);
-
-  useEffect(() => {
-    if (!started) return;
-    let start = 0;
-    const increment = target / (duration / 16);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= target) { setCount(target); clearInterval(timer); }
-      else setCount(Math.floor(start));
-    }, 16);
-    return () => clearInterval(timer);
-  }, [started, target, duration]);
-
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
-}
 
 // FAQ Item
 function FAQItem({ question, answer }) {
@@ -132,6 +102,20 @@ function WaitlistForm({ variant = "dark" }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [errorMsg, setErrorMsg] = useState("");
+  const downloadUrl = import.meta.env.PUBLIC_MACOS_DMG_URL || "";
+
+  const startDownload = () => {
+    if (!downloadUrl || typeof document === "undefined") return;
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.setAttribute("download", "");
+    link.rel = "noopener";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -154,6 +138,7 @@ function WaitlistForm({ variant = "dark" }) {
       }
 
       setStatus("success");
+      startDownload();
     } catch (err) {
       setStatus("error");
       setErrorMsg(err.message || "Something went wrong. Please try again.");
@@ -171,8 +156,21 @@ function WaitlistForm({ variant = "dark" }) {
         margin: "0 auto",
       }}>
         <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981" }}>
-          Check your email! Your download link is on its way.
+          Your download is starting! Check your email for getting started tips.
         </p>
+        <a
+          href={downloadUrl || "#"}
+          style={{
+            display: "inline-block",
+            marginTop: "12px",
+            color: "#10B981",
+            fontSize: "14px",
+            fontWeight: 600,
+            textDecoration: "underline",
+          }}
+        >
+          Download didn't start? Click here.
+        </a>
       </div>
     );
   }
@@ -349,13 +347,13 @@ export default function FocanaLanding() {
               marginBottom: "24px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
-              The focus app for{" "}
+              The focus buddy for{" "}
               <span style={{
                 background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
-              }}>distracted minds</span>
+              }}>busy brains</span>
             </h1>
 
             <p style={{
@@ -365,8 +363,8 @@ export default function FocanaLanding() {
               marginBottom: "40px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Focana is the desktop focus app for distracted minds — a floating timer that keeps your
-              current task visible above every window. Built by a founder with ADHD, for anyone whose
+              Focana is the desktop focus buddy for busy brains — a floating timer that keeps your
+              current task visible above every window. Built by a busy brain, for busy brains — and anyone whose
               focus disappears the moment they switch tabs.
             </p>
 
@@ -387,27 +385,6 @@ export default function FocanaLanding() {
               Available now for macOS. Windows coming soon.
             </p>
 
-            <div style={{
-              marginTop: "24px",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "16px",
-              animation: "fadeUp 0.6s ease 0.4s both",
-            }}>
-              <div style={{ display: "flex" }}>
-                {["🧠", "💛", "⭐", "🎯"].map((e, i) => (
-                  <div key={i} style={{
-                    width: "36px", height: "36px", borderRadius: "50%",
-                    background: i % 2 === 0 ? COLORS.creamYellow : COLORS.softCream,
-                    border: `2px solid white`,
-                    marginLeft: i > 0 ? "-10px" : 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "16px", zIndex: 4 - i,
-                  }}>{e}</div>
-                ))}
-              </div>
-              <span style={{ fontSize: "14px", color: COLORS.coffeeBrown }}>
-                Join <strong>50</strong> beta testers helping build the future of focus
-              </span>
-            </div>
           </div>
 
           {/* Video / Demo Placeholder */}
@@ -466,12 +443,12 @@ export default function FocanaLanding() {
               fontWeight: 800, marginTop: "16px", marginBottom: "20px", color: COLORS.warmBrown,
               lineHeight: 1.15,
             }}>
-              Out of sight, out of mind.
+              Stop downloading productivity apps that don't work.
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
               You set a focus intention. Then you switch tabs. Open Slack. Check email.
-              And just like that — your intention is buried. For distracted minds,
-              if a task isn't visible, it doesn't exist.
+              And just like that — your intention is buried. Out of sight, out of mind.
+              For busy brains, if a task isn't visible, it doesn't exist.
             </p>
           </div>
 
@@ -519,8 +496,8 @@ export default function FocanaLanding() {
               Your intention, floating above everything
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              Focana is a desktop focus tool that stays visible above every app on your screen.
-              Designed for ADHD brains and anyone drowning in digital chaos.
+              Focana is a desktop focus buddy that stays visible above every app on your screen.
+              Built for busy brains and anyone drowning in digital chaos.
               One task. One timer. Always on top. Zero overwhelm.
             </p>
           </div>
@@ -583,20 +560,38 @@ export default function FocanaLanding() {
               {
                 icon: "📌",
                 title: "Always-on-top visibility",
-                desc: "Your focus intention floats above every application — browser, IDE, Slack, Zoom. It's the ADHD app that stays on screen when everything else gets buried.",
+                desc: "Your focus intention floats above every application — browser, IDE, Slack, Zoom. The focus buddy that stays on screen when everything else gets buried.",
                 tag: "Core feature",
               },
               {
                 icon: "🕐",
                 title: "Flexible focus timer",
                 desc: "Freeflow mode when you're in the zone. Timebox mode when you need structure. No forced 25-minute intervals — your brain, your rules.",
-                tag: "ADHD-friendly",
+                tag: "Your rules",
+              },
+              {
+                icon: "🅿️",
+                title: "Parking Lot",
+                desc: "Random thought mid-session? Park it. The Parking Lot captures distracting ideas without breaking your flow. Stay focused now, come back to them later.",
+                tag: "Game-changer",
               },
               {
                 icon: "🎉",
                 title: "Celebratory, not punitive",
-                desc: "\"You focused for 17 minutes!\" — not \"Session incomplete.\" Focana celebrates every minute of progress because distracted minds need the win, not another guilt trip.",
+                desc: "\u201CYou focused for 17 minutes!\u201D — not \u201CSession incomplete.\u201D Focana celebrates every minute of progress because busy brains need the win, not another guilt trip.",
                 tag: "Motivation",
+              },
+              {
+                icon: "👀",
+                title: "Focus check-ins",
+                desc: "\u201CStill focused?\u201D Periodic nudges help you catch yourself before you're 20 minutes deep in a rabbit hole. Thumbs up to keep going, thumbs down to refocus.",
+                tag: "Gentle nudges",
+              },
+              {
+                icon: "🔄",
+                title: "Three window modes",
+                desc: "Full card when you need it. Compact pill when you don't. Floating icon when you want it out of the way but never gone. One click between any mode.",
+                tag: "Adapts to you",
               },
               {
                 icon: "🧠",
@@ -605,15 +600,9 @@ export default function FocanaLanding() {
                 tag: "Simplicity",
               },
               {
-                icon: "🔒",
-                title: "Incognito mode",
-                desc: "In a meeting? Focana minimizes to a subtle pill shape. Your focus stays with you, but nobody else needs to know you're using a focus tool.",
-                tag: "Privacy",
-              },
-              {
                 icon: "🖥️",
                 title: "True desktop app",
-                desc: "Not a browser extension. Not a web app. A native desktop application with OS-level always-on-top, keyboard shortcuts, and system tray access.",
+                desc: "Not a browser extension. Not a web app. A native desktop application with OS-level always-on-top, keyboard shortcuts, and system tray access. Works offline, always.",
                 tag: "Desktop native",
               },
             ].map((item, i) => (
@@ -638,43 +627,6 @@ export default function FocanaLanding() {
                     </p>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* STATS */}
-      <section style={{
-        padding: "80px 0",
-        background: `linear-gradient(135deg, ${COLORS.softBlack}, #2A2520)`,
-        color: "white",
-      }}>
-        <div className="section">
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "40px",
-            textAlign: "center",
-          }}>
-            {[
-              { number: 15500000, suffix: "+", label: "US adults diagnosed with ADHD — and millions more undiagnosed" },
-              { number: 47, suffix: "+", label: "Avg. productivity apps tried before one finally sticks" },
-              { number: 85, suffix: "%", label: "Of focus tools that fail because they disappear from sight" },
-            ].map((item, i) => (
-              <div key={i}>
-                <div style={{
-                  fontFamily: "'Outfit', sans-serif", fontSize: "clamp(36px, 4vw, 52px)",
-                  fontWeight: 800,
-                  background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.goldenGlow})`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}>
-                  <AnimatedNumber target={item.number} suffix={item.suffix} />
-                </div>
-                <p style={{ fontSize: "15px", marginTop: "8px", color: COLORS.warmGray }}>
-                  {item.label}
-                </p>
               </div>
             ))}
           </div>
@@ -728,50 +680,6 @@ export default function FocanaLanding() {
                 <p style={{ fontSize: "16px", lineHeight: 1.5, color: COLORS.warmBrown, fontWeight: 500 }}>
                   {text}
                 </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* TESTIMONIALS */}
-      <section style={{ padding: "100px 0", background: "white" }}>
-        <div className="section" style={{ textAlign: "center" }}>
-          <span style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-            color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-          }}>What people are saying</span>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(28px, 3.5vw, 40px)",
-            fontWeight: 800, marginTop: "16px", marginBottom: "60px", color: COLORS.warmBrown,
-          }}>
-            From our early community
-          </h2>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
-            {[
-              { quote: "Finally someone who understands ADHD brains. This is the only focus app I've used for more than a week.", name: "Early Beta User", role: "Software Developer" },
-              { quote: "It's like having a gentle friend remind you what you're doing. Simple. Warm. Actually helpful.", name: "Beta Tester", role: "UX Designer with ADHD" },
-              { quote: "The fact that it stays on top of everything is a game-changer for remote work. My productivity has skyrocketed.", name: "Beta Tester", role: "Freelance Writer" },
-            ].map((t, i) => (
-              <div key={i} style={{
-                background: COLORS.softCream,
-                borderRadius: "20px",
-                padding: "36px",
-                textAlign: "left",
-                border: `1px solid ${COLORS.beigeBorder}`,
-                position: "relative",
-              }}>
-                <div style={{ display: "flex", gap: "4px", marginBottom: "16px" }}>
-                  {[1,2,3,4,5].map(s => <span key={s} style={{ color: COLORS.sunshineYellow, fontSize: "18px" }}>★</span>)}
-                </div>
-                <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.warmBrown, fontStyle: "italic", marginBottom: "20px" }}>
-                  "{t.quote}"
-                </p>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: "15px", color: COLORS.warmBrown }}>{t.name}</p>
-                  <p style={{ fontSize: "13px", color: COLORS.coffeeBrown }}>{t.role}</p>
-                </div>
               </div>
             ))}
           </div>
@@ -848,7 +756,7 @@ export default function FocanaLanding() {
             <span style={{ color: COLORS.sunshineYellow }}>invisible tools</span>
           </h2>
           <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.warmGray, marginBottom: "40px" }}>
-            Try the focus app that finally stays where you can see it. Free during beta — available now for macOS.
+            Try the focus buddy that finally stays where you can see it. Free during beta — available now for macOS.
           </p>
 
           <WaitlistForm variant="dark" />
@@ -880,11 +788,6 @@ export default function FocanaLanding() {
           <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
             &copy; 2026 Focana.
           </p>
-          <div style={{ display: "flex", gap: "20px" }}>
-            <a href="#" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none" }}>Privacy</a>
-            <a href="#" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none" }}>Terms</a>
-            <a href="#" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none" }}>Contact</a>
-          </div>
         </div>
       </footer>
     </div>
