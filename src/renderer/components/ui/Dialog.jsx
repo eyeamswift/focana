@@ -1,7 +1,40 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
+const openDialogStack = [];
+let nextDialogId = 1;
+
 export function Dialog({ open, onOpenChange, children }) {
+  const dialogIdRef = useRef(null);
+  if (dialogIdRef.current === null) {
+    dialogIdRef.current = nextDialogId++;
+  }
+  const dialogId = dialogIdRef.current;
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    openDialogStack.push(dialogId);
+    return () => {
+      const index = openDialogStack.lastIndexOf(dialogId);
+      if (index !== -1) openDialogStack.splice(index, 1);
+    };
+  }, [open, dialogId]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      const isTopMost = openDialogStack[openDialogStack.length - 1] === dialogId;
+      if (!isTopMost) return;
+      onOpenChange?.(false);
+    };
+
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [open, dialogId, onOpenChange]);
+
   if (!open) return null;
 
   const handleOverlayClick = (e) => {
@@ -19,23 +52,8 @@ export function Dialog({ open, onOpenChange, children }) {
 }
 
 export function DialogContent({ children, className = '', style, ...props }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') {
-        // Find the closest Dialog and close it
-        const event = new CustomEvent('dialog-close');
-        ref.current?.dispatchEvent(event);
-      }
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, []);
-
   return (
     <div
-      ref={ref}
       className={`dialog-content electron-no-drag ${className}`}
       style={style}
       onClick={(e) => e.stopPropagation()}

@@ -14,7 +14,7 @@ let pillDragStart = null;
 
 const isDev = !app.isPackaged;
 const FULL_MIN_WIDTH = 500;
-const FULL_MIN_HEIGHT = 0;
+const FULL_MIN_HEIGHT = 120;
 const PILL_MIN_WIDTH = 100;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
@@ -86,16 +86,24 @@ function setMainWindowBoundsClamped(bounds, { persist = false, areaType = 'workA
   }
 }
 
+function sanitizeStoredWindowState(rawState) {
+  const fallback = { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
+  if (!rawState || typeof rawState !== 'object') return fallback;
+
+  const width = Number.isFinite(rawState.width) ? Math.max(rawState.width, FULL_MIN_WIDTH) : FULL_MIN_WIDTH;
+  const height = Number.isFinite(rawState.height) ? Math.max(rawState.height, FULL_MIN_HEIGHT) : FULL_MIN_HEIGHT;
+  const x = Number.isFinite(rawState.x) ? rawState.x : fallback.x;
+  const y = Number.isFinite(rawState.y) ? rawState.y : fallback.y;
+  return { x, y, width, height };
+}
+
 function createWindow() {
   setDockIcon();
 
-  const windowState = store.get('windowState', { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT });
-  const initialBounds = clampBounds({
-    x: windowState.x ?? 100,
-    y: windowState.y ?? 100,
-    width: Math.max(windowState.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH),
-    height: Math.max(windowState.height || FULL_MIN_HEIGHT, FULL_MIN_HEIGHT),
-  }, 'display');
+  const windowState = sanitizeStoredWindowState(
+    store.get('windowState', { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT })
+  );
+  const initialBounds = clampBounds(windowState, 'display');
 
   mainWindow = new BrowserWindow({
     x: initialBounds.x,
