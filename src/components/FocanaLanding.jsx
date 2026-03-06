@@ -97,25 +97,23 @@ function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
   );
 }
 
+const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.0.0/Focana-1.0.0-mac-arm64.dmg";
+const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.0.0/Focana-1.0.0-mac-x64.dmg";
+
+function getIsAppleSilicon() {
+  try {
+    const ua = navigator.userAgent;
+    if (/Mac/.test(ua) && /ARM/.test(ua)) return true;
+    if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
+  } catch {}
+  return null; // unknown
+}
+
 // Waitlist form component
 function WaitlistForm({ variant = "dark" }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [errorMsg, setErrorMsg] = useState("");
-  const downloadUrl = import.meta.env.PUBLIC_MACOS_DMG_URL || "";
-
-  const startDownload = () => {
-    if (!downloadUrl || typeof document === "undefined") return;
-
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.setAttribute("download", "");
-    link.rel = "noopener";
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -138,7 +136,14 @@ function WaitlistForm({ variant = "dark" }) {
       }
 
       setStatus("success");
-      startDownload();
+
+      // Auto-start download for detected architecture
+      const isArm = getIsAppleSilicon();
+      if (isArm !== null) {
+        const link = document.createElement("a");
+        link.href = isArm ? ARM_URL : INTEL_URL;
+        link.click();
+      }
     } catch (err) {
       setStatus("error");
       setErrorMsg(err.message || "Something went wrong. Please try again.");
@@ -146,6 +151,25 @@ function WaitlistForm({ variant = "dark" }) {
   };
 
   if (status === "success") {
+    const isArm = getIsAppleSilicon();
+    const detected = isArm !== null;
+    const primaryUrl = isArm ? ARM_URL : INTEL_URL;
+    const altUrl = isArm ? INTEL_URL : ARM_URL;
+    const altLabel = isArm ? "Intel Mac" : "Apple Silicon (M1–M4)";
+
+    const btnStyle = {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "12px 24px",
+      borderRadius: "10px",
+      background: "#10B981",
+      color: "white",
+      fontSize: "15px",
+      fontWeight: 600,
+      textDecoration: "none",
+      transition: "opacity 0.2s",
+    };
     return (
       <div style={{
         background: "rgba(16, 185, 129, 0.15)",
@@ -155,22 +179,39 @@ function WaitlistForm({ variant = "dark" }) {
         maxWidth: "480px",
         margin: "0 auto",
       }}>
-        <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981" }}>
-          Your download is starting! Check your email for getting started tips.
-        </p>
-        <a
-          href={downloadUrl || "#"}
-          style={{
-            display: "inline-block",
-            marginTop: "12px",
-            color: "#10B981",
-            fontSize: "14px",
-            fontWeight: 600,
-            textDecoration: "underline",
-          }}
-        >
-          Download didn't start? Click here.
-        </a>
+        {detected ? (
+          <>
+            <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981", marginBottom: "4px" }}>
+              Your download is starting!
+            </p>
+            <p style={{ fontSize: "14px", color: "#10B981", opacity: 0.8, marginBottom: "16px" }}>
+              Check your email for getting started tips.
+            </p>
+            <a href={primaryUrl} style={{ ...btnStyle, marginBottom: "12px" }}>
+              Download didn't start? Click here.
+            </a>
+            <p style={{ fontSize: "13px", color: "#10B981", opacity: 0.7 }}>
+              Need the <a href={altUrl} style={{ color: "#10B981", textDecoration: "underline" }}>{altLabel}</a> version?
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981", marginBottom: "4px" }}>
+              Choose your Mac version:
+            </p>
+            <p style={{ fontSize: "13px", color: "#10B981", opacity: 0.8, marginBottom: "16px" }}>
+              Not sure? Most Macs from 2020 or later use Apple Silicon.
+            </p>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+              <a href={ARM_URL} style={btnStyle}>
+                Apple Silicon (M1–M4)
+              </a>
+              <a href={INTEL_URL} style={btnStyle}>
+                Intel
+              </a>
+            </div>
+          </>
+        )}
       </div>
     );
   }
