@@ -7,10 +7,16 @@ import { CheckCircle2, CircleDot, X } from 'lucide-react';
 export default function TaskCompletionModal({
   isOpen,
   taskName,
+  sessionDuration = 0,
   onCompleted,
   onNotCompleted,
   onDismiss,
 }) {
+  const formatDuration = (minutes) => {
+    if (minutes < 1) return 'less than a minute';
+    return minutes === 1 ? '1 minute' : `${Math.round(minutes)} minutes`;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onDismiss?.(); }}>
       <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
@@ -34,11 +40,9 @@ export default function TaskCompletionModal({
             <CircleDot style={{ width: 20, height: 20, color: 'var(--brand-action)' }} />
           </div>
 
-          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Did you complete this task?
-          </DialogTitle>
+          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Did you finish?</DialogTitle>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            "{taskName || 'Untitled task'}"
+            You spent {formatDuration(sessionDuration)} on "{taskName || 'Untitled task'}".
           </p>
         </DialogHeader>
 
@@ -53,7 +57,7 @@ export default function TaskCompletionModal({
                 No
               </Button>
             </TooltipTrigger>
-            <TooltipContent><p>Save session and keep task active</p></TooltipContent>
+            <TooltipContent><p>Add an optional note on where to pick up</p></TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -63,7 +67,7 @@ export default function TaskCompletionModal({
                 Yes
               </Button>
             </TooltipTrigger>
-            <TooltipContent><p>Mark complete and apply keep-text setting</p></TooltipContent>
+            <TooltipContent><p>Save as completed and return home</p></TooltipContent>
           </Tooltip>
         </DialogFooter>
       </DialogContent>

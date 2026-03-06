@@ -75,6 +75,7 @@ const CHECKIN_DETOUR_MESSAGES = [
   "Quick reset, you've got this",
   'Detours happen, refocusing now',
 ];
+const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const PINNED_CONTROLS_DEFAULT = {
   theme: true,
   parkingLot: true,
@@ -180,10 +181,9 @@ export default function App() {
   const [checkInSettings, setCheckInSettings] = useState({
     enabled: true,
     intervalFreeflow: 15,
-    timedPercents: [0.4, 0.8],
+    timedPercents: TIMED_CHECKIN_PERCENTS,
   });
   const [checkInState, setCheckInState] = useState('idle'); // idle | prompting | detour-choice | detour-resolved | resolved
-  const [checkInResult, setCheckInResult] = useState(null); // focused | detour | completed | missed
   const [checkInMessage, setCheckInMessage] = useState('');
   const [checkInCelebrating, setCheckInCelebrating] = useState(false);
   const [checkInCelebrationType, setCheckInCelebrationType] = useState('none'); // none | focused | completed
@@ -210,7 +210,6 @@ export default function App() {
   const wasParkingLotOpenRef = useRef(false);
   const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
   const checkInReturnToCompactRef = useRef(false);
-  const checkInPromptTimeoutRef = useRef(null);
   const checkInResolveTimeoutRef = useRef(null);
   const checkInFreeflowNextRef = useRef(null);
   const checkInTimedThresholdsRef = useRef([]);
@@ -218,7 +217,6 @@ export default function App() {
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
   const checkInStateRef = useRef('idle');
-  const consecutiveMissesRef = useRef(0);
   const compactEnteredAtRef = useRef(null);
   const timeUpReturnToCompactRef = useRef(false);
   const lastInteractionTimeRef = useRef(Date.now());
@@ -335,7 +333,6 @@ export default function App() {
       if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
       if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
       if (postModalResizeTimerRef.current) clearTimeout(postModalResizeTimerRef.current);
-      if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
       if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
       if (suppressToolbarTooltipTimerRef.current) clearTimeout(suppressToolbarTooltipTimerRef.current);
       if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
@@ -655,10 +652,16 @@ export default function App() {
         setCheckInSettings({
           enabled: settings.checkInEnabled ?? true,
           intervalFreeflow: Number.isFinite(settings.checkInIntervalFreeflow) ? settings.checkInIntervalFreeflow : 15,
-          timedPercents: Array.isArray(settings.checkInIntervalTimed) && settings.checkInIntervalTimed.length
-            ? settings.checkInIntervalTimed
-            : [0.4, 0.8],
+          timedPercents: TIMED_CHECKIN_PERCENTS,
         });
+        if (
+          !Array.isArray(settings.checkInIntervalTimed)
+          || settings.checkInIntervalTimed.length !== TIMED_CHECKIN_PERCENTS.length
+          || settings.checkInIntervalTimed.some((value, index) => value !== TIMED_CHECKIN_PERCENTS[index])
+        ) {
+          settings.checkInIntervalTimed = TIMED_CHECKIN_PERCENTS;
+          await window.electronAPI.storeSet('settings', settings);
+        }
         const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
         if (hasExplicitCompactSetting) {
           setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? true);
@@ -781,7 +784,7 @@ export default function App() {
     }
 
     const safeTotal = Math.max(1, Number(nextInitialTimeSec) || 0);
-    const percents = (Array.isArray(checkInSettings.timedPercents) ? checkInSettings.timedPercents : [0.4, 0.8])
+    const percents = TIMED_CHECKIN_PERCENTS
       .map((p) => Number(p))
       .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
       .sort((a, b) => a - b);
@@ -791,7 +794,7 @@ export default function App() {
     }
 
     return Math.max(60, Math.round((percents[0] || 0.4) * safeTotal));
-  }, [mode, initialTime, checkInSettings.intervalFreeflow, checkInSettings.timedPercents]);
+  }, [mode, initialTime, checkInSettings.intervalFreeflow]);
 
   const getShortCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
     const standardInterval = getStandardCheckInIntervalSeconds(nextMode, nextInitialTimeSec);
@@ -799,12 +802,9 @@ export default function App() {
   }, [mode, initialTime, getStandardCheckInIntervalSeconds]);
 
   const clearCheckInUi = useCallback(() => {
-    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
-    checkInPromptTimeoutRef.current = null;
     checkInResolveTimeoutRef.current = null;
     setCheckInState('idle');
-    setCheckInResult(null);
     setCheckInMessage('');
     setCheckInCelebrating(false);
     setCheckInCelebrationType('none');
@@ -845,7 +845,7 @@ export default function App() {
     }
 
     const safeTotal = Math.max(1, Number(nextInitialTimeSec) || 0);
-    const percents = (Array.isArray(checkInSettings.timedPercents) ? checkInSettings.timedPercents : [0.4, 0.8])
+    const percents = TIMED_CHECKIN_PERCENTS
       .map((p) => Number(p))
       .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
       .sort((a, b) => a - b);
@@ -865,7 +865,7 @@ export default function App() {
 
     checkInTimedThresholdsRef.current = nextThresholds;
     checkInTimedIndexRef.current = nextTimedIndex;
-  }, [checkInSettings.enabled, checkInSettings.timedPercents, initialTime, getStandardCheckInIntervalSeconds]);
+  }, [checkInSettings.enabled, initialTime, getStandardCheckInIntervalSeconds]);
 
   useEffect(() => {
     getElapsedSecondsRef.current = getElapsedSeconds;
@@ -938,49 +938,29 @@ export default function App() {
 
   const resolveCheckIn = useCallback(async (status) => {
     if (checkInStateRef.current !== 'prompting') return;
+    if (status !== 'focused') return;
     const elapsedSec = getElapsedSeconds();
     await logCheckIn(status, elapsedSec);
 
-    if (status === 'focused') {
-      track('checkin_responded', { response: 'focused' });
-      if (checkInShortIntervalRef.current) {
-        checkInShortIntervalRef.current = false;
-        checkInForcedNextRef.current = null;
-        resetCheckInSchedule(mode, initialTime, elapsedSec);
-      } else {
-        advanceCheckInScheduleAfterResult(elapsedSec);
-      }
-      consecutiveMissesRef.current = 0;
-      if (isCompact) {
-        setCheckInMessage('');
-        setCheckInCelebrating(false);
-        setCheckInCelebrationType('none');
-        triggerConfetti(1200);
-      } else {
-        const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
-        setCheckInMessage(randomMessage);
-        setCheckInCelebrating(true);
-        setCheckInCelebrationType('focused');
-      }
+    track('checkin_responded', { response: 'focused' });
+    if (checkInShortIntervalRef.current) {
+      checkInShortIntervalRef.current = false;
+      checkInForcedNextRef.current = null;
+      resetCheckInSchedule(mode, initialTime, elapsedSec);
     } else {
-      track('checkin_responded', { response: 'missed' });
-      consecutiveMissesRef.current += 1;
-      if (consecutiveMissesRef.current >= 3) {
-        track('checkin_dismissed_streak', { streak_count: consecutiveMissesRef.current });
-      }
-      if (checkInShortIntervalRef.current) {
-        const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
-        checkInForcedNextRef.current = elapsedSec + shortInterval;
-      } else {
-        advanceCheckInScheduleAfterResult(elapsedSec);
-      }
-      setCheckInMessage('Check-in missed');
+      advanceCheckInScheduleAfterResult(elapsedSec);
+    }
+    if (isCompact) {
+      setCheckInMessage('');
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');
+      triggerConfetti(1200);
+    } else {
+      const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
+      setCheckInMessage(randomMessage);
+      setCheckInCelebrating(true);
+      setCheckInCelebrationType('focused');
     }
-
-    setCheckInResult(status);
-    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
 
     if (status === 'focused' && isCompact) {
       clearCheckInUi();
@@ -991,12 +971,11 @@ export default function App() {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInResolveTimeoutRef.current = setTimeout(() => {
       clearCheckInUi();
-    }, status === 'focused' ? 1500 : 800);
+    }, 1500);
   }, [
     advanceCheckInScheduleAfterResult,
     clearCheckInUi,
     getElapsedSeconds,
-    getShortCheckInIntervalSeconds,
     logCheckIn,
     resetCheckInSchedule,
     mode,
@@ -1007,10 +986,8 @@ export default function App() {
 
   const openCheckInDetourChoice = useCallback(() => {
     if (checkInStateRef.current !== 'prompting') return;
-    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
     const applyDetourChoiceState = () => {
       setCheckInState('detour-choice');
-      setCheckInResult(null);
       setCheckInMessage('');
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');
@@ -1031,17 +1008,14 @@ export default function App() {
 
   const handleCheckInFinished = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
-    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInReturnToCompactRef.current = false; // session ending — no return to compact
 
     const elapsedSec = getElapsedSeconds();
     await logCheckIn('completed', elapsedSec);
     track('checkin_responded', { response: 'completed' });
-    consecutiveMissesRef.current = 0;
 
     setIsRunning(false);
-    setCheckInResult('completed');
     setCheckInState('resolved');
     setCheckInMessage(CHECKIN_COMPLETED_MESSAGES[Math.floor(Math.random() * CHECKIN_COMPLETED_MESSAGES.length)]);
     setCheckInCelebrating(true);
@@ -1055,19 +1029,16 @@ export default function App() {
 
   const handleCheckInDetour = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
-    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
 
     const elapsedSec = getElapsedSeconds();
     await logCheckIn('detour', elapsedSec);
     track('checkin_responded', { response: 'detour' });
-    consecutiveMissesRef.current = 0;
 
     const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
     checkInShortIntervalRef.current = true;
     checkInForcedNextRef.current = elapsedSec + shortInterval;
 
-    setCheckInResult('detour');
     setCheckInState('detour-resolved');
     setCheckInMessage(CHECKIN_DETOUR_MESSAGES[Math.floor(Math.random() * CHECKIN_DETOUR_MESSAGES.length)]);
     setCheckInCelebrating(false);
@@ -1102,15 +1073,10 @@ export default function App() {
 
     track('checkin_triggered', { mode, elapsed_minutes: Math.round(getElapsedSeconds() / 6) / 10 });
     setCheckInState('prompting');
-    setCheckInResult(null);
     setCheckInMessage('');
     setCheckInCelebrating(false);
     setCheckInCelebrationType('none');
-
-    if (checkInPromptTimeoutRef.current) clearTimeout(checkInPromptTimeoutRef.current);
-    checkInPromptTimeoutRef.current = setTimeout(() => {
-      resolveCheckIn('missed');
-    }, 10000);
+    // Keep the prompt open until the user explicitly responds.
     return true;
   }, [checkInSettings.enabled, dndEnabled, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, resolveCheckIn, mode, getElapsedSeconds]);
 
@@ -1371,13 +1337,13 @@ export default function App() {
     if (isCompact) {
       handleExitCompact();
     }
-    setIsStopFlowAwaitingCompletion(true);
+    setIsStopFlowAwaitingCompletion(false);
     sessionToSave.current = {
       duration: mode === 'freeflow' ? time / 60 : (initialTime - time) / 60,
       completed: false,
     };
-    setShowCompletionModal(false);
-    setShowNotesModal(true);
+    setShowNotesModal(false);
+    setShowCompletionModal(true);
   };
 
   const handleTaskSubmit = () => {
@@ -1522,62 +1488,24 @@ export default function App() {
     showToast('info', 'Session saved. Task kept active');
   }, [mode, saveSessionWithNotes, showToast]);
 
-  const handleStopFlowNotesDecision = useCallback(async (completed, notes = '') => {
-    if (!sessionToSave.current) {
-      setShowNotesModal(false);
-      setIsStopFlowAwaitingCompletion(false);
-      return;
-    }
-
-    const durationMin = sessionToSave.current?.duration || 0;
-    sessionToSave.current = {
-      ...sessionToSave.current,
-      completed,
-    };
-    await saveSessionWithNotes(notes);
-
+  const handleStopFlowCompletionDismiss = useCallback(async () => {
+    const activeSessionId = currentSessionId;
+    setShowCompletionModal(false);
     setShowNotesModal(false);
     setIsStopFlowAwaitingCompletion(false);
-
-    if (completed) {
-      track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
-
-      const settings = await window.electronAPI.storeGet('settings') || {};
-      const keepText = settings.keepTextAfterCompletion ?? false;
-
-      if (keepText) {
-        setIsRunning(false);
-        setTime(0);
-        setInitialTime(0);
-        setIsTimerVisible(false);
-        setSessionStartTime(null);
-      } else {
-        handleClear();
-      }
-      triggerConfetti();
-
-      try {
-        const allSessions = await SessionStore.list();
-        const streak = computeStreak(allSessions);
-        if (streak >= 2) track('session_streak', { streak_count: streak });
-      } catch (_) { /* non-critical */ }
-      return;
-    }
-
-    track('session_abandoned', { mode, duration_minutes: Math.round(durationMin * 10) / 10 });
+    sessionToSave.current = null;
+    clearCheckInRuntime();
     setIsRunning(false);
     setTime(0);
     setInitialTime(0);
     setIsTimerVisible(false);
     setSessionStartTime(null);
-    showToast('info', 'Session saved. Task kept active');
-  }, [mode, saveSessionWithNotes, showToast, handleClear, triggerConfetti]);
-
-  const handleStopFlowCompletionDismiss = () => {
-    setShowCompletionModal(false);
-    setIsStopFlowAwaitingCompletion(false);
-    sessionToSave.current = null;
-  };
+    if (activeSessionId) {
+      await SessionStore.delete(activeSessionId);
+      await loadSessions();
+    }
+    setCurrentSessionId(null);
+  }, [clearCheckInRuntime, currentSessionId, loadSessions]);
 
   const handleStopFlowCompletionDecision = async (completed) => {
     if (!sessionToSave.current) {
@@ -1599,19 +1527,7 @@ export default function App() {
 
       track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
 
-      const settings = await window.electronAPI.storeGet('settings') || {};
-      const keepText = settings.keepTextAfterCompletion ?? false;
-
-      if (keepText) {
-        setIsRunning(false);
-        setTime(0);
-        setInitialTime(0);
-        setIsTimerVisible(false);
-        setSessionStartTime(null);
-
-      } else {
-        handleClear();
-      }
+      handleClear();
       triggerConfetti();
 
       // Session streak
@@ -1985,7 +1901,6 @@ export default function App() {
     isTimerVisible,
     contextNotes,
     checkInState,
-    checkInResult,
     checkInMessage,
     showSettings,
     showHistoryModal,
@@ -2093,15 +2008,15 @@ export default function App() {
           isOpen={showNotesModal}
           onClose={handleSkipSessionNotes}
           onSave={handleSaveSessionNotes}
-          onCompletionChoice={handleStopFlowNotesDecision}
           sessionDuration={sessionToSave.current?.duration || 0}
           taskName={task}
           sessionFlowKey={sessionNotesFlowKey}
-          showCompletionChoice={isStopFlowAwaitingCompletion}
+          stopFlowNotesMode={isStopFlowAwaitingCompletion}
         />
         <TaskCompletionModal
           isOpen={showCompletionModal}
           taskName={task}
+          sessionDuration={sessionToSave.current?.duration || 0}
           onCompleted={() => handleStopFlowCompletionDecision(true)}
           onNotCompleted={() => handleStopFlowCompletionDecision(false)}
           onDismiss={handleStopFlowCompletionDismiss}
@@ -2275,13 +2190,13 @@ export default function App() {
                 gap: '0.5rem',
                 background: 'var(--bg-card)',
                 transition: 'all 0.25s ease',
-                opacity: checkInState === 'resolved' && checkInResult === 'missed' ? 0.75 : 1,
+                opacity: 1,
               }}
             >
               {checkInState === 'resolved' && (
                 <>
                   <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {checkInMessage || (checkInResult === 'missed' ? 'Check-in missed' : '')}
+                    {checkInMessage}
                   </span>
                 </>
               )}
@@ -2484,15 +2399,15 @@ export default function App() {
         isOpen={showNotesModal}
         onClose={handleSkipSessionNotes}
         onSave={handleSaveSessionNotes}
-        onCompletionChoice={handleStopFlowNotesDecision}
         sessionDuration={sessionToSave.current?.duration || 0}
         taskName={task}
         sessionFlowKey={sessionNotesFlowKey}
-        showCompletionChoice={isStopFlowAwaitingCompletion}
+        stopFlowNotesMode={isStopFlowAwaitingCompletion}
       />
       <TaskCompletionModal
         isOpen={showCompletionModal}
         taskName={task}
+        sessionDuration={sessionToSave.current?.duration || 0}
         onCompleted={() => handleStopFlowCompletionDecision(true)}
         onNotCompleted={() => handleStopFlowCompletionDecision(false)}
         onDismiss={handleStopFlowCompletionDismiss}
@@ -2557,14 +2472,12 @@ export default function App() {
           track('dnd_toggled', { enabled });
         }}
         checkInSettings={checkInSettings}
-        onCheckInSettingsChange={({ enabled, intervalFreeflow, timedPercents }) => {
+        onCheckInSettingsChange={({ enabled, intervalFreeflow }) => {
           setCheckInSettings((prev) => ({
             ...prev,
             enabled: enabled ?? prev.enabled,
             intervalFreeflow: Number.isFinite(intervalFreeflow) ? intervalFreeflow : prev.intervalFreeflow,
-            timedPercents: Array.isArray(timedPercents) && timedPercents.length
-              ? timedPercents
-              : prev.timedPercents,
+            timedPercents: TIMED_CHECKIN_PERCENTS,
           }));
         }}
       />

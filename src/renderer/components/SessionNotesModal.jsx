@@ -9,11 +9,10 @@ export default function SessionNotesModal({
   isOpen,
   onClose,
   onSave,
-  onCompletionChoice,
   sessionDuration,
   taskName,
   sessionFlowKey,
-  showCompletionChoice = false,
+  stopFlowNotesMode = false,
 }) {
   const [notes, setNotes] = useState('');
 
@@ -28,11 +27,6 @@ export default function SessionNotesModal({
 
   const handleSave = () => {
     onSave(notes.trim());
-    setNotes('');
-  };
-
-  const handleCompletionChoice = (completed) => {
-    onCompletionChoice?.(completed, notes.trim());
     setNotes('');
   };
 
@@ -66,10 +60,12 @@ export default function SessionNotesModal({
             <CheckCircle style={{ width: 24, height: 24, color: 'var(--text-on-brand)' }} />
           </div>
           <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {showCompletionChoice ? 'Did you complete this task?' : 'Great focus session!'}
+            {stopFlowNotesMode ? 'Where did you leave off?' : 'Great focus session!'}
           </DialogTitle>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            {formatDuration(sessionDuration)} on "{taskName}"
+            {stopFlowNotesMode
+              ? `You spent ${formatDuration(sessionDuration)} on "${taskName || 'Untitled task'}".`
+              : `${formatDuration(sessionDuration)} on "${taskName}"`}
           </p>
         </DialogHeader>
 
@@ -93,56 +89,26 @@ export default function SessionNotesModal({
         </div>
 
         <DialogFooter>
-          {showCompletionChoice ? (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => handleCompletionChoice(false)}
-                    variant="outline"
-                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-                  >
-                    No
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Save this session and keep task active</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => handleCompletionChoice(true)}
-                    style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
-                  >
-                    Yes
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Mark complete and apply keep-text setting</p></TooltipContent>
-              </Tooltip>
-            </>
-          ) : (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleSkip}
-                    variant="outline"
-                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-                  >
-                    Skip
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Finish session without saving notes</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={handleSave} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                    Save
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Save notes and finish session</p></TooltipContent>
-              </Tooltip>
-            </>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handleSkip}
+                variant="outline"
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+              >
+                Skip
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Finish session without saving notes</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={handleSave} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                Save
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Save notes and finish session</p></TooltipContent>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>
