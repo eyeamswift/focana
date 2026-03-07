@@ -34,6 +34,20 @@ const DEFAULT_SHORTCUTS = {
   completeTask: 'CommandOrControl+Enter',
   openParkingLot: 'CommandOrControl+Shift+P',
 };
+const mergeShortcutsWithDefaults = (rawShortcuts) => {
+  const merged = { ...DEFAULT_SHORTCUTS };
+  if (!rawShortcuts || typeof rawShortcuts !== 'object') return merged;
+  for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
+    const value = rawShortcuts[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
+const shortcutsNeedRepair = (rawShortcuts, mergedShortcuts) => (
+  Object.keys(DEFAULT_SHORTCUTS).some((key) => mergedShortcuts[key] !== rawShortcuts?.[key])
+);
 
 const THEME_STORAGE_KEY = 'focana-theme';
 const WINDOW_SIZES = {
@@ -79,6 +93,7 @@ const CHECKIN_DETOUR_MESSAGES = [
 const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const EMAIL_CAPTURE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PINNED_CONTROLS_DEFAULT = {
+  dnd: true,
   theme: true,
   parkingLot: true,
   history: true,
@@ -86,6 +101,7 @@ const PINNED_CONTROLS_DEFAULT = {
   close: true,
 };
 const ENABLED_MAIN_CONTROLS_DEFAULT = {
+  dnd: true,
   theme: true,
   parkingLot: true,
   history: true,
@@ -358,6 +374,20 @@ export default function App() {
   // Helpers
   const showToast = useCallback((type, message, duration = 2000) => {
     setToast({ type, message, duration });
+  }, []);
+
+  const syncDoNotDisturb = useCallback((enabled) => {
+    const nextEnabled = Boolean(enabled);
+    setDndEnabled(nextEnabled);
+    window.electronAPI.setDnd?.(nextEnabled);
+  }, []);
+
+  const setDoNotDisturb = useCallback((enabled, source = 'unknown') => {
+    const nextEnabled = Boolean(enabled);
+    setDndEnabled(nextEnabled);
+    window.electronAPI.setDnd?.(nextEnabled);
+    void window.electronAPI.storeSet('settings.doNotDisturbEnabled', nextEnabled);
+    track('dnd_toggled', { enabled: nextEnabled, source });
   }, []);
 
   const identifyPosthogUser = useCallback((rawEmail) => {
@@ -701,7 +731,7 @@ export default function App() {
         }
         setShowNotesModal(true);
       } else {
-        saveSessionWithNotes('');
+        await saveSessionWithNotes('');
         handleClear();
         showToast('success', 'Task completed!');
       }
@@ -742,7 +772,11 @@ export default function App() {
         thoughtsLoadedRef.current = true;
 
         const settings = await window.electronAPI.storeGet('settings') || {};
-        if (settings.shortcuts) setShortcuts(settings.shortcuts);
+        const normalizedShortcuts = mergeShortcutsWithDefaults(settings.shortcuts);
+        setShortcuts(normalizedShortcuts);
+        if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
+          await window.electronAPI.storeSet('settings.shortcuts', normalizedShortcuts);
+        }
         if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
 
         setCheckInSettings({
@@ -755,8 +789,7 @@ export default function App() {
           || settings.checkInIntervalTimed.length !== TIMED_CHECKIN_PERCENTS.length
           || settings.checkInIntervalTimed.some((value, index) => value !== TIMED_CHECKIN_PERCENTS[index])
         ) {
-          settings.checkInIntervalTimed = TIMED_CHECKIN_PERCENTS;
-          await window.electronAPI.storeSet('settings', settings);
+          await window.electronAPI.storeSet('settings.checkInIntervalTimed', TIMED_CHECKIN_PERCENTS);
         }
         const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
         if (hasExplicitCompactSetting) {
@@ -764,15 +797,16 @@ export default function App() {
         } else {
           // Migration: older installs may still have legacy false persisted.
           // New default behavior is task visible in compact mode.
-          settings.showTaskInCompactDefault = true;
-          settings.showTaskInCompactCustomized = false;
-          await window.electronAPI.storeSet('settings', settings);
+          await Promise.all([
+            window.electronAPI.storeSet('settings.showTaskInCompactDefault', true),
+            window.electronAPI.storeSet('settings.showTaskInCompactCustomized', false),
+          ]);
           setShowTaskInCompactDefault(true);
         }
         setPinnedControls({ ...PINNED_CONTROLS_DEFAULT, ...(settings.pinnedControls || {}) });
         setEnabledMainControls({ ...ENABLED_MAIN_CONTROLS_DEFAULT, ...(settings.mainScreenControlsEnabled || {}) });
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
-        setDndEnabled(settings.doNotDisturbEnabled ?? false);
+        syncDoNotDisturb(settings.doNotDisturbEnabled ?? false);
 
         const currentTask = await window.electronAPI.storeGet('currentTask');
         if (currentTask) {
@@ -793,17 +827,15 @@ export default function App() {
         setShortcutsHydrated(true);
       }
     })();
-  }, [loadSessions]);
+  }, [loadSessions, syncDoNotDisturb]);
 
   // DND — listen for tray toggle and sync state + persist
   useEffect(() => {
     const cleanup = window.electronAPI.onDndToggle?.((enabled) => {
-      setDndEnabled(enabled);
-      track('dnd_toggled', { enabled, source: 'tray' });
-      window.electronAPI.storeSet('settings.doNotDisturbEnabled', enabled);
+      setDoNotDisturb(enabled, 'tray');
     });
     return () => { if (cleanup) cleanup(); };
-  }, []);
+  }, [setDoNotDisturb]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onTrayOpenHistory?.(() => {
@@ -1046,19 +1078,21 @@ export default function App() {
     } else {
       advanceCheckInScheduleAfterResult(elapsedSec);
     }
+    const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
     if (isCompact) {
-      setCheckInMessage('');
+      showToast('success', randomMessage, 1500);
+      setCheckInMessage(randomMessage);
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');
       triggerConfetti(1200);
     } else {
-      const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
       setCheckInMessage(randomMessage);
       setCheckInCelebrating(true);
       setCheckInCelebrationType('focused');
+      triggerConfetti(1200);
     }
 
-    if (status === 'focused' && isCompact) {
+    if (isCompact) {
       clearCheckInUi();
       return;
     }
@@ -1077,6 +1111,7 @@ export default function App() {
     mode,
     initialTime,
     isCompact,
+    showToast,
     triggerConfetti,
   ]);
 
@@ -1654,6 +1689,9 @@ export default function App() {
     track('post_session_choice', { choice: 'keep_going', extra_minutes: Math.min(Math.max(extraMinutes || 5, 1), 240) });
     const safeMinutes = Math.min(Math.max(extraMinutes || 5, 1), 240);
     const extraSeconds = safeMinutes * 60;
+    const currentInitial = Math.max(0, Number(initialTime) || 0);
+    const nextInitial = currentInitial + extraSeconds;
+    const elapsedAtExtension = currentInitial;
     const shouldReturnToCompact = timeUpReturnToCompactRef.current;
     timeUpReturnToCompactRef.current = false;
 
@@ -1662,7 +1700,7 @@ export default function App() {
     setIsTimerVisible(true);
     setIsRunning(true);
     setShowTimeUpModal(false);
-    resetCheckInSchedule('timed', initialTime + extraSeconds, 0);
+    resetCheckInSchedule('timed', nextInitial, elapsedAtExtension);
     if (shouldReturnToCompact) {
       setTimeout(() => setIsCompact(true), 80);
     }
@@ -2259,6 +2297,28 @@ export default function App() {
               </TooltipTrigger>
               <TooltipContent><p>Settings & Shortcuts</p></TooltipContent>
             </Tooltip>
+            {enabledMainControls.dnd && pinnedControls.dnd && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-label={dndEnabled ? 'Turn Off Do Not Disturb' : 'Turn On Do Not Disturb'}
+                    onClick={() => setDoNotDisturb(!dndEnabled, 'toolbar')}
+                    size="icon"
+                    variant="ghost"
+                    style={{
+                      height: '2rem',
+                      width: '2rem',
+                      color: dndEnabled ? 'var(--brand-action)' : 'var(--text-secondary)',
+                      background: dndEnabled ? 'color-mix(in srgb, var(--brand-primary) 14%, transparent)' : 'transparent',
+                      border: dndEnabled ? '1px solid color-mix(in srgb, var(--brand-primary) 60%, transparent)' : '1px solid transparent',
+                    }}
+                  >
+                    <BellOff style={{ width: 16, height: 16 }} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>{dndEnabled ? 'Turn off Do Not Disturb' : 'Turn on Do Not Disturb'}</p></TooltipContent>
+              </Tooltip>
+            )}
             {enabledMainControls.theme && pinnedControls.theme && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2290,16 +2350,6 @@ export default function App() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent><p>Open Parking Lot</p></TooltipContent>
-              </Tooltip>
-            )}
-            {dndEnabled && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '2rem', width: '2rem', color: 'var(--brand-action)', opacity: 0.7 }}>
-                    <BellOff style={{ width: 15, height: 15 }} />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent><p>Do Not Disturb is on</p></TooltipContent>
               </Tooltip>
             )}
             <Tooltip>
@@ -2628,7 +2678,7 @@ export default function App() {
           handleCloseWindow();
         }}
         shortcuts={shortcuts}
-        onShortcutsChange={setShortcuts}
+        onShortcutsChange={(nextShortcuts) => setShortcuts(mergeShortcutsWithDefaults(nextShortcuts))}
         shortcutsEnabledDefault={shortcutsEnabled}
         onShortcutsEnabledChange={setShortcutsEnabled}
 
@@ -2640,9 +2690,7 @@ export default function App() {
         onEnabledControlsChange={setEnabledMainControls}
         dndEnabled={dndEnabled}
         onDndChange={(enabled) => {
-          setDndEnabled(enabled);
-          window.electronAPI.setDnd?.(enabled);
-          track('dnd_toggled', { enabled });
+          setDoNotDisturb(enabled, 'settings');
         }}
         checkInSettings={checkInSettings}
         onCheckInSettingsChange={({ enabled, intervalFreeflow }) => {

@@ -87,6 +87,7 @@ const schema = {
       mainScreenControlsEnabled: {
         type: 'object',
         default: {
+          dnd: true,
           theme: true,
           parkingLot: true,
           history: true,

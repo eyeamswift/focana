@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
@@ -6,7 +6,13 @@ import { Edit3, X, Save } from 'lucide-react';
 
 export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionActive = false }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedNotes, setEditedNotes] = useState(notes);
+  const [editedNotes, setEditedNotes] = useState(notes || '');
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedNotes(notes || '');
+    }
+  }, [notes, isEditing]);
 
   const handleSave = () => {
     onUpdateNotes(editedNotes.trim());
@@ -14,7 +20,7 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
   };
 
   const handleCancel = () => {
-    setEditedNotes(notes);
+    setEditedNotes(notes || '');
     setIsEditing(false);
   };
 
@@ -85,7 +91,10 @@ export default function ContextBox({ notes, onUpdateNotes, onDismiss, isSessionA
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => {
+                    setEditedNotes(notes || '');
+                    setIsEditing(true);
+                  }}
                   size="icon"
                   variant="ghost"
                   style={{ height: '1.5rem', width: '1.5rem', color: 'var(--text-secondary)' }}

@@ -6,6 +6,11 @@ import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, NotebookPe
 import { format } from 'date-fns';
 
 const ITEMS_PER_PAGE = 5;
+const formatSessionDate = (createdAt) => {
+  const parsed = new Date(createdAt);
+  if (Number.isNaN(parsed.getTime())) return 'Unknown date';
+  return format(parsed, 'MMM d, yyyy');
+};
 
 export default function HistoryModal({
   isOpen,
@@ -146,7 +151,7 @@ export default function HistoryModal({
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                   <span>{Math.round(session.durationMinutes)} min</span>
-                  <span>{format(new Date(session.createdAt), 'MMM d, yyyy')}</span>
+                  <span>{formatSessionDate(session.createdAt)}</span>
                   {session.notes && (
                     <Tooltip>
                       <TooltipTrigger>

@@ -2,6 +2,8 @@ const { randomUUID } = require('crypto');
 const store = require('./store');
 
 const CHECKIN_STATUSES = ['focused', 'completed', 'detour', 'missed'];
+const CHECKIN_RETENTION_DAYS = 365;
+const MAX_CHECKINS = 10000;
 
 function ensurePlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -55,9 +57,53 @@ function validateCheckInInput(checkIn) {
   }
 }
 
+function getTimestampMs(item) {
+  const ms = Date.parse(item?.timestamp || '');
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function pruneCheckIns(rawItems) {
+  const cutoffMs = Date.now() - (CHECKIN_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  let changed = false;
+  const filtered = [];
+
+  for (const item of rawItems) {
+    if (!ensurePlainObject(item)) {
+      changed = true;
+      continue;
+    }
+    const timestampMs = Date.parse(item.timestamp || '');
+    if (Number.isFinite(timestampMs) && timestampMs < cutoffMs) {
+      changed = true;
+      continue;
+    }
+    filtered.push(item);
+  }
+
+  if (filtered.length > MAX_CHECKINS) {
+    changed = true;
+    filtered.sort((a, b) => getTimestampMs(a) - getTimestampMs(b));
+    return { items: filtered.slice(filtered.length - MAX_CHECKINS), changed };
+  }
+
+  if (!changed && filtered.length !== rawItems.length) {
+    changed = true;
+  }
+
+  return { items: filtered, changed };
+}
+
 function readAll() {
   const raw = store.get('checkIns', []);
-  return Array.isArray(raw) ? raw : [];
+  if (!Array.isArray(raw)) {
+    store.set('checkIns', []);
+    return [];
+  }
+  const { items, changed } = pruneCheckIns(raw);
+  if (changed) {
+    store.set('checkIns', items);
+  }
+  return items;
 }
 
 function sortByTimestampAsc(a, b) {

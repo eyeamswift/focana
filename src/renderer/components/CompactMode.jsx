@@ -46,6 +46,10 @@ export default function CompactMode({
 
   const clickTimerRef    = useRef(null);
   const controlsHideRef  = useRef(null);
+  const pulseResetTimeoutRef = useRef(null);
+  const dragMoveHandlerRef = useRef(null);
+  const dragUpHandlerRef = useRef(null);
+  const dragBlurHandlerRef = useRef(null);
   const hasInitialized   = useRef(false);
   const isDraggingRef    = useRef(false);
 
@@ -147,10 +151,29 @@ export default function CompactMode({
     if (!pulseEnabled || dndActive || isHovered) return;
     const interval = setInterval(() => {
       setShouldPulse(true);
-      setTimeout(() => setShouldPulse(false), 3000);
+      if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
+      pulseResetTimeoutRef.current = setTimeout(() => {
+        setShouldPulse(false);
+        pulseResetTimeoutRef.current = null;
+      }, 3000);
     }, 60000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (pulseResetTimeoutRef.current) {
+        clearTimeout(pulseResetTimeoutRef.current);
+        pulseResetTimeoutRef.current = null;
+      }
+    };
   }, [pulseEnabled, dndActive, isHovered]);
+
+  useEffect(() => () => {
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
+    if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
+    if (dragMoveHandlerRef.current) document.removeEventListener('mousemove', dragMoveHandlerRef.current);
+    if (dragUpHandlerRef.current) document.removeEventListener('mouseup', dragUpHandlerRef.current);
+    if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
+  }, []);
 
   // Reset controls auto-hide timer (call after any button interaction)
   const resetControlsTimer = () => {
@@ -165,6 +188,13 @@ export default function CompactMode({
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;           // left button only
     if (e.target.closest('button')) return; // let button clicks through
+
+    if (dragMoveHandlerRef.current) document.removeEventListener('mousemove', dragMoveHandlerRef.current);
+    if (dragUpHandlerRef.current) document.removeEventListener('mouseup', dragUpHandlerRef.current);
+    if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
+    dragMoveHandlerRef.current = null;
+    dragUpHandlerRef.current = null;
+    dragBlurHandlerRef.current = null;
 
     const startX = e.screenX;
     const startY = e.screenY;
@@ -194,12 +224,20 @@ export default function CompactMode({
       if (started) window.electronAPI.pillDragEnd();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onUp);
+      dragMoveHandlerRef.current = null;
+      dragUpHandlerRef.current = null;
+      dragBlurHandlerRef.current = null;
       // Reset after the click event has had a chance to fire (if any)
       setTimeout(() => { isDraggingRef.current = false; }, 0);
     };
 
+    dragMoveHandlerRef.current = onMove;
+    dragUpHandlerRef.current = onUp;
+    dragBlurHandlerRef.current = onUp;
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onUp);
   };
 
   // ---------------------------------------------------------------------------

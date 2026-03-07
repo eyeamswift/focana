@@ -247,6 +247,33 @@ test('reusing a task from history does not overwrite historical session id', asy
   }
 });
 
+test('history renders safely when session createdAt is invalid', async () => {
+  const badDateSession = {
+    id: 'hist-bad-date',
+    task: 'Bad date task',
+    durationMinutes: 8,
+    mode: 'freeflow',
+    completed: false,
+    notes: '',
+    createdAt: 'not-a-real-date',
+  };
+
+  const { page, cleanup } = await launchApp();
+  try {
+    await page.evaluate(async (session) => {
+      await window.electronAPI.storeSet('sessions', [session]);
+    }, badDateSession);
+    await page.reload();
+    await page.waitForSelector(TASK_INPUT_SELECTOR);
+
+    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await expect(page.getByText('Bad date task')).toBeVisible();
+    await expect(page.getByText('Unknown date')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
 test('shortcut recorder handles modifier and escape without lockup', async () => {
   const { page, cleanup } = await launchApp();
   try {
@@ -260,8 +287,23 @@ test('shortcut recorder handles modifier and escape without lockup', async () =>
     await page.keyboard.press('Shift');
     await expect(page.getByText('Press keys...')).toBeVisible();
 
+    await page.keyboard.press('A');
+    await expect(page.getByText('Use Cmd/Ctrl or Alt with another key')).toBeVisible();
+    await expect(page.getByText('Press keys...')).toBeVisible();
+
     await page.keyboard.press('Escape');
     await expect(page.getByText('Press keys...')).toHaveCount(0);
+
+    const conflictCombo = await page.evaluate(() => (/Mac/i.test(navigator.platform) ? 'Meta+N' : 'Control+N'));
+    await row.click();
+    await expect(page.getByText('Press keys...')).toBeVisible();
+    await page.keyboard.press(conflictCombo);
+    await expect(page.getByText('Conflicts with New/Edit Task')).toBeVisible();
+    const recordingStillActive = await page.getByText('Press keys...').count();
+    if (recordingStillActive > 0) {
+      await page.keyboard.press('Escape');
+      await expect(page.getByText('Press keys...')).toHaveCount(0);
+    }
 
     await row.click();
     await page.keyboard.press('Control+Shift+Y');
@@ -269,6 +311,36 @@ test('shortcut recorder handles modifier and escape without lockup', async () =>
 
     await page.getByRole('button', { name: 'Save Settings' }).first().click();
     await expect(page.getByRole('heading', { name: 'Settings' })).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('missing toggle compact shortcut is auto-restored to default', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        shortcutsEnabled: true,
+        shortcuts: {
+          startPause: 'CommandOrControl+Shift+S',
+          newTask: 'CommandOrControl+N',
+          completeTask: 'CommandOrControl+Enter',
+          openParkingLot: 'CommandOrControl+Shift+P',
+        },
+      },
+    },
+  });
+
+  try {
+    await expect.poll(async () => {
+      const saved = await page.evaluate(() => window.electronAPI.storeGet('settings.shortcuts'));
+      return saved?.toggleCompact || '';
+    }).toBe('CommandOrControl+Shift+I');
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('tab', { name: 'Shortcuts' }).click();
+    const toggleCompactRow = page.getByRole('button', { name: /Toggle Compact Mode/i }).first();
+    await expect(toggleCompactRow).toContainText('⌘+⇧+I');
   } finally {
     await cleanup();
   }

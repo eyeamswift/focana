@@ -4,7 +4,7 @@ import { Button } from './ui/Button';
 import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Settings, Keyboard, RotateCcw, AlertTriangle, X, PanelTop, Pin, Sun, Moon, History, ClipboardList, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Settings, Keyboard, RotateCcw, AlertTriangle, X, PanelTop, Pin, Sun, Moon, History, ClipboardList, BellOff, ToggleLeft, ToggleRight } from 'lucide-react';
 import { track } from '../utils/analytics';
 
 const DEFAULT_SHORTCUTS = {
@@ -13,6 +13,72 @@ const DEFAULT_SHORTCUTS = {
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
   openParkingLot: 'CommandOrControl+Shift+P',
+};
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || '');
+
+const mergeShortcutsWithDefaults = (rawShortcuts) => {
+  const merged = { ...DEFAULT_SHORTCUTS };
+  if (!rawShortcuts || typeof rawShortcuts !== 'object') return merged;
+  for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
+    const value = rawShortcuts[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
+
+const MODIFIER_ORDER = ['Cmd', 'Ctrl', 'Shift', 'Alt'];
+
+const normalizeShortcutForComparison = (shortcut) => {
+  if (typeof shortcut !== 'string') return '';
+  const raw = shortcut.trim();
+  if (!raw) return '';
+
+  const parts = raw.split('+').map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return '';
+
+  const modifiers = [];
+  let key = '';
+
+  const addModifier = (modifier) => {
+    if (!modifiers.includes(modifier)) modifiers.push(modifier);
+  };
+
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+
+    if (lower === 'commandorcontrol' || lower === 'cmdorctrl') {
+      addModifier(IS_MAC ? 'Cmd' : 'Ctrl');
+      continue;
+    }
+    if (lower === 'cmd' || lower === 'command' || part === '\u2318' || lower === 'meta') {
+      addModifier('Cmd');
+      continue;
+    }
+    if (lower === 'ctrl' || lower === 'control') {
+      addModifier('Ctrl');
+      continue;
+    }
+    if (lower === 'shift' || part === '\u21e7') {
+      addModifier('Shift');
+      continue;
+    }
+    if (lower === 'alt' || lower === 'option' || part === '\u2325') {
+      addModifier('Alt');
+      continue;
+    }
+    if (lower === 'space' || part === ' ') {
+      key = 'Space';
+      continue;
+    }
+    key = part.length === 1 ? part.toUpperCase() : part;
+  }
+
+  modifiers.sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b));
+  if (!key) return modifiers.join('+');
+  return [...modifiers, key].join('+');
 };
 
 const SHORTCUT_DESCRIPTIONS = {
@@ -24,6 +90,7 @@ const SHORTCUT_DESCRIPTIONS = {
 };
 
 const PINNED_CONTROLS_DEFAULT = {
+  dnd: true,
   theme: true,
   parkingLot: true,
   history: true,
@@ -31,6 +98,7 @@ const PINNED_CONTROLS_DEFAULT = {
   close: true,
 };
 const ENABLED_CONTROLS_DEFAULT = {
+  dnd: true,
   theme: true,
   parkingLot: true,
   history: true,
@@ -39,6 +107,7 @@ const ENABLED_CONTROLS_DEFAULT = {
 };
 
 const MAIN_SCREEN_CONTROLS = [
+  { key: 'dnd', label: 'Do Not Disturb', icon: BellOff },
   { key: 'theme', label: 'Light mode/Dark mode', icon: Sun },
   { key: 'parkingLot', label: 'View Parking Lot', icon: ClipboardList },
   { key: 'history', label: 'View Session History', icon: History },
@@ -70,7 +139,7 @@ export default function SettingsModal({
   checkInSettings,
   onCheckInSettingsChange,
 }) {
-  const [tempShortcuts, setTempShortcuts] = useState(shortcuts || DEFAULT_SHORTCUTS);
+  const [tempShortcuts, setTempShortcuts] = useState(mergeShortcutsWithDefaults(shortcuts));
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
@@ -102,11 +171,12 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (isOpen) {
-      setTempShortcuts(shortcuts || DEFAULT_SHORTCUTS);
+      setTempShortcuts(mergeShortcutsWithDefaults(shortcuts));
 
       // Load settings from electron-store
       (async () => {
         const settings = await window.electronAPI.storeGet('settings') || {};
+        setTempShortcuts(mergeShortcutsWithDefaults(settings.shortcuts || shortcuts));
         setShortcutsEnabled(settings.shortcutsEnabled ?? shortcutsEnabledDefault ?? true);
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
@@ -128,23 +198,24 @@ export default function SettingsModal({
   }, [isOpen, shortcuts, showTaskInCompactDefault, shortcutsEnabledDefault, pinnedControlsDefault, enabledControlsDefault, dndEnabled, checkInSettings]);
 
   const handleSave = async () => {
-    onShortcutsChange(tempShortcuts);
+    const normalizedShortcuts = mergeShortcutsWithDefaults(tempShortcuts);
+    onShortcutsChange(normalizedShortcuts);
 
     const oldSettings = await window.electronAPI.storeGet('settings') || {};
 
-    const settings = { ...oldSettings };
-    settings.shortcutsEnabled = shortcutsEnabled;
-    settings.bringToFront = bringToFront;
-    settings.keepTextAfterCompletion = keepTextAfterCompletion;
-    settings.showTaskInCompactDefault = showTaskInCompact;
-    settings.showTaskInCompactCustomized = true;
-    settings.pinnedControls = pinnedControls;
-    settings.mainScreenControlsEnabled = enabledControls;
-    settings.doNotDisturbEnabled = doNotDisturb;
-    settings.checkInEnabled = checkInEnabled;
-    settings.checkInIntervalFreeflow = checkInIntervalFreeflow;
-    settings.shortcuts = tempShortcuts;
-    await window.electronAPI.storeSet('settings', settings);
+    await Promise.all([
+      window.electronAPI.storeSet('settings.shortcutsEnabled', shortcutsEnabled),
+      window.electronAPI.storeSet('settings.bringToFront', bringToFront),
+      window.electronAPI.storeSet('settings.keepTextAfterCompletion', keepTextAfterCompletion),
+      window.electronAPI.storeSet('settings.showTaskInCompactDefault', showTaskInCompact),
+      window.electronAPI.storeSet('settings.showTaskInCompactCustomized', true),
+      window.electronAPI.storeSet('settings.pinnedControls', pinnedControls),
+      window.electronAPI.storeSet('settings.mainScreenControlsEnabled', enabledControls),
+      window.electronAPI.storeSet('settings.doNotDisturbEnabled', doNotDisturb),
+      window.electronAPI.storeSet('settings.checkInEnabled', checkInEnabled),
+      window.electronAPI.storeSet('settings.checkInIntervalFreeflow', checkInIntervalFreeflow),
+      window.electronAPI.storeSet('settings.shortcuts', normalizedShortcuts),
+    ]);
 
     // Track changed settings
     const diffs = {};
@@ -215,33 +286,50 @@ export default function SettingsModal({
         return;
       }
 
+      const hasRequiredModifier = e.metaKey || e.ctrlKey || e.altKey;
+      if (!hasRequiredModifier) {
+        setConflicts((conflictPrev) => ({
+          ...conflictPrev,
+          [key]: 'Use Cmd/Ctrl or Alt with another key',
+        }));
+        return;
+      }
+
+      const keyName = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      if (keyName === 'Unidentified' || keyName === 'Dead' || keyName === 'Process') {
+        setConflicts((conflictPrev) => ({
+          ...conflictPrev,
+          [key]: 'Unsupported key. Try another shortcut.',
+        }));
+        return;
+      }
+
       const modifiers = [];
       if (e.metaKey || e.ctrlKey) modifiers.push(e.metaKey ? 'Cmd' : 'Ctrl');
       if (e.shiftKey) modifiers.push('Shift');
       if (e.altKey) modifiers.push('Alt');
 
-      const keyName = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
       const shortcut = modifiers.length > 0 ? `${modifiers.join('+')}+${keyName}` : keyName;
-
-      setTempShortcuts((prev) => {
-        const existingKey = Object.entries(prev).find(([k, v]) => k !== key && v === shortcut);
-        if (existingKey) {
-          setConflicts((conflictPrev) => ({
-            ...conflictPrev,
-            [key]: `Conflicts with ${SHORTCUT_DESCRIPTIONS[existingKey[0]]}`,
-          }));
-          return prev;
-        }
-
+      const normalizedShortcut = normalizeShortcutForComparison(shortcut);
+      const existingKey = Object.entries(tempShortcuts).find(([k, v]) => (
+        k !== key && normalizeShortcutForComparison(v) === normalizedShortcut
+      ));
+      if (existingKey) {
         setConflicts((conflictPrev) => ({
           ...conflictPrev,
-          [key]: null,
+          [key]: `Conflicts with ${SHORTCUT_DESCRIPTIONS[existingKey[0]]}`,
         }));
-        return {
-          ...prev,
-          [key]: shortcut,
-        };
-      });
+        return;
+      }
+
+      setTempShortcuts((prev) => ({
+        ...prev,
+        [key]: shortcut,
+      }));
+      setConflicts((conflictPrev) => ({
+        ...conflictPrev,
+        [key]: null,
+      }));
 
       setRecordingKey(null);
       cleanup();
@@ -452,13 +540,6 @@ export default function SettingsModal({
                     />
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>min</span>
                   </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Do Not Disturb</span>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>Mute check-in prompts and ambient pulse</p>
-                  </div>
-                  <Switch checked={doNotDisturb} onCheckedChange={setDoNotDisturb} />
                 </div>
               </div>
             </div>

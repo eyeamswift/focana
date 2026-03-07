@@ -27,7 +27,36 @@ const PILL_MAX_HEIGHT = 260;
 const FLOATING_ICON_SIZE = 64;
 const FLOATING_ICON_PULSE_INITIAL_MS = 10 * 60 * 1000;
 const FLOATING_ICON_PULSE_REPEAT_MS = 15 * 60 * 1000;
-let isApplyingBounds = false;
+const DEFAULT_SHORTCUTS = {
+  startPause: 'CommandOrControl+Shift+S',
+  newTask: 'CommandOrControl+N',
+  toggleCompact: 'CommandOrControl+Shift+I',
+  completeTask: 'CommandOrControl+Enter',
+  openParkingLot: 'CommandOrControl+Shift+P',
+};
+let pendingProgrammaticMainBounds = null;
+let clearProgrammaticMainBoundsTimer = null;
+
+function boundsEqual(a, b) {
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function normalizeShortcuts(rawShortcuts) {
+  const merged = { ...DEFAULT_SHORTCUTS };
+  if (!rawShortcuts || typeof rawShortcuts !== 'object') return merged;
+  for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
+    const value = rawShortcuts[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+function shortcutsNeedRepair(rawShortcuts, mergedShortcuts) {
+  return Object.keys(DEFAULT_SHORTCUTS).some((key) => mergedShortcuts[key] !== rawShortcuts?.[key]);
+}
 
 // Ensure the runtime app name is Focana in dev and packaged modes.
 app.setName('Focana');
@@ -85,9 +114,15 @@ function setMainWindowBoundsClamped(bounds, { persist = false, areaType = 'workA
     current.height !== clamped.height;
 
   if (changed) {
-    isApplyingBounds = true;
+    pendingProgrammaticMainBounds = clamped;
+    if (clearProgrammaticMainBoundsTimer) {
+      clearTimeout(clearProgrammaticMainBoundsTimer);
+    }
     mainWindow.setBounds(clamped);
-    isApplyingBounds = false;
+    clearProgrammaticMainBoundsTimer = setTimeout(() => {
+      pendingProgrammaticMainBounds = null;
+      clearProgrammaticMainBoundsTimer = null;
+    }, 300);
   }
 
   if (persist && !isPillMode && !isModalExpanded) {
@@ -296,7 +331,16 @@ function createWindow() {
 
   // Keep window fully on-screen after any user move/resize and persist full-mode bounds.
   const handleBoundsChange = () => {
-    if (!mainWindow || mainWindow.isDestroyed() || isApplyingBounds) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const currentBounds = mainWindow.getBounds();
+    if (pendingProgrammaticMainBounds && boundsEqual(currentBounds, pendingProgrammaticMainBounds)) {
+      pendingProgrammaticMainBounds = null;
+      if (clearProgrammaticMainBoundsTimer) {
+        clearTimeout(clearProgrammaticMainBoundsTimer);
+        clearProgrammaticMainBoundsTimer = null;
+      }
+      return;
+    }
     setMainWindowBoundsClamped(mainWindow.getBounds(), {
       persist: true,
       areaType: isModalExpanded ? 'workArea' : 'display',
@@ -309,6 +353,11 @@ function createWindow() {
   store.set('windowState', initialBounds);
 
   mainWindow.on('closed', () => {
+    if (clearProgrammaticMainBoundsTimer) {
+      clearTimeout(clearProgrammaticMainBoundsTimer);
+      clearProgrammaticMainBoundsTimer = null;
+    }
+    pendingProgrammaticMainBounds = null;
     if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
       floatingIconWindow.close();
     }
@@ -335,9 +384,12 @@ function createWindow() {
 
   // Register shortcuts from stored settings
   const settings = store.get('settings', {});
-  const shortcuts = settings.shortcuts || {};
-  if (settings.shortcutsEnabled !== false && Object.keys(shortcuts).length > 0) {
-    registerShortcuts(shortcuts, mainWindow);
+  const normalizedShortcuts = normalizeShortcuts(settings.shortcuts);
+  if (settings.shortcutsEnabled !== false) {
+    registerShortcuts(normalizedShortcuts, mainWindow);
+  }
+  if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
+    store.set('settings.shortcuts', normalizedShortcuts);
   }
 }
 
@@ -432,7 +484,7 @@ ipcMain.on('register-shortcuts', (_event, shortcuts) => {
     return;
   }
 
-  registerShortcuts(shortcuts, mainWindow);
+  registerShortcuts(normalizeShortcuts(shortcuts), mainWindow);
 });
 
 ipcMain.on('unregister-shortcuts', () => {
