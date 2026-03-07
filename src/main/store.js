@@ -51,6 +51,14 @@ const schema = {
     type: 'array',
     default: [],
   },
+  userEmail: {
+    type: 'string',
+    default: '',
+  },
+  emailPromptSkipped: {
+    type: 'boolean',
+    default: false,
+  },
   settings: {
     type: 'object',
     properties: {

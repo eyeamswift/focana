@@ -5,6 +5,7 @@ import {
   X, Play, Pause, Square, RotateCcw, Minimize2, Minus,
   Settings, ClipboardList, History, Sun, Moon, Check, Undo2, BellOff,
 } from 'lucide-react';
+import posthog from 'posthog-js';
 import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
 import { track } from './utils/analytics';
@@ -76,6 +77,7 @@ const CHECKIN_DETOUR_MESSAGES = [
   'Detours happen, refocusing now',
 ];
 const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
+const EMAIL_CAPTURE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PINNED_CONTROLS_DEFAULT = {
   theme: true,
   parkingLot: true,
@@ -177,6 +179,9 @@ export default function App() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
+  const [startupGateState, setStartupGateState] = useState('checking'); // checking | prompt | ready
+  const [emailCaptureInput, setEmailCaptureInput] = useState('');
+  const [emailCaptureSubmitting, setEmailCaptureSubmitting] = useState(false);
   const [dndEnabled, setDndEnabled] = useState(false);
   const [checkInSettings, setCheckInSettings] = useState({
     enabled: true,
@@ -230,6 +235,7 @@ export default function App() {
   const compactRevealTimerRef = useRef(null);
   const compactPrevTimerVisibleRef = useRef(null);
   const wasCompactRef = useRef(false);
+  const hasTrackedAppOpenedRef = useRef(false);
   const suppressHistoryPopRef = useRef(false);
   const windowModeDesiredRef = useRef('full');
   const windowModeActualRef = useRef('full');
@@ -266,6 +272,10 @@ export default function App() {
 
   // Analytics: app opened
   useEffect(() => {
+    if (startupGateState !== 'ready') return undefined;
+    if (hasTrackedAppOpenedRef.current) return undefined;
+    hasTrackedAppOpenedRef.current = true;
+
     track('app_opened');
 
     // Track last interaction for unresponsive session detection
@@ -288,7 +298,7 @@ export default function App() {
       window.removeEventListener('keydown', updateInteraction);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []);
+  }, [startupGateState]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -349,6 +359,85 @@ export default function App() {
   const showToast = useCallback((type, message, duration = 2000) => {
     setToast({ type, message, duration });
   }, []);
+
+  const identifyPosthogUser = useCallback((rawEmail) => {
+    const normalizedEmail = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+    if (!normalizedEmail) return;
+    try {
+      if (typeof posthog?.identify === 'function') {
+        posthog.identify(normalizedEmail);
+      }
+      if (typeof posthog?.people?.set === 'function') {
+        posthog.people.set({ email: normalizedEmail });
+      }
+    } catch (error) {
+      console.warn('PostHog identify failed:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    (async () => {
+      try {
+        const storedEmailRaw = await window.electronAPI.storeGet('userEmail');
+        const storedEmail = typeof storedEmailRaw === 'string' ? storedEmailRaw.trim().toLowerCase() : '';
+        const didSkipPrompt = await window.electronAPI.storeGet('emailPromptSkipped');
+
+        if (storedEmail) {
+          identifyPosthogUser(storedEmail);
+          if (!isCancelled) setStartupGateState('ready');
+          return;
+        }
+
+        if (didSkipPrompt === true) {
+          if (!isCancelled) setStartupGateState('ready');
+          return;
+        }
+
+        if (!isCancelled) setStartupGateState('prompt');
+      } catch (error) {
+        console.error('Failed to initialize email capture gate:', error);
+        if (!isCancelled) setStartupGateState('prompt');
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [identifyPosthogUser]);
+
+  const handleEmailCaptureContinue = useCallback(async () => {
+    if (emailCaptureSubmitting) return;
+    const normalizedEmail = emailCaptureInput.trim().toLowerCase();
+    if (!EMAIL_CAPTURE_REGEX.test(normalizedEmail)) return;
+
+    setEmailCaptureSubmitting(true);
+    try {
+      await window.electronAPI.storeSet('userEmail', normalizedEmail);
+      await window.electronAPI.storeSet('emailPromptSkipped', false);
+      identifyPosthogUser(normalizedEmail);
+      setStartupGateState('ready');
+    } catch (error) {
+      console.error('Failed to persist email capture:', error);
+    } finally {
+      setEmailCaptureSubmitting(false);
+    }
+  }, [emailCaptureSubmitting, emailCaptureInput, identifyPosthogUser]);
+
+  const handleEmailCaptureSkip = useCallback(async () => {
+    if (emailCaptureSubmitting) return;
+
+    setEmailCaptureSubmitting(true);
+    try {
+      await window.electronAPI.storeSet('emailPromptSkipped', true);
+      setStartupGateState('ready');
+    } catch (error) {
+      console.error('Failed to persist email prompt skip:', error);
+    } finally {
+      setEmailCaptureSubmitting(false);
+    }
+  }, [emailCaptureSubmitting]);
 
   // Snapshot timer-visibility when entering compact so exit restores the
   // previous full-view layout instead of forcing timer UI.
@@ -630,10 +719,17 @@ export default function App() {
         case 'newTask': handleShortcutNewTask(); break;
         case 'toggleCompact': handleShortcutToggleCompact(); break;
         case 'completeTask': handleShortcutCompleteTask(); break;
-        case 'openParkingLot': setShowQuickCapture(true); break;
+        case 'openParkingLot':
+          if (isCompact) {
+            handleExitCompact();
+            setTimeout(() => setShowQuickCapture(true), 120);
+          } else {
+            setShowQuickCapture(true);
+          }
+          break;
       }
     })();
-  }, [handleShortcutStartPause, handleShortcutNewTask, handleShortcutToggleCompact, handleShortcutCompleteTask]);
+  }, [handleShortcutStartPause, handleShortcutNewTask, handleShortcutToggleCompact, handleShortcutCompleteTask, isCompact, handleExitCompact]);
 
   // Load data from electron-store on mount
   useEffect(() => {
@@ -1975,6 +2071,83 @@ export default function App() {
     if (!isTimerVisible) return;
     setIsTimerVisible(false);
   }, [isCompact, isRunning, isStartModalOpen, contextNotes, task, isTimerVisible]);
+
+  if (startupGateState !== 'ready') {
+    const normalizedEmailInput = emailCaptureInput.trim().toLowerCase();
+    const canSubmitEmail = EMAIL_CAPTURE_REGEX.test(normalizedEmailInput);
+
+    if (startupGateState === 'checking') {
+      return (
+        <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)' }} />
+      );
+    }
+
+    return (
+      <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
+        <div
+          className="electron-no-drag"
+          style={{
+            width: '100%',
+            maxWidth: '28rem',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--brand-action)',
+            borderRadius: '0.9rem',
+            boxShadow: 'var(--shadow-minimal)',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.875rem',
+          }}
+        >
+          <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 700 }}>Welcome to Focana 🎯</h1>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.45 }}>
+            Enter the email you signed up with so we can connect your feedback to your experience.
+          </p>
+
+          <input
+            type="email"
+            value={emailCaptureInput}
+            onChange={(event) => setEmailCaptureInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && canSubmitEmail) {
+                event.preventDefault();
+                void handleEmailCaptureContinue();
+              }
+            }}
+            placeholder="you@example.com"
+            autoFocus
+            className="input electron-no-drag"
+            style={{ width: '100%', fontSize: '0.95rem', padding: '0.7rem 0.8rem' }}
+          />
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={() => { void handleEmailCaptureSkip(); }}
+              disabled={emailCaptureSubmitting}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                cursor: emailCaptureSubmitting ? 'default' : 'pointer',
+                padding: 0,
+              }}
+            >
+              Skip
+            </button>
+            <Button
+              onClick={() => { void handleEmailCaptureContinue(); }}
+              disabled={!canSubmitEmail || emailCaptureSubmitting}
+              style={{ minWidth: '7.25rem' }}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Compact mode render
   if (isCompact) {

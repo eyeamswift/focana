@@ -6,15 +6,17 @@ const { test, expect, _electron: electron } = require('@playwright/test');
 const APP_ROOT = path.resolve(__dirname, '..', '..');
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 
-async function launchApp({ seedConfig = null, background = true } = {}) {
+async function launchApp({ seedConfig = null, background = true, waitForTaskInput = true } = {}) {
   const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focana-e2e-'));
-  if (seedConfig) {
-    fs.writeFileSync(
-      path.join(storeDir, 'config.json'),
-      JSON.stringify(seedConfig, null, 2),
-      'utf8'
-    );
-  }
+  const effectiveSeedConfig = {
+    emailPromptSkipped: true,
+    ...(seedConfig || {}),
+  };
+  fs.writeFileSync(
+    path.join(storeDir, 'config.json'),
+    JSON.stringify(effectiveSeedConfig, null, 2),
+    'utf8'
+  );
 
   const electronApp = await electron.launch({
     cwd: APP_ROOT,
@@ -29,7 +31,9 @@ async function launchApp({ seedConfig = null, background = true } = {}) {
   });
 
   const page = await electronApp.firstWindow();
-  await page.waitForSelector(TASK_INPUT_SELECTOR);
+  if (waitForTaskInput) {
+    await page.waitForSelector(TASK_INPUT_SELECTOR);
+  }
 
   return {
     electronApp,
@@ -78,6 +82,84 @@ function isMainAppWindow(win) {
   return url.includes('localhost:5173') || (url.includes('/index.html') && !url.includes('floating-icon.html'));
 }
 
+test('first launch shows one-time email capture gate before app UI', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      userEmail: '',
+      emailPromptSkipped: false,
+    },
+    waitForTaskInput: false,
+  });
+
+  try {
+    await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
+    await expect(page.locator('button[aria-label="Open Settings"]')).toHaveCount(0);
+
+    const continueBtn = page.getByRole('button', { name: 'Continue' });
+    await expect(continueBtn).toBeDisabled();
+
+    const emailInput = page.getByPlaceholder('you@example.com');
+    await emailInput.fill('not-an-email');
+    await expect(continueBtn).toBeDisabled();
+
+    await emailInput.fill('person@example.com');
+    await expect(continueBtn).toBeEnabled();
+    await emailInput.press('Enter');
+
+    await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
+    await page.waitForSelector(TASK_INPUT_SELECTOR);
+
+    const savedEmail = await page.evaluate(() => window.electronAPI.storeGet('userEmail'));
+    const skipped = await page.evaluate(() => window.electronAPI.storeGet('emailPromptSkipped'));
+    expect(savedEmail).toBe('person@example.com');
+    expect(skipped).toBe(false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('skipping email capture dismisses gate and it does not reappear', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      userEmail: '',
+      emailPromptSkipped: false,
+    },
+    waitForTaskInput: false,
+  });
+
+  try {
+    await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
+    await page.getByRole('button', { name: 'Skip' }).click();
+
+    await page.waitForSelector(TASK_INPUT_SELECTOR);
+    const skipped = await page.evaluate(() => window.electronAPI.storeGet('emailPromptSkipped'));
+    expect(skipped).toBe(true);
+
+    await page.reload();
+    await page.waitForSelector(TASK_INPUT_SELECTOR);
+    await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('saved user email bypasses capture gate on launch', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      userEmail: 'existing@example.com',
+      emailPromptSkipped: false,
+    },
+  });
+
+  try {
+    await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
 test('quick capture thought persists after parking lot interactions', async () => {
   const { electronApp, page, cleanup } = await launchApp();
   try {
@@ -96,6 +178,22 @@ test('quick capture thought persists after parking lot interactions', async () =
 
     await page.getByRole('button', { name: 'Open Parking Lot' }).click();
     await expect(page.getByText(capturedThought)).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('open parking lot shortcut exits compact mode before showing quick capture', async () => {
+  const { electronApp, page, cleanup } = await launchApp();
+  try {
+    await triggerShortcutAction(electronApp, 'toggleCompact');
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-window-mode')))
+      .toBe('pill');
+
+    await triggerShortcutAction(electronApp, 'openParkingLot');
+    await expect(page.locator('[data-quick-capture-textarea]')).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-window-mode')))
+      .toBe('full');
   } finally {
     await cleanup();
   }
