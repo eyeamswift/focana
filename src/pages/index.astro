@@ -18,7 +18,7 @@ const jsonLd = {
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "USD",
-    "availability": "https://schema.org/PreOrder"
+    "availability": "https://schema.org/OnlineOnly"
   }
 };
 ---
@@ -61,8 +61,16 @@ const jsonLd = {
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 
     <meta name="generator" content={Astro.generator} />
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html { scroll-behavior: smooth; }
+      body { font-family: 'DM Sans', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+    </style>
   </head>
   <body>
-    <FocanaLanding client:load />
+    <main>
+      <FocanaLanding client:load />
+    </main>
   </body>
 </html>

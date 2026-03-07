@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const COLORS = {
   sunshineYellow: "#F59E0B",
@@ -11,12 +11,14 @@ const COLORS = {
   goldenGlow: "#FCD34D",
   creamYellow: "#FEF3C7",
   beigeBorder: "#E5D4B1",
-  warmGray: "#A08968",
+  warmGray: "#7A6548",
 };
 
 // FAQ Item
+let faqCounter = 0;
 function FAQItem({ question, answer }) {
   const [open, setOpen] = useState(false);
+  const [id] = useState(() => `faq-${++faqCounter}`);
   return (
     <div
       style={{
@@ -26,6 +28,8 @@ function FAQItem({ question, answer }) {
     >
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={`${id}-panel`}
         style={{
           background: "none",
           border: "none",
@@ -41,7 +45,7 @@ function FAQItem({ question, answer }) {
         <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 600, color: COLORS.warmBrown }}>
           {question}
         </span>
-        <span style={{
+        <span aria-hidden="true" style={{
           fontSize: "24px",
           color: COLORS.deepAmber,
           transform: open ? "rotate(45deg)" : "rotate(0deg)",
@@ -50,7 +54,7 @@ function FAQItem({ question, answer }) {
           marginLeft: "16px",
         }}>+</span>
       </button>
-      <div style={{
+      <div id={`${id}-panel`} role="region" style={{
         maxHeight: open ? "500px" : "0",
         overflow: "hidden",
         transition: "max-height 0.4s ease, opacity 0.3s ease",
@@ -73,7 +77,7 @@ function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
   }, [delay]);
 
   return (
-    <div style={{
+    <div className="sticky-note" style={{
       position: "absolute",
       top, left,
       width: `${size}px`,
@@ -109,11 +113,56 @@ function getIsAppleSilicon() {
   return null; // unknown
 }
 
-// Waitlist form component
-function WaitlistForm({ variant = "dark" }) {
+// Download modal
+function DownloadModal({ open, onClose, onSuccess }) {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | loading | success | error
+  const [phone, setPhone] = useState("");
+  const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const modalRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      previousFocusRef.current = document.activeElement;
+      document.body.style.overflow = "hidden";
+      // Focus first input after render
+      setTimeout(() => {
+        const firstInput = modalRef.current?.querySelector("input, button");
+        if (firstInput) firstInput.focus();
+      }, 0);
+    } else {
+      document.body.style.overflow = "";
+      if (previousFocusRef.current) {
+        previousFocusRef.current.focus();
+        previousFocusRef.current = null;
+      }
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setEmail("");
+      setPhone("");
+      setStatus("idle");
+      setErrorMsg("");
+      return;
+    }
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -126,7 +175,7 @@ function WaitlistForm({ variant = "dark" }) {
       const res = await fetch("/api/beta-download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, phone: phone || undefined }),
       });
 
       const data = await res.json();
@@ -135,122 +184,187 @@ function WaitlistForm({ variant = "dark" }) {
         throw new Error(data.error || "Something went wrong. Please try again.");
       }
 
-      setStatus("success");
-
-      // Auto-start download for detected architecture
-      const isArm = getIsAppleSilicon();
-      if (isArm !== null) {
-        const link = document.createElement("a");
-        link.href = isArm ? ARM_URL : INTEL_URL;
-        link.click();
-      }
+      onSuccess();
+      onClose();
     } catch (err) {
       setStatus("error");
       setErrorMsg(err.message || "Something went wrong. Please try again.");
     }
   };
 
-  if (status === "success") {
-    const isArm = getIsAppleSilicon();
-    const detected = isArm !== null;
-    const primaryUrl = isArm ? ARM_URL : INTEL_URL;
-    const altUrl = isArm ? INTEL_URL : ARM_URL;
-    const altLabel = isArm ? "Intel Mac" : "Apple Silicon (M1–M4)";
-
-    const btnStyle = {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "8px",
-      padding: "12px 24px",
-      borderRadius: "10px",
-      background: "#10B981",
-      color: "white",
-      fontSize: "15px",
-      fontWeight: 600,
-      textDecoration: "none",
-      transition: "opacity 0.2s",
-    };
-    return (
-      <div style={{
-        background: "rgba(16, 185, 129, 0.15)",
-        border: "1px solid #10B981",
-        borderRadius: "16px",
-        padding: "24px",
-        maxWidth: "480px",
-        margin: "0 auto",
-      }}>
-        {detected ? (
-          <>
-            <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981", marginBottom: "4px" }}>
-              Your download is starting!
-            </p>
-            <p style={{ fontSize: "14px", color: "#10B981", opacity: 0.8, marginBottom: "16px" }}>
-              Check your email for getting started tips.
-            </p>
-            <a href={primaryUrl} style={{ ...btnStyle, marginBottom: "12px" }}>
-              Download didn't start? Click here.
-            </a>
-            <p style={{ fontSize: "13px", color: "#10B981", opacity: 0.7 }}>
-              Need the <a href={altUrl} style={{ color: "#10B981", textDecoration: "underline" }}>{altLabel}</a> version?
-            </p>
-          </>
-        ) : (
-          <>
-            <p style={{ fontSize: "18px", fontWeight: 600, color: "#10B981", marginBottom: "4px" }}>
-              Choose your Mac version:
-            </p>
-            <p style={{ fontSize: "13px", color: "#10B981", opacity: 0.8, marginBottom: "16px" }}>
-              Not sure? Most Macs from 2020 or later use Apple Silicon.
-            </p>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
-              <a href={ARM_URL} style={btnStyle}>
-                Apple Silicon (M1–M4)
-              </a>
-              <a href={INTEL_URL} style={btnStyle}>
-                Intel
-              </a>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  const isDark = variant === "dark";
+  if (!open) return null;
 
   return (
-    <div style={{ maxWidth: "480px", margin: "0 auto" }}>
-      <form onSubmit={handleSubmit} style={{
-        display: "flex", flexDirection: "column", gap: "12px",
-      }}>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="download-modal-title"
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "white", borderRadius: "20px", padding: "40px",
+          maxWidth: "440px", width: "100%", position: "relative",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.2)",
+        }}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Close dialog"
+          style={{
+            position: "absolute", top: "12px", right: "12px",
+            background: "none", border: "none", fontSize: "24px",
+            cursor: "pointer", color: COLORS.coffeeBrown, lineHeight: 1,
+            width: "44px", height: "44px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            borderRadius: "8px",
+          }}
+        >
+          &times;
+        </button>
+
+        <h3 id="download-modal-title" style={{
+          fontFamily: "'Outfit', sans-serif", fontSize: "24px",
+          fontWeight: 800, color: COLORS.warmBrown, marginBottom: "8px",
+        }}>
+          Try Focana Free
+        </h3>
+        <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.5 }}>
+          Enter your email to download Focana for macOS.
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <input
+            className="form-input"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@email.com"
             required
             style={{
-              flex: 1, minWidth: "200px",
-              padding: "16px 20px",
-              borderRadius: "12px",
-              border: `2px solid ${isDark ? COLORS.coffeeBrown + "44" : COLORS.beigeBorder}`,
-              background: isDark ? "rgba(255,255,255,0.08)" : "white",
-              color: isDark ? "white" : COLORS.warmBrown,
-              fontSize: "16px",
-              fontFamily: "'DM Sans', sans-serif",
-              outline: "none",
+              padding: "14px 16px", borderRadius: "10px",
+              border: `2px solid ${COLORS.beigeBorder}`,
+              fontSize: "16px", fontFamily: "'DM Sans', sans-serif",
+              width: "100%", boxSizing: "border-box",
             }}
           />
-          <button className="cta-btn" type="submit" disabled={status === "loading"} style={{ animation: "pulse 2.5s infinite" }}>
-            {status === "loading" ? "Sending..." : "Download the Beta →"}
+          <input
+            className="form-input"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Phone (optional — for new features and updates)"
+            style={{
+              padding: "14px 16px", borderRadius: "10px",
+              border: `2px solid ${COLORS.beigeBorder}`,
+              fontSize: "16px", fontFamily: "'DM Sans', sans-serif",
+              width: "100%", boxSizing: "border-box",
+            }}
+          />
+          <button
+            className="cta-btn"
+            type="submit"
+            disabled={status === "loading"}
+            style={{ width: "100%", justifyContent: "center", animation: "none" }}
+          >
+            {status === "loading" ? "Sending..." : "Try Focana Free →"}
           </button>
-        </div>
-      </form>
-      {status === "error" && (
-        <p style={{ color: "#EF4444", fontSize: "14px", marginTop: "8px" }}>
-          {errorMsg}
+        </form>
+
+        {status === "error" && (
+          <p style={{ color: "#EF4444", fontSize: "14px", marginTop: "10px" }}>
+            {errorMsg}
+          </p>
+        )}
+
+        <p style={{ fontSize: "13px", color: COLORS.warmGray, marginTop: "16px", textAlign: "center" }}>
+          macOS only. Windows coming soon.
         </p>
+      </div>
+    </div>
+  );
+}
+
+// Success toast with fallback download link
+function DownloadToast({ visible, onDismiss }) {
+  const isArm = getIsAppleSilicon();
+  const primaryUrl = isArm ? ARM_URL : INTEL_URL;
+  const altUrl = isArm ? INTEL_URL : ARM_URL;
+  const altLabel = isArm ? "Intel Mac" : "Apple Silicon (M1–M4)";
+  const detected = isArm !== null;
+
+  useEffect(() => {
+    if (visible) {
+      const t = setTimeout(onDismiss, 15000);
+      return () => clearTimeout(t);
+    }
+  }, [visible, onDismiss]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="download-toast" style={{
+      position: "fixed", bottom: "32px", right: "32px", zIndex: 1100,
+      background: "white", borderRadius: "16px", padding: "24px",
+      boxShadow: "0 12px 48px rgba(0,0,0,0.18)", maxWidth: "380px", width: "calc(100% - 64px)",
+      border: `1px solid ${COLORS.deepAmber}`,
+    }}>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss notification"
+        style={{
+          position: "absolute", top: "8px", right: "8px",
+          background: "none", border: "none", fontSize: "20px",
+          cursor: "pointer", color: COLORS.coffeeBrown, lineHeight: 1,
+          width: "44px", height: "44px",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          borderRadius: "8px",
+        }}
+      >
+        &times;
+      </button>
+      <p style={{ fontSize: "17px", fontWeight: 700, color: COLORS.deepAmber, marginBottom: "4px" }}>
+        {detected ? "Your download is starting!" : "You're all set!"}
+      </p>
+      <p style={{ fontSize: "14px", color: COLORS.coffeeBrown, marginBottom: "14px", lineHeight: 1.5 }}>
+        {detected ? "Check your email for getting started tips." : "Check your email for getting started tips, and grab your download below."}
+      </p>
+      {detected ? (
+        <>
+          <a href={primaryUrl} style={{
+            display: "inline-block", fontSize: "14px", fontWeight: 600,
+            color: COLORS.deepAmber, textDecoration: "underline", marginBottom: "6px",
+          }}>
+            Download didn't start? Click here.
+          </a>
+          <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
+            Need the <a href={altUrl} style={{ color: COLORS.coffeeBrown, textDecoration: "underline" }}>{altLabel}</a> version?
+          </p>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: "14px", color: COLORS.coffeeBrown, marginBottom: "10px" }}>
+            Select your Mac type to download:
+          </p>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <a href={ARM_URL} style={{
+              padding: "8px 16px", borderRadius: "8px", background: COLORS.deepAmber,
+              color: "white", fontSize: "13px", fontWeight: 600, textDecoration: "none",
+            }}>Apple Silicon (M1–M4)</a>
+            <a href={INTEL_URL} style={{
+              padding: "8px 16px", borderRadius: "8px", background: COLORS.deepAmber,
+              color: "white", fontSize: "13px", fontWeight: 600, textDecoration: "none",
+            }}>Intel</a>
+          </div>
+        </>
       )}
     </div>
   );
@@ -258,12 +372,43 @@ function WaitlistForm({ variant = "dark" }) {
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handle = () => setScrollY(window.scrollY);
+    let rafId = 0;
+    const handle = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        setScrollY(window.scrollY);
+        rafId = 0;
+      });
+    };
     window.addEventListener("scroll", handle, { passive: true });
-    return () => window.removeEventListener("scroll", handle);
+    return () => {
+      window.removeEventListener("scroll", handle);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
+
+  // Close mobile menu on Escape
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleEsc = (e) => { if (e.key === "Escape") setMobileMenuOpen(false); };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [mobileMenuOpen]);
+
+  const handleDownloadSuccess = () => {
+    setToastVisible(true);
+    const isArm = getIsAppleSilicon();
+    if (isArm !== null) {
+      const link = document.createElement("a");
+      link.href = isArm ? ARM_URL : INTEL_URL;
+      link.click();
+    }
+  };
 
   const navOpacity = Math.min(scrollY / 200, 1);
 
@@ -291,7 +436,7 @@ export default function FocanaLanding() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          animation: pulse 2.5s infinite;
+          /* animation removed for accessibility */
         }
         .cta-btn:hover {
           background: ${COLORS.deepAmber};
@@ -331,6 +476,58 @@ export default function FocanaLanding() {
           box-shadow: 0 12px 40px rgba(92, 64, 51, 0.1);
           border-color: ${COLORS.sunshineYellow};
         }
+        .form-input {
+          outline: none;
+        }
+        .form-input:focus-visible {
+          outline: 3px solid ${COLORS.deepAmber};
+          outline-offset: 1px;
+          border-color: ${COLORS.deepAmber};
+        }
+        .cta-btn:focus-visible {
+          outline: 3px solid ${COLORS.warmBrown};
+          outline-offset: 2px;
+        }
+        .ghost-btn:focus-visible {
+          outline: 3px solid ${COLORS.deepAmber};
+          outline-offset: 2px;
+        }
+        .feature-card:focus-visible {
+          outline: 3px solid ${COLORS.deepAmber};
+          outline-offset: 2px;
+        }
+        button:focus-visible {
+          outline: 3px solid ${COLORS.deepAmber};
+          outline-offset: 2px;
+        }
+        a:focus-visible {
+          outline: 3px solid ${COLORS.deepAmber};
+          outline-offset: 2px;
+          border-radius: 4px;
+        }
+        .nav-link:hover {
+          color: ${COLORS.deepAmber} !important;
+        }
+        @media (max-width: 768px) {
+          .nav-links { display: none !important; }
+          .hamburger-btn { display: flex !important; }
+          .sticky-note { display: none !important; }
+          .download-toast {
+            left: 16px !important;
+            right: 16px !important;
+            bottom: 16px !important;
+            max-width: none !important;
+            width: auto !important;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+          html { scroll-behavior: auto; }
+        }
       `}</style>
 
       {/* NAV */}
@@ -342,8 +539,8 @@ export default function FocanaLanding() {
         transition: "all 0.3s ease",
       }}>
         <div className="section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "72px" }}>
-          <a href="#" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 375 150" preserveAspectRatio="xMidYMid meet">
+          <a href="#" aria-label="Focana - Home" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 375 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
               <defs><clipPath id="nav-f"><rect x="0" width="40" y="0" height="94"/></clipPath><clipPath id="nav-text"><rect x="0" width="202" y="0" height="94"/></clipPath></defs>
               <path strokeLinecap="round" transform="matrix(0.75, 0, 0, 0.75, 83.921775, 16.914411)" fill="none" strokeLinejoin="miter" d="M 3.500133 3.499536 L 101.536598 3.499536" stroke="#b94e10" strokeWidth="7" strokeOpacity="1" strokeMiterlimit="4"/>
               <path strokeLinecap="round" transform="matrix(0.75, 0, 0, 0.75, 44.567612, 16.914411)" fill="none" strokeLinejoin="miter" d="M 3.498393 3.499536 L 29.878603 3.499536" stroke="#b94e10" strokeWidth="7" strokeOpacity="1" strokeMiterlimit="4"/>
@@ -354,14 +551,58 @@ export default function FocanaLanding() {
               <g transform="matrix(1, 0, 0, 1, 123, 28)"><g clipPath="url(#nav-text)"><g fill="#4a3329" fillOpacity="1"><g transform="translate(0.245694, 72.933964)"><path d="M 21.265625 0.703125 C 17.679688 0.703125 14.535156 -0.03125 11.828125 -1.5 C 9.117188 -2.976562 7.015625 -5.140625 5.515625 -7.984375 C 4.023438 -10.828125 3.28125 -14.257812 3.28125 -18.28125 C 3.28125 -22.3125 4.023438 -25.753906 5.515625 -28.609375 C 7.015625 -31.460938 9.117188 -33.625 11.828125 -35.09375 C 14.535156 -36.5625 17.679688 -37.296875 21.265625 -37.296875 C 24.859375 -37.296875 28.007812 -36.5625 30.71875 -35.09375 C 33.425781 -33.625 35.53125 -31.460938 37.03125 -28.609375 C 38.539062 -25.753906 39.296875 -22.3125 39.296875 -18.28125 C 39.296875 -14.257812 38.539062 -10.828125 37.03125 -7.984375 C 35.53125 -5.140625 33.425781 -2.976562 30.71875 -1.5 C 28.007812 -0.03125 24.859375 0.703125 21.265625 0.703125 Z M 21.265625 -7.109375 C 26.953125 -7.109375 29.796875 -10.832031 29.796875 -18.28125 C 29.796875 -22.15625 29.066406 -24.992188 27.609375 -26.796875 C 26.148438 -28.597656 24.035156 -29.5 21.265625 -29.5 C 15.585938 -29.5 12.75 -25.757812 12.75 -18.28125 C 12.75 -10.832031 15.585938 -7.109375 21.265625 -7.109375 Z"/></g><g transform="translate(42.790112, 72.933964)"><path d="M 21.34375 0.703125 C 17.800781 0.703125 14.664062 -0.03125 11.9375 -1.5 C 9.21875 -2.976562 7.09375 -5.144531 5.5625 -8 C 4.039062 -10.851562 3.28125 -14.28125 3.28125 -18.28125 C 3.28125 -22.3125 4.039062 -25.753906 5.5625 -28.609375 C 7.09375 -31.460938 9.207031 -33.625 11.90625 -35.09375 C 14.613281 -36.5625 17.703125 -37.296875 21.171875 -37.296875 C 28.890625 -37.296875 33.835938 -34.5 36.015625 -28.90625 L 29.703125 -24.390625 L 29 -24.390625 C 28.25 -26.117188 27.269531 -27.398438 26.0625 -28.234375 C 24.863281 -29.078125 23.234375 -29.5 21.171875 -29.5 C 18.515625 -29.5 16.445312 -28.582031 14.96875 -26.75 C 13.488281 -24.914062 12.75 -22.09375 12.75 -18.28125 C 12.75 -14.519531 13.5 -11.71875 15 -9.875 C 16.5 -8.03125 18.613281 -7.109375 21.34375 -7.109375 C 23.332031 -7.109375 25.015625 -7.644531 26.390625 -8.71875 C 27.773438 -9.789062 28.769531 -11.332031 29.375 -13.34375 L 30.0625 -13.40625 L 36.609375 -9.828125 C 35.679688 -6.722656 33.957031 -4.191406 31.4375 -2.234375 C 28.925781 -0.273438 25.5625 0.703125 21.34375 0.703125 Z"/></g><g transform="translate(80.522564, 72.933964)"><path d="M 14.265625 0.703125 C 11.921875 0.703125 9.882812 0.269531 8.15625 -0.59375 C 6.4375 -1.457031 5.109375 -2.722656 4.171875 -4.390625 C 3.242188 -6.066406 2.78125 -8.078125 2.78125 -10.421875 C 2.78125 -12.585938 3.242188 -14.40625 4.171875 -15.875 C 5.109375 -17.351562 6.550781 -18.5625 8.5 -19.5 C 10.445312 -20.4375 12.988281 -21.160156 16.125 -21.671875 C 18.320312 -22.023438 19.988281 -22.410156 21.125 -22.828125 C 22.257812 -23.253906 23.023438 -23.734375 23.421875 -24.265625 C 23.828125 -24.796875 24.03125 -25.46875 24.03125 -26.28125 C 24.03125 -27.457031 23.617188 -28.351562 22.796875 -28.96875 C 21.984375 -29.59375 20.625 -29.90625 18.71875 -29.90625 C 16.6875 -29.90625 14.75 -29.453125 12.90625 -28.546875 C 11.070312 -27.640625 9.476562 -26.441406 8.125 -24.953125 L 7.46875 -24.953125 L 3.625 -30.765625 C 5.476562 -32.828125 7.742188 -34.429688 10.421875 -35.578125 C 13.097656 -36.722656 16.019531 -37.296875 19.1875 -37.296875 C 24.03125 -37.296875 27.535156 -36.265625 29.703125 -34.203125 C 31.867188 -32.148438 32.953125 -29.234375 32.953125 -25.453125 L 32.953125 -9.5625 C 32.953125 -7.925781 33.671875 -7.109375 35.109375 -7.109375 C 35.660156 -7.109375 36.203125 -7.207031 36.734375 -7.40625 L 37.203125 -7.265625 L 37.875 -0.859375 C 37.363281 -0.523438 36.648438 -0.253906 35.734375 -0.046875 C 34.828125 0.160156 33.832031 0.265625 32.75 0.265625 C 30.5625 0.265625 28.851562 -0.148438 27.625 -0.984375 C 26.394531 -1.828125 25.515625 -3.144531 24.984375 -4.9375 L 24.296875 -5.015625 C 22.503906 -1.203125 19.160156 0.703125 14.265625 0.703125 Z M 17.1875 -6.171875 C 19.3125 -6.171875 21.007812 -6.882812 22.28125 -8.3125 C 23.550781 -9.738281 24.1875 -11.722656 24.1875 -14.265625 L 24.1875 -17.984375 L 23.5625 -18.125 C 23.007812 -17.675781 22.285156 -17.300781 21.390625 -17 C 20.492188 -16.707031 19.203125 -16.414062 17.515625 -16.125 C 15.523438 -15.789062 14.09375 -15.21875 13.21875 -14.40625 C 12.351562 -13.601562 11.921875 -12.460938 11.921875 -10.984375 C 11.921875 -9.410156 12.382812 -8.210938 13.3125 -7.390625 C 14.238281 -6.578125 15.53125 -6.171875 17.1875 -6.171875 Z"/></g><g transform="translate(119.11785, 72.933964)"><path d="M 5.28125 0 L 5.28125 -36.609375 L 14.109375 -36.609375 L 14.109375 -31.234375 L 14.796875 -31.0625 C 17.078125 -35.21875 20.773438 -37.296875 25.890625 -37.296875 C 30.109375 -37.296875 33.207031 -36.144531 35.1875 -33.84375 C 37.175781 -31.550781 38.171875 -28.203125 38.171875 -23.796875 L 38.171875 0 L 28.96875 0 L 28.96875 -22.671875 C 28.96875 -25.097656 28.476562 -26.847656 27.5 -27.921875 C 26.53125 -28.992188 24.972656 -29.53125 22.828125 -29.53125 C 20.203125 -29.53125 18.148438 -28.675781 16.671875 -26.96875 C 15.203125 -25.269531 14.46875 -22.597656 14.46875 -18.953125 L 14.46875 0 Z"/></g><g transform="translate(161.994128, 72.933964)"><path d="M 14.265625 0.703125 C 11.921875 0.703125 9.882812 0.269531 8.15625 -0.59375 C 6.4375 -1.457031 5.109375 -2.722656 4.171875 -4.390625 C 3.242188 -6.066406 2.78125 -8.078125 2.78125 -10.421875 C 2.78125 -12.585938 3.242188 -14.40625 4.171875 -15.875 C 5.109375 -17.351562 6.550781 -18.5625 8.5 -19.5 C 10.445312 -20.4375 12.988281 -21.160156 16.125 -21.671875 C 18.320312 -22.023438 19.988281 -22.410156 21.125 -22.828125 C 22.257812 -23.253906 23.023438 -23.734375 23.421875 -24.265625 C 23.828125 -24.796875 24.03125 -25.46875 24.03125 -26.28125 C 24.03125 -27.457031 23.617188 -28.351562 22.796875 -28.96875 C 21.984375 -29.59375 20.625 -29.90625 18.71875 -29.90625 C 16.6875 -29.90625 14.75 -29.453125 12.90625 -28.546875 C 11.070312 -27.640625 9.476562 -26.441406 8.125 -24.953125 L 7.46875 -24.953125 L 3.625 -30.765625 C 5.476562 -32.828125 7.742188 -34.429688 10.421875 -35.578125 C 13.097656 -36.722656 16.019531 -37.296875 19.1875 -37.296875 C 24.03125 -37.296875 27.535156 -36.265625 29.703125 -34.203125 C 31.867188 -32.148438 32.953125 -29.234375 32.953125 -25.453125 L 32.953125 -9.5625 C 32.953125 -7.925781 33.671875 -7.109375 35.109375 -7.109375 C 35.660156 -7.109375 36.203125 -7.207031 36.734375 -7.40625 L 37.203125 -7.265625 L 37.875 -0.859375 C 37.363281 -0.523438 36.648438 -0.253906 35.734375 -0.046875 C 34.828125 0.160156 33.832031 0.265625 32.75 0.265625 C 30.5625 0.265625 28.851562 -0.148438 27.625 -0.984375 C 26.394531 -1.828125 25.515625 -3.144531 24.984375 -4.9375 L 24.296875 -5.015625 C 22.503906 -1.203125 19.160156 0.703125 14.265625 0.703125 Z M 17.1875 -6.171875 C 19.3125 -6.171875 21.007812 -6.882812 22.28125 -8.3125 C 23.550781 -9.738281 24.1875 -11.722656 24.1875 -14.265625 L 24.1875 -17.984375 L 23.5625 -18.125 C 23.007812 -17.675781 22.285156 -17.300781 21.390625 -17 C 20.492188 -16.707031 19.203125 -16.414062 17.515625 -16.125 C 15.523438 -15.789062 14.09375 -15.21875 13.21875 -14.40625 C 12.351562 -13.601562 11.921875 -12.460938 11.921875 -10.984375 C 11.921875 -9.410156 12.382812 -8.210938 13.3125 -7.390625 C 14.238281 -6.578125 15.53125 -6.171875 17.1875 -6.171875 Z"/></g></g></g></g>
             </svg>
           </a>
-          <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-            <a href="#how-it-works" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500 }}>How it Works</a>
-            <a href="#features" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500 }}>Features</a>
-            <a href="#faq" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500 }}>FAQ</a>
-            <a href="#get-access" className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Download the Beta</a>
+          <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
+            <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
+            <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
+            <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Try Focana Free</button>
           </div>
+          <button
+            className="hamburger-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
+            style={{
+              display: "none", background: "none", border: "none",
+              cursor: "pointer", padding: "8px",
+              width: "44px", height: "44px",
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={COLORS.warmBrown} strokeWidth="2" strokeLinecap="round">
+              {mobileMenuOpen ? (
+                <>
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                  <line x1="6" y1="18" x2="18" y2="6" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
+          </button>
         </div>
       </nav>
+
+      {/* MOBILE MENU */}
+      {mobileMenuOpen && (
+        <div className="mobile-menu" style={{
+          position: "fixed", top: "72px", left: 0, right: 0, zIndex: 99,
+          background: COLORS.warmVanilla,
+          borderBottom: `1px solid ${COLORS.beigeBorder}`,
+          padding: "16px 24px",
+          display: "flex", flexDirection: "column", gap: "16px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+        }}>
+          <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
+          <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
+          <button onClick={() => { setMobileMenuOpen(false); setModalOpen(true); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Try Focana Free</button>
+        </div>
+      )}
 
       {/* HERO */}
       <section style={{
@@ -404,16 +645,16 @@ export default function FocanaLanding() {
               marginBottom: "40px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Focana is the desktop focus buddy for busy brains — a floating timer that keeps your
-              current task visible above every window. Built by a busy brain, for busy brains — and anyone whose
+              Focana is a <strong>desktop focus tool</strong> — a floating timer that keeps your
+              current task visible above every window. Built by a distracted mind, for distracted minds — and anyone whose
               focus disappears the moment they switch tabs.
             </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <a href="#get-access" className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
-                Download the Beta
+              <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                Try Focana Free
                 <span style={{ fontSize: "22px" }}>→</span>
-              </a>
+              </button>
               <a href="#how-it-works" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                 See How It Works
               </a>
@@ -444,16 +685,15 @@ export default function FocanaLanding() {
               width: "80px", height: "80px", borderRadius: "50%",
               background: COLORS.sunshineYellow,
               display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer",
               boxShadow: "0 8px 30px rgba(245, 158, 11, 0.3)",
               transition: "all 0.3s ease",
             }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill={COLORS.warmBrown}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill={COLORS.warmBrown} aria-hidden="true">
                 <polygon points="8,5 19,12 8,19" />
               </svg>
             </div>
             <p style={{ marginTop: "16px", fontSize: "15px", color: COLORS.coffeeBrown, fontWeight: 500 }}>
-              Watch Focana in action — 45 seconds
+              Demo video coming soon
             </p>
             <div style={{
               position: "absolute", bottom: "20px", right: "20px",
@@ -462,7 +702,7 @@ export default function FocanaLanding() {
               display: "flex", alignItems: "center", gap: "10px",
               animation: "float 4s ease-in-out infinite",
             }}>
-              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#10B981" }} />
+              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
               <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
                 You focused for 23 minutes!
               </span>
@@ -496,7 +736,7 @@ export default function FocanaLanding() {
           </div>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
             gap: "24px", marginTop: "60px",
           }}>
             {[
@@ -590,22 +830,34 @@ export default function FocanaLanding() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "10px 0 100px 0", background: "white" }}>
+      <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
         <div className="section">
-          <h3 style={{
+          <h2 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
             color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px",
           }}>
             Features:
-          </h3>
+          </h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: "24px" }}>
             {[
               {
                 icon: "📌",
                 title: "Always-on-top visibility",
                 desc: "Your focus intention floats above every application — browser, IDE, Slack, Zoom. The focus buddy that stays on screen when everything else gets buried.",
                 tag: "Core feature",
+              },
+              {
+                icon: "👀",
+                title: "Focus check-ins",
+                desc: "\u201CStill focused?\u201D Periodic nudges help you catch yourself before you're 20 minutes deep in a rabbit hole. Thumbs up to keep going, thumbs down to refocus.",
+                tag: "Gentle nudges",
+              },
+              {
+                icon: "🔁",
+                title: "Pick up where you left off",
+                desc: "Life interrupted your flow? No problem. Focana saves every session — your task, your notes, your progress. Come back tomorrow (or next week) and pick up exactly where you left off. One click and you're back in the zone.",
+                tag: "Continuity",
               },
               {
                 icon: "🕐",
@@ -624,12 +876,6 @@ export default function FocanaLanding() {
                 title: "Celebratory, not punitive",
                 desc: "\u201CYou focused for 17 minutes!\u201D — not \u201CSession incomplete.\u201D Focana celebrates every minute of progress because busy brains need the win, not another guilt trip.",
                 tag: "Motivation",
-              },
-              {
-                icon: "👀",
-                title: "Focus check-ins",
-                desc: "\u201CStill focused?\u201D Periodic nudges help you catch yourself before you're 20 minutes deep in a rabbit hole. Thumbs up to keep going, thumbs down to refocus.",
-                tag: "Gentle nudges",
               },
               {
                 icon: "🔄",
@@ -720,7 +966,11 @@ export default function FocanaLanding() {
                   borderRadius: "8px",
                   width: "36px", height: "36px",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                }}>✓</span>
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COLORS.deepAmber} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
                 <p style={{ fontSize: "16px", lineHeight: 1.5, color: COLORS.warmBrown, fontWeight: 500 }}>
                   {text}
                 </p>
@@ -752,7 +1002,7 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="I have ADHD and I've tried dozens of productivity apps. Why would this one stick?"
-            answer="Most productivity tools fail distracted minds because they rely on you remembering to check them. Focana flips that — it stays in your line of sight at all times, acting as external working memory. There's nothing to remember, no app to switch to. It's always right there. Plus, it celebrates your progress instead of punishing you for incomplete sessions. Whether you have ADHD or just a brain that's overwhelmed by modern digital chaos, the principle is the same: if you can see it, you can do it."
+            answer="Most productivity tools fail busy brains because they rely on you remembering to check them. Focana flips that — it stays in your line of sight at all times, acting as external working memory. There's nothing to remember, no app to switch to. It's always right there. Plus, it celebrates your progress instead of punishing you for incomplete sessions. Whether you have ADHD or just a brain that's overwhelmed by modern digital chaos, the principle is the same: if you can see it, you can do it."
           />
           <FAQItem
             question="What does 'always on top' actually mean?"
@@ -768,7 +1018,7 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="How much does Focana cost?"
-            answer="Focana is free during the beta. We'll be offering an introductory lifetime deal for early supporters, plus an affordable monthly subscription when we officially launch."
+            answer="Focana is free. We'll be offering an introductory lifetime deal for early supporters, plus an affordable monthly subscription when we officially launch."
           />
           <FAQItem
             question="Do I need to have ADHD to use Focana?"
@@ -799,17 +1049,22 @@ export default function FocanaLanding() {
             Stop losing your focus to{" "}
             <span style={{ color: COLORS.sunshineYellow }}>invisible tools</span>
           </h2>
-          <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.warmGray, marginBottom: "40px" }}>
-            Try the focus buddy that finally stays where you can see it. Free during beta — available now for macOS.
+          <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "40px" }}>
+            Try the focus buddy that finally stays where you can see it. Free — available now for macOS.
           </p>
 
-          <WaitlistForm variant="dark" />
+          <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Try Focana Free <span style={{ fontSize: "22px" }}>→</span>
+          </button>
 
-          <p style={{ fontSize: "13px", color: COLORS.warmGray, marginTop: "20px", opacity: 0.7 }}>
-            No spam, ever. Unsubscribe anytime.
+          <p style={{ fontSize: "13px", color: "#FEF3C7", marginTop: "20px" }}>
+            Free for macOS. No account required.
           </p>
         </div>
       </section>
+
+      <DownloadModal open={modalOpen} onClose={() => setModalOpen(false)} onSuccess={handleDownloadSuccess} />
+      <DownloadToast visible={toastVisible} onDismiss={() => setToastVisible(false)} />
 
       {/* FOOTER */}
       <footer style={{ padding: "48px 0", background: COLORS.softBlack, borderTop: `1px solid ${COLORS.warmBrown}22` }}>
@@ -817,8 +1072,8 @@ export default function FocanaLanding() {
           display: "flex", justifyContent: "space-between", alignItems: "center",
           flexWrap: "wrap", gap: "20px",
         }}>
-          <a href="#" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 375 150" preserveAspectRatio="xMidYMid meet">
+          <a href="#" aria-label="Focana - Home" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="40" viewBox="0 0 375 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
               <defs><clipPath id="footer-f"><rect x="0" width="40" y="0" height="94"/></clipPath><clipPath id="footer-text"><rect x="0" width="202" y="0" height="94"/></clipPath></defs>
               <path strokeLinecap="round" transform="matrix(0.75, 0, 0, 0.75, 83.921775, 16.914411)" fill="none" strokeLinejoin="miter" d="M 3.500133 3.499536 L 101.536598 3.499536" stroke="#d4a054" strokeWidth="7" strokeOpacity="1" strokeMiterlimit="4"/>
               <path strokeLinecap="round" transform="matrix(0.75, 0, 0, 0.75, 44.567612, 16.914411)" fill="none" strokeLinejoin="miter" d="M 3.498393 3.499536 L 29.878603 3.499536" stroke="#d4a054" strokeWidth="7" strokeOpacity="1" strokeMiterlimit="4"/>
@@ -829,9 +1084,13 @@ export default function FocanaLanding() {
               <g transform="matrix(1, 0, 0, 1, 123, 28)"><g clipPath="url(#footer-text)"><g fill="#FEF3C7" fillOpacity="1"><g transform="translate(0.245694, 72.933964)"><path d="M 21.265625 0.703125 C 17.679688 0.703125 14.535156 -0.03125 11.828125 -1.5 C 9.117188 -2.976562 7.015625 -5.140625 5.515625 -7.984375 C 4.023438 -10.828125 3.28125 -14.257812 3.28125 -18.28125 C 3.28125 -22.3125 4.023438 -25.753906 5.515625 -28.609375 C 7.015625 -31.460938 9.117188 -33.625 11.828125 -35.09375 C 14.535156 -36.5625 17.679688 -37.296875 21.265625 -37.296875 C 24.859375 -37.296875 28.007812 -36.5625 30.71875 -35.09375 C 33.425781 -33.625 35.53125 -31.460938 37.03125 -28.609375 C 38.539062 -25.753906 39.296875 -22.3125 39.296875 -18.28125 C 39.296875 -14.257812 38.539062 -10.828125 37.03125 -7.984375 C 35.53125 -5.140625 33.425781 -2.976562 30.71875 -1.5 C 28.007812 -0.03125 24.859375 0.703125 21.265625 0.703125 Z M 21.265625 -7.109375 C 26.953125 -7.109375 29.796875 -10.832031 29.796875 -18.28125 C 29.796875 -22.15625 29.066406 -24.992188 27.609375 -26.796875 C 26.148438 -28.597656 24.035156 -29.5 21.265625 -29.5 C 15.585938 -29.5 12.75 -25.757812 12.75 -18.28125 C 12.75 -10.832031 15.585938 -7.109375 21.265625 -7.109375 Z"/></g><g transform="translate(42.790112, 72.933964)"><path d="M 21.34375 0.703125 C 17.800781 0.703125 14.664062 -0.03125 11.9375 -1.5 C 9.21875 -2.976562 7.09375 -5.144531 5.5625 -8 C 4.039062 -10.851562 3.28125 -14.28125 3.28125 -18.28125 C 3.28125 -22.3125 4.039062 -25.753906 5.5625 -28.609375 C 7.09375 -31.460938 9.207031 -33.625 11.90625 -35.09375 C 14.613281 -36.5625 17.703125 -37.296875 21.171875 -37.296875 C 28.890625 -37.296875 33.835938 -34.5 36.015625 -28.90625 L 29.703125 -24.390625 L 29 -24.390625 C 28.25 -26.117188 27.269531 -27.398438 26.0625 -28.234375 C 24.863281 -29.078125 23.234375 -29.5 21.171875 -29.5 C 18.515625 -29.5 16.445312 -28.582031 14.96875 -26.75 C 13.488281 -24.914062 12.75 -22.09375 12.75 -18.28125 C 12.75 -14.519531 13.5 -11.71875 15 -9.875 C 16.5 -8.03125 18.613281 -7.109375 21.34375 -7.109375 C 23.332031 -7.109375 25.015625 -7.644531 26.390625 -8.71875 C 27.773438 -9.789062 28.769531 -11.332031 29.375 -13.34375 L 30.0625 -13.40625 L 36.609375 -9.828125 C 35.679688 -6.722656 33.957031 -4.191406 31.4375 -2.234375 C 28.925781 -0.273438 25.5625 0.703125 21.34375 0.703125 Z"/></g><g transform="translate(80.522564, 72.933964)"><path d="M 14.265625 0.703125 C 11.921875 0.703125 9.882812 0.269531 8.15625 -0.59375 C 6.4375 -1.457031 5.109375 -2.722656 4.171875 -4.390625 C 3.242188 -6.066406 2.78125 -8.078125 2.78125 -10.421875 C 2.78125 -12.585938 3.242188 -14.40625 4.171875 -15.875 C 5.109375 -17.351562 6.550781 -18.5625 8.5 -19.5 C 10.445312 -20.4375 12.988281 -21.160156 16.125 -21.671875 C 18.320312 -22.023438 19.988281 -22.410156 21.125 -22.828125 C 22.257812 -23.253906 23.023438 -23.734375 23.421875 -24.265625 C 23.828125 -24.796875 24.03125 -25.46875 24.03125 -26.28125 C 24.03125 -27.457031 23.617188 -28.351562 22.796875 -28.96875 C 21.984375 -29.59375 20.625 -29.90625 18.71875 -29.90625 C 16.6875 -29.90625 14.75 -29.453125 12.90625 -28.546875 C 11.070312 -27.640625 9.476562 -26.441406 8.125 -24.953125 L 7.46875 -24.953125 L 3.625 -30.765625 C 5.476562 -32.828125 7.742188 -34.429688 10.421875 -35.578125 C 13.097656 -36.722656 16.019531 -37.296875 19.1875 -37.296875 C 24.03125 -37.296875 27.535156 -36.265625 29.703125 -34.203125 C 31.867188 -32.148438 32.953125 -29.234375 32.953125 -25.453125 L 32.953125 -9.5625 C 32.953125 -7.925781 33.671875 -7.109375 35.109375 -7.109375 C 35.660156 -7.109375 36.203125 -7.207031 36.734375 -7.40625 L 37.203125 -7.265625 L 37.875 -0.859375 C 37.363281 -0.523438 36.648438 -0.253906 35.734375 -0.046875 C 34.828125 0.160156 33.832031 0.265625 32.75 0.265625 C 30.5625 0.265625 28.851562 -0.148438 27.625 -0.984375 C 26.394531 -1.828125 25.515625 -3.144531 24.984375 -4.9375 L 24.296875 -5.015625 C 22.503906 -1.203125 19.160156 0.703125 14.265625 0.703125 Z M 17.1875 -6.171875 C 19.3125 -6.171875 21.007812 -6.882812 22.28125 -8.3125 C 23.550781 -9.738281 24.1875 -11.722656 24.1875 -14.265625 L 24.1875 -17.984375 L 23.5625 -18.125 C 23.007812 -17.675781 22.285156 -17.300781 21.390625 -17 C 20.492188 -16.707031 19.203125 -16.414062 17.515625 -16.125 C 15.523438 -15.789062 14.09375 -15.21875 13.21875 -14.40625 C 12.351562 -13.601562 11.921875 -12.460938 11.921875 -10.984375 C 11.921875 -9.410156 12.382812 -8.210938 13.3125 -7.390625 C 14.238281 -6.578125 15.53125 -6.171875 17.1875 -6.171875 Z"/></g><g transform="translate(119.11785, 72.933964)"><path d="M 5.28125 0 L 5.28125 -36.609375 L 14.109375 -36.609375 L 14.109375 -31.234375 L 14.796875 -31.0625 C 17.078125 -35.21875 20.773438 -37.296875 25.890625 -37.296875 C 30.109375 -37.296875 33.207031 -36.144531 35.1875 -33.84375 C 37.175781 -31.550781 38.171875 -28.203125 38.171875 -23.796875 L 38.171875 0 L 28.96875 0 L 28.96875 -22.671875 C 28.96875 -25.097656 28.476562 -26.847656 27.5 -27.921875 C 26.53125 -28.992188 24.972656 -29.53125 22.828125 -29.53125 C 20.203125 -29.53125 18.148438 -28.675781 16.671875 -26.96875 C 15.203125 -25.269531 14.46875 -22.597656 14.46875 -18.953125 L 14.46875 0 Z"/></g><g transform="translate(161.994128, 72.933964)"><path d="M 14.265625 0.703125 C 11.921875 0.703125 9.882812 0.269531 8.15625 -0.59375 C 6.4375 -1.457031 5.109375 -2.722656 4.171875 -4.390625 C 3.242188 -6.066406 2.78125 -8.078125 2.78125 -10.421875 C 2.78125 -12.585938 3.242188 -14.40625 4.171875 -15.875 C 5.109375 -17.351562 6.550781 -18.5625 8.5 -19.5 C 10.445312 -20.4375 12.988281 -21.160156 16.125 -21.671875 C 18.320312 -22.023438 19.988281 -22.410156 21.125 -22.828125 C 22.257812 -23.253906 23.023438 -23.734375 23.421875 -24.265625 C 23.828125 -24.796875 24.03125 -25.46875 24.03125 -26.28125 C 24.03125 -27.457031 23.617188 -28.351562 22.796875 -28.96875 C 21.984375 -29.59375 20.625 -29.90625 18.71875 -29.90625 C 16.6875 -29.90625 14.75 -29.453125 12.90625 -28.546875 C 11.070312 -27.640625 9.476562 -26.441406 8.125 -24.953125 L 7.46875 -24.953125 L 3.625 -30.765625 C 5.476562 -32.828125 7.742188 -34.429688 10.421875 -35.578125 C 13.097656 -36.722656 16.019531 -37.296875 19.1875 -37.296875 C 24.03125 -37.296875 27.535156 -36.265625 29.703125 -34.203125 C 31.867188 -32.148438 32.953125 -29.234375 32.953125 -25.453125 L 32.953125 -9.5625 C 32.953125 -7.925781 33.671875 -7.109375 35.109375 -7.109375 C 35.660156 -7.109375 36.203125 -7.207031 36.734375 -7.40625 L 37.203125 -7.265625 L 37.875 -0.859375 C 37.363281 -0.523438 36.648438 -0.253906 35.734375 -0.046875 C 34.828125 0.160156 33.832031 0.265625 32.75 0.265625 C 30.5625 0.265625 28.851562 -0.148438 27.625 -0.984375 C 26.394531 -1.828125 25.515625 -3.144531 24.984375 -4.9375 L 24.296875 -5.015625 C 22.503906 -1.203125 19.160156 0.703125 14.265625 0.703125 Z M 17.1875 -6.171875 C 19.3125 -6.171875 21.007812 -6.882812 22.28125 -8.3125 C 23.550781 -9.738281 24.1875 -11.722656 24.1875 -14.265625 L 24.1875 -17.984375 L 23.5625 -18.125 C 23.007812 -17.675781 22.285156 -17.300781 21.390625 -17 C 20.492188 -16.707031 19.203125 -16.414062 17.515625 -16.125 C 15.523438 -15.789062 14.09375 -15.21875 13.21875 -14.40625 C 12.351562 -13.601562 11.921875 -12.460938 11.921875 -10.984375 C 11.921875 -9.410156 12.382812 -8.210938 13.3125 -7.390625 C 14.238281 -6.578125 15.53125 -6.171875 17.1875 -6.171875 Z"/></g></g></g></g>
             </svg>
           </a>
-          <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
-            &copy; 2026 Focana.
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
+            <a href="mailto:hello@focana.app" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Contact</a>
+            <a href="/privacy" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Privacy Policy</a>
+            <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
+              &copy; 2026 Focana.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

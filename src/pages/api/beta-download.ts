@@ -5,7 +5,7 @@ export const prerender = false;
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, phone } = body;
 
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'Email is required.' }), {
@@ -29,6 +29,7 @@ export const POST: APIRoute = async ({ request }) => {
       },
       body: JSON.stringify({
         email,
+        phone: phone || null,
         created_at: new Date().toISOString(),
       }),
     });
@@ -37,7 +38,7 @@ export const POST: APIRoute = async ({ request }) => {
       const errText = await supabaseRes.text();
       // Handle duplicate email gracefully
       if (supabaseRes.status === 409 || errText.includes('duplicate')) {
-        return new Response(JSON.stringify({ error: 'This email has already signed up for the beta!' }), {
+        return new Response(JSON.stringify({ error: 'This email has already signed up!' }), {
           status: 409,
           headers: { 'Content-Type': 'application/json' },
         });
