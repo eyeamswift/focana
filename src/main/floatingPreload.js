@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('floatingAPI', {
   expand: () => ipcRenderer.send('expand-from-floating'),
   toggle: () => ipcRenderer.send('toggle-floating-minimize'),
+  openContextMenu: () => ipcRenderer.send('floating-context-menu'),
   dragStart: () => ipcRenderer.send('floating-icon-drag-start'),
   dragMove: (dx, dy) => ipcRenderer.send('floating-icon-drag-move', { dx, dy }),
   dragEnd: () => ipcRenderer.send('floating-icon-drag-end'),

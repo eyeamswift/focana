@@ -14,7 +14,6 @@ import appLockupLight from '../assets/logo-lockup-light.svg';
 
 import ParkingLot from './components/ParkingLot';
 import SessionNotesModal from './components/SessionNotesModal';
-import TaskCompletionModal from './components/TaskCompletionModal.jsx';
 import TimeUpModal from './components/TimeUpModal';
 import TaskPreviewModal from './components/TaskPreviewModal';
 import ContextBox from './components/ContextBox';
@@ -68,7 +67,6 @@ const WINDOW_SIZES = {
     parkingLot: [420, 500],
     timeUp: [540, 460],
     notes: [420, 500],
-    completion: [420, 300],
     quickCapture: [420, 340],
   },
 };
@@ -91,6 +89,7 @@ const CHECKIN_DETOUR_MESSAGES = [
   'Detours happen, refocusing now',
 ];
 const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
+const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
 const EMAIL_CAPTURE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PINNED_CONTROLS_DEFAULT = {
   dnd: true,
@@ -165,9 +164,8 @@ export default function App() {
   // Session notes
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [sessionNotesFlowKey, setSessionNotesFlowKey] = useState(0);
-  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [showTimeUpModal, setShowTimeUpModal] = useState(false);
-  const [isStopFlowAwaitingCompletion, setIsStopFlowAwaitingCompletion] = useState(false);
+  const [sessionNotesMode, setSessionNotesMode] = useState('complete');
   const [contextNotes, setContextNotes] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
 
@@ -225,6 +223,7 @@ export default function App() {
   const pulseIntervalRef = useRef(null);
   const pulseTimeoutRef = useRef(null);
   const timeRef = useRef(0);
+  const elapsedBeforeRunRef = useRef(0);
   const pendingPostModalResizeRef = useRef(null);
   const postModalResizeTimerRef = useRef(null);
   const parkingLotReturnToCompactRef = useRef(false);
@@ -235,8 +234,10 @@ export default function App() {
   const checkInFreeflowNextRef = useRef(null);
   const checkInTimedThresholdsRef = useRef([]);
   const checkInTimedIndexRef = useRef(0);
+  const checkInTimedPendingIndexRef = useRef(null);
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
+  const checkInPromptCooldownUntilRef = useRef(0);
   const checkInStateRef = useRef('idle');
   const compactEnteredAtRef = useRef(null);
   const timeUpReturnToCompactRef = useRef(false);
@@ -246,6 +247,8 @@ export default function App() {
   const sessionCreateEpochRef = useRef(0);
   const getElapsedSecondsRef = useRef(() => 0);
   const resetCheckInScheduleRef = useRef(() => {});
+  const ensureCurrentSessionIdRef = useRef(async () => null);
+  const handleClearRef = useRef(() => {});
   const suppressToolbarTooltipTimerRef = useRef(null);
   const pendingCompactExitHeightRef = useRef(null);
   const compactRevealTimerRef = useRef(null);
@@ -379,14 +382,12 @@ export default function App() {
   const syncDoNotDisturb = useCallback((enabled) => {
     const nextEnabled = Boolean(enabled);
     setDndEnabled(nextEnabled);
-    window.electronAPI.setDnd?.(nextEnabled);
   }, []);
 
   const setDoNotDisturb = useCallback((enabled, source = 'unknown') => {
     const nextEnabled = Boolean(enabled);
     setDndEnabled(nextEnabled);
     window.electronAPI.setDnd?.(nextEnabled);
-    void window.electronAPI.storeSet('settings.doNotDisturbEnabled', nextEnabled);
     track('dnd_toggled', { enabled: nextEnabled, source });
   }, []);
 
@@ -404,6 +405,45 @@ export default function App() {
       console.warn('PostHog identify failed:', error);
     }
   }, []);
+
+  const syncDisplayedTime = useCallback((elapsedSeconds, nextMode = mode, nextInitialTime = initialTime) => {
+    const safeElapsed = Math.max(0, Math.floor(Number(elapsedSeconds) || 0));
+    const nextTime = nextMode === 'freeflow'
+      ? safeElapsed
+      : Math.max(0, Math.max(0, Number(nextInitialTime) || 0) - safeElapsed);
+
+    setTime((prev) => (prev === nextTime ? prev : nextTime));
+    return nextTime;
+  }, [mode, initialTime]);
+
+  const getElapsedSeconds = useCallback((atMs = Date.now()) => {
+    const safeBase = Math.max(0, Math.floor(Number(elapsedBeforeRunRef.current) || 0));
+    if (!isRunning || !sessionStartTime) {
+      return safeBase;
+    }
+
+    const liveDelta = Math.max(0, Math.floor((atMs - sessionStartTime) / 1000));
+    return safeBase + liveDelta;
+  }, [isRunning, sessionStartTime]);
+
+  const pauseActiveTimer = useCallback(() => {
+    const elapsedSeconds = getElapsedSeconds();
+    elapsedBeforeRunRef.current = elapsedSeconds;
+    syncDisplayedTime(elapsedSeconds);
+    setSessionStartTime(null);
+    setIsRunning(false);
+    return elapsedSeconds;
+  }, [getElapsedSeconds, syncDisplayedTime]);
+
+  const resumeActiveTimer = useCallback((source = 'unknown') => {
+    const resumedAt = Date.now();
+    setSessionStartTime(resumedAt);
+    setIsRunning(true);
+    if (!currentSessionId) {
+      void ensureCurrentSessionIdRef.current(source);
+    }
+    resetCheckInScheduleRef.current(mode, initialTime, elapsedBeforeRunRef.current);
+  }, [currentSessionId, mode, initialTime]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -544,24 +584,9 @@ export default function App() {
     return sessionCreatePromiseRef.current;
   }, [currentSessionId, task, mode, contextNotes, loadSessions]);
 
-  const handleClear = useCallback(() => {
-    setIsRunning(false);
-    setTime(0);
-    setTask('');
-    setInitialTime(0);
-    setContextNotes('');
-    setCurrentSessionId(null);
-    setIsTimerVisible(false);
-    setIsCompact(false);
-    setShowNotesModal(false);
-    setShowCompletionModal(false);
-    setShowTimeUpModal(false);
-    setIsStopFlowAwaitingCompletion(false);
-    setSessionStartTime(null);
-    invalidatePendingSessionCreation();
-
-    clearCheckInRuntime();
-  }, [invalidatePendingSessionCreation]);
+  useEffect(() => {
+    ensureCurrentSessionIdRef.current = ensureCurrentSessionId;
+  }, [ensureCurrentSessionId]);
 
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
@@ -669,20 +694,19 @@ export default function App() {
   // Shortcut handlers
   const handleShortcutStartPause = useCallback(() => {
     if (task.trim()) {
-      const newRunning = !isRunning;
-      setIsRunning(newRunning);
-      if (newRunning && !sessionStartTime) {
-        setSessionStartTime(Date.now());
-        if (!currentSessionId) void ensureCurrentSessionId('shortcut start');
-        resetCheckInScheduleRef.current(mode, initialTime, getElapsedSecondsRef.current());
+      if (isRunning) {
+        pauseActiveTimer();
+        showToast('success', 'Session paused');
+      } else {
+        resumeActiveTimer('shortcut start');
+        showToast('success', 'Session started');
       }
-      showToast('success', newRunning ? 'Session started' : 'Session paused');
     } else {
       if (isCompact) handleExitCompact();
       setTimeout(() => { taskInputRef.current?.focus(); }, 100);
       showToast('info', 'Enter a task to start timer');
     }
-  }, [task, isRunning, sessionStartTime, isCompact, handleExitCompact, showToast, currentSessionId, mode, initialTime, ensureCurrentSessionId]);
+  }, [task, isRunning, isCompact, handleExitCompact, pauseActiveTimer, resumeActiveTimer, showToast]);
 
   const handleShortcutNewTask = useCallback(() => {
     if (isCompact) handleExitCompact();
@@ -704,10 +728,8 @@ export default function App() {
 
   const handleShortcutCompleteTask = useCallback(async () => {
     if (task.trim()) {
-      setIsRunning(false);
-      setSessionStartTime(null);
-
-      const durationMin = mode === 'freeflow' ? time / 60 : (initialTime - time) / 60;
+      const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
+      const durationMin = elapsedSeconds / 60;
       sessionToSave.current = {
         duration: durationMin,
         completed: true,
@@ -725,18 +747,18 @@ export default function App() {
       const keepText = settings.keepTextAfterCompletion ?? false;
 
       if (keepText) {
-        setIsStopFlowAwaitingCompletion(false);
         if (isCompact) {
           handleExitCompact();
         }
+        setSessionNotesMode('complete');
         setShowNotesModal(true);
       } else {
         await saveSessionWithNotes('');
-        handleClear();
+        handleClearRef.current();
         showToast('success', 'Task completed!');
       }
     }
-  }, [task, mode, time, initialTime, saveSessionWithNotes, handleClear, showToast, isCompact, handleExitCompact]);
+  }, [task, isRunning, getElapsedSeconds, pauseActiveTimer, mode, saveSessionWithNotes, showToast, isCompact, handleExitCompact]);
 
   const handleShortcutAction = useCallback((action) => {
     (async () => {
@@ -819,6 +841,20 @@ export default function App() {
           setTime(timerState.seconds || 0);
           setMode(timerState.mode || 'freeflow');
           setInitialTime(timerState.initialTime || 0);
+          const restoredElapsed = Number.isFinite(timerState.elapsedSeconds)
+            ? Math.max(0, Math.floor(timerState.elapsedSeconds))
+            : (timerState.mode === 'timed'
+              ? Math.max(0, (timerState.initialTime || 0) - (timerState.seconds || 0))
+              : Math.max(0, timerState.seconds || 0));
+          elapsedBeforeRunRef.current = restoredElapsed;
+          const restoredTimedIndex = Number.isFinite(timerState.checkInTimedIndex)
+            ? Math.max(0, Math.min(Math.floor(timerState.checkInTimedIndex), TIMED_CHECKIN_PERCENTS.length))
+            : 0;
+          const restoredPendingIndex = Number.isFinite(timerState.checkInTimedPendingIndex)
+            ? Math.max(restoredTimedIndex, Math.min(Math.floor(timerState.checkInTimedPendingIndex), TIMED_CHECKIN_PERCENTS.length - 1))
+            : null;
+          checkInTimedIndexRef.current = restoredTimedIndex;
+          checkInTimedPendingIndexRef.current = restoredPendingIndex;
           if (timerState.seconds > 0 || timerState.mode !== 'freeflow') {
             setIsTimerVisible(true);
           }
@@ -832,10 +868,11 @@ export default function App() {
   // DND — listen for tray toggle and sync state + persist
   useEffect(() => {
     const cleanup = window.electronAPI.onDndToggle?.((enabled) => {
-      setDoNotDisturb(enabled, 'tray');
+      syncDoNotDisturb(enabled);
+      track('dnd_toggled', { enabled: Boolean(enabled), source: 'tray' });
     });
     return () => { if (cleanup) cleanup(); };
-  }, [setDoNotDisturb]);
+  }, [syncDoNotDisturb]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onTrayOpenHistory?.(() => {
@@ -897,13 +934,33 @@ export default function App() {
         seconds: time,
         isRunning: false,
         initialTime,
+        elapsedSeconds: elapsedBeforeRunRef.current,
+        sessionStartedAt: null,
+        checkInTimedIndex: checkInTimedIndexRef.current,
+        checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
       });
     }
   }, [task, time, mode, initialTime, contextNotes, isRunning]);
 
-  const getElapsedSeconds = useCallback(() => {
-    return mode === 'freeflow' ? time : Math.max(0, initialTime - time);
-  }, [mode, time, initialTime]);
+  useEffect(() => {
+    if (!isRunning) return;
+
+    window.electronAPI.storeSet('currentTask', {
+      text: task,
+      contextNote: contextNotes,
+      startedAt: sessionStartTime ? new Date(sessionStartTime).toISOString() : null,
+    });
+    window.electronAPI.storeSet('timerState', {
+      mode,
+      seconds: time,
+      isRunning: true,
+      initialTime,
+      elapsedSeconds: elapsedBeforeRunRef.current,
+      sessionStartedAt: sessionStartTime ? new Date(sessionStartTime).toISOString() : null,
+      checkInTimedIndex: checkInTimedIndexRef.current,
+      checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
+    });
+  }, [task, contextNotes, mode, initialTime, isRunning, sessionStartTime, time]);
 
   const getStandardCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
     if (nextMode === 'freeflow') {
@@ -942,8 +999,10 @@ export default function App() {
     checkInFreeflowNextRef.current = null;
     checkInTimedThresholdsRef.current = [];
     checkInTimedIndexRef.current = 0;
+    checkInTimedPendingIndexRef.current = null;
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
+    checkInPromptCooldownUntilRef.current = 0;
     checkInReturnToCompactRef.current = false;
     clearCheckInUi();
   }, [clearCheckInUi]);
@@ -952,10 +1011,12 @@ export default function App() {
     const previousFreeflowNext = checkInFreeflowNextRef.current;
     const previousTimedThresholds = checkInTimedThresholdsRef.current;
     const previousTimedIndex = checkInTimedIndexRef.current;
+    const previousTimedPendingIndex = checkInTimedPendingIndexRef.current;
 
     checkInFreeflowNextRef.current = null;
     checkInTimedThresholdsRef.current = [];
     checkInTimedIndexRef.current = 0;
+    checkInTimedPendingIndexRef.current = null;
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
 
@@ -979,21 +1040,63 @@ export default function App() {
       .sort((a, b) => a - b);
     const nextThresholds = percents.map((p) => Math.round(safeTotal * p));
     let nextTimedIndex = 0;
-    while (nextTimedIndex < nextThresholds.length && elapsedSec > nextThresholds[nextTimedIndex]) {
-      nextTimedIndex += 1;
-    }
 
     const sameThresholds = (
       previousTimedThresholds.length === nextThresholds.length
       && previousTimedThresholds.every((value, idx) => value === nextThresholds[idx])
     );
     if (sameThresholds) {
-      nextTimedIndex = Math.max(nextTimedIndex, previousTimedIndex);
+      const clampedPrevIndex = Number.isFinite(previousTimedIndex)
+        ? Math.max(0, Math.min(Math.floor(previousTimedIndex), nextThresholds.length))
+        : 0;
+      nextTimedIndex = clampedPrevIndex;
+      if (
+        Number.isFinite(previousTimedPendingIndex)
+        && previousTimedPendingIndex >= nextTimedIndex
+        && previousTimedPendingIndex < nextThresholds.length
+      ) {
+        checkInTimedPendingIndexRef.current = Math.floor(previousTimedPendingIndex);
+      }
+    } else {
+      while (nextTimedIndex < nextThresholds.length && elapsedSec > nextThresholds[nextTimedIndex]) {
+        nextTimedIndex += 1;
+      }
     }
 
     checkInTimedThresholdsRef.current = nextThresholds;
     checkInTimedIndexRef.current = nextTimedIndex;
+    if (
+      nextTimedIndex < nextThresholds.length
+      && elapsedSec >= nextThresholds[nextTimedIndex]
+      && checkInTimedPendingIndexRef.current === null
+    ) {
+      checkInTimedPendingIndexRef.current = nextTimedIndex;
+    }
   }, [checkInSettings.enabled, initialTime, getStandardCheckInIntervalSeconds]);
+
+  const handleClear = useCallback(() => {
+    elapsedBeforeRunRef.current = 0;
+    sessionToSave.current = null;
+    setIsRunning(false);
+    setTime(0);
+    setTask('');
+    setInitialTime(0);
+    setContextNotes('');
+    setCurrentSessionId(null);
+    setIsTimerVisible(false);
+    setIsCompact(false);
+    setShowNotesModal(false);
+    setShowTimeUpModal(false);
+    setSessionNotesMode('complete');
+    setSessionStartTime(null);
+    invalidatePendingSessionCreation();
+
+    clearCheckInRuntime();
+  }, [clearCheckInRuntime, invalidatePendingSessionCreation]);
+
+  useEffect(() => {
+    handleClearRef.current = handleClear;
+  }, [handleClear]);
 
   useEffect(() => {
     getElapsedSecondsRef.current = getElapsedSeconds;
@@ -1197,6 +1300,7 @@ export default function App() {
     if (!isRunning) return false;
     if (!isTimerVisible) return false;
     if (!task.trim()) return false;
+    if (Date.now() < checkInPromptCooldownUntilRef.current) return false;
     if (!currentSessionId) {
       void ensureCurrentSessionId('check-in prompt');
     }
@@ -1207,6 +1311,7 @@ export default function App() {
     setCheckInMessage('');
     setCheckInCelebrating(false);
     setCheckInCelebrationType('none');
+    checkInPromptCooldownUntilRef.current = Date.now() + CHECKIN_PROMPT_COOLDOWN_MS;
     // Keep the prompt open until the user explicitly responds.
     return true;
   }, [checkInSettings.enabled, dndEnabled, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, resolveCheckIn, mode, getElapsedSeconds]);
@@ -1249,14 +1354,25 @@ export default function App() {
     }
 
     // Timed mode — check thresholds directly from refs (set at session start)
-    const idx = checkInTimedIndexRef.current;
     const thresholds = checkInTimedThresholdsRef.current;
-    if (idx < thresholds.length && elapsed >= thresholds[idx]) {
+    const scheduledIndex = checkInTimedIndexRef.current;
+    if (scheduledIndex < thresholds.length && elapsed >= thresholds[scheduledIndex]) {
+      checkInTimedPendingIndexRef.current = scheduledIndex;
+    }
+
+    const pendingIndex = checkInTimedPendingIndexRef.current;
+    if (
+      Number.isFinite(pendingIndex)
+      && pendingIndex >= 0
+      && pendingIndex < thresholds.length
+      && elapsed >= thresholds[pendingIndex]
+    ) {
       if (triggerCheckInPrompt()) {
         // Timed thresholds are mandatory; don't let a forced short interval suppress them.
         checkInForcedNextRef.current = null;
         checkInShortIntervalRef.current = false;
-        checkInTimedIndexRef.current = idx + 1;
+        checkInTimedPendingIndexRef.current = null;
+        checkInTimedIndexRef.current = pendingIndex + 1;
         return;
       }
     }
@@ -1270,33 +1386,32 @@ export default function App() {
 
   // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setTime((prevTime) => {
-          if (mode === 'timed' && prevTime <= 1) {
-            return 0;
-          }
-          if (mode === 'freeflow') {
-            return prevTime + 1;
-          }
-          return Math.max(prevTime - 1, 0);
-        });
-      }, 1000);
+    if (!isRunning) {
+      syncDisplayedTime(elapsedBeforeRunRef.current);
+      return () => clearInterval(timerRef.current);
     }
+
+    const tick = () => {
+      syncDisplayedTime(getElapsedSeconds());
+    };
+
+    tick();
+    timerRef.current = setInterval(tick, 250);
     return () => clearInterval(timerRef.current);
-  }, [isRunning, mode, initialTime]);
+  }, [isRunning, getElapsedSeconds, syncDisplayedTime]);
 
   // Handle timed session expiration — separated from setTime to avoid
   // calling state setters inside another state setter callback
   useEffect(() => {
     if (mode === 'timed' && time === 0 && isRunning) {
+      elapsedBeforeRunRef.current = Math.max(0, initialTime);
       timeUpReturnToCompactRef.current = isCompact;
       setIsRunning(false);
-      setIsStopFlowAwaitingCompletion(false);
       setIsCompact(false);
       setShowNotesModal(false);
-      setShowCompletionModal(false);
+      setSessionNotesMode('complete');
       setIsTimerVisible(true);
+      setSessionStartTime(null);
       clearCheckInRuntime();
       sessionToSave.current = {
         duration: initialTime / 60,
@@ -1364,7 +1479,6 @@ export default function App() {
       || showHistoryModal
       || showTaskPreview
       || showNotesModal
-      || showCompletionModal
       || showTimeUpModal
       || showQuickCapture
     );
@@ -1389,7 +1503,6 @@ export default function App() {
     showHistoryModal,
     showTaskPreview,
     showNotesModal,
-    showCompletionModal,
     showTimeUpModal,
     showQuickCapture,
   ]);
@@ -1444,37 +1557,29 @@ export default function App() {
     const trimmedTask = task.trim();
     if (!trimmedTask) return;
 
-    setIsRunning(true);
     if (!isTimerVisible) {
       setIsTimerVisible(true);
     }
-    if (!sessionStartTime) {
-      setSessionStartTime(Date.now());
-    }
+    resumeActiveTimer('compact play');
+  }, [task, isTimerVisible, resumeActiveTimer]);
 
-    if (!currentSessionId) {
-      void ensureCurrentSessionId('compact play');
-    }
-    resetCheckInScheduleRef.current(mode, initialTime, getElapsedSecondsRef.current());
-  }, [task, isTimerVisible, sessionStartTime, currentSessionId, ensureCurrentSessionId, mode, initialTime]);
-
-  const handlePause = () => setIsRunning(false);
+  const handlePause = useCallback(() => {
+    if (!isRunning) return;
+    pauseActiveTimer();
+  }, [isRunning, pauseActiveTimer]);
 
   const handleStop = () => {
-    setIsRunning(false);
-    setSessionStartTime(null);
-
+    const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
     clearCheckInRuntime();
     if (isCompact) {
       handleExitCompact();
     }
-    setIsStopFlowAwaitingCompletion(false);
     sessionToSave.current = {
-      duration: mode === 'freeflow' ? time / 60 : (initialTime - time) / 60,
+      duration: elapsedSeconds / 60,
       completed: false,
     };
-    setShowNotesModal(false);
-    setShowCompletionModal(true);
+    setSessionNotesMode('stop-decision');
+    setShowNotesModal(true);
   };
 
   const handleTaskSubmit = () => {
@@ -1483,7 +1588,7 @@ export default function App() {
     const hasPausedSessionToResume =
       isTimerVisible &&
       !isRunning &&
-      (time > 0 || mode !== 'freeflow' || initialTime > 0 || sessionStartTime !== null);
+      (time > 0 || mode !== 'freeflow' || initialTime > 0 || elapsedBeforeRunRef.current > 0);
 
     if (hasPausedSessionToResume) {
       setIsStartModalOpen(false);
@@ -1514,6 +1619,7 @@ export default function App() {
     }
 
     setMode(selectedMode);
+    elapsedBeforeRunRef.current = 0;
     let initialSeconds = 0;
     if (selectedMode === 'freeflow') {
       setTime(0);
@@ -1548,22 +1654,23 @@ export default function App() {
     if (postAction === 'resume-later') {
       await saveSessionWithNotes(notes);
       setShowNotesModal(false);
+      setSessionNotesMode('complete');
+      sessionToSave.current = null;
       // Keep task text, reset timer to idle
+      clearCheckInRuntime();
       setIsRunning(false);
       setTime(0);
       setInitialTime(0);
       setIsTimerVisible(false);
       setSessionStartTime(null);
+      elapsedBeforeRunRef.current = 0;
   
       return;
     }
 
-    if (isStopFlowAwaitingCompletion) {
-      await finalizeIncompleteStop(notes);
-      return;
-    }
     await saveSessionWithNotes(notes);
     setShowNotesModal(false);
+    setSessionNotesMode('complete');
     handleClear();
   };
 
@@ -1574,28 +1681,33 @@ export default function App() {
     if (postAction === 'resume-later') {
       await saveSessionWithNotes('');
       setShowNotesModal(false);
+      setSessionNotesMode('complete');
+      sessionToSave.current = null;
+      clearCheckInRuntime();
       setIsRunning(false);
       setTime(0);
       setInitialTime(0);
       setIsTimerVisible(false);
       setSessionStartTime(null);
+      elapsedBeforeRunRef.current = 0;
   
       return;
     }
 
-    if (isStopFlowAwaitingCompletion) {
+    if (sessionNotesMode === 'stop-decision') {
       await finalizeIncompleteStop('');
       return;
     }
     await saveSessionWithNotes('');
     setShowNotesModal(false);
+    setSessionNotesMode('complete');
     handleClear();
   };
 
   const finalizeIncompleteStop = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
       setShowNotesModal(false);
-      setIsStopFlowAwaitingCompletion(false);
+      setSessionNotesMode('complete');
       return;
     }
 
@@ -1607,10 +1719,12 @@ export default function App() {
     await saveSessionWithNotes(notes);
 
     setShowNotesModal(false);
-    setIsStopFlowAwaitingCompletion(false);
+    setSessionNotesMode('complete');
+    sessionToSave.current = null;
 
     // Not completed: keep task text, but reset timer/session state.
     track('session_abandoned', { mode, duration_minutes: Math.round(durationMin * 10) / 10 });
+    elapsedBeforeRunRef.current = 0;
     setIsRunning(false);
     setTime(0);
     setInitialTime(0);
@@ -1619,61 +1733,35 @@ export default function App() {
     showToast('info', 'Session saved. Task kept active');
   }, [mode, saveSessionWithNotes, showToast]);
 
-  const handleStopFlowCompletionDismiss = useCallback(async () => {
-    const activeSessionId = currentSessionId;
-    setShowCompletionModal(false);
-    setShowNotesModal(false);
-    setIsStopFlowAwaitingCompletion(false);
-    sessionToSave.current = null;
-    clearCheckInRuntime();
-    setIsRunning(false);
-    setTime(0);
-    setInitialTime(0);
-    setIsTimerVisible(false);
-    setSessionStartTime(null);
-    if (activeSessionId) {
-      await SessionStore.delete(activeSessionId);
-      await loadSessions();
-    }
-    setCurrentSessionId(null);
-  }, [clearCheckInRuntime, currentSessionId, loadSessions]);
-
-  const handleStopFlowCompletionDecision = async (completed) => {
+  const handleStopFlowComplete = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
-      setShowCompletionModal(false);
-      setIsStopFlowAwaitingCompletion(false);
+      setShowNotesModal(false);
+      setSessionNotesMode('complete');
       return;
     }
 
-    if (completed) {
-      const durationMin = sessionToSave.current?.duration || 0;
-      sessionToSave.current = {
-        ...sessionToSave.current,
-        completed: true,
-      };
-      await saveSessionWithNotes('');
+    const durationMin = sessionToSave.current?.duration || 0;
+    sessionToSave.current = {
+      ...sessionToSave.current,
+      completed: true,
+    };
+    await saveSessionWithNotes(notes);
 
-      setShowCompletionModal(false);
-      setIsStopFlowAwaitingCompletion(false);
+    setShowNotesModal(false);
+    setSessionNotesMode('complete');
+    sessionToSave.current = null;
 
-      track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
+    track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
 
-      handleClear();
-      triggerConfetti();
+    handleClear();
+    triggerConfetti();
 
-      // Session streak
-      try {
-        const allSessions = await SessionStore.list();
-        const streak = computeStreak(allSessions);
-        if (streak >= 2) track('session_streak', { streak_count: streak });
-      } catch (_) { /* non-critical */ }
-      return;
-    }
-
-    setShowCompletionModal(false);
-    setIsStopFlowAwaitingCompletion(true);
-    setShowNotesModal(true);
-  };
+    try {
+      const allSessions = await SessionStore.list();
+      const streak = computeStreak(allSessions);
+      if (streak >= 2) track('session_streak', { streak_count: streak });
+    } catch (_) { /* non-critical */ }
+  }, [handleClear, mode, saveSessionWithNotes, triggerConfetti]);
 
   const handleTimeUpEndSession = () => {
     track('post_session_choice', { choice: 'end_session' });
@@ -1682,6 +1770,7 @@ export default function App() {
     setSessionStartTime(null);
 
     clearCheckInRuntime();
+    setSessionNotesMode('stop-decision');
     setShowNotesModal(true);
   };
 
@@ -1695,10 +1784,12 @@ export default function App() {
     const shouldReturnToCompact = timeUpReturnToCompactRef.current;
     timeUpReturnToCompactRef.current = false;
 
+    elapsedBeforeRunRef.current = currentInitial;
     setInitialTime((prev) => prev + extraSeconds);
     setTime(extraSeconds);
     setIsTimerVisible(true);
     setIsRunning(true);
+    setSessionStartTime(Date.now());
     setShowTimeUpModal(false);
     resetCheckInSchedule('timed', nextInitial, elapsedAtExtension);
     if (shouldReturnToCompact) {
@@ -1720,6 +1811,7 @@ export default function App() {
       completed: false,
     };
     postSessionNotesActionRef.current = 'resume-later';
+    setSessionNotesMode('resume-later');
     setShowNotesModal(true);
   };
 
@@ -1744,6 +1836,7 @@ export default function App() {
     modalStackRef.current = [];
     invalidatePendingSessionCreation();
     suppressHistoryPopRef.current = true;
+    elapsedBeforeRunRef.current = 0;
     setTask(nextTask);
     setTime(0);
     setInitialTime(0);
@@ -1752,8 +1845,8 @@ export default function App() {
     setContextNotes(nextNotes);
     setCurrentSessionId(null);
     setShowNotesModal(false);
-    setShowCompletionModal(false);
     setShowTimeUpModal(false);
+    setSessionNotesMode('complete');
     setShowSettings(false);
     setDistractionJarOpen(false);
     setShowQuickCapture(false);
@@ -1773,6 +1866,10 @@ export default function App() {
       seconds: 0,
       isRunning: false,
       initialTime: 0,
+      elapsedSeconds: 0,
+      sessionStartedAt: null,
+      checkInTimedIndex: 0,
+      checkInTimedPendingIndex: null,
     });
 
     try {
@@ -1931,7 +2028,6 @@ export default function App() {
       [distractionJarOpen, ...WINDOW_SIZES.modal.parkingLot],
       [showTimeUpModal, ...WINDOW_SIZES.modal.timeUp],
       [showNotesModal, ...WINDOW_SIZES.modal.notes],
-      [showCompletionModal, ...WINDOW_SIZES.modal.completion],
       [showQuickCapture, ...WINDOW_SIZES.modal.quickCapture],
     ];
     const active = MODAL_SIZES.find(([open]) => open);
@@ -1965,7 +2061,7 @@ export default function App() {
       }
     }
     return undefined;
-  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showTimeUpModal, showNotesModal, showCompletionModal, showQuickCapture, resyncFullWindowSize]);
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);
 
   // No active timer: keep full view tightly fit to content.
   // Base height matches the compact no-timer layout, then grows with
@@ -1978,7 +2074,6 @@ export default function App() {
       distractionJarOpen ||
       showTimeUpModal ||
       showNotesModal ||
-      showCompletionModal ||
       showQuickCapture;
 
     if (isCompact || hasModalOpen) return undefined;
@@ -2004,7 +2099,6 @@ export default function App() {
     distractionJarOpen,
     showTimeUpModal,
     showNotesModal,
-    showCompletionModal,
     showQuickCapture,
   ]);
 
@@ -2017,7 +2111,6 @@ export default function App() {
       distractionJarOpen ||
       showTimeUpModal ||
       showNotesModal ||
-      showCompletionModal ||
       showQuickCapture;
 
     if (isCompact || hasModalOpen) return undefined;
@@ -2042,7 +2135,6 @@ export default function App() {
     distractionJarOpen,
     showTimeUpModal,
     showNotesModal,
-    showCompletionModal,
     showQuickCapture,
     getActiveScreenDefaultHeight,
     resizeToMainCardContent,
@@ -2219,18 +2311,12 @@ export default function App() {
           isOpen={showNotesModal}
           onClose={handleSkipSessionNotes}
           onSave={handleSaveSessionNotes}
+          onComplete={handleStopFlowComplete}
+          onIncomplete={finalizeIncompleteStop}
           sessionDuration={sessionToSave.current?.duration || 0}
           taskName={task}
           sessionFlowKey={sessionNotesFlowKey}
-          stopFlowNotesMode={isStopFlowAwaitingCompletion}
-        />
-        <TaskCompletionModal
-          isOpen={showCompletionModal}
-          taskName={task}
-          sessionDuration={sessionToSave.current?.duration || 0}
-          onCompleted={() => handleStopFlowCompletionDecision(true)}
-          onNotCompleted={() => handleStopFlowCompletionDecision(false)}
-          onDismiss={handleStopFlowCompletionDismiss}
+          flow={sessionNotesMode}
         />
         <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} onResumeLater={handleTimeUpResumeLater} />
         <TaskPreviewModal
@@ -2622,18 +2708,12 @@ export default function App() {
         isOpen={showNotesModal}
         onClose={handleSkipSessionNotes}
         onSave={handleSaveSessionNotes}
+        onComplete={handleStopFlowComplete}
+        onIncomplete={finalizeIncompleteStop}
         sessionDuration={sessionToSave.current?.duration || 0}
         taskName={task}
         sessionFlowKey={sessionNotesFlowKey}
-        stopFlowNotesMode={isStopFlowAwaitingCompletion}
-      />
-      <TaskCompletionModal
-        isOpen={showCompletionModal}
-        taskName={task}
-        sessionDuration={sessionToSave.current?.duration || 0}
-        onCompleted={() => handleStopFlowCompletionDecision(true)}
-        onNotCompleted={() => handleStopFlowCompletionDecision(false)}
-        onDismiss={handleStopFlowCompletionDismiss}
+        flow={sessionNotesMode}
       />
       <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} onResumeLater={handleTimeUpResumeLater} />
       <TaskPreviewModal

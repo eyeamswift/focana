@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage } = requi
 const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
-const { createTray, setDndState } = require('./tray');
+const { createTray, popupFloatingContextMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 
 let mainWindow = null;
@@ -16,9 +16,11 @@ let isFloatingMinimized = false;
 let floatingPulseTimeout = null;
 let floatingPulseInterval = null;
 let floatingIconDragStart = null;
+let dndExpiryTimer = null;
 
 const isDev = !app.isPackaged && process.env.FOCANA_E2E !== '1';
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
+const shouldCreateTray = process.env.FOCANA_E2E !== '1' || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
 const PILL_MIN_WIDTH = 100;
@@ -36,6 +38,30 @@ const DEFAULT_SHORTCUTS = {
 };
 let pendingProgrammaticMainBounds = null;
 let clearProgrammaticMainBoundsTimer = null;
+const MAX_NOTIFICATION_TEXT_LENGTH = 160;
+const ALLOWED_STORE_KEYS = new Set([
+  'currentTask',
+  'timerState',
+  'thoughts',
+  'sessions',
+  'userEmail',
+  'emailPromptSkipped',
+  'settings',
+  'settings.shortcuts',
+  'settings.shortcutsEnabled',
+  'settings.bringToFront',
+  'settings.keepTextAfterCompletion',
+  'settings.showTaskInCompactDefault',
+  'settings.showTaskInCompactCustomized',
+  'settings.pinnedControls',
+  'settings.mainScreenControlsEnabled',
+  'settings.doNotDisturbEnabled',
+  'settings.doNotDisturbUntil',
+  'settings.checkInEnabled',
+  'settings.checkInIntervalFreeflow',
+  'settings.checkInIntervalTimed',
+  'windowState',
+]);
 
 function boundsEqual(a, b) {
   if (!a || !b) return false;
@@ -56,6 +82,189 @@ function normalizeShortcuts(rawShortcuts) {
 
 function shortcutsNeedRepair(rawShortcuts, mergedShortcuts) {
   return Object.keys(DEFAULT_SHORTCUTS).some((key) => mergedShortcuts[key] !== rawShortcuts?.[key]);
+}
+
+function ensurePlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sanitizeOptionalIsoTimestamp(input) {
+  if (input === null || input === undefined || input === '') return null;
+  if (typeof input !== 'string') {
+    throw new Error('Expected timestamp to be a string');
+  }
+  const parsed = new Date(input);
+  const ms = parsed.getTime();
+  if (!Number.isFinite(ms)) {
+    throw new Error('Expected a valid ISO timestamp');
+  }
+  return parsed.toISOString();
+}
+
+function clampNumber(value, min, max, fallback = min) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(value, min), max);
+}
+
+function validateStoreKey(key) {
+  if (typeof key !== 'string' || !ALLOWED_STORE_KEYS.has(key)) {
+    throw new Error(`Unsupported store key: ${String(key)}`);
+  }
+  return key;
+}
+
+function sanitizeBooleanMap(value) {
+  if (!ensurePlainObject(value)) {
+    throw new Error('Expected an object of boolean flags');
+  }
+  const normalized = {};
+  for (const [entryKey, entryValue] of Object.entries(value)) {
+    normalized[entryKey] = Boolean(entryValue);
+  }
+  return normalized;
+}
+
+function sanitizeStoreValue(key, value) {
+  switch (key) {
+    case 'currentTask':
+      if (!ensurePlainObject(value)) throw new Error('currentTask must be an object');
+      return {
+        text: typeof value.text === 'string' ? value.text : '',
+        contextNote: typeof value.contextNote === 'string' ? value.contextNote : '',
+        startedAt: sanitizeOptionalIsoTimestamp(value.startedAt),
+      };
+    case 'timerState':
+      if (!ensurePlainObject(value)) throw new Error('timerState must be an object');
+      {
+        const timedIndex = Math.floor(clampNumber(value.checkInTimedIndex, 0, 4, 0));
+        const pendingRaw = value.checkInTimedPendingIndex;
+        const timedPendingIndex = Number.isFinite(pendingRaw)
+          ? Math.floor(clampNumber(pendingRaw, 0, 4, 0))
+          : null;
+
+        return {
+          mode: value.mode === 'timed' ? 'timed' : 'freeflow',
+          seconds: clampNumber(value.seconds, 0, 24 * 60 * 60, 0),
+          isRunning: Boolean(value.isRunning),
+          initialTime: clampNumber(value.initialTime, 0, 24 * 60 * 60, 0),
+          elapsedSeconds: clampNumber(value.elapsedSeconds, 0, 24 * 60 * 60, 0),
+          sessionStartedAt: sanitizeOptionalIsoTimestamp(value.sessionStartedAt),
+          checkInTimedIndex: timedIndex,
+          checkInTimedPendingIndex: timedPendingIndex,
+        };
+      }
+    case 'thoughts':
+    case 'sessions':
+      if (!Array.isArray(value)) throw new Error(`${key} must be an array`);
+      return value;
+    case 'userEmail':
+      if (typeof value !== 'string') throw new Error('userEmail must be a string');
+      return value.trim().slice(0, 320);
+    case 'emailPromptSkipped':
+    case 'settings.shortcutsEnabled':
+    case 'settings.bringToFront':
+    case 'settings.keepTextAfterCompletion':
+    case 'settings.showTaskInCompactDefault':
+    case 'settings.showTaskInCompactCustomized':
+    case 'settings.doNotDisturbEnabled':
+    case 'settings.checkInEnabled':
+      return Boolean(value);
+    case 'settings.doNotDisturbUntil':
+      return sanitizeOptionalIsoTimestamp(value);
+    case 'settings.checkInIntervalFreeflow':
+      return clampNumber(value, 1, 240, 15);
+    case 'settings.checkInIntervalTimed':
+      if (!Array.isArray(value)) throw new Error('settings.checkInIntervalTimed must be an array');
+      return value
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item) && item > 0 && item < 1)
+        .slice(0, 4);
+    case 'settings.shortcuts':
+      return normalizeShortcuts(value);
+    case 'settings.pinnedControls':
+    case 'settings.mainScreenControlsEnabled':
+      return sanitizeBooleanMap(value);
+    case 'settings':
+      if (!ensurePlainObject(value)) throw new Error('settings must be an object');
+      return value;
+    case 'windowState':
+      if (!ensurePlainObject(value)) throw new Error('windowState must be an object');
+      return sanitizeStoredWindowState(value);
+    default:
+      return value;
+  }
+}
+
+function sanitizeNotificationPayload(payload) {
+  if (!ensurePlainObject(payload)) {
+    throw new Error('Notification payload must be an object');
+  }
+
+  return {
+    title: typeof payload.title === 'string' ? payload.title.slice(0, MAX_NOTIFICATION_TEXT_LENGTH) : 'Focana',
+    body: typeof payload.body === 'string' ? payload.body.slice(0, MAX_NOTIFICATION_TEXT_LENGTH) : '',
+  };
+}
+
+function sanitizeShortcutsPayload(shortcuts) {
+  if (!ensurePlainObject(shortcuts)) {
+    throw new Error('Shortcuts payload must be an object');
+  }
+  return normalizeShortcuts(shortcuts);
+}
+
+function sanitizeDndStateInput(input) {
+  if (typeof input === 'boolean') {
+    return { enabled: input, until: null };
+  }
+  if (!ensurePlainObject(input)) {
+    throw new Error('Do Not Disturb payload must be a boolean or object');
+  }
+
+  const enabled = Boolean(input.enabled);
+  const until = enabled ? sanitizeOptionalIsoTimestamp(input.until) : null;
+  return { enabled, until };
+}
+
+function clearDndExpiryTimer() {
+  if (dndExpiryTimer) {
+    clearTimeout(dndExpiryTimer);
+    dndExpiryTimer = null;
+  }
+}
+
+function scheduleDndExpiry(state) {
+  clearDndExpiryTimer();
+  if (!state.enabled || !state.until) return;
+
+  const delayMs = new Date(state.until).getTime() - Date.now();
+  if (delayMs <= 0) {
+    applyDndState({ enabled: false, until: null });
+    return;
+  }
+
+  dndExpiryTimer = setTimeout(() => {
+    applyDndState({ enabled: false, until: null });
+  }, delayMs);
+}
+
+function readStoredDndState() {
+  const settings = store.get('settings', {});
+  const enabled = Boolean(settings?.doNotDisturbEnabled);
+  const until = enabled ? sanitizeOptionalIsoTimestamp(settings?.doNotDisturbUntil) : null;
+  if (until && new Date(until).getTime() <= Date.now()) {
+    return { enabled: false, until: null };
+  }
+  return { enabled, until };
+}
+
+function applyDndState(nextState) {
+  const normalized = sanitizeDndStateInput(nextState);
+  store.set('settings.doNotDisturbEnabled', normalized.enabled);
+  store.set('settings.doNotDisturbUntil', normalized.until);
+  setDndState(normalized);
+  scheduleDndExpiry(normalized);
+  return normalized;
 }
 
 // Ensure the runtime app name is Focana in dev and packaged modes.
@@ -380,7 +589,13 @@ function createWindow() {
   });
 
   // Create tray
-  createTray(mainWindow);
+  if (shouldCreateTray) {
+    createTray(mainWindow, {
+      onDndChange: (nextState) => {
+        applyDndState(nextState);
+      },
+    });
+  }
 
   // Register shortcuts from stored settings
   const settings = store.get('settings', {});
@@ -438,6 +653,15 @@ ipcMain.on('expand-from-floating', () => {
   exitFloatingIconMode();
 });
 
+ipcMain.on('floating-context-menu', () => {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !isFloatingMinimized) return;
+  popupFloatingContextMenu(floatingIconWindow, {
+    onExpand: () => {
+      exitFloatingIconMode();
+    },
+  });
+});
+
 ipcMain.on('floating-icon-drag-start', () => {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !isFloatingMinimized) return;
   const bounds = floatingIconWindow.getBounds();
@@ -449,11 +673,11 @@ ipcMain.on('floating-icon-drag-start', () => {
   };
 });
 
-ipcMain.on('floating-icon-drag-move', (_, { dx, dy }) => {
+ipcMain.on('floating-icon-drag-move', (_, payload) => {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !floatingIconDragStart) return;
 
-  const safeDx = Number.isFinite(dx) ? dx : 0;
-  const safeDy = Number.isFinite(dy) ? dy : 0;
+  const safeDx = Number.isFinite(payload?.dx) ? payload.dx : 0;
+  const safeDy = Number.isFinite(payload?.dy) ? payload.dy : 0;
   const stepX = safeDx - (floatingIconDragStart.lastDx || 0);
   const stepY = safeDy - (floatingIconDragStart.lastDy || 0);
   floatingIconDragStart.lastDx = safeDx;
@@ -484,7 +708,7 @@ ipcMain.on('register-shortcuts', (_event, shortcuts) => {
     return;
   }
 
-  registerShortcuts(normalizeShortcuts(shortcuts), mainWindow);
+  registerShortcuts(sanitizeShortcutsPayload(shortcuts), mainWindow);
 });
 
 ipcMain.on('unregister-shortcuts', () => {
@@ -493,13 +717,15 @@ ipcMain.on('unregister-shortcuts', () => {
 
 // Store
 ipcMain.handle('store-get', (_event, key) => {
-  return store.get(key);
+  return store.get(validateStoreKey(key));
 });
 
 ipcMain.handle('store-set', (_event, key, value) => {
-  store.set(key, value);
+  const safeKey = validateStoreKey(key);
+  const safeValue = sanitizeStoreValue(safeKey, value);
+  store.set(safeKey, safeValue);
 
-  if (key === 'settings' && value && value.shortcutsEnabled === false) {
+  if (safeKey === 'settings' && safeValue && safeValue.shortcutsEnabled === false) {
     unregisterAll();
   }
 
@@ -512,6 +738,9 @@ ipcMain.handle('checkin:add', (_event, data) => {
 });
 
 ipcMain.handle('checkin:getBySession', (_event, sessionId) => {
+  if (typeof sessionId !== 'string') {
+    throw new Error('Session id must be a string');
+  }
   return getCheckInsBySession(sessionId);
 });
 
@@ -521,13 +750,13 @@ ipcMain.handle('checkin:update', (_event, id, updates) => {
 
 // Do Not Disturb — renderer → tray sync
 ipcMain.on('set-dnd', (_event, enabled) => {
-  setDndState(!!enabled);
+  applyDndState(enabled);
 });
 
 // Notifications
-ipcMain.on('show-notification', (_event, { title, body }) => {
+ipcMain.on('show-notification', (_event, payload) => {
   try {
-    new Notification({ title, body }).show();
+    new Notification(sanitizeNotificationPayload(payload)).show();
   } catch (e) {
     console.error('Failed to show notification:', e);
   }
@@ -542,14 +771,8 @@ ipcMain.handle('modal-opened', (_, minWidth, minHeight) => {
     isModalExpanded = true;
 
     const current = mainWindow.getBounds();
-    const targetWidth = Math.max(
-      Number.isFinite(minWidth) ? minWidth : 0,
-      FULL_MIN_WIDTH
-    );
-    const targetHeight = Math.max(
-      Number.isFinite(minHeight) ? minHeight : 0,
-      FULL_MIN_HEIGHT
-    );
+    const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2000, FULL_MIN_WIDTH);
+    const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2000, FULL_MIN_HEIGHT);
 
     // Expand from the current center so expanded views stay interactable
     // without requiring the user to drag the window into place.
@@ -604,7 +827,7 @@ ipcMain.handle('enter-pill-mode', () => {
 ipcMain.handle('set-pill-width', (_, width) => {
   if (mainWindow && isPillMode) {
     const current = mainWindow.getBounds();
-    const targetWidth = Math.max(PILL_MIN_WIDTH, Math.round(width));
+    const targetWidth = Math.round(clampNumber(width, PILL_MIN_WIDTH, 1200, PILL_MIN_WIDTH));
     const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, current.height || PILL_MIN_HEIGHT));
     const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
     const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
@@ -624,8 +847,8 @@ ipcMain.handle('set-pill-size', (_, size) => {
     const current = mainWindow.getBounds();
     const requestedWidth = Number.isFinite(size.width) ? size.width : current.width;
     const requestedHeight = Number.isFinite(size.height) ? size.height : current.height;
-    const targetWidth = Math.max(PILL_MIN_WIDTH, Math.round(requestedWidth));
-    const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, Math.round(requestedHeight)));
+    const targetWidth = Math.round(clampNumber(requestedWidth, PILL_MIN_WIDTH, 1200, current.width));
+    const targetHeight = Math.round(clampNumber(requestedHeight, PILL_MIN_HEIGHT, PILL_MAX_HEIGHT, current.height));
     const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
     const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
 
@@ -646,10 +869,10 @@ ipcMain.on('pill-drag-start', () => {
   }
 });
 
-ipcMain.on('pill-drag-move', (_, { dx, dy }) => {
+ipcMain.on('pill-drag-move', (_, payload) => {
   if (mainWindow && isPillMode && pillDragStart) {
-    const safeDx = Number.isFinite(dx) ? dx : 0;
-    const safeDy = Number.isFinite(dy) ? dy : 0;
+    const safeDx = Number.isFinite(payload?.dx) ? payload.dx : 0;
+    const safeDy = Number.isFinite(payload?.dy) ? payload.dy : 0;
     const stepX = safeDx - (pillDragStart.lastDx || 0);
     const stepY = safeDy - (pillDragStart.lastDy || 0);
     pillDragStart.lastDx = safeDx;
@@ -706,8 +929,8 @@ ipcMain.handle('exit-pill-mode', () => {
 ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeight = FULL_MIN_HEIGHT) => {
   if (!mainWindow || isPillMode) return;
 
-  const targetWidth = Math.max(Number.isFinite(minWidth) ? minWidth : 0, FULL_MIN_WIDTH);
-  const targetHeight = Math.max(Number.isFinite(minHeight) ? minHeight : 0, FULL_MIN_HEIGHT);
+  const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2400, FULL_MIN_WIDTH);
+  const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2400, FULL_MIN_HEIGHT);
   const bounds = mainWindow.getBounds();
 
   mainWindow.setResizable(true);
@@ -724,16 +947,28 @@ ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeig
 });
 
 // App lifecycle
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  if (process.env.FOCANA_E2E !== '1') {
+    try {
+      applyDndState(readStoredDndState());
+    } catch (error) {
+      console.error('Failed to hydrate Do Not Disturb state:', error);
+      applyDndState({ enabled: false, until: null });
+    }
+  }
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   stopFloatingPulseSchedule();
+  clearDndExpiryTimer();
   unregisterAll();
   app.quit();
 });
 
 app.on('will-quit', () => {
   stopFloatingPulseSchedule();
+  clearDndExpiryTimer();
   unregisterAll();
 });
 

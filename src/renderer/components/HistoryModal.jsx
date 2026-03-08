@@ -24,6 +24,7 @@ export default function HistoryModal({
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState([]);
   const [activeFilter, setActiveFilter] = useState('needs-attention');
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   const filteredSessions = sessions.filter((session) => {
     if (activeFilter === 'completed') return !!session?.completed;
@@ -41,6 +42,7 @@ export default function HistoryModal({
       setCurrentPage(0);
       setSelectedIds([]);
       setActiveFilter('needs-attention');
+      setPendingDelete(null);
     }
   }, [isOpen]);
 
@@ -72,20 +74,43 @@ export default function HistoryModal({
 
   const handleDeleteSelected = async () => {
     if (!selectedIds.length) return;
-    const idsToDelete = [...selectedIds];
-    await onDeleteSessions?.(idsToDelete);
-    setSelectedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+    setPendingDelete({
+      type: 'bulk',
+      ids: [...selectedIds],
+      label: `${selectedIds.length} selected session${selectedIds.length === 1 ? '' : 's'}`,
+    });
   };
 
   const handleDeleteOne = async (e, sessionId) => {
     e.stopPropagation();
-    await onDeleteSession?.(sessionId);
-    setSelectedIds((prev) => prev.filter((id) => id !== sessionId));
+    const session = sessions.find((item) => item.id === sessionId);
+    setPendingDelete({
+      type: 'single',
+      ids: [sessionId],
+      label: session?.task || 'this session',
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete?.ids?.length) {
+      setPendingDelete(null);
+      return;
+    }
+
+    if (pendingDelete.type === 'single') {
+      await onDeleteSession?.(pendingDelete.ids[0]);
+    } else {
+      await onDeleteSessions?.(pendingDelete.ids);
+    }
+
+    setSelectedIds((prev) => prev.filter((id) => !pendingDelete.ids.includes(id)));
+    setPendingDelete(null);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '32rem' }}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '32rem' }}>
         <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
@@ -257,7 +282,29 @@ export default function HistoryModal({
             Close
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '26rem' }}>
+          <DialogHeader>
+            <DialogTitle>Delete session?</DialogTitle>
+          </DialogHeader>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5 }}>
+            {pendingDelete?.type === 'bulk'
+              ? `This will permanently delete ${pendingDelete.label}.`
+              : `This will permanently delete "${pendingDelete?.label || 'this session'}".`}
+          </p>
+          <DialogFooter style={{ marginTop: '1rem', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <Button variant="outline" onClick={() => setPendingDelete(null)} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmDelete} style={{ background: 'var(--error)', color: 'white' }}>
+              {pendingDelete?.type === 'bulk' ? 'Delete Sessions' : 'Delete Session'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

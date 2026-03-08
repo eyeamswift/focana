@@ -6,7 +6,7 @@ const { test, expect, _electron: electron } = require('@playwright/test');
 const APP_ROOT = path.resolve(__dirname, '..', '..');
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 
-async function launchApp({ seedConfig = null, background = true, waitForTaskInput = true } = {}) {
+async function launchApp({ seedConfig = null, background = true, waitForTaskInput = true, onPage = null } = {}) {
   const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focana-e2e-'));
   const effectiveSeedConfig = {
     emailPromptSkipped: true,
@@ -31,6 +31,9 @@ async function launchApp({ seedConfig = null, background = true, waitForTaskInpu
   });
 
   const page = await electronApp.firstWindow();
+  if (typeof onPage === 'function') {
+    await onPage(page, electronApp);
+  }
   if (waitForTaskInput) {
     await page.waitForSelector(TASK_INPUT_SELECTOR);
   }
@@ -274,6 +277,61 @@ test('history renders safely when session createdAt is invalid', async () => {
   }
 });
 
+test('history delete requires explicit confirmation for single and bulk actions', async () => {
+  const sessions = [
+    {
+      id: 'hist-delete-1',
+      task: 'Delete me first',
+      durationMinutes: 12,
+      mode: 'freeflow',
+      completed: false,
+      notes: '',
+      createdAt: new Date('2026-02-01T12:00:00.000Z').toISOString(),
+    },
+    {
+      id: 'hist-delete-2',
+      task: 'Delete me second',
+      durationMinutes: 9,
+      mode: 'freeflow',
+      completed: false,
+      notes: '',
+      createdAt: new Date('2026-02-02T12:00:00.000Z').toISOString(),
+    },
+  ];
+
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.evaluate(async (nextSessions) => {
+      await window.electronAPI.storeSet('sessions', nextSessions);
+    }, sessions);
+    await page.reload();
+
+    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await expect(page.getByText('Delete me first')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Delete Session' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Delete session?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('heading', { name: 'Delete session?' })).toHaveCount(0);
+
+    let storedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    expect(storedSessions).toHaveLength(2);
+
+    await page.getByLabel('Select session Delete me first').check();
+    await page.getByLabel('Select session Delete me second').check();
+    await page.getByRole('button', { name: 'Delete Selected (2)' }).click();
+    await expect(page.getByRole('heading', { name: 'Delete session?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Delete Sessions' }).click();
+
+    await expect(page.getByText('No sessions for the current filter.')).toBeVisible();
+    storedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    expect(storedSessions).toHaveLength(0);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('shortcut recorder handles modifier and escape without lockup', async () => {
   const { page, cleanup } = await launchApp();
   try {
@@ -429,6 +487,81 @@ test('window state with zero height is sanitized at startup', async () => {
     });
 
     expect(height).toBeGreaterThanOrEqual(120);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('app starts with analytics disabled and emits no PostHog warnings', async () => {
+  const consoleMessages = [];
+  const { page, cleanup } = await launchApp({
+    onPage: async (nextPage) => {
+      nextPage.on('console', (message) => {
+        consoleMessages.push(message.text());
+      });
+    },
+  });
+
+  try {
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    expect(consoleMessages.some((message) => message.includes('PostHog'))).toBe(false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('stop flow is handled inside session notes without a second completion modal', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('stop-flow-unified');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-window-mode')))
+      .toBe('pill');
+    await page.waitForTimeout(6500);
+    await page.locator('.pill').click();
+    await page.locator('button[title="Stop & Save"]').click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Yes, Complete' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'No, Keep Task' })).toBeVisible();
+
+    await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume from here');
+    await page.getByRole('button', { name: 'No, Keep Task' }).click();
+    await expect(page.getByText('Session saved. Task kept active')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('stop-flow-unified');
+
+    const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    expect(savedSessions[0].completed).toBe(false);
+    expect(savedSessions[0].notes).toBe('resume from here');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timer catches up after renderer blocking instead of drifting by one tick', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('timer-catch-up');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await page.waitForTimeout(1100);
+    const beforeSeconds = await readDisplayedTimerSeconds(page);
+    expect(beforeSeconds).not.toBeNull();
+
+    await page.evaluate(() => {
+      const start = Date.now();
+      while (Date.now() - start < 2400) {
+        // Intentionally block the renderer thread to simulate throttling/stall.
+      }
+    });
+
+    await page.waitForTimeout(400);
+    const afterSeconds = await readDisplayedTimerSeconds(page);
+    expect(afterSeconds).not.toBeNull();
+    expect(afterSeconds).toBeGreaterThanOrEqual(beforeSeconds + 2);
   } finally {
     await cleanup();
   }

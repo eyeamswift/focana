@@ -211,7 +211,6 @@ export default function SettingsModal({
       window.electronAPI.storeSet('settings.showTaskInCompactCustomized', true),
       window.electronAPI.storeSet('settings.pinnedControls', pinnedControls),
       window.electronAPI.storeSet('settings.mainScreenControlsEnabled', enabledControls),
-      window.electronAPI.storeSet('settings.doNotDisturbEnabled', doNotDisturb),
       window.electronAPI.storeSet('settings.checkInEnabled', checkInEnabled),
       window.electronAPI.storeSet('settings.checkInIntervalFreeflow', checkInIntervalFreeflow),
       window.electronAPI.storeSet('settings.shortcuts', normalizedShortcuts),
@@ -612,11 +611,11 @@ export default function SettingsModal({
 
               <div style={{
                 fontSize: '0.75rem',
-                color: '#1E40AF',
+                color: 'var(--info-text)',
                 padding: '0.75rem',
-                background: '#EFF6FF',
+                background: 'var(--info-bg)',
                 borderRadius: '0.5rem',
-                border: '1px solid #BFDBFE',
+                border: '1px solid var(--info-border)',
               }}>
                 <p style={{ fontWeight: 500, marginBottom: '0.25rem' }}>macOS Note:</p>
                 <p>If Cmd+Space conflicts with Spotlight, consider using Cmd+Shift+S for Start/Pause Timer.</p>

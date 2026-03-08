@@ -3,16 +3,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { CheckCircle, X } from 'lucide-react';
+import { CheckCircle, CircleDot, X } from 'lucide-react';
 
 export default function SessionNotesModal({
   isOpen,
   onClose,
   onSave,
+  onComplete,
+  onIncomplete,
   sessionDuration,
   taskName,
   sessionFlowKey,
-  stopFlowNotesMode = false,
+  flow = 'complete',
 }) {
   const [notes, setNotes] = useState('');
 
@@ -34,10 +36,39 @@ export default function SessionNotesModal({
     handleRequestClose();
   };
 
+  const handleComplete = () => {
+    onComplete?.(notes.trim());
+    setNotes('');
+  };
+
+  const handleIncomplete = () => {
+    onIncomplete?.(notes.trim());
+    setNotes('');
+  };
+
   const formatDuration = (minutes) => {
     if (minutes < 1) return 'less than a minute';
     return minutes === 1 ? '1 minute' : `${Math.round(minutes)} minutes`;
   };
+
+  const isStopDecisionFlow = flow === 'stop-decision';
+  const isResumeLaterFlow = flow === 'resume-later';
+  const title = isStopDecisionFlow
+    ? 'Did you finish?'
+    : isResumeLaterFlow
+      ? 'Where did you leave off?'
+      : 'Great focus session!';
+  const summaryText = isStopDecisionFlow
+    ? `You spent ${formatDuration(sessionDuration)} on "${taskName || 'Untitled task'}".`
+    : `${formatDuration(sessionDuration)} on "${taskName || 'Untitled task'}"`;
+  const iconStyle = isStopDecisionFlow
+    ? {
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-default)',
+      }
+    : {
+        background: 'var(--brand-primary)',
+      };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleRequestClose(); }}>
@@ -50,22 +81,24 @@ export default function SessionNotesModal({
             margin: '0 auto',
             width: '3rem',
             height: '3rem',
-            background: 'var(--brand-primary)',
             borderRadius: '9999px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: '0.75rem',
+            ...iconStyle,
           }}>
-            <CheckCircle style={{ width: 24, height: 24, color: 'var(--text-on-brand)' }} />
+            {isStopDecisionFlow ? (
+              <CircleDot style={{ width: 20, height: 20, color: 'var(--brand-action)' }} />
+            ) : (
+              <CheckCircle style={{ width: 24, height: 24, color: 'var(--text-on-brand)' }} />
+            )}
           </div>
           <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {stopFlowNotesMode ? 'Where did you leave off?' : 'Great focus session!'}
+            {title}
           </DialogTitle>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            {stopFlowNotesMode
-              ? `You spent ${formatDuration(sessionDuration)} on "${taskName || 'Untitled task'}".`
-              : `${formatDuration(sessionDuration)} on "${taskName}"`}
+            {summaryText}
           </p>
         </DialogHeader>
 
@@ -89,26 +122,53 @@ export default function SessionNotesModal({
         </div>
 
         <DialogFooter>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={handleSkip}
-                variant="outline"
-                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-              >
-                Skip
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Finish session without saving notes</p></TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleSave} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                Save
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Save notes and finish session</p></TooltipContent>
-          </Tooltip>
+          {isStopDecisionFlow ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleIncomplete}
+                    variant="outline"
+                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                  >
+                    No, Keep Task
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={handleComplete} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                    Yes, Complete
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Save notes and mark the task complete</p></TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleSkip}
+                    variant="outline"
+                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                  >
+                    Skip
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Finish session without saving notes</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={handleSave} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                    Save
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Save notes and finish session</p></TooltipContent>
+              </Tooltip>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

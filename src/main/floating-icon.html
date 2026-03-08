@@ -171,10 +171,24 @@
         expandMainWindow();
       });
 
+      iconButton.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        dragActive = false;
+        dragMoved = false;
+        expandedOnMouseUp = false;
+        getFloatingAPI()?.dragEnd?.();
+        getFloatingAPI()?.openContextMenu?.();
+      });
+
       iconButton.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           expandMainWindow();
+          return;
+        }
+        if ((event.key === 'F10' && event.shiftKey) || event.key === 'ContextMenu') {
+          event.preventDefault();
+          getFloatingAPI()?.openContextMenu?.();
           return;
         }
         const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';

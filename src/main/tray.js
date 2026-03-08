@@ -3,13 +3,63 @@ const path = require('path');
 
 let tray = null;
 let dndEnabled = false;
+let dndUntil = null;
 let cachedMainWindow = null;
+let onDndChange = null;
 
-function rebuildMenu() {
-  if (!tray || !cachedMainWindow) return;
-  const mainWindow = cachedMainWindow;
+function normalizeUntil(input) {
+  if (!input) return null;
+  const date = new Date(input);
+  const ms = date.getTime();
+  if (!Number.isFinite(ms) || ms <= Date.now()) return null;
+  return date.toISOString();
+}
 
-  const contextMenu = Menu.buildFromTemplate([
+function formatDndLabel() {
+  if (!dndEnabled) return 'Do Not Disturb';
+  if (!dndUntil) return 'Do Not Disturb On';
+
+  const untilDate = new Date(dndUntil);
+  if (Number.isNaN(untilDate.getTime())) return 'Do Not Disturb On';
+  const label = untilDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `Do Not Disturb Until ${label}`;
+}
+
+function notifyRenderer() {
+  if (!cachedMainWindow || cachedMainWindow.isDestroyed()) return;
+  cachedMainWindow.webContents.send('dnd-toggled', dndEnabled);
+}
+
+function requestDndChange(nextState, source) {
+  if (typeof onDndChange === 'function') {
+    onDndChange({ ...nextState, source });
+  }
+}
+
+function buildDndMenuTemplate(source = 'tray') {
+  return [
+    {
+      label: 'Turn DND Off',
+      enabled: dndEnabled,
+      click: () => requestDndChange({ enabled: false, until: null }, source),
+    },
+    {
+      label: 'DND for 30 Minutes',
+      click: () => requestDndChange({ enabled: true, until: new Date(Date.now() + (30 * 60 * 1000)).toISOString() }, source),
+    },
+    {
+      label: 'DND for 1 Hour',
+      click: () => requestDndChange({ enabled: true, until: new Date(Date.now() + (60 * 60 * 1000)).toISOString() }, source),
+    },
+    {
+      label: 'DND Until Turned Off',
+      click: () => requestDndChange({ enabled: true, until: null }, source),
+    },
+  ];
+}
+
+function buildTrayTemplate(mainWindow) {
+  return [
     {
       label: 'Show/Hide',
       click: () => {
@@ -48,14 +98,10 @@ function rebuildMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Do Not Disturb',
-      type: 'checkbox',
-      checked: dndEnabled,
-      click: (menuItem) => {
-        dndEnabled = menuItem.checked;
-        mainWindow.webContents.send('dnd-toggled', dndEnabled);
-      },
+      label: formatDndLabel(),
+      enabled: false,
     },
+    ...buildDndMenuTemplate('tray'),
     { type: 'separator' },
     {
       label: 'Quit',
@@ -63,14 +109,18 @@ function rebuildMenu() {
         app.quit();
       },
     },
-  ]);
-  tray.setContextMenu(contextMenu);
+  ];
 }
 
-function createTray(mainWindow) {
-  cachedMainWindow = mainWindow;
+function rebuildMenu() {
+  if (!tray || !cachedMainWindow) return;
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayTemplate(cachedMainWindow)));
+}
 
-  // Create a simple 16x16 tray icon
+function createTray(mainWindow, options = {}) {
+  cachedMainWindow = mainWindow;
+  onDndChange = typeof options.onDndChange === 'function' ? options.onDndChange : null;
+
   const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
   let icon;
   try {
@@ -82,7 +132,6 @@ function createTray(mainWindow) {
     icon = createFallbackIcon();
   }
 
-  // Resize for tray
   icon = icon.resize({ width: 16, height: 16 });
 
   tray = new Tray(icon);
@@ -102,7 +151,6 @@ function createTray(mainWindow) {
 }
 
 function createFallbackIcon() {
-  // Create a simple orange circle as a fallback tray icon
   const size = 16;
   const canvas = Buffer.alloc(size * size * 4);
   const cx = size / 2;
@@ -114,10 +162,10 @@ function createFallbackIcon() {
       const offset = (y * size + x) * 4;
       const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
       if (dist <= r) {
-        canvas[offset] = 245;     // R
-        canvas[offset + 1] = 158; // G
-        canvas[offset + 2] = 11;  // B
-        canvas[offset + 3] = 255; // A
+        canvas[offset] = 245;
+        canvas[offset + 1] = 158;
+        canvas[offset + 2] = 11;
+        canvas[offset + 3] = 255;
       } else {
         canvas[offset] = 0;
         canvas[offset + 1] = 0;
@@ -130,9 +178,39 @@ function createFallbackIcon() {
   return nativeImage.createFromBuffer(canvas, { width: size, height: size });
 }
 
-function setDndState(enabled) {
-  dndEnabled = !!enabled;
+function setDndState(nextState, nextUntil = null) {
+  if (typeof nextState === 'object' && nextState !== null) {
+    dndEnabled = Boolean(nextState.enabled);
+    dndUntil = dndEnabled ? normalizeUntil(nextState.until) : null;
+  } else {
+    dndEnabled = Boolean(nextState);
+    dndUntil = dndEnabled ? normalizeUntil(nextUntil) : null;
+  }
+
   rebuildMenu();
+  notifyRenderer();
 }
 
-module.exports = { createTray, setDndState };
+function popupFloatingContextMenu(window, options = {}) {
+  if (!window || window.isDestroyed()) return;
+  const onExpand = typeof options.onExpand === 'function' ? options.onExpand : null;
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Expand',
+      click: () => {
+        onExpand?.();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: formatDndLabel(),
+      enabled: false,
+    },
+    ...buildDndMenuTemplate('floating'),
+  ]);
+
+  menu.popup({ window });
+}
+
+module.exports = { createTray, popupFloatingContextMenu, setDndState };

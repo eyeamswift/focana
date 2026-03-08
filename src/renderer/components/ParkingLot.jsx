@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from './ui/Dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Checkbox } from './ui/Checkbox';
@@ -28,7 +28,7 @@ export default function ParkingLot({
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleAdd();
@@ -111,7 +111,7 @@ export default function ParkingLot({
               <Textarea
                 value={newThought}
                 onChange={(e) => setNewThought(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyDown}
                 placeholder="Capture a thought... (Enter to add)"
                 style={{ flex: 1, minHeight: 40, fontSize: '1rem', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', background: 'var(--bg-input)' }}
               />
