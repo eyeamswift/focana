@@ -466,15 +466,9 @@ export default function App() {
       try {
         const storedEmailRaw = await window.electronAPI.storeGet('userEmail');
         const storedEmail = typeof storedEmailRaw === 'string' ? storedEmailRaw.trim().toLowerCase() : '';
-        const didSkipPrompt = await window.electronAPI.storeGet('emailPromptSkipped');
 
         if (storedEmail) {
           identifyPosthogUser(storedEmail);
-          if (!isCancelled) setStartupGateState('ready');
-          return;
-        }
-
-        if (didSkipPrompt === true) {
           if (!isCancelled) setStartupGateState('ready');
           return;
         }
@@ -499,7 +493,6 @@ export default function App() {
     setEmailCaptureSubmitting(true);
     try {
       await window.electronAPI.storeSet('userEmail', normalizedEmail);
-      await window.electronAPI.storeSet('emailPromptSkipped', false);
       identifyPosthogUser(normalizedEmail);
       setStartupGateState('ready');
     } catch (error) {
@@ -509,19 +502,6 @@ export default function App() {
     }
   }, [emailCaptureSubmitting, emailCaptureInput, identifyPosthogUser]);
 
-  const handleEmailCaptureSkip = useCallback(async () => {
-    if (emailCaptureSubmitting) return;
-
-    setEmailCaptureSubmitting(true);
-    try {
-      await window.electronAPI.storeSet('emailPromptSkipped', true);
-      setStartupGateState('ready');
-    } catch (error) {
-      console.error('Failed to persist email prompt skip:', error);
-    } finally {
-      setEmailCaptureSubmitting(false);
-    }
-  }, [emailCaptureSubmitting]);
 
   // Snapshot timer-visibility when entering compact so exit restores the
   // previous full-view layout instead of forcing timer UI.
@@ -2266,22 +2246,7 @@ export default function App() {
             style={{ width: '100%', fontSize: '0.95rem', padding: '0.7rem 0.8rem' }}
           />
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => { void handleEmailCaptureSkip(); }}
-              disabled={emailCaptureSubmitting}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                fontSize: '0.9rem',
-                cursor: emailCaptureSubmitting ? 'default' : 'pointer',
-                padding: 0,
-              }}
-            >
-              Skip
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem' }}>
             <Button
               onClick={() => { void handleEmailCaptureContinue(); }}
               disabled={!canSubmitEmail || emailCaptureSubmitting}
