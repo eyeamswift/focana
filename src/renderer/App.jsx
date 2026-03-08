@@ -52,6 +52,7 @@ const THEME_STORAGE_KEY = 'focana-theme';
 const WINDOW_SIZES = {
   baseWidth: 500,
   idleHeight: 140,
+  onboardingHeight: 360,
   startChooserHeight: 188,
   timerHeight: 220,
   timerCheckInPromptHeight: 268,
@@ -286,8 +287,21 @@ export default function App() {
   useEffect(() => {
     // Normalize full-view size on launch so hidden oversized window bounds
     // from prior modal flows don't make drag feel "sticky" near bottom edge.
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
-  }, []);
+    const initialHeight = startupGateState === 'ready'
+      ? WINDOW_SIZES.idleHeight
+      : WINDOW_SIZES.onboardingHeight;
+    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, initialHeight);
+  }, [startupGateState]);
+
+  useEffect(() => {
+    if (startupGateState === 'ready') return undefined;
+
+    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.onboardingHeight);
+    const t = setTimeout(() => {
+      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.onboardingHeight);
+    }, 100);
+    return () => clearTimeout(t);
+  }, [startupGateState]);
 
   // Analytics: app opened
   useEffect(() => {
@@ -1526,8 +1540,9 @@ export default function App() {
   }, [contextNotes, checkInState]);
 
   const getIdleScreenDefaultHeight = useCallback(() => {
+    if (startupGateState !== 'ready') return WINDOW_SIZES.onboardingHeight;
     return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
-  }, [isStartModalOpen]);
+  }, [isStartModalOpen, startupGateState]);
 
   const resyncFullWindowSize = useCallback(() => {
     if (isCompact) return;
@@ -1540,6 +1555,7 @@ export default function App() {
   // Hard guard: when truly idle, force the compact full-screen height target.
   // This prevents stale larger bounds after compact->full race conditions.
   useEffect(() => {
+    if (startupGateState !== 'ready') return;
     if (isCompact) return;
     if (isRunning) return;
     if (isTimerVisible) return;
@@ -1551,7 +1567,7 @@ export default function App() {
       window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
     }, 100);
     return () => clearTimeout(t);
-  }, [isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
+  }, [startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
 
   const handlePlay = useCallback(() => {
     const trimmedTask = task.trim();
