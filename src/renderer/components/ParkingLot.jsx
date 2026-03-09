@@ -20,6 +20,18 @@ export default function ParkingLot({
   const [newThought, setNewThought] = useState('');
   const [expandedThought, setExpandedThought] = useState(null);
   const [editingText, setEditingText] = useState('');
+  const displayThoughts = [...thoughts]
+    .map((thought, index) => ({ thought, index }))
+    .sort((a, b) => {
+      const aCreatedAt = Number.isFinite(new Date(a.thought.createdAt).getTime())
+        ? new Date(a.thought.createdAt).getTime()
+        : -Infinity;
+      const bCreatedAt = Number.isFinite(new Date(b.thought.createdAt).getTime())
+        ? new Date(b.thought.createdAt).getTime()
+        : -Infinity;
+      if (aCreatedAt !== bCreatedAt) return bCreatedAt - aCreatedAt;
+      return b.index - a.index;
+    });
 
   const handleAdd = () => {
     if (newThought.trim()) {
@@ -132,7 +144,7 @@ export default function ParkingLot({
             </div>
 
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.5rem' }} className="space-y-2">
-              {thoughts.map((thought, index) => (
+              {displayThoughts.map(({ thought, index }) => (
                 <div
                   key={thought.id || index}
                   style={{

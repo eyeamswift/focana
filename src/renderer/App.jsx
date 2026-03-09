@@ -25,6 +25,7 @@ import Toast from './components/Toast';
 import QuickCaptureModal from './components/QuickCaptureModal';
 import ConfettiBurst from './components/ConfettiBurst';
 import CheckInPromptPopup from './components/CheckInPromptPopup';
+import PostSessionParkingLotModal from './components/PostSessionParkingLotModal';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -66,6 +67,7 @@ const WINDOW_SIZES = {
     history: [420, 500],
     taskPreview: [520, 620],
     parkingLot: [420, 500],
+    postSessionParkingLot: [520, 560],
     timeUp: [540, 460],
     notes: [420, 500],
     quickCapture: [420, 340],
@@ -215,6 +217,8 @@ export default function App() {
   const [compactTransitioning, setCompactTransitioning] = useState(false);
   const [toast, setToast] = useState(null);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [postSessionParkingLotSessionId, setPostSessionParkingLotSessionId] = useState(null);
+  const [postSessionParkingLotHiddenIds, setPostSessionParkingLotHiddenIds] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
   const [startupGateState, setStartupGateState] = useState('checking'); // checking | prompt | ready
@@ -426,6 +430,14 @@ export default function App() {
     setToast({ type, message, duration, ...options });
   }, []);
 
+  const buildThoughtRecord = useCallback((text, sessionId = null) => ({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+    text,
+    completed: false,
+    createdAt: new Date().toISOString(),
+    sessionId,
+  }), []);
+
   const syncDoNotDisturb = useCallback((enabled) => {
     const nextEnabled = Boolean(enabled);
     setDndEnabled(nextEnabled);
@@ -616,11 +628,19 @@ export default function App() {
     ensureCurrentSessionIdRef.current = ensureCurrentSessionId;
   }, [ensureCurrentSessionId]);
 
+  const getActiveThoughtSessionId = useCallback(async () => {
+    if (currentSessionId) return currentSessionId;
+    if (!task.trim()) return null;
+    if (!isTimerVisible && !isRunning) return null;
+    return ensureCurrentSessionId('parking lot capture');
+  }, [currentSessionId, task, isTimerVisible, isRunning, ensureCurrentSessionId]);
+
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
 
     const { duration, completed } = sessionToSave.current;
     const activeSessionId = currentSessionId;
+    let savedSessionId = activeSessionId;
 
     try {
       if (duration > 0.1) {
@@ -633,17 +653,19 @@ export default function App() {
             notes: notes || '',
           });
         } else {
-          await SessionStore.create({
+          const created = await SessionStore.create({
             task: task.trim(),
             duration_minutes: duration,
             mode,
             completed,
             notes: notes || undefined,
           });
+          savedSessionId = created?.id || null;
         }
       } else if (activeSessionId) {
         // Preserve existing "very short sessions are not kept" behavior.
         await SessionStore.delete(activeSessionId);
+        savedSessionId = null;
       }
 
       await loadSessions();
@@ -653,6 +675,7 @@ export default function App() {
 
     sessionToSave.current = null;
     setCurrentSessionId(null);
+    return savedSessionId;
   }, [task, mode, loadSessions, currentSessionId]);
 
   // Pulse animation
@@ -1238,6 +1261,32 @@ export default function App() {
     handleClearRef.current = handleClear;
   }, [handleClear]);
 
+  const hasPostSessionParkingLotItems = useCallback((sessionId) => {
+    if (!sessionId) return false;
+    return thoughts.some((thought) => (
+      thought?.sessionId === sessionId
+      && thought?.completed !== true
+    ));
+  }, [thoughts]);
+
+  const openPostSessionParkingLot = useCallback((sessionId) => {
+    if (!sessionId) return;
+    setPostSessionParkingLotHiddenIds([]);
+    setPostSessionParkingLotSessionId(sessionId);
+  }, []);
+
+  const finalizeCompletedSessionUi = useCallback((completedSessionId, { focusTaskInput = false } = {}) => {
+    const shouldShowParkingLot = hasPostSessionParkingLotItems(completedSessionId);
+    handleClear();
+    if (shouldShowParkingLot && completedSessionId) {
+      openPostSessionParkingLot(completedSessionId);
+      return;
+    }
+    if (focusTaskInput) {
+      setTimeout(() => taskInputRef.current?.focus(), 140);
+    }
+  }, [handleClear, hasPostSessionParkingLotItems, openPostSessionParkingLot]);
+
   useEffect(() => {
     getElapsedSecondsRef.current = getElapsedSeconds;
   }, [getElapsedSeconds]);
@@ -1283,6 +1332,7 @@ export default function App() {
   }, [currentSessionId, task, ensureCurrentSessionId]);
 
   const completeSessionFromCheckIn = useCallback(async (elapsedSec) => {
+    let completedSessionId = currentSessionId;
     try {
       const durationMinutes = Number((elapsedSec / 60).toFixed(2));
       if (currentSessionId) {
@@ -1294,22 +1344,22 @@ export default function App() {
           notes: contextNotes || '',
         });
       } else if (task.trim()) {
-        await SessionStore.create({
+        const created = await SessionStore.create({
           task: task.trim(),
           duration_minutes: durationMinutes,
           mode,
           completed: true,
           notes: contextNotes || '',
         });
+        completedSessionId = created?.id || null;
       }
       await loadSessions();
     } catch (error) {
       console.error('Failed to finalize session after check-in completion:', error);
     }
 
-    handleClear();
-    setTimeout(() => taskInputRef.current?.focus(), 140);
-  }, [currentSessionId, task, mode, contextNotes, loadSessions, handleClear]);
+    return completedSessionId;
+  }, [currentSessionId, task, mode, contextNotes, loadSessions]);
 
   const resolveCheckIn = useCallback(async (status) => {
     if (checkInStateRef.current !== 'prompting') return;
@@ -1400,10 +1450,11 @@ export default function App() {
     setCheckInCelebrationType('completed');
     triggerConfetti(2200);
 
-    checkInResolveTimeoutRef.current = setTimeout(() => {
-      completeSessionFromCheckIn(elapsedSec);
+    checkInResolveTimeoutRef.current = setTimeout(async () => {
+      const completedSessionId = await completeSessionFromCheckIn(elapsedSec);
+      finalizeCompletedSessionUi(completedSessionId, { focusTaskInput: true });
     }, 2000);
-  }, [getElapsedSeconds, logCheckIn, triggerConfetti, completeSessionFromCheckIn]);
+  }, [getElapsedSeconds, logCheckIn, triggerConfetti, completeSessionFromCheckIn, finalizeCompletedSessionUi]);
 
   const handleCheckInDetour = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
@@ -1916,7 +1967,7 @@ export default function App() {
       ...sessionToSave.current,
       completed: false,
     };
-    await saveSessionWithNotes(notes);
+    const endedSessionId = await saveSessionWithNotes(notes);
 
     setShowNotesModal(false);
     setSessionNotesMode('complete');
@@ -1931,7 +1982,10 @@ export default function App() {
     setIsTimerVisible(false);
     setSessionStartTime(null);
     showToast('info', 'Session saved. Task kept active');
-  }, [mode, saveSessionWithNotes, showToast]);
+    if (hasPostSessionParkingLotItems(endedSessionId)) {
+      openPostSessionParkingLot(endedSessionId);
+    }
+  }, [mode, saveSessionWithNotes, showToast, hasPostSessionParkingLotItems, openPostSessionParkingLot]);
 
   const handleStopFlowComplete = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
@@ -1945,7 +1999,7 @@ export default function App() {
       ...sessionToSave.current,
       completed: true,
     };
-    await saveSessionWithNotes(notes);
+    const completedSessionId = await saveSessionWithNotes(notes);
 
     setShowNotesModal(false);
     setSessionNotesMode('complete');
@@ -1953,15 +2007,15 @@ export default function App() {
 
     track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
 
-    handleClear();
     triggerConfetti();
+    finalizeCompletedSessionUi(completedSessionId);
 
     try {
       const allSessions = await SessionStore.list();
       const streak = computeStreak(allSessions);
       if (streak >= 2) track('session_streak', { streak_count: streak });
     } catch (_) { /* non-critical */ }
-  }, [handleClear, mode, saveSessionWithNotes, triggerConfetti]);
+  }, [mode, saveSessionWithNotes, triggerConfetti, finalizeCompletedSessionUi]);
 
   const handleTimeUpEndSession = () => {
     track('post_session_choice', { choice: 'end_session' });
@@ -2217,12 +2271,21 @@ export default function App() {
     }
   };
 
-  const addThought = (text) => setThoughts((prev) => [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2), text, completed: false }]);
+  const addThought = useCallback(async (text) => {
+    const nextText = typeof text === 'string' ? text.trim() : '';
+    if (!nextText) return;
+    const sessionId = await getActiveThoughtSessionId();
+    setThoughts((prev) => [buildThoughtRecord(nextText, sessionId), ...prev]);
+  }, [buildThoughtRecord, getActiveThoughtSessionId]);
   const handleQuickCaptureSave = useCallback((text) => {
-    if (!text?.trim()) return;
-    setThoughts((prev) => [...prev, { id: Date.now().toString(36) + Math.random().toString(36).slice(2), text: text.trim(), completed: false }]);
-    showToast('success', 'Saved to Parking Lot');
-  }, [showToast]);
+    const nextText = typeof text === 'string' ? text.trim() : '';
+    if (!nextText) return;
+    void (async () => {
+      const sessionId = await getActiveThoughtSessionId();
+      setThoughts((prev) => [buildThoughtRecord(nextText, sessionId), ...prev]);
+      showToast('success', 'Saved to Parking Lot');
+    })();
+  }, [buildThoughtRecord, getActiveThoughtSessionId, showToast]);
   const removeThought = (index) => setThoughts((prev) => prev.filter((_, i) => i !== index));
   const updateThought = useCallback((index, text) => {
     const nextText = typeof text === 'string' ? text.trim() : '';
@@ -2237,6 +2300,67 @@ export default function App() {
     if (completedCount > 0) track('parking_lot_cleared', { cleared_count: completedCount });
     setThoughts((prev) => prev.filter((t) => !t.completed));
   };
+
+  const postSessionParkingLotThoughts = thoughts
+    .filter((thought) => (
+      thought?.sessionId === postSessionParkingLotSessionId
+      && thought?.completed !== true
+      && !postSessionParkingLotHiddenIds.includes(thought.id)
+    ))
+    .sort((a, b) => {
+      const aCreatedAt = Number.isFinite(new Date(a?.createdAt).getTime()) ? new Date(a.createdAt).getTime() : -Infinity;
+      const bCreatedAt = Number.isFinite(new Date(b?.createdAt).getTime()) ? new Date(b.createdAt).getTime() : -Infinity;
+      return bCreatedAt - aCreatedAt;
+    });
+
+  const closePostSessionParkingLot = useCallback(() => {
+    setPostSessionParkingLotSessionId(null);
+    setPostSessionParkingLotHiddenIds([]);
+  }, []);
+
+  useEffect(() => {
+    if (!postSessionParkingLotSessionId) return;
+    if (postSessionParkingLotThoughts.length > 0) return;
+    closePostSessionParkingLot();
+  }, [postSessionParkingLotSessionId, postSessionParkingLotThoughts.length, closePostSessionParkingLot]);
+
+  const removeThoughtById = useCallback((thoughtId) => {
+    if (!thoughtId) return;
+    setThoughts((prev) => prev.filter((thought) => thought.id !== thoughtId));
+  }, []);
+
+  const hidePostSessionThought = useCallback((thoughtId) => {
+    if (!thoughtId) return;
+    setPostSessionParkingLotHiddenIds((prev) => (prev.includes(thoughtId) ? prev : [...prev, thoughtId]));
+  }, []);
+
+  const copyPostSessionThought = useCallback(async (thoughtId) => {
+    const thought = thoughts.find((entry) => entry.id === thoughtId);
+    if (!thought?.text) return;
+    await navigator.clipboard.writeText(thought.text);
+    showToast('success', 'Copied to clipboard');
+  }, [thoughts, showToast]);
+
+  const copyAllPostSessionThoughts = useCallback(async () => {
+    if (postSessionParkingLotThoughts.length === 0) return;
+    await navigator.clipboard.writeText(postSessionParkingLotThoughts.map((thought) => thought.text).join('\n'));
+    showToast('success', 'Copied all to clipboard');
+  }, [postSessionParkingLotThoughts, showToast]);
+
+  const clearAllPostSessionThoughts = useCallback(() => {
+    if (postSessionParkingLotThoughts.length === 0) return;
+    const thoughtIds = new Set(postSessionParkingLotThoughts.map((thought) => thought.id));
+    setThoughts((prev) => prev.filter((thought) => !thoughtIds.has(thought.id)));
+  }, [postSessionParkingLotThoughts]);
+
+  const startThoughtAsNextTask = useCallback((thoughtId) => {
+    const thought = thoughts.find((entry) => entry.id === thoughtId);
+    if (!thought?.text) return;
+    setThoughts((prev) => prev.filter((entry) => entry.id !== thoughtId));
+    closePostSessionParkingLot();
+    setTask(thought.text);
+    setTimeout(() => taskInputRef.current?.focus(), 140);
+  }, [thoughts, closePostSessionParkingLot]);
 
   const getPulseClassName = () => {
     if (isPulsing === 'gentle') return 'animate-pulse-gentle';
@@ -2253,6 +2377,7 @@ export default function App() {
       [showHistoryModal, ...WINDOW_SIZES.modal.history],
       [showTaskPreview, ...WINDOW_SIZES.modal.taskPreview],
       [distractionJarOpen, ...WINDOW_SIZES.modal.parkingLot],
+      [Boolean(postSessionParkingLotSessionId), ...WINDOW_SIZES.modal.postSessionParkingLot],
       [showTimeUpModal, ...WINDOW_SIZES.modal.timeUp],
       [showNotesModal, ...WINDOW_SIZES.modal.notes],
       [showQuickCapture, ...WINDOW_SIZES.modal.quickCapture],
@@ -2288,7 +2413,7 @@ export default function App() {
       }
     }
     return undefined;
-  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, postSessionParkingLotSessionId, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);
 
   // No active timer: keep full view tightly fit to content.
   // Base height matches the compact no-timer layout, then grows with
@@ -2299,6 +2424,7 @@ export default function App() {
       showHistoryModal ||
       showTaskPreview ||
       distractionJarOpen ||
+      Boolean(postSessionParkingLotSessionId) ||
       showTimeUpModal ||
       showNotesModal ||
       showQuickCapture;
@@ -2324,6 +2450,7 @@ export default function App() {
     showHistoryModal,
     showTaskPreview,
     distractionJarOpen,
+    postSessionParkingLotSessionId,
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
@@ -2336,6 +2463,7 @@ export default function App() {
       showHistoryModal ||
       showTaskPreview ||
       distractionJarOpen ||
+      Boolean(postSessionParkingLotSessionId) ||
       showTimeUpModal ||
       showNotesModal ||
       showQuickCapture;
@@ -2360,6 +2488,7 @@ export default function App() {
     showHistoryModal,
     showTaskPreview,
     distractionJarOpen,
+    postSessionParkingLotSessionId,
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
@@ -2546,6 +2675,17 @@ export default function App() {
           onDetour={openCheckInDetourChoice}
           taskName={task}
           variant="compact"
+        />
+        <PostSessionParkingLotModal
+          isOpen={Boolean(postSessionParkingLotSessionId)}
+          thoughts={postSessionParkingLotThoughts}
+          onDone={closePostSessionParkingLot}
+          onDismissThought={removeThoughtById}
+          onKeepThoughtForLater={hidePostSessionThought}
+          onCopyThought={copyPostSessionThought}
+          onStartThoughtAsNextTask={startThoughtAsNextTask}
+          onCopyAll={copyAllPostSessionThoughts}
+          onClearAll={clearAllPostSessionThoughts}
         />
         <SessionNotesModal
           isOpen={showNotesModal}
@@ -2943,6 +3083,17 @@ export default function App() {
         onRemoveThought={removeThought}
         onToggleThought={toggleThought}
         onClearCompleted={clearCompletedThoughts}
+      />
+      <PostSessionParkingLotModal
+        isOpen={Boolean(postSessionParkingLotSessionId)}
+        thoughts={postSessionParkingLotThoughts}
+        onDone={closePostSessionParkingLot}
+        onDismissThought={removeThoughtById}
+        onKeepThoughtForLater={hidePostSessionThought}
+        onCopyThought={copyPostSessionThought}
+        onStartThoughtAsNextTask={startThoughtAsNextTask}
+        onCopyAll={copyAllPostSessionThoughts}
+        onClearAll={clearAllPostSessionThoughts}
       />
       <SessionNotesModal
         isOpen={showNotesModal}
