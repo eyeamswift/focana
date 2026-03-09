@@ -1686,23 +1686,6 @@ export default function App() {
     window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
   }, []);
 
-  const resizeFullWindowForPulse = useCallback((scale = 1) => {
-    const card = mainCardRef.current;
-    const measuredRect = card?.getBoundingClientRect?.();
-    const measuredWidth = measuredRect
-      ? Math.ceil(measuredRect.width || 0)
-      : WINDOW_SIZES.baseWidth;
-    const measuredHeight = card
-      ? Math.ceil(card.scrollHeight || measuredRect?.height || 0)
-      : 0;
-    const minHeight = (isRunning || isTimerVisible)
-      ? getActiveScreenDefaultHeight()
-      : getIdleScreenDefaultHeight();
-    const targetWidth = Math.max(WINDOW_SIZES.baseWidth, Math.ceil(measuredWidth * scale));
-    const targetHeight = Math.max(minHeight, Math.ceil(measuredHeight * scale));
-    window.electronAPI.ensureMainWindowSize?.(targetWidth, targetHeight);
-  }, [getActiveScreenDefaultHeight, getIdleScreenDefaultHeight, isRunning, isTimerVisible]);
-
   const getActiveScreenDefaultHeight = useCallback(() => {
     if (contextNotes.trim()) return WINDOW_SIZES.contextHeight;
     if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
@@ -1724,6 +1707,23 @@ export default function App() {
       : getIdleScreenDefaultHeight();
     resizeToMainCardContent(minHeight);
   }, [isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
+
+  const resizeFullWindowForPulse = useCallback((scale = 1) => {
+    const card = mainCardRef.current;
+    const measuredRect = card?.getBoundingClientRect?.();
+    const measuredWidth = measuredRect
+      ? Math.ceil(measuredRect.width || 0)
+      : WINDOW_SIZES.baseWidth;
+    const measuredHeight = card
+      ? Math.ceil(card.scrollHeight || measuredRect?.height || 0)
+      : 0;
+    const minHeight = (isRunning || isTimerVisible)
+      ? getActiveScreenDefaultHeight()
+      : getIdleScreenDefaultHeight();
+    const targetWidth = Math.max(WINDOW_SIZES.baseWidth, Math.ceil(measuredWidth * scale));
+    const targetHeight = Math.max(minHeight, Math.ceil(measuredHeight * scale));
+    window.electronAPI.ensureMainWindowSize?.(targetWidth, targetHeight);
+  }, [getActiveScreenDefaultHeight, getIdleScreenDefaultHeight, isRunning, isTimerVisible]);
 
   useEffect(() => {
     if (isCompact) return undefined;
