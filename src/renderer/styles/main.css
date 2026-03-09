@@ -1231,7 +1231,7 @@ html[data-window-mode='pill'] #root {
 }
 
 .animate-pulse-compact {
-  animation: pulse-compact 3s ease-in-out infinite;
+  animation: pulse-compact 3s ease-in-out 2;
 }
 
 @keyframes confetti-fall {

@@ -20,6 +20,9 @@ const TASK_LINE_H = 15;
 const TASK_V_PAD  = 26;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
+const COMPACT_PULSE_SCALE = 1.5;
+const COMPACT_PULSE_CYCLE_MS = 3000;
+const COMPACT_PULSE_REPEAT_COUNT = 2;
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -110,11 +113,25 @@ export default function CompactMode({
     [checkInPromptActive, pillH],
   );
   const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive;
-  const pulseScale = isPulseAnimating ? 2 : 1;
+  const pulseScale = isPulseAnimating ? COMPACT_PULSE_SCALE : 1;
   const scaledBaseWinW = Math.ceil(baseWinW * pulseScale);
   const scaledHoverWinW = Math.ceil(hoverWinW * pulseScale);
   const scaledCtrlWinW = Math.ceil(ctrlWinW * pulseScale);
   const scaledWinH = Math.ceil(winH * pulseScale);
+
+  useEffect(() => {
+    if (!window.electronAPI?.startPillPulseResize || !window.electronAPI?.endPillPulseResize) return undefined;
+
+    if (isPulseAnimating) {
+      window.electronAPI.startPillPulseResize();
+      return () => {
+        window.electronAPI.endPillPulseResize();
+      };
+    }
+
+    window.electronAPI.endPillPulseResize();
+    return undefined;
+  }, [isPulseAnimating]);
 
   // ---------------------------------------------------------------------------
   // Sync window size with pill state via IPC
@@ -153,20 +170,6 @@ export default function CompactMode({
   }, [isTaskVisible, showControls, scaledHoverWinW, scaledCtrlWinW, scaledBaseWinW, scaledWinH, isPulseAnimating]);
 
   useEffect(() => {
-    if (!window.electronAPI?.startPillPulseResize || !window.electronAPI?.endPillPulseResize) return undefined;
-
-    if (isPulseAnimating) {
-      window.electronAPI.startPillPulseResize();
-      return () => {
-        window.electronAPI.endPillPulseResize();
-      };
-    }
-
-    window.electronAPI.endPillPulseResize();
-    return undefined;
-  }, [isPulseAnimating]);
-
-  useEffect(() => {
     if (pulseSignal === lastPulseSignalRef.current) return;
     lastPulseSignalRef.current = pulseSignal;
     if (!pulseSignal || !pulseEnabled || dndActive) return;
@@ -175,7 +178,7 @@ export default function CompactMode({
     pulseResetTimeoutRef.current = setTimeout(() => {
       setShouldPulse(false);
       pulseResetTimeoutRef.current = null;
-    }, 3000);
+    }, COMPACT_PULSE_CYCLE_MS * COMPACT_PULSE_REPEAT_COUNT);
   }, [pulseSignal, pulseEnabled, dndActive]);
 
   useEffect(() => () => {

@@ -1496,7 +1496,7 @@ export default function App() {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
-          triggerPulse('gentle', 1);
+          triggerPulse('gentle', 2);
         }
       }
       return;
@@ -1529,7 +1529,7 @@ export default function App() {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
-          triggerPulse('gentle', 1);
+          triggerPulse('gentle', 2);
         }
       }
       return;

@@ -12,6 +12,8 @@ let isModalExpanded = false;
 let preModalBounds = null;
 let pillDragStart = null;
 let pillPulseAnchor = null;
+let pillPulseClearing = false;
+let lastStablePillBounds = null;
 let floatingIconWindow = null;
 let isFloatingMinimized = false;
 let floatingPulseTimeout = null;
@@ -87,10 +89,20 @@ function buildCenteredBounds(center, width, height) {
 }
 
 function getPillTargetBounds(currentBounds, targetWidth, targetHeight, pulseActive = false) {
-  const anchorCenter = (pulseActive && pillPulseAnchor)
+  const anchorCenter = ((pulseActive || pillPulseClearing) && pillPulseAnchor)
     ? pillPulseAnchor
     : getBoundsCenter(currentBounds);
   return buildCenteredBounds(anchorCenter, targetWidth, targetHeight);
+}
+
+function rememberStablePillBounds(bounds) {
+  if (!bounds || typeof bounds !== 'object') return;
+  lastStablePillBounds = {
+    x: Math.round(Number(bounds.x) || 0),
+    y: Math.round(Number(bounds.y) || 0),
+    width: Math.round(Number(bounds.width) || PILL_MIN_WIDTH),
+    height: Math.round(Number(bounds.height) || PILL_MIN_HEIGHT),
+  };
 }
 
 function normalizeShortcuts(rawShortcuts) {
@@ -829,6 +841,7 @@ ipcMain.handle('enter-pill-mode', () => {
     const current = mainWindow.getBounds();
     lastFullBounds = current;
     pillPulseAnchor = null;
+    pillPulseClearing = false;
     isPillMode = true;
     mainWindow.setBackgroundColor('#00000000');
     mainWindow.setHasShadow(false);
@@ -847,6 +860,12 @@ ipcMain.handle('enter-pill-mode', () => {
       width: targetWidth,
       height: targetHeight,
     }, { areaType: 'display' });
+    rememberStablePillBounds(clampBounds({
+      x: nextX,
+      y: nextY,
+      width: targetWidth,
+      height: targetHeight,
+    }, 'display'));
     mainWindow.setResizable(false);
   }
 });
@@ -859,6 +878,11 @@ ipcMain.handle('set-pill-width', (_, width) => {
     const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, current.height || PILL_MIN_HEIGHT));
     const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, false);
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+    rememberStablePillBounds(clampBounds(nextBounds, 'display'));
+    if (pillPulseClearing) {
+      pillPulseAnchor = null;
+      pillPulseClearing = false;
+    }
   }
 });
 
@@ -873,17 +897,30 @@ ipcMain.handle('set-pill-size', (_, size) => {
     const targetHeight = Math.round(clampNumber(requestedHeight, PILL_MIN_HEIGHT, PILL_MAX_HEIGHT, current.height));
     const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, pulseActive);
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+    if (!pulseActive) {
+      rememberStablePillBounds(clampBounds(nextBounds, 'display'));
+    }
+    if (pillPulseClearing && !pulseActive) {
+      pillPulseAnchor = null;
+      pillPulseClearing = false;
+    }
   }
 });
 
 ipcMain.handle('start-pill-pulse-resize', () => {
   if (mainWindow && isPillMode) {
-    pillPulseAnchor = getBoundsCenter(mainWindow.getBounds());
+    const anchorSource = lastStablePillBounds || mainWindow.getBounds();
+    pillPulseAnchor = getBoundsCenter(anchorSource);
+    pillPulseClearing = false;
   }
 });
 
 ipcMain.handle('end-pill-pulse-resize', () => {
-  pillPulseAnchor = null;
+  if (pillPulseAnchor) {
+    pillPulseClearing = true;
+    return;
+  }
+  pillPulseClearing = false;
 });
 
 // JS-based pill drag — renderer tracks mouse delta, main moves the window
@@ -912,12 +949,14 @@ ipcMain.on('pill-drag-move', (_, payload) => {
         y: pillPulseAnchor.y + stepY,
       };
     }
-    setMainWindowBoundsClamped({
+    const nextBounds = clampBounds({
       x: Math.round(current.x + stepX),
       y: Math.round(current.y + stepY),
       width: current.width,
       height: current.height,
-    }, { areaType: 'display' });
+    }, 'display');
+    rememberStablePillBounds(nextBounds);
+    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
   }
 });
 
@@ -928,6 +967,8 @@ ipcMain.on('pill-drag-end', () => {
 ipcMain.handle('exit-pill-mode', () => {
   if (mainWindow) {
     pillPulseAnchor = null;
+    pillPulseClearing = false;
+    lastStablePillBounds = null;
     isPillMode = false;
     mainWindow.setResizable(true);
     mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
