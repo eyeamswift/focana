@@ -2439,12 +2439,38 @@ export default function App() {
 
     if (startupGateState === 'checking') {
       return (
-        <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)' }} />
+        <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
+          <div
+            className="electron-no-drag"
+            style={{
+              width: '100%',
+              maxWidth: '22rem',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '0.9rem',
+              boxShadow: 'var(--shadow-minimal)',
+              padding: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.6rem',
+            }}
+          >
+            <img
+              src={theme === 'light' ? appLockupLight : appLockupDark}
+              alt="Focana"
+              style={{ height: 28, width: '100%', maxWidth: 140, objectFit: 'contain' }}
+            />
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Loading your workspace...
+            </p>
+          </div>
+        </div>
       );
     }
 
     return (
-      <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
+      <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
         <div
           className="electron-no-drag"
           style={{
