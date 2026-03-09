@@ -905,46 +905,42 @@ export default function App() {
         setEnabledMainControls({ ...ENABLED_MAIN_CONTROLS_DEFAULT, ...(settings.mainScreenControlsEnabled || {}) });
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
         syncDoNotDisturb(settings.doNotDisturbEnabled ?? false);
+        elapsedBeforeRunRef.current = 0;
+        freeflowPulseNextRef.current = null;
+        checkInTimedIndexRef.current = 0;
+        checkInTimedPendingIndexRef.current = null;
+        timedCheckInLastElapsedRef.current = 0;
+        compactPulseThresholdsRef.current = [];
+        compactPulseIndexRef.current = 0;
+        timedPulseLastElapsedRef.current = 0;
+        setTask('');
+        setContextNotes('');
+        setTime(0);
+        setMode('freeflow');
+        setInitialTime(0);
+        setIsTimerVisible(false);
+        setIsRunning(false);
+        setCurrentSessionId(null);
+        setSessionStartTime(null);
 
-        const currentTask = await window.electronAPI.storeGet('currentTask');
-        if (currentTask) {
-          setTask(currentTask.text || '');
-          setContextNotes(currentTask.contextNote || '');
-        }
-
-        const timerState = await window.electronAPI.storeGet('timerState');
-        if (timerState) {
-          setTime(timerState.seconds || 0);
-          setMode(timerState.mode || 'freeflow');
-          setInitialTime(timerState.initialTime || 0);
-          const restoredElapsed = Number.isFinite(timerState.elapsedSeconds)
-            ? Math.max(0, Math.floor(timerState.elapsedSeconds))
-            : (timerState.mode === 'timed'
-              ? Math.max(0, (timerState.initialTime || 0) - (timerState.seconds || 0))
-              : Math.max(0, timerState.seconds || 0));
-          elapsedBeforeRunRef.current = restoredElapsed;
-          const restoredTimedIndex = Number.isFinite(timerState.checkInTimedIndex)
-            ? Math.max(0, Math.min(Math.floor(timerState.checkInTimedIndex), TIMED_CHECKIN_PERCENTS.length))
-            : 0;
-          const restoredCompactPulseThresholds = timerState.mode === 'timed'
-            ? buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, timerState.initialTime || 0)
-            : [];
-          const restoredCompactPulseIndex = Number.isFinite(timerState.compactPulseTimedIndex)
-            ? Math.max(0, Math.min(Math.floor(timerState.compactPulseTimedIndex), restoredCompactPulseThresholds.length))
-            : 0;
-          freeflowPulseNextRef.current = timerState.mode === 'freeflow'
-            ? getNextFreeflowPulseTarget(restoredElapsed)
-            : null;
-          checkInTimedIndexRef.current = restoredTimedIndex;
-          checkInTimedPendingIndexRef.current = null;
-          timedCheckInLastElapsedRef.current = restoredElapsed;
-          compactPulseThresholdsRef.current = restoredCompactPulseThresholds;
-          compactPulseIndexRef.current = restoredCompactPulseIndex;
-          timedPulseLastElapsedRef.current = restoredElapsed;
-          if (timerState.seconds > 0 || timerState.mode !== 'freeflow') {
-            setIsTimerVisible(true);
-          }
-        }
+        await Promise.all([
+          window.electronAPI.storeSet('currentTask', {
+            text: '',
+            contextNote: '',
+            startedAt: null,
+          }),
+          window.electronAPI.storeSet('timerState', {
+            mode: 'freeflow',
+            seconds: 0,
+            isRunning: false,
+            initialTime: 0,
+            elapsedSeconds: 0,
+            sessionStartedAt: null,
+            checkInTimedIndex: 0,
+            checkInTimedPendingIndex: null,
+            compactPulseTimedIndex: 0,
+          }),
+        ]);
       } finally {
         setShortcutsHydrated(true);
       }
