@@ -27,6 +27,7 @@ export default function CompactMode({
   task,
   isRunning,
   time,
+  pulseSignal = 0,
   showTaskByDefault = true,
   onDoubleClick,
   onOpenDistractionJar,
@@ -107,6 +108,12 @@ export default function CompactMode({
     () => (checkInPromptActive ? Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H) : pillH),
     [checkInPromptActive, pillH],
   );
+  const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive && !isHovered;
+  const pulseScale = isPulseAnimating ? 2 : 1;
+  const scaledBaseWinW = Math.ceil(baseWinW * pulseScale);
+  const scaledHoverWinW = Math.ceil(hoverWinW * pulseScale);
+  const scaledCtrlWinW = Math.ceil(ctrlWinW * pulseScale);
+  const scaledWinH = Math.ceil(winH * pulseScale);
 
   // ---------------------------------------------------------------------------
   // Sync window size with pill state via IPC
@@ -127,44 +134,32 @@ export default function CompactMode({
     // Initial mount — set immediately without shrink delay
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      pushPillSize(baseWinW, winH);
+      pushPillSize(scaledBaseWinW, scaledWinH);
       return;
     }
 
     if (showControls) {
-      pushPillSize(ctrlWinW, winH);
+      pushPillSize(scaledCtrlWinW, scaledWinH);
     } else if (isTaskVisible) {
-      pushPillSize(hoverWinW, winH);
+      pushPillSize(scaledHoverWinW, scaledWinH);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
       const t = setTimeout(() => {
-        pushPillSize(baseWinW, winH);
+        pushPillSize(scaledBaseWinW, scaledWinH);
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW, winH]);
+  }, [isTaskVisible, showControls, scaledHoverWinW, scaledCtrlWinW, scaledBaseWinW, scaledWinH]);
 
-  // ---------------------------------------------------------------------------
-  // Pulse animation — pauses when hovered
-  // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!pulseEnabled || dndActive || isHovered) return;
-    const interval = setInterval(() => {
-      setShouldPulse(true);
-      if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
-      pulseResetTimeoutRef.current = setTimeout(() => {
-        setShouldPulse(false);
-        pulseResetTimeoutRef.current = null;
-      }, 3000);
-    }, 60000);
-    return () => {
-      clearInterval(interval);
-      if (pulseResetTimeoutRef.current) {
-        clearTimeout(pulseResetTimeoutRef.current);
-        pulseResetTimeoutRef.current = null;
-      }
-    };
-  }, [pulseEnabled, dndActive, isHovered]);
+    if (!pulseSignal || !pulseEnabled || dndActive) return;
+    setShouldPulse(true);
+    if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
+    pulseResetTimeoutRef.current = setTimeout(() => {
+      setShouldPulse(false);
+      pulseResetTimeoutRef.current = null;
+    }, 3000);
+  }, [pulseSignal, pulseEnabled, dndActive]);
 
   useEffect(() => () => {
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
@@ -288,7 +283,7 @@ export default function CompactMode({
 
   return (
     <div
-      className={`pill pill--logo${shouldPulse && pulseEnabled && !dndActive && !isHovered ? ' animate-pulse-compact' : ''}`}
+      className={`pill pill--logo${isPulseAnimating ? ' animate-pulse-compact' : ''}`}
       style={pillStyle}
       onMouseDown={handleMouseDown}
       onDragStart={(e) => e.preventDefault()}

@@ -73,8 +73,11 @@ const WINDOW_SIZES = {
 };
 const CHECKIN_MESSAGES = [
   'Nice, keep going',
+  'Good Job! 🍊',
+  '🙂',
   "You're locked in",
   'Still at it, love that',
+  "You're doing good 👍🏾",
   'Crushing it',
   'In the zone',
 ];
@@ -90,6 +93,8 @@ const CHECKIN_DETOUR_MESSAGES = [
   'Detours happen, refocusing now',
 ];
 const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
+const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
+const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60;
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
 const EMAIL_CAPTURE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PINNED_CONTROLS_DEFAULT = {
@@ -108,6 +113,24 @@ const ENABLED_MAIN_CONTROLS_DEFAULT = {
   restart: true,
   close: true,
 };
+
+const buildTimedThresholds = (percents, totalSeconds) => {
+  const safeTotal = Math.max(1, Number(totalSeconds) || 0);
+  const normalizedPercents = percents
+    .map((p) => Number(p))
+    .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
+    .sort((a, b) => a - b);
+
+  return Array.from(new Set(
+    normalizedPercents
+      .map((p) => Math.round(safeTotal * p))
+      .filter((threshold) => threshold > 0 && threshold < safeTotal),
+  ));
+};
+
+const getNextFreeflowPulseTarget = (elapsedSec) => (
+  (Math.floor(Math.max(0, Number(elapsedSec) || 0) / FREEFLOW_PULSE_INTERVAL_SECONDS) + 1) * FREEFLOW_PULSE_INTERVAL_SECONDS
+);
 
 function computeStreak(sessions) {
   const completedDates = new Set();
@@ -213,6 +236,7 @@ export default function App() {
     compactEnabled: true,
   });
   const [isPulsing, setIsPulsing] = useState(false);
+  const [compactPulseSignal, setCompactPulseSignal] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState(null);
 
   const timerRef = useRef(null);
@@ -236,6 +260,9 @@ export default function App() {
   const checkInTimedThresholdsRef = useRef([]);
   const checkInTimedIndexRef = useRef(0);
   const checkInTimedPendingIndexRef = useRef(null);
+  const freeflowPulseNextRef = useRef(null);
+  const compactPulseThresholdsRef = useRef([]);
+  const compactPulseIndexRef = useRef(0);
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
   const checkInPromptCooldownUntilRef = useRef(0);
@@ -248,6 +275,7 @@ export default function App() {
   const sessionCreateEpochRef = useRef(0);
   const getElapsedSecondsRef = useRef(() => 0);
   const resetCheckInScheduleRef = useRef(() => {});
+  const resetCompactPulseScheduleRef = useRef(() => {});
   const ensureCurrentSessionIdRef = useRef(async () => null);
   const handleClearRef = useRef(() => {});
   const suppressToolbarTooltipTimerRef = useRef(null);
@@ -457,6 +485,7 @@ export default function App() {
       void ensureCurrentSessionIdRef.current(source);
     }
     resetCheckInScheduleRef.current(mode, initialTime, elapsedBeforeRunRef.current);
+    resetCompactPulseScheduleRef.current(mode, initialTime, elapsedBeforeRunRef.current);
   }, [currentSessionId, mode, initialTime]);
 
   useEffect(() => {
@@ -847,8 +876,19 @@ export default function App() {
           const restoredPendingIndex = Number.isFinite(timerState.checkInTimedPendingIndex)
             ? Math.max(restoredTimedIndex, Math.min(Math.floor(timerState.checkInTimedPendingIndex), TIMED_CHECKIN_PERCENTS.length - 1))
             : null;
+          const restoredCompactPulseThresholds = timerState.mode === 'timed'
+            ? buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, timerState.initialTime || 0)
+            : [];
+          const restoredCompactPulseIndex = Number.isFinite(timerState.compactPulseTimedIndex)
+            ? Math.max(0, Math.min(Math.floor(timerState.compactPulseTimedIndex), restoredCompactPulseThresholds.length))
+            : 0;
+          freeflowPulseNextRef.current = timerState.mode === 'freeflow'
+            ? getNextFreeflowPulseTarget(restoredElapsed)
+            : null;
           checkInTimedIndexRef.current = restoredTimedIndex;
           checkInTimedPendingIndexRef.current = restoredPendingIndex;
+          compactPulseThresholdsRef.current = restoredCompactPulseThresholds;
+          compactPulseIndexRef.current = restoredCompactPulseIndex;
           if (timerState.seconds > 0 || timerState.mode !== 'freeflow') {
             setIsTimerVisible(true);
           }
@@ -932,6 +972,7 @@ export default function App() {
         sessionStartedAt: null,
         checkInTimedIndex: checkInTimedIndexRef.current,
         checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
+        compactPulseTimedIndex: compactPulseIndexRef.current,
       });
     }
   }, [task, time, mode, initialTime, contextNotes, isRunning]);
@@ -953,6 +994,7 @@ export default function App() {
       sessionStartedAt: sessionStartTime ? new Date(sessionStartTime).toISOString() : null,
       checkInTimedIndex: checkInTimedIndexRef.current,
       checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
+      compactPulseTimedIndex: compactPulseIndexRef.current,
     });
   }, [task, contextNotes, mode, initialTime, isRunning, sessionStartTime, time]);
 
@@ -962,17 +1004,13 @@ export default function App() {
       return intervalMinutes * 60;
     }
 
-    const safeTotal = Math.max(1, Number(nextInitialTimeSec) || 0);
-    const percents = TIMED_CHECKIN_PERCENTS
-      .map((p) => Number(p))
-      .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
-      .sort((a, b) => a - b);
+    const thresholds = buildTimedThresholds(TIMED_CHECKIN_PERCENTS, nextInitialTimeSec);
 
-    if (percents.length >= 2) {
-      return Math.max(60, Math.round((percents[1] - percents[0]) * safeTotal));
+    if (thresholds.length >= 2) {
+      return Math.max(60, thresholds[1] - thresholds[0]);
     }
 
-    return Math.max(60, Math.round((percents[0] || 0.4) * safeTotal));
+    return Math.max(60, thresholds[0] || Math.round(Math.max(1, Number(nextInitialTimeSec) || 0) * 0.4));
   }, [mode, initialTime, checkInSettings.intervalFreeflow]);
 
   const getShortCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
@@ -1001,6 +1039,12 @@ export default function App() {
     clearCheckInUi();
   }, [clearCheckInUi]);
 
+  const clearCompactPulseRuntime = useCallback(() => {
+    freeflowPulseNextRef.current = null;
+    compactPulseThresholdsRef.current = [];
+    compactPulseIndexRef.current = 0;
+  }, []);
+
   const resetCheckInSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
     const previousFreeflowNext = checkInFreeflowNextRef.current;
     const previousTimedThresholds = checkInTimedThresholdsRef.current;
@@ -1027,12 +1071,7 @@ export default function App() {
       return;
     }
 
-    const safeTotal = Math.max(1, Number(nextInitialTimeSec) || 0);
-    const percents = TIMED_CHECKIN_PERCENTS
-      .map((p) => Number(p))
-      .filter((p) => Number.isFinite(p) && p > 0 && p < 1)
-      .sort((a, b) => a - b);
-    const nextThresholds = percents.map((p) => Math.round(safeTotal * p));
+    const nextThresholds = buildTimedThresholds(TIMED_CHECKIN_PERCENTS, nextInitialTimeSec);
     let nextTimedIndex = 0;
 
     const sameThresholds = (
@@ -1068,6 +1107,54 @@ export default function App() {
     }
   }, [checkInSettings.enabled, initialTime, getStandardCheckInIntervalSeconds]);
 
+  const resetCompactPulseSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
+    const previousFreeflowPulseNext = freeflowPulseNextRef.current;
+    const previousThresholds = compactPulseThresholdsRef.current;
+    const previousIndex = compactPulseIndexRef.current;
+
+    freeflowPulseNextRef.current = null;
+    compactPulseThresholdsRef.current = [];
+    compactPulseIndexRef.current = 0;
+
+    if (nextMode === 'freeflow') {
+      const nextTarget = getNextFreeflowPulseTarget(elapsedSec);
+      if (Number.isFinite(previousFreeflowPulseNext) && previousFreeflowPulseNext > elapsedSec) {
+        freeflowPulseNextRef.current = Math.min(previousFreeflowPulseNext, nextTarget);
+      } else {
+        freeflowPulseNextRef.current = nextTarget;
+      }
+      return;
+    }
+
+    if (nextMode !== 'timed') return;
+
+    const nextThresholds = buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, nextInitialTimeSec);
+    let nextIndex = 0;
+
+    const sameThresholds = (
+      previousThresholds.length === nextThresholds.length
+      && previousThresholds.every((value, idx) => value === nextThresholds[idx])
+    );
+
+    if (sameThresholds) {
+      nextIndex = Number.isFinite(previousIndex)
+        ? Math.max(0, Math.min(Math.floor(previousIndex), nextThresholds.length))
+        : 0;
+    } else {
+      while (nextIndex < nextThresholds.length && elapsedSec > nextThresholds[nextIndex]) {
+        nextIndex += 1;
+      }
+    }
+
+    compactPulseThresholdsRef.current = nextThresholds;
+    compactPulseIndexRef.current = nextIndex;
+  }, [initialTime]);
+
+  const clearCompactSessionCues = useCallback(() => {
+    clearCheckInRuntime();
+    clearCompactPulseRuntime();
+  }, [clearCheckInRuntime, clearCompactPulseRuntime]);
+
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
     sessionToSave.current = null;
@@ -1085,8 +1172,8 @@ export default function App() {
     setSessionStartTime(null);
     invalidatePendingSessionCreation();
 
-    clearCheckInRuntime();
-  }, [clearCheckInRuntime, invalidatePendingSessionCreation]);
+    clearCompactSessionCues();
+  }, [clearCompactSessionCues, invalidatePendingSessionCreation]);
 
   useEffect(() => {
     handleClearRef.current = handleClear;
@@ -1099,6 +1186,10 @@ export default function App() {
   useEffect(() => {
     resetCheckInScheduleRef.current = resetCheckInSchedule;
   }, [resetCheckInSchedule]);
+
+  useEffect(() => {
+    resetCompactPulseScheduleRef.current = resetCompactPulseSchedule;
+  }, [resetCompactPulseSchedule]);
 
   const advanceCheckInScheduleAfterResult = useCallback((elapsedSec) => {
     if (!checkInSettings.enabled) return;
@@ -1177,7 +1268,7 @@ export default function App() {
     }
     const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
     if (isCompact) {
-      showToast('success', randomMessage, 1500);
+      showToast('success', randomMessage, 1000);
       setCheckInMessage(randomMessage);
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');
@@ -1322,6 +1413,44 @@ export default function App() {
   }, [checkInSettings.enabled, clearCheckInRuntime]);
 
   useEffect(() => {
+    if (!isRunning) return;
+
+    const elapsed = getElapsedSeconds();
+    let crossedThreshold = false;
+
+    if (mode === 'freeflow') {
+      if (!Number.isFinite(freeflowPulseNextRef.current)) {
+        freeflowPulseNextRef.current = getNextFreeflowPulseTarget(elapsed);
+      }
+      while (Number.isFinite(freeflowPulseNextRef.current) && elapsed >= freeflowPulseNextRef.current) {
+        freeflowPulseNextRef.current += FREEFLOW_PULSE_INTERVAL_SECONDS;
+        crossedThreshold = true;
+      }
+    } else if (mode === 'timed') {
+      const thresholds = compactPulseThresholdsRef.current;
+      if (!thresholds.length) return;
+
+      while (
+        compactPulseIndexRef.current < thresholds.length
+        && elapsed >= thresholds[compactPulseIndexRef.current]
+      ) {
+        compactPulseIndexRef.current += 1;
+        crossedThreshold = true;
+      }
+    } else {
+      return;
+    }
+
+    if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled) {
+      if (isCompact) {
+        setCompactPulseSignal((prev) => prev + 1);
+      } else {
+        triggerPulse('gentle', 1);
+      }
+    }
+  }, [time, isRunning, mode, getElapsedSeconds, isCompact, pulseSettings.compactEnabled, dndEnabled, triggerPulse]);
+
+  useEffect(() => {
     if (!isRunning || !isTimerVisible || !task.trim() || !checkInSettings.enabled) {
       return;
     }
@@ -1406,14 +1535,14 @@ export default function App() {
       setSessionNotesMode('complete');
       setIsTimerVisible(true);
       setSessionStartTime(null);
-      clearCheckInRuntime();
+      clearCompactSessionCues();
       sessionToSave.current = {
         duration: initialTime / 60,
         completed: true,
       };
       setShowTimeUpModal(true);
     }
-  }, [mode, time, isRunning, initialTime, clearCheckInRuntime, isCompact]);
+  }, [mode, time, isRunning, initialTime, clearCompactSessionCues, isCompact]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -1566,7 +1695,7 @@ export default function App() {
 
   const handleStop = () => {
     const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
-    clearCheckInRuntime();
+    clearCompactSessionCues();
     if (isCompact) {
       handleExitCompact();
     }
@@ -1637,8 +1766,9 @@ export default function App() {
         : null,
     });
 
-    clearCheckInRuntime();
+    clearCompactSessionCues();
     resetCheckInSchedule(selectedMode, initialSeconds, 0);
+    resetCompactPulseSchedule(selectedMode, initialSeconds, 0);
     setIsStartModalOpen(false);
     setTimeout(() => setIsCompact(true), 100);
   };
@@ -1653,7 +1783,7 @@ export default function App() {
       setSessionNotesMode('complete');
       sessionToSave.current = null;
       // Keep task text, reset timer to idle
-      clearCheckInRuntime();
+      clearCompactSessionCues();
       setIsRunning(false);
       setTime(0);
       setInitialTime(0);
@@ -1679,7 +1809,7 @@ export default function App() {
       setShowNotesModal(false);
       setSessionNotesMode('complete');
       sessionToSave.current = null;
-      clearCheckInRuntime();
+      clearCompactSessionCues();
       setIsRunning(false);
       setTime(0);
       setInitialTime(0);
@@ -1765,7 +1895,7 @@ export default function App() {
     timeUpReturnToCompactRef.current = false;
     setSessionStartTime(null);
 
-    clearCheckInRuntime();
+    clearCompactSessionCues();
     setSessionNotesMode('stop-decision');
     setShowNotesModal(true);
   };
@@ -1788,6 +1918,7 @@ export default function App() {
     setSessionStartTime(Date.now());
     setShowTimeUpModal(false);
     resetCheckInSchedule('timed', nextInitial, elapsedAtExtension);
+    resetCompactPulseSchedule('timed', nextInitial, elapsedAtExtension);
     if (shouldReturnToCompact) {
       setTimeout(() => setIsCompact(true), 80);
     }
@@ -1800,7 +1931,7 @@ export default function App() {
     timeUpReturnToCompactRef.current = false;
     setSessionStartTime(null);
 
-    clearCheckInRuntime();
+    clearCompactSessionCues();
     // Override completed flag — task is not finished
     sessionToSave.current = {
       ...sessionToSave.current,
@@ -1866,6 +1997,7 @@ export default function App() {
       sessionStartedAt: null,
       checkInTimedIndex: 0,
       checkInTimedPendingIndex: null,
+      compactPulseTimedIndex: 0,
     });
 
     try {
@@ -2009,6 +2141,7 @@ export default function App() {
   };
 
   const getPulseClassName = () => {
+    if (isPulsing === 'gentle') return 'animate-pulse-gentle';
     if (isPulsing === 'celebration') return 'animate-pulse-celebration';
     return '';
   };
@@ -2271,6 +2404,7 @@ export default function App() {
           task={task}
           isRunning={isRunning}
           time={time}
+          pulseSignal={compactPulseSignal}
           showTaskByDefault={showTaskInCompactDefault}
           onDoubleClick={handleExitCompact}
           onOpenDistractionJar={handleOpenParkingLot}

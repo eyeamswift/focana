@@ -21,6 +21,7 @@ const schema = {
       sessionStartedAt: { type: ['string', 'null'], default: null },
       checkInTimedIndex: { type: 'number', default: 0 },
       checkInTimedPendingIndex: { type: ['number', 'null'], default: null },
+      compactPulseTimedIndex: { type: 'number', default: 0 },
     },
     default: {
       mode: 'freeflow',
@@ -31,6 +32,7 @@ const schema = {
       sessionStartedAt: null,
       checkInTimedIndex: 0,
       checkInTimedPendingIndex: null,
+      compactPulseTimedIndex: 0,
     },
   },
   parkingLot: {
