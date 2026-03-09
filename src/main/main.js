@@ -29,6 +29,7 @@ const FULL_MIN_HEIGHT = 120;
 const PILL_MIN_WIDTH = 100;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
+const PILL_EDGE_EPSILON = 2;
 const FLOATING_ICON_SIZE = 64;
 const FLOATING_ICON_PULSE_INITIAL_MS = 10 * 60 * 1000;
 const FLOATING_ICON_PULSE_REPEAT_MS = 15 * 60 * 1000;
@@ -88,10 +89,50 @@ function buildCenteredBounds(center, width, height) {
   };
 }
 
+function buildBottomRightBounds(area, width, height) {
+  return {
+    x: Math.round(area.x + area.width - width),
+    y: Math.round(area.y + area.height - height),
+    width,
+    height,
+  };
+}
+
 function getPillTargetBounds(currentBounds, targetWidth, targetHeight, pulseActive = false) {
-  const anchorCenter = ((pulseActive || pillPulseClearing) && pillPulseAnchor)
-    ? pillPulseAnchor
-    : getBoundsCenter(currentBounds);
+  const shouldUsePulseAnchor = (pulseActive || pillPulseClearing) && pillPulseAnchor;
+  const stableBounds = shouldUsePulseAnchor ? (lastStablePillBounds || currentBounds) : currentBounds;
+
+  if (shouldUsePulseAnchor && stableBounds) {
+    const display = screen.getDisplayMatching(stableBounds);
+    const area = display.bounds;
+    const rightEdge = area.x + area.width;
+    const bottomEdge = area.y + area.height;
+    const stableRight = stableBounds.x + stableBounds.width;
+    const stableBottom = stableBounds.y + stableBounds.height;
+    const touchesLeft = Math.abs(stableBounds.x - area.x) <= PILL_EDGE_EPSILON;
+    const touchesRight = Math.abs(stableRight - rightEdge) <= PILL_EDGE_EPSILON;
+    const touchesTop = Math.abs(stableBounds.y - area.y) <= PILL_EDGE_EPSILON;
+    const touchesBottom = Math.abs(stableBottom - bottomEdge) <= PILL_EDGE_EPSILON;
+
+    const centeredBounds = buildCenteredBounds(pillPulseAnchor, targetWidth, targetHeight);
+
+    return {
+      x: touchesRight && !touchesLeft
+        ? Math.round(stableRight - targetWidth)
+        : touchesLeft && !touchesRight
+          ? Math.round(stableBounds.x)
+          : centeredBounds.x,
+      y: touchesBottom && !touchesTop
+        ? Math.round(stableBottom - targetHeight)
+        : touchesTop && !touchesBottom
+          ? Math.round(stableBounds.y)
+          : centeredBounds.y,
+      width: targetWidth,
+      height: targetHeight,
+    };
+  }
+
+  const anchorCenter = getBoundsCenter(stableBounds);
   return buildCenteredBounds(anchorCenter, targetWidth, targetHeight);
 }
 
@@ -389,6 +430,11 @@ function sanitizeStoredWindowState(rawState) {
   return { x, y, width, height };
 }
 
+function getDefaultMainWindowBounds() {
+  const displayBounds = screen.getPrimaryDisplay().bounds;
+  return buildBottomRightBounds(displayBounds, FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+}
+
 function isToggleFloatingShortcut(input) {
   if (!input || input.type !== 'keyDown' || typeof input.key !== 'string') return false;
   const key = input.key.toLowerCase();
@@ -540,10 +586,7 @@ function toggleFloatingMinimize() {
 function createWindow() {
   setDockIcon();
 
-  const windowState = sanitizeStoredWindowState(
-    store.get('windowState', { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT })
-  );
-  const initialBounds = clampBounds(windowState, 'display');
+  const initialBounds = clampBounds(getDefaultMainWindowBounds(), 'display');
 
   mainWindow = new BrowserWindow({
     x: initialBounds.x,
@@ -839,6 +882,7 @@ ipcMain.handle('modal-closed', () => {
 ipcMain.handle('enter-pill-mode', () => {
   if (mainWindow) {
     const current = mainWindow.getBounds();
+    const displayBounds = screen.getDisplayMatching(current).bounds;
     lastFullBounds = current;
     pillPulseAnchor = null;
     pillPulseClearing = false;
@@ -852,20 +896,9 @@ ipcMain.handle('enter-pill-mode', () => {
     // Initial default size for compact mode before renderer computes exact width.
     const targetWidth = 182;
     const targetHeight = PILL_MIN_HEIGHT;
-    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
-    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
-    setMainWindowBoundsClamped({
-      x: nextX,
-      y: nextY,
-      width: targetWidth,
-      height: targetHeight,
-    }, { areaType: 'display' });
-    rememberStablePillBounds(clampBounds({
-      x: nextX,
-      y: nextY,
-      width: targetWidth,
-      height: targetHeight,
-    }, 'display'));
+    const nextBounds = buildBottomRightBounds(displayBounds, targetWidth, targetHeight);
+    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+    rememberStablePillBounds(clampBounds(nextBounds, 'display'));
     mainWindow.setResizable(false);
   }
 });
@@ -1005,16 +1038,22 @@ ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeig
   const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2400, FULL_MIN_WIDTH);
   const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2400, FULL_MIN_HEIGHT);
   const bounds = mainWindow.getBounds();
+  const displayBounds = screen.getDisplayMatching(bounds).bounds;
+  const rightEdge = displayBounds.x + displayBounds.width;
+  const bottomEdge = displayBounds.y + displayBounds.height;
+  const touchesRight = Math.abs((bounds.x + bounds.width) - rightEdge) <= PILL_EDGE_EPSILON;
+  const touchesBottom = Math.abs((bounds.y + bounds.height) - bottomEdge) <= PILL_EDGE_EPSILON;
+  const nextBounds = {
+    x: touchesRight ? Math.round(rightEdge - targetWidth) : bounds.x,
+    y: touchesBottom ? Math.round(bottomEdge - targetHeight) : bounds.y,
+    width: targetWidth,
+    height: targetHeight,
+  };
 
   mainWindow.setResizable(true);
   mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
   setMainWindowBoundsClamped(
-    {
-      x: bounds.x,
-      y: bounds.y,
-      width: targetWidth,
-      height: targetHeight,
-    },
+    nextBounds,
     { persist: true, areaType: 'display' }
   );
 });

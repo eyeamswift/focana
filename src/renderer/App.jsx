@@ -422,8 +422,8 @@ export default function App() {
   }, [showNotesModal]);
 
   // Helpers
-  const showToast = useCallback((type, message, duration = 2000) => {
-    setToast({ type, message, duration });
+  const showToast = useCallback((type, message, duration = 2000, options = {}) => {
+    setToast({ type, message, duration, ...options });
   }, []);
 
   const syncDoNotDisturb = useCallback((enabled) => {
@@ -1327,7 +1327,7 @@ export default function App() {
     }
     const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
     if (isCompact) {
-      showToast('success', randomMessage, 1000);
+      showToast('success', randomMessage, 1000, { showIcon: false, showCloseButton: false });
       setCheckInMessage(randomMessage);
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');

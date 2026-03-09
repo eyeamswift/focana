@@ -41,21 +41,25 @@ export default function Toast({ toast, onDismiss }) {
   if (!toast || !isVisible) return null;
 
   const { icon: Icon, className } = TOAST_TYPES[toast.type] || TOAST_TYPES.info;
+  const showIcon = toast.showIcon !== false;
+  const showCloseButton = toast.showCloseButton !== false;
 
   return (
     <div style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 50 }}>
       <div className={`toast ${className} ${isExiting ? 'toast-exit' : 'toast-enter'}`}>
-        <Icon style={{ width: 20, height: 20, flexShrink: 0 }} />
+        {showIcon ? <Icon style={{ width: 20, height: 20, flexShrink: 0 }} /> : null}
         <p style={{ fontSize: '0.875rem', fontWeight: 500, flex: 1 }}>{toast.message}</p>
-        <Button
-          onClick={handleDismiss}
-          size="icon"
-          variant="ghost"
-          className="toast-close-btn"
-          style={{ height: '1.5rem', width: '1.5rem', padding: 0 }}
-        >
-          <X style={{ width: 16, height: 16 }} strokeWidth={2.5} />
-        </Button>
+        {showCloseButton ? (
+          <Button
+            onClick={handleDismiss}
+            size="icon"
+            variant="ghost"
+            className="toast-close-btn"
+            style={{ height: '1.5rem', width: '1.5rem', padding: 0 }}
+          >
+            <X style={{ width: 16, height: 16 }} strokeWidth={2.5} />
+          </Button>
+        ) : null}
       </div>
     </div>
   );
