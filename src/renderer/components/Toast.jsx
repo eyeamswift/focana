@@ -12,13 +12,16 @@ export default function Toast({ toast, onDismiss }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  const onDismissRef = React.useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   const handleDismiss = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => {
       setIsVisible(false);
-      onDismiss();
+      onDismissRef.current();
     }, 300);
-  }, [onDismiss]);
+  }, []);
 
   useEffect(() => {
     if (toast) {
