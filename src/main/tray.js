@@ -81,6 +81,22 @@ function buildTrayTemplate(mainWindow) {
       },
     },
     {
+      label: 'Parking Lot',
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('tray-open-parking-lot');
+      },
+    },
+    {
+      label: 'Settings',
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('tray-open-settings');
+      },
+    },
+    {
       label: 'Light Mode',
       click: () => {
         mainWindow.show();

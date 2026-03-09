@@ -52,6 +52,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tray-open-history', handler);
     return () => ipcRenderer.removeListener('tray-open-history', handler);
   },
+  onTrayOpenParkingLot: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray-open-parking-lot', handler);
+    return () => ipcRenderer.removeListener('tray-open-parking-lot', handler);
+  },
+  onTrayOpenSettings: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray-open-settings', handler);
+    return () => ipcRenderer.removeListener('tray-open-settings', handler);
+  },
   onTrayThemeSelect: (callback) => {
     const handler = (_event, theme) => callback(theme);
     ipcRenderer.on('tray-theme-select', handler);

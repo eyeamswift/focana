@@ -714,6 +714,40 @@ export default function App() {
     pendingCompactExitHeightRef.current = exitTargetHeight;
   }, [isRunning, task, contextNotes, isTimerVisible, checkInState, isStartModalOpen]);
 
+  const openHistoryModal = useCallback(() => {
+    if (isCompact) {
+      handleExitCompact();
+      setTimeout(() => {
+        setShowHistoryModal(true);
+      }, 120);
+      return;
+    }
+    setShowHistoryModal(true);
+  }, [isCompact, handleExitCompact]);
+
+  const openSettingsModal = useCallback(() => {
+    if (isCompact) {
+      handleExitCompact();
+      setTimeout(() => {
+        setShowSettings(true);
+      }, 120);
+      return;
+    }
+    setShowSettings(true);
+  }, [isCompact, handleExitCompact]);
+
+  const handleOpenParkingLot = useCallback(() => {
+    track('parking_lot_opened', { source: 'manual' });
+    if (isCompact) {
+      parkingLotReturnToCompactRef.current = true;
+      handleExitCompact();
+      setTimeout(() => setDistractionJarOpen(true), 140);
+      return;
+    }
+    parkingLotReturnToCompactRef.current = false;
+    setDistractionJarOpen(true);
+  }, [isCompact, handleExitCompact]);
+
   // Shortcut handlers
   const handleShortcutStartPause = useCallback(() => {
     if (task.trim()) {
@@ -912,10 +946,29 @@ export default function App() {
     const cleanup = window.electronAPI.onTrayOpenHistory?.(() => {
       setShowSettings(false);
       setShowTaskPreview(false);
-      setShowHistoryModal(true);
+      openHistoryModal();
     });
     return () => { if (cleanup) cleanup(); };
-  }, []);
+  }, [openHistoryModal]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.onTrayOpenParkingLot?.(() => {
+      setShowSettings(false);
+      setShowTaskPreview(false);
+      handleOpenParkingLot();
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [handleOpenParkingLot]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.onTrayOpenSettings?.(() => {
+      setShowHistoryModal(false);
+      setShowTaskPreview(false);
+      setDistractionJarOpen(false);
+      openSettingsModal();
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [openSettingsModal]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onTrayThemeSelect?.((nextTheme) => {
@@ -1566,18 +1619,6 @@ export default function App() {
   const handleMinimizeToFloating = () => {
     window.electronAPI.toggleFloatingMinimize?.();
   };
-
-  const handleOpenParkingLot = useCallback(() => {
-    track('parking_lot_opened', { source: 'manual' });
-    if (isCompact) {
-      parkingLotReturnToCompactRef.current = true;
-      handleExitCompact();
-      setTimeout(() => setDistractionJarOpen(true), 140);
-      return;
-    }
-    parkingLotReturnToCompactRef.current = false;
-    setDistractionJarOpen(true);
-  }, [isCompact, handleExitCompact]);
 
   const handleCloseParkingLot = useCallback(() => {
     setDistractionJarOpen(false);
