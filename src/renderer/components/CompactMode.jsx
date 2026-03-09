@@ -108,7 +108,7 @@ export default function CompactMode({
     () => (checkInPromptActive ? Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H) : pillH),
     [checkInPromptActive, pillH],
   );
-  const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive && !isHovered;
+  const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive;
   const pulseScale = isPulseAnimating ? 2 : 1;
   const scaledBaseWinW = Math.ceil(baseWinW * pulseScale);
   const scaledHoverWinW = Math.ceil(hoverWinW * pulseScale);

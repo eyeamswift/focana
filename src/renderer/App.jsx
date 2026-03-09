@@ -252,7 +252,8 @@ export default function App() {
   const pendingPostModalResizeRef = useRef(null);
   const postModalResizeTimerRef = useRef(null);
   const parkingLotReturnToCompactRef = useRef(false);
-  const wasParkingLotOpenRef = useRef(false);
+  const historyReturnToCompactRef = useRef(false);
+  const settingsReturnToCompactRef = useRef(false);
   const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
   const checkInReturnToCompactRef = useRef(false);
   const checkInResolveTimeoutRef = useRef(null);
@@ -260,9 +261,11 @@ export default function App() {
   const checkInTimedThresholdsRef = useRef([]);
   const checkInTimedIndexRef = useRef(0);
   const checkInTimedPendingIndexRef = useRef(null);
+  const timedCheckInLastElapsedRef = useRef(0);
   const freeflowPulseNextRef = useRef(null);
   const compactPulseThresholdsRef = useRef([]);
   const compactPulseIndexRef = useRef(0);
+  const timedPulseLastElapsedRef = useRef(0);
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
   const checkInPromptCooldownUntilRef = useRef(0);
@@ -303,7 +306,9 @@ export default function App() {
         taskPreview: () => setShowTaskPreview(true),
       };
       openers[prev]?.();
+      return true;
     }
+    return false;
   }, []);
 
   useEffect(() => {
@@ -716,23 +721,27 @@ export default function App() {
 
   const openHistoryModal = useCallback(() => {
     if (isCompact) {
+      historyReturnToCompactRef.current = true;
       handleExitCompact();
       setTimeout(() => {
         setShowHistoryModal(true);
       }, 120);
       return;
     }
+    historyReturnToCompactRef.current = false;
     setShowHistoryModal(true);
   }, [isCompact, handleExitCompact]);
 
   const openSettingsModal = useCallback(() => {
     if (isCompact) {
+      settingsReturnToCompactRef.current = true;
       handleExitCompact();
       setTimeout(() => {
         setShowSettings(true);
       }, 120);
       return;
     }
+    settingsReturnToCompactRef.current = false;
     setShowSettings(true);
   }, [isCompact, handleExitCompact]);
 
@@ -856,7 +865,17 @@ export default function App() {
         if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
           await window.electronAPI.storeSet('settings.shortcuts', normalizedShortcuts);
         }
-        if (settings.pulseSettings) setPulseSettings(settings.pulseSettings);
+        const normalizedPulseSettings = {
+          ...(settings.pulseSettings || {}),
+          compactEnabled: true,
+        };
+        setPulseSettings(normalizedPulseSettings);
+        if (!settings.pulseSettings || settings.pulseSettings.compactEnabled !== true) {
+          await window.electronAPI.storeSet('settings', {
+            ...settings,
+            pulseSettings: normalizedPulseSettings,
+          });
+        }
 
         setCheckInSettings({
           enabled: settings.checkInEnabled ?? true,
@@ -907,9 +926,6 @@ export default function App() {
           const restoredTimedIndex = Number.isFinite(timerState.checkInTimedIndex)
             ? Math.max(0, Math.min(Math.floor(timerState.checkInTimedIndex), TIMED_CHECKIN_PERCENTS.length))
             : 0;
-          const restoredPendingIndex = Number.isFinite(timerState.checkInTimedPendingIndex)
-            ? Math.max(restoredTimedIndex, Math.min(Math.floor(timerState.checkInTimedPendingIndex), TIMED_CHECKIN_PERCENTS.length - 1))
-            : null;
           const restoredCompactPulseThresholds = timerState.mode === 'timed'
             ? buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, timerState.initialTime || 0)
             : [];
@@ -920,9 +936,11 @@ export default function App() {
             ? getNextFreeflowPulseTarget(restoredElapsed)
             : null;
           checkInTimedIndexRef.current = restoredTimedIndex;
-          checkInTimedPendingIndexRef.current = restoredPendingIndex;
+          checkInTimedPendingIndexRef.current = null;
+          timedCheckInLastElapsedRef.current = restoredElapsed;
           compactPulseThresholdsRef.current = restoredCompactPulseThresholds;
           compactPulseIndexRef.current = restoredCompactPulseIndex;
+          timedPulseLastElapsedRef.current = restoredElapsed;
           if (timerState.seconds > 0 || timerState.mode !== 'freeflow') {
             setIsTimerVisible(true);
           }
@@ -1085,6 +1103,7 @@ export default function App() {
     checkInTimedThresholdsRef.current = [];
     checkInTimedIndexRef.current = 0;
     checkInTimedPendingIndexRef.current = null;
+    timedCheckInLastElapsedRef.current = 0;
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
     checkInPromptCooldownUntilRef.current = 0;
@@ -1096,18 +1115,19 @@ export default function App() {
     freeflowPulseNextRef.current = null;
     compactPulseThresholdsRef.current = [];
     compactPulseIndexRef.current = 0;
+    timedPulseLastElapsedRef.current = 0;
   }, []);
 
   const resetCheckInSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
     const previousFreeflowNext = checkInFreeflowNextRef.current;
     const previousTimedThresholds = checkInTimedThresholdsRef.current;
     const previousTimedIndex = checkInTimedIndexRef.current;
-    const previousTimedPendingIndex = checkInTimedPendingIndexRef.current;
 
     checkInFreeflowNextRef.current = null;
     checkInTimedThresholdsRef.current = [];
     checkInTimedIndexRef.current = 0;
     checkInTimedPendingIndexRef.current = null;
+    timedCheckInLastElapsedRef.current = Math.max(0, Math.floor(Number(elapsedSec) || 0));
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
 
@@ -1136,28 +1156,14 @@ export default function App() {
         ? Math.max(0, Math.min(Math.floor(previousTimedIndex), nextThresholds.length))
         : 0;
       nextTimedIndex = clampedPrevIndex;
-      if (
-        Number.isFinite(previousTimedPendingIndex)
-        && previousTimedPendingIndex >= nextTimedIndex
-        && previousTimedPendingIndex < nextThresholds.length
-      ) {
-        checkInTimedPendingIndexRef.current = Math.floor(previousTimedPendingIndex);
-      }
     } else {
-      while (nextTimedIndex < nextThresholds.length && elapsedSec > nextThresholds[nextTimedIndex]) {
+      while (nextTimedIndex < nextThresholds.length && elapsedSec >= nextThresholds[nextTimedIndex]) {
         nextTimedIndex += 1;
       }
     }
 
     checkInTimedThresholdsRef.current = nextThresholds;
     checkInTimedIndexRef.current = nextTimedIndex;
-    if (
-      nextTimedIndex < nextThresholds.length
-      && elapsedSec >= nextThresholds[nextTimedIndex]
-      && checkInTimedPendingIndexRef.current === null
-    ) {
-      checkInTimedPendingIndexRef.current = nextTimedIndex;
-    }
   }, [checkInSettings.enabled, initialTime, getStandardCheckInIntervalSeconds]);
 
   const resetCompactPulseSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
@@ -1168,6 +1174,7 @@ export default function App() {
     freeflowPulseNextRef.current = null;
     compactPulseThresholdsRef.current = [];
     compactPulseIndexRef.current = 0;
+    timedPulseLastElapsedRef.current = Math.max(0, Math.floor(Number(elapsedSec) || 0));
 
     if (nextMode === 'freeflow') {
       const nextTarget = getNextFreeflowPulseTarget(elapsedSec);
@@ -1194,7 +1201,7 @@ export default function App() {
         ? Math.max(0, Math.min(Math.floor(previousIndex), nextThresholds.length))
         : 0;
     } else {
-      while (nextIndex < nextThresholds.length && elapsedSec > nextThresholds[nextIndex]) {
+      while (nextIndex < nextThresholds.length && elapsedSec >= nextThresholds[nextIndex]) {
         nextIndex += 1;
       }
     }
@@ -1211,6 +1218,9 @@ export default function App() {
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
     sessionToSave.current = null;
+    parkingLotReturnToCompactRef.current = false;
+    historyReturnToCompactRef.current = false;
+    settingsReturnToCompactRef.current = false;
     setIsRunning(false);
     setTime(0);
     setTask('');
@@ -1407,9 +1417,14 @@ export default function App() {
     await logCheckIn('detour', elapsedSec);
     track('checkin_responded', { response: 'detour' });
 
-    const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
-    checkInShortIntervalRef.current = true;
-    checkInForcedNextRef.current = elapsedSec + shortInterval;
+    if (mode === 'freeflow') {
+      const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
+      checkInShortIntervalRef.current = true;
+      checkInForcedNextRef.current = elapsedSec + shortInterval;
+    } else {
+      checkInShortIntervalRef.current = false;
+      checkInForcedNextRef.current = null;
+    }
 
     setCheckInState('detour-resolved');
     setCheckInMessage(CHECKIN_DETOUR_MESSAGES[Math.floor(Math.random() * CHECKIN_DETOUR_MESSAGES.length)]);
@@ -1432,13 +1447,13 @@ export default function App() {
     }, 700);
   }, [clearCheckInUi, triggerPulse]);
 
-  const triggerCheckInPrompt = useCallback(() => {
+  const triggerCheckInPrompt = useCallback(({ skipCooldown = false } = {}) => {
     if (!checkInSettings.enabled) return false;
     if (dndEnabled) return false;
     if (!isRunning) return false;
     if (!isTimerVisible) return false;
     if (!task.trim()) return false;
-    if (Date.now() < checkInPromptCooldownUntilRef.current) return false;
+    if (!skipCooldown && Date.now() < checkInPromptCooldownUntilRef.current) return false;
     if (!currentSessionId) {
       void ensureCurrentSessionId('check-in prompt');
     }
@@ -1449,7 +1464,9 @@ export default function App() {
     setCheckInMessage('');
     setCheckInCelebrating(false);
     setCheckInCelebrationType('none');
-    checkInPromptCooldownUntilRef.current = Date.now() + CHECKIN_PROMPT_COOLDOWN_MS;
+    if (!skipCooldown) {
+      checkInPromptCooldownUntilRef.current = Date.now() + CHECKIN_PROMPT_COOLDOWN_MS;
+    }
     // Keep the prompt open until the user explicitly responds.
     return true;
   }, [checkInSettings.enabled, dndEnabled, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, resolveCheckIn, mode, getElapsedSeconds]);
@@ -1469,9 +1486,9 @@ export default function App() {
     if (!isRunning) return;
 
     const elapsed = getElapsedSeconds();
-    let crossedThreshold = false;
 
     if (mode === 'freeflow') {
+      let crossedThreshold = false;
       if (!Number.isFinite(freeflowPulseNextRef.current)) {
         freeflowPulseNextRef.current = getNextFreeflowPulseTarget(elapsed);
       }
@@ -1479,39 +1496,62 @@ export default function App() {
         freeflowPulseNextRef.current += FREEFLOW_PULSE_INTERVAL_SECONDS;
         crossedThreshold = true;
       }
-    } else if (mode === 'timed') {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled) {
+        if (isCompact) {
+          setCompactPulseSignal((prev) => prev + 1);
+        } else {
+          triggerPulse('gentle', 1);
+        }
+      }
+      return;
+    }
+
+    if (mode === 'timed') {
       const thresholds = compactPulseThresholdsRef.current;
-      if (!thresholds.length) return;
+      const previousElapsed = timedPulseLastElapsedRef.current;
+      let crossedThreshold = false;
+
+      if (!thresholds.length) {
+        timedPulseLastElapsedRef.current = elapsed;
+        return;
+      }
 
       while (
         compactPulseIndexRef.current < thresholds.length
         && elapsed >= thresholds[compactPulseIndexRef.current]
       ) {
+        const threshold = thresholds[compactPulseIndexRef.current];
+        if (previousElapsed < threshold) {
+          crossedThreshold = true;
+        }
         compactPulseIndexRef.current += 1;
-        crossedThreshold = true;
       }
-    } else {
+
+      timedPulseLastElapsedRef.current = elapsed;
+
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled) {
+        if (isCompact) {
+          setCompactPulseSignal((prev) => prev + 1);
+        } else {
+          triggerPulse('gentle', 1);
+        }
+      }
       return;
     }
 
-    if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled) {
-      if (isCompact) {
-        setCompactPulseSignal((prev) => prev + 1);
-      } else {
-        triggerPulse('gentle', 1);
-      }
-    }
+    timedPulseLastElapsedRef.current = elapsed;
   }, [time, isRunning, mode, getElapsedSeconds, isCompact, pulseSettings.compactEnabled, dndEnabled, triggerPulse]);
 
   useEffect(() => {
     if (!isRunning || !isTimerVisible || !task.trim() || !checkInSettings.enabled) {
       return;
     }
-    if (checkInState !== 'idle') return;
 
     const elapsed = getElapsedSeconds();
 
     if (mode === 'freeflow') {
+      if (checkInState !== 'idle') return;
+
       // Forced short-interval check-in (after detour/miss)
       if (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current) {
         triggerCheckInPrompt();
@@ -1529,34 +1569,27 @@ export default function App() {
       return;
     }
 
-    // Timed mode — check thresholds directly from refs (set at session start)
+    // Timed mode — fire only on the actual 40% / 80% crossings.
     const thresholds = checkInTimedThresholdsRef.current;
-    const scheduledIndex = checkInTimedIndexRef.current;
-    if (scheduledIndex < thresholds.length && elapsed >= thresholds[scheduledIndex]) {
-      checkInTimedPendingIndexRef.current = scheduledIndex;
-    }
+    const previousElapsed = timedCheckInLastElapsedRef.current;
 
-    const pendingIndex = checkInTimedPendingIndexRef.current;
-    if (
-      Number.isFinite(pendingIndex)
-      && pendingIndex >= 0
-      && pendingIndex < thresholds.length
-      && elapsed >= thresholds[pendingIndex]
+    while (
+      checkInTimedIndexRef.current < thresholds.length
+      && elapsed >= thresholds[checkInTimedIndexRef.current]
     ) {
-      if (triggerCheckInPrompt()) {
-        // Timed thresholds are mandatory; don't let a forced short interval suppress them.
-        checkInForcedNextRef.current = null;
-        checkInShortIntervalRef.current = false;
-        checkInTimedPendingIndexRef.current = null;
-        checkInTimedIndexRef.current = pendingIndex + 1;
-        return;
+      const threshold = thresholds[checkInTimedIndexRef.current];
+      const crossedThisTick = previousElapsed < threshold;
+      checkInTimedIndexRef.current += 1;
+
+      if (crossedThisTick && checkInState === 'idle') {
+        // Timed sessions stay fixed at 40% and 80%. If the user is not
+        // available right at the threshold, we skip that prompt instead of
+        // surfacing it late.
+        triggerCheckInPrompt({ skipCooldown: true });
       }
     }
 
-    // Non-threshold fallback in timed mode for detour short-interval follow-up.
-    if (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current) {
-      triggerCheckInPrompt();
-    }
+    timedCheckInLastElapsedRef.current = elapsed;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [time]);
 
@@ -1622,7 +1655,15 @@ export default function App() {
 
   const handleCloseParkingLot = useCallback(() => {
     setDistractionJarOpen(false);
-    popAndOpenPrevModal();
+    const reopenedPrevModal = popAndOpenPrevModal();
+    if (parkingLotReturnToCompactRef.current && !reopenedPrevModal) {
+      parkingLotReturnToCompactRef.current = false;
+      setTimeout(() => {
+        setIsCompact(true);
+      }, 80);
+      return;
+    }
+    parkingLotReturnToCompactRef.current = false;
   }, [popAndOpenPrevModal]);
 
   const handleCheckInParkIt = useCallback(() => {
@@ -1635,41 +1676,6 @@ export default function App() {
     parkingLotReturnToCompactRef.current = shouldReturnToCompact;
     setDistractionJarOpen(true);
   }, [clearCheckInUi]);
-
-  useEffect(() => {
-    const wasOpen = wasParkingLotOpenRef.current;
-    const hasInterveningModal = (
-      showSettings
-      || showHistoryModal
-      || showTaskPreview
-      || showNotesModal
-      || showTimeUpModal
-      || showQuickCapture
-    );
-
-    if (wasOpen && !distractionJarOpen && parkingLotReturnToCompactRef.current) {
-      parkingLotReturnToCompactRef.current = false;
-      if (hasInterveningModal) {
-        wasParkingLotOpenRef.current = distractionJarOpen;
-        return undefined;
-      }
-      const t = setTimeout(() => {
-        setIsCompact(true);
-      }, 80);
-      wasParkingLotOpenRef.current = distractionJarOpen;
-      return () => clearTimeout(t);
-    }
-    wasParkingLotOpenRef.current = distractionJarOpen;
-    return undefined;
-  }, [
-    distractionJarOpen,
-    showSettings,
-    showHistoryModal,
-    showTaskPreview,
-    showNotesModal,
-    showTimeUpModal,
-    showQuickCapture,
-  ]);
 
   const resizeToMainCardContent = useCallback((minHeight) => {
     const card = mainCardRef.current;
@@ -2020,6 +2026,9 @@ export default function App() {
     setShowQuickCapture(false);
     setShowTaskPreview(false);
     setShowHistoryModal(false);
+    historyReturnToCompactRef.current = false;
+    settingsReturnToCompactRef.current = false;
+    parkingLotReturnToCompactRef.current = false;
     setIsStartModalOpen(false);
     setIsTimerVisible(true);
     setSessionStartTime(null);
@@ -2080,8 +2089,29 @@ export default function App() {
       suppressHistoryPopRef.current = false;
       return;
     }
-    popAndOpenPrevModal();
+    const reopenedPrevModal = popAndOpenPrevModal();
+    if (historyReturnToCompactRef.current && !reopenedPrevModal) {
+      historyReturnToCompactRef.current = false;
+      setTimeout(() => {
+        setIsCompact(true);
+      }, 80);
+      return;
+    }
+    historyReturnToCompactRef.current = false;
   };
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettings(false);
+    const reopenedPrevModal = popAndOpenPrevModal();
+    if (settingsReturnToCompactRef.current && !reopenedPrevModal) {
+      settingsReturnToCompactRef.current = false;
+      setTimeout(() => {
+        setIsCompact(true);
+      }, 80);
+      return;
+    }
+    settingsReturnToCompactRef.current = false;
+  }, [popAndOpenPrevModal]);
 
   const handleUpdateTaskNotes = async (sessionId, newNotes) => {
     try {
@@ -2891,7 +2921,7 @@ export default function App() {
       />
       <SettingsModal
         isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
+        onClose={handleCloseSettings}
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onOpenParkingLot={() => {
@@ -2907,10 +2937,12 @@ export default function App() {
         }}
         onRestartApp={() => {
           setShowSettings(false);
+          settingsReturnToCompactRef.current = false;
           window.electronAPI.restartApp?.();
         }}
         onCloseApp={() => {
           setShowSettings(false);
+          settingsReturnToCompactRef.current = false;
           handleCloseWindow();
         }}
         shortcuts={shortcuts}

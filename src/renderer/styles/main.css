@@ -1176,7 +1176,7 @@ html[data-window-mode='pill'] #root {
   }
   50% {
     opacity: 1;
-    transform: scale(1.04);
+    transform: scale(1.5);
     filter: brightness(1.08);
     box-shadow: 0 12px 18px -4px rgba(251, 146, 60, 0.22), 0 6px 8px -4px rgba(251, 146, 60, 0.12);
   }

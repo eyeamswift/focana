@@ -141,6 +141,7 @@ function sanitizeStoreValue(key, value) {
         const timedPendingIndex = Number.isFinite(pendingRaw)
           ? Math.floor(clampNumber(pendingRaw, 0, 4, 0))
           : null;
+        const compactPulseTimedIndex = Math.floor(clampNumber(value.compactPulseTimedIndex, 0, 7, 0));
 
         return {
           mode: value.mode === 'timed' ? 'timed' : 'freeflow',
@@ -151,6 +152,7 @@ function sanitizeStoreValue(key, value) {
           sessionStartedAt: sanitizeOptionalIsoTimestamp(value.sessionStartedAt),
           checkInTimedIndex: timedIndex,
           checkInTimedPendingIndex: timedPendingIndex,
+          compactPulseTimedIndex,
         };
       }
     case 'thoughts':
