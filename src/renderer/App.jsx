@@ -55,7 +55,7 @@ const WINDOW_SIZES = {
   idleHeight: 140,
   onboardingHeight: 360,
   startChooserHeight: 188,
-  timerHeight: 220,
+  timerHeight: 120,
   timerCheckInPromptHeight: 304,
   timerCheckInDetourChoiceHeight: 284,
   timerCheckInDetourResolvedHeight: 300,
@@ -1529,6 +1529,16 @@ export default function App() {
     }
   }, [checkInSettings.enabled, clearCheckInRuntime]);
 
+  const hasBlockingWindowOpen =
+    showSettings ||
+    showHistoryModal ||
+    showTaskPreview ||
+    distractionJarOpen ||
+    Boolean(postSessionParkingLotSessionId) ||
+    showTimeUpModal ||
+    showNotesModal ||
+    showQuickCapture;
+
   useEffect(() => {
     if (!isRunning) return;
 
@@ -1543,7 +1553,7 @@ export default function App() {
         freeflowPulseNextRef.current += FREEFLOW_PULSE_INTERVAL_SECONDS;
         crossedThreshold = true;
       }
-      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled) {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen) {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
@@ -1576,7 +1586,7 @@ export default function App() {
 
       timedPulseLastElapsedRef.current = elapsed;
 
-      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled) {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen) {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
@@ -1587,7 +1597,7 @@ export default function App() {
     }
 
     timedPulseLastElapsedRef.current = elapsed;
-  }, [time, isRunning, mode, getElapsedSeconds, isCompact, pulseSettings.compactEnabled, dndEnabled, triggerPulse]);
+  }, [time, isRunning, mode, getElapsedSeconds, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
 
   useEffect(() => {
     if (!isRunning || !isTimerVisible || !task.trim() || !checkInSettings.enabled) {
@@ -1755,36 +1765,14 @@ export default function App() {
     resizeToMainCardContent(minHeight);
   }, [isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
 
-  const resizeFullWindowForPulse = useCallback((scale = 1) => {
-    const card = mainCardRef.current;
-    const measuredRect = card?.getBoundingClientRect?.();
-    const measuredWidth = measuredRect
-      ? Math.ceil(measuredRect.width || 0)
-      : WINDOW_SIZES.baseWidth;
-    const measuredHeight = card
-      ? Math.ceil(card.scrollHeight || measuredRect?.height || 0)
-      : 0;
-    const minHeight = (isRunning || isTimerVisible)
-      ? getActiveScreenDefaultHeight()
-      : getIdleScreenDefaultHeight();
-    const targetWidth = Math.max(WINDOW_SIZES.baseWidth, Math.ceil(measuredWidth * scale));
-    const targetHeight = Math.max(minHeight, Math.ceil(measuredHeight * scale));
-    window.electronAPI.ensureMainWindowSize?.(targetWidth, targetHeight);
-  }, [getActiveScreenDefaultHeight, getIdleScreenDefaultHeight, isRunning, isTimerVisible]);
-
   useEffect(() => {
     if (isCompact) return undefined;
-    if (isPulsing === 'gentle') {
-      const t = setTimeout(() => {
-        resizeFullWindowForPulse(1.5);
-      }, 0);
-      return () => clearTimeout(t);
-    }
+    if (isPulsing === 'gentle') return undefined;
     const t = setTimeout(() => {
       resyncFullWindowSize();
     }, 40);
     return () => clearTimeout(t);
-  }, [isCompact, isPulsing, resizeFullWindowForPulse, resyncFullWindowSize]);
+  }, [isCompact, isPulsing, resyncFullWindowSize]);
 
   // Hard guard: when truly idle, force the compact full-screen height target.
   // This prevents stale larger bounds after compact->full race conditions.
@@ -2726,7 +2714,7 @@ export default function App() {
   // Full view render
   return (
     <div className={`app-container${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}`}>
-      <div ref={mainCardRef} className={`main-card electron-draggable ${getPulseClassName()}`}>
+      <div ref={mainCardRef} className="main-card electron-draggable">
         {/* Header */}
         <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
@@ -2848,7 +2836,7 @@ export default function App() {
         </div>
 
         {/* Content */}
-        <div className="electron-no-drag" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div className={`electron-no-drag ${getPulseClassName()}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
           <TaskInput
             ref={taskInputRef}
             task={task}
@@ -2864,24 +2852,57 @@ export default function App() {
             onLockedInteraction={handleLockedTaskInputInteraction}
           />
 
-          {(checkInState === 'detour-choice' || checkInState === 'detour-resolved' || checkInState === 'resolved') && (
+          {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || checkInState === 'resolved') && (
             <div
               style={{
                 width: '100%',
-                maxWidth: checkInState === 'detour-choice' || checkInState === 'detour-resolved' ? 480 : 460,
+                maxWidth: checkInState === 'prompting' ? 480 : (checkInState === 'detour-choice' || checkInState === 'detour-resolved' ? 480 : 460),
                 marginTop: '0.5rem',
-                border: `1px solid ${checkInState === 'detour-choice' ? '#D97706' : 'var(--border-subtle)'}`,
-                borderRadius: '0.5rem',
-                padding: '0.5rem 0.625rem',
+                border: `1px solid ${checkInState === 'prompting' || checkInState === 'detour-choice' ? '#D97706' : 'var(--border-subtle)'}`,
+                borderRadius: checkInState === 'prompting' ? '0.75rem' : '0.5rem',
+                padding: checkInState === 'prompting' ? '0.85rem 0.875rem' : '0.5rem 0.625rem',
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: checkInState === 'prompting' ? 'column' : 'row',
+                alignItems: checkInState === 'prompting' ? 'stretch' : 'center',
                 justifyContent: 'space-between',
-                gap: '0.5rem',
-                background: 'var(--bg-card)',
+                gap: checkInState === 'prompting' ? '0.75rem' : '0.5rem',
+                background: checkInState === 'prompting' ? 'var(--bg-surface)' : 'var(--bg-card)',
+                boxShadow: checkInState === 'prompting' ? '0 12px 28px rgba(46, 31, 24, 0.16)' : 'none',
                 transition: 'all 0.25s ease',
                 opacity: 1,
               }}
             >
+              {checkInState === 'prompting' && (
+                <>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                      Still focused on
+                    </div>
+                    <div style={{ marginTop: '0.2rem', fontSize: '1rem', fontWeight: 800, color: '#B45309', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+                      {task.trim() || 'this task'}?
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                    <Button
+                      variant="outline"
+                      onClick={() => resolveCheckIn('focused')}
+                      style={{ minWidth: '7rem', justifyContent: 'center' }}
+                      title="Still focused"
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={openCheckInDetourChoice}
+                      style={{ minWidth: '7rem', justifyContent: 'center' }}
+                      title="Not focused"
+                    >
+                      No
+                    </Button>
+                  </div>
+                </>
+              )}
+
               {checkInState === 'resolved' && (
                 <>
                   <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
@@ -3174,13 +3195,6 @@ export default function App() {
             timedPercents: TIMED_CHECKIN_PERCENTS,
           }));
         }}
-      />
-      <CheckInPromptPopup
-        isOpen={checkInState === 'prompting'}
-        onFocused={() => resolveCheckIn('focused')}
-        onDetour={openCheckInDetourChoice}
-        taskName={task}
-        variant="full"
       />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />

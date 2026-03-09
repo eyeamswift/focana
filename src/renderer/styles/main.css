@@ -1223,7 +1223,7 @@ html[data-window-mode='pill'] #root {
 }
 
 .animate-pulse-gentle {
-  animation: pulse-gentle 1.2s ease-in-out;
+  animation: pulse-gentle 1.2s ease-in-out 2;
 }
 
 .animate-pulse-celebration {
