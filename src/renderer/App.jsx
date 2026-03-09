@@ -2716,41 +2716,43 @@ export default function App() {
     <div className={`app-container${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}`}>
       <div ref={mainCardRef} className="main-card electron-draggable">
         {/* Header */}
-        <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+        <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             <img
               src={theme === 'light' ? appLockupLight : appLockupDark}
               alt="Focana"
               style={{
                 height: 36,
-                width: '100%',
-                maxWidth: 1296,
                 objectFit: 'contain',
                 objectPosition: 'left center',
-                flexShrink: 1,
                 display: 'block',
               }}
             />
           </div>
-          <div className="electron-no-drag top-toolbar" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            {enabledMainControls.restart && pinnedControls.restart && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button aria-label="Restart App" onClick={() => window.electronAPI.restartApp?.()} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
-                    <RotateCcw style={{ width: 18, height: 18 }} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Restart App</p></TooltipContent>
-              </Tooltip>
+          <div className="electron-no-drag" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+            {enabledMainControls.history && pinnedControls.history && (
+              <Button
+                aria-label="Open Session History"
+                onClick={() => setShowHistoryModal(true)}
+                variant="ghost"
+                style={{ height: '1.75rem', padding: '0 0.625rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500 }}
+              >
+                History
+              </Button>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button aria-label="Open Settings" onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
-                  <Settings style={{ width: 20, height: 20 }} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Settings & Shortcuts</p></TooltipContent>
-            </Tooltip>
+            {enabledMainControls.parkingLot && pinnedControls.parkingLot && (
+              <Button
+                aria-label="Open Parking Lot"
+                onClick={() => setDistractionJarOpen(true)}
+                variant="ghost"
+                style={{ height: '1.75rem', padding: '0 0.625rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500, position: 'relative' }}
+              >
+                Parking Lot
+                {thoughts.length > 0 && <span className="badge" style={{ marginLeft: '0.25rem' }}>{thoughts.length}</span>}
+              </Button>
+            )}
+          </div>
+          <div className="electron-no-drag top-toolbar" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             {enabledMainControls.dnd && pinnedControls.dnd && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2785,27 +2787,14 @@ export default function App() {
                 <TooltipContent><p>{theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</p></TooltipContent>
               </Tooltip>
             )}
-            {enabledMainControls.history && pinnedControls.history && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button aria-label="Open Session History" onClick={() => setShowHistoryModal(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
-                    <History style={{ width: 18, height: 18 }} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Session History</p></TooltipContent>
-              </Tooltip>
-            )}
-            {enabledMainControls.parkingLot && pinnedControls.parkingLot && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button aria-label="Open Parking Lot" onClick={() => setDistractionJarOpen(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)', position: 'relative' }}>
-                    <ClipboardList style={{ width: 20, height: 20 }} />
-                    {thoughts.length > 0 && <span className="badge">{thoughts.length}</span>}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Open Parking Lot</p></TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button aria-label="Open Settings" onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Settings style={{ width: 20, height: 20 }} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Settings & Shortcuts</p></TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button aria-label="Minimize to Floating Icon" onClick={handleMinimizeToFloating} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
@@ -2813,14 +2802,6 @@ export default function App() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent><p>Minimize to Floating Icon</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button aria-label="Enter Compact Mode" onClick={() => setIsCompact(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
-                  <Minimize2 style={{ width: 16, height: 16 }} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Compact Mode</p></TooltipContent>
             </Tooltip>
             {enabledMainControls.close && pinnedControls.close && (
               <Tooltip>
