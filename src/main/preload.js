@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exitPillMode: () => ipcRenderer.invoke('exit-pill-mode'),
   setPillWidth: (width) => ipcRenderer.invoke('set-pill-width', width),
   setPillSize: (size) => ipcRenderer.invoke('set-pill-size', size),
+  startPillPulseResize: () => ipcRenderer.invoke('start-pill-pulse-resize'),
+  endPillPulseResize: () => ipcRenderer.invoke('end-pill-pulse-resize'),
   ensureMainWindowSize: (minWidth, minHeight) => ipcRenderer.invoke('ensure-main-window-size', minWidth, minHeight),
 
   // Check-ins

@@ -55,7 +55,7 @@ const WINDOW_SIZES = {
   onboardingHeight: 360,
   startChooserHeight: 188,
   timerHeight: 220,
-  timerCheckInPromptHeight: 268,
+  timerCheckInPromptHeight: 304,
   timerCheckInDetourChoiceHeight: 284,
   timerCheckInDetourResolvedHeight: 300,
   timerCheckInResolvedHeight: 248,
@@ -1686,6 +1686,23 @@ export default function App() {
     window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
   }, []);
 
+  const resizeFullWindowForPulse = useCallback((scale = 1) => {
+    const card = mainCardRef.current;
+    const measuredRect = card?.getBoundingClientRect?.();
+    const measuredWidth = measuredRect
+      ? Math.ceil(measuredRect.width || 0)
+      : WINDOW_SIZES.baseWidth;
+    const measuredHeight = card
+      ? Math.ceil(card.scrollHeight || measuredRect?.height || 0)
+      : 0;
+    const minHeight = (isRunning || isTimerVisible)
+      ? getActiveScreenDefaultHeight()
+      : getIdleScreenDefaultHeight();
+    const targetWidth = Math.max(WINDOW_SIZES.baseWidth, Math.ceil(measuredWidth * scale));
+    const targetHeight = Math.max(minHeight, Math.ceil(measuredHeight * scale));
+    window.electronAPI.ensureMainWindowSize?.(targetWidth, targetHeight);
+  }, [getActiveScreenDefaultHeight, getIdleScreenDefaultHeight, isRunning, isTimerVisible]);
+
   const getActiveScreenDefaultHeight = useCallback(() => {
     if (contextNotes.trim()) return WINDOW_SIZES.contextHeight;
     if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
@@ -1707,6 +1724,20 @@ export default function App() {
       : getIdleScreenDefaultHeight();
     resizeToMainCardContent(minHeight);
   }, [isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
+
+  useEffect(() => {
+    if (isCompact) return undefined;
+    if (isPulsing === 'gentle') {
+      const t = setTimeout(() => {
+        resizeFullWindowForPulse(1.5);
+      }, 0);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      resyncFullWindowSize();
+    }, 40);
+    return () => clearTimeout(t);
+  }, [isCompact, isPulsing, resizeFullWindowForPulse, resyncFullWindowSize]);
 
   // Hard guard: when truly idle, force the compact full-screen height target.
   // This prevents stale larger bounds after compact->full race conditions.
@@ -2491,6 +2522,7 @@ export default function App() {
           isOpen={checkInState === 'prompting'}
           onFocused={() => resolveCheckIn('focused')}
           onDetour={openCheckInDetourChoice}
+          taskName={task}
           variant="compact"
         />
         <SessionNotesModal
@@ -2974,6 +3006,7 @@ export default function App() {
         isOpen={checkInState === 'prompting'}
         onFocused={() => resolveCheckIn('focused')}
         onDetour={openCheckInDetourChoice}
+        taskName={task}
         variant="full"
       />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />

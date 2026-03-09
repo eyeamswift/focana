@@ -11,6 +11,7 @@ let lastFullBounds = null;
 let isModalExpanded = false;
 let preModalBounds = null;
 let pillDragStart = null;
+let pillPulseAnchor = null;
 let floatingIconWindow = null;
 let isFloatingMinimized = false;
 let floatingPulseTimeout = null;
@@ -66,6 +67,30 @@ const ALLOWED_STORE_KEYS = new Set([
 function boundsEqual(a, b) {
   if (!a || !b) return false;
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function getBoundsCenter(bounds) {
+  if (!bounds) return null;
+  return {
+    x: bounds.x + (bounds.width / 2),
+    y: bounds.y + (bounds.height / 2),
+  };
+}
+
+function buildCenteredBounds(center, width, height) {
+  return {
+    x: Math.round(center.x - (width / 2)),
+    y: Math.round(center.y - (height / 2)),
+    width,
+    height,
+  };
+}
+
+function getPillTargetBounds(currentBounds, targetWidth, targetHeight, pulseActive = false) {
+  const anchorCenter = (pulseActive && pillPulseAnchor)
+    ? pillPulseAnchor
+    : getBoundsCenter(currentBounds);
+  return buildCenteredBounds(anchorCenter, targetWidth, targetHeight);
 }
 
 function normalizeShortcuts(rawShortcuts) {
@@ -803,6 +828,7 @@ ipcMain.handle('enter-pill-mode', () => {
   if (mainWindow) {
     const current = mainWindow.getBounds();
     lastFullBounds = current;
+    pillPulseAnchor = null;
     isPillMode = true;
     mainWindow.setBackgroundColor('#00000000');
     mainWindow.setHasShadow(false);
@@ -831,15 +857,8 @@ ipcMain.handle('set-pill-width', (_, width) => {
     const current = mainWindow.getBounds();
     const targetWidth = Math.round(clampNumber(width, PILL_MIN_WIDTH, 1200, PILL_MIN_WIDTH));
     const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, current.height || PILL_MIN_HEIGHT));
-    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
-    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
-
-    setMainWindowBoundsClamped({
-      x: nextX,
-      y: nextY,
-      width: targetWidth,
-      height: targetHeight,
-    }, { areaType: 'display' });
+    const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, false);
+    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
   }
 });
 
@@ -849,18 +868,22 @@ ipcMain.handle('set-pill-size', (_, size) => {
     const current = mainWindow.getBounds();
     const requestedWidth = Number.isFinite(size.width) ? size.width : current.width;
     const requestedHeight = Number.isFinite(size.height) ? size.height : current.height;
+    const pulseActive = size.pulseActive === true;
     const targetWidth = Math.round(clampNumber(requestedWidth, PILL_MIN_WIDTH, 1200, current.width));
     const targetHeight = Math.round(clampNumber(requestedHeight, PILL_MIN_HEIGHT, PILL_MAX_HEIGHT, current.height));
-    const nextX = Math.round(current.x + (current.width - targetWidth) / 2);
-    const nextY = Math.round(current.y + (current.height - targetHeight) / 2);
-
-    setMainWindowBoundsClamped({
-      x: nextX,
-      y: nextY,
-      width: targetWidth,
-      height: targetHeight,
-    }, { areaType: 'display' });
+    const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, pulseActive);
+    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
   }
+});
+
+ipcMain.handle('start-pill-pulse-resize', () => {
+  if (mainWindow && isPillMode) {
+    pillPulseAnchor = getBoundsCenter(mainWindow.getBounds());
+  }
+});
+
+ipcMain.handle('end-pill-pulse-resize', () => {
+  pillPulseAnchor = null;
 });
 
 // JS-based pill drag — renderer tracks mouse delta, main moves the window
@@ -883,6 +906,12 @@ ipcMain.on('pill-drag-move', (_, payload) => {
     if (stepX === 0 && stepY === 0) return;
 
     const current = mainWindow.getBounds();
+    if (pillPulseAnchor) {
+      pillPulseAnchor = {
+        x: pillPulseAnchor.x + stepX,
+        y: pillPulseAnchor.y + stepY,
+      };
+    }
     setMainWindowBoundsClamped({
       x: Math.round(current.x + stepX),
       y: Math.round(current.y + stepY),
@@ -898,6 +927,7 @@ ipcMain.on('pill-drag-end', () => {
 
 ipcMain.handle('exit-pill-mode', () => {
   if (mainWindow) {
+    pillPulseAnchor = null;
     isPillMode = false;
     mainWindow.setResizable(true);
     mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);

@@ -7,15 +7,20 @@ export default function CheckInPromptPopup({
   isOpen,
   onFocused,
   onDetour,
+  taskName = '',
   variant = 'full',
 }) {
   if (!isOpen) return null;
   if (typeof document === 'undefined') return null;
+  const trimmedTaskName = typeof taskName === 'string' ? taskName.trim() : '';
 
   return createPortal(
     <div className="checkin-popup-overlay electron-no-drag">
       <div className={`checkin-popup ${variant === 'compact' ? 'checkin-popup-compact' : 'checkin-popup-full'}`}>
-        <h3 className="checkin-popup-title">Still focused?</h3>
+        <h3 className="checkin-popup-title">
+          Still focused on
+          <span className="checkin-popup-task">{trimmedTaskName || 'this task'}?</span>
+        </h3>
         <div className="checkin-popup-actions">
           <Button
             variant="outline"

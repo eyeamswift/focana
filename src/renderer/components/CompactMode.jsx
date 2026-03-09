@@ -18,8 +18,8 @@ const TASK_MIN_W = 120;
 const TASK_MAX_W = 260; // max task width before wrapping
 const TASK_LINE_H = 15;
 const TASK_V_PAD  = 26;
-const CHECKIN_POPUP_MIN_W = 360;
-const CHECKIN_POPUP_EXTRA_H = 104;
+const CHECKIN_POPUP_MIN_W = 420;
+const CHECKIN_POPUP_EXTRA_H = 148;
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -53,6 +53,7 @@ export default function CompactMode({
   const dragBlurHandlerRef = useRef(null);
   const hasInitialized   = useRef(false);
   const isDraggingRef    = useRef(false);
+  const lastPulseSignalRef = useRef(pulseSignal);
 
   const taskLabel = task || '';
   const isTaskVisible = isHovered || showTaskByDefault;
@@ -123,9 +124,9 @@ export default function CompactMode({
   useEffect(() => {
     if (!window.electronAPI?.setPillWidth && !window.electronAPI?.setPillSize) return;
 
-    const pushPillSize = (width, height) => {
+    const pushPillSize = (width, height, pulseActive = false) => {
       if (window.electronAPI?.setPillSize) {
-        window.electronAPI.setPillSize({ width, height });
+        window.electronAPI.setPillSize({ width, height, pulseActive });
       } else {
         window.electronAPI.setPillWidth(width);
       }
@@ -134,24 +135,40 @@ export default function CompactMode({
     // Initial mount — set immediately without shrink delay
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      pushPillSize(scaledBaseWinW, scaledWinH);
+      pushPillSize(scaledBaseWinW, scaledWinH, isPulseAnimating);
       return;
     }
 
     if (showControls) {
-      pushPillSize(scaledCtrlWinW, scaledWinH);
+      pushPillSize(scaledCtrlWinW, scaledWinH, isPulseAnimating);
     } else if (isTaskVisible) {
-      pushPillSize(scaledHoverWinW, scaledWinH);
+      pushPillSize(scaledHoverWinW, scaledWinH, isPulseAnimating);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
       const t = setTimeout(() => {
-        pushPillSize(scaledBaseWinW, scaledWinH);
+        pushPillSize(scaledBaseWinW, scaledWinH, isPulseAnimating);
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, showControls, scaledHoverWinW, scaledCtrlWinW, scaledBaseWinW, scaledWinH]);
+  }, [isTaskVisible, showControls, scaledHoverWinW, scaledCtrlWinW, scaledBaseWinW, scaledWinH, isPulseAnimating]);
 
   useEffect(() => {
+    if (!window.electronAPI?.startPillPulseResize || !window.electronAPI?.endPillPulseResize) return undefined;
+
+    if (isPulseAnimating) {
+      window.electronAPI.startPillPulseResize();
+      return () => {
+        window.electronAPI.endPillPulseResize();
+      };
+    }
+
+    window.electronAPI.endPillPulseResize();
+    return undefined;
+  }, [isPulseAnimating]);
+
+  useEffect(() => {
+    if (pulseSignal === lastPulseSignalRef.current) return;
+    lastPulseSignalRef.current = pulseSignal;
     if (!pulseSignal || !pulseEnabled || dndActive) return;
     setShouldPulse(true);
     if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);

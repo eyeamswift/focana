@@ -1073,7 +1073,7 @@ html[data-window-mode='pill'] #root {
 
 .checkin-popup {
   pointer-events: auto;
-  width: min(26rem, calc(100vw - 1rem));
+  width: min(30rem, calc(100vw - 1rem));
   background: var(--bg-surface);
   border: 1px solid #D97706;
   border-radius: 0.75rem;
@@ -1100,6 +1100,18 @@ html[data-window-mode='pill'] #root {
   font-weight: 700;
   color: var(--text-primary);
   text-align: center;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.checkin-popup-task {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #B45309;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .checkin-popup-actions {
@@ -1205,7 +1217,7 @@ html[data-window-mode='pill'] #root {
   }
   50% {
     opacity: 1;
-    transform: scale(2);
+    transform: scale(1.5);
     box-shadow: 0 4px 6px -1px rgba(251, 146, 60, 0.2), 0 2px 4px -1px rgba(251, 146, 60, 0.06);
   }
 }
