@@ -12,6 +12,7 @@ export default function TaskPreviewModal({
   sessions = [],
   onUseTask,
   onUpdateNotes,
+  canUseTask = true,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedNotes, setEditedNotes] = useState('');
@@ -47,7 +48,7 @@ export default function TaskPreviewModal({
   };
 
   const handleUseTask = () => {
-    if (!session) return;
+    if (!session || !canUseTask) return;
     onUseTask(session);
   };
 
@@ -154,7 +155,7 @@ export default function TaskPreviewModal({
             </Button>
           )}
 
-          {!isEditing && (
+          {!isEditing && canUseTask && (
             <Button onClick={handleUseTask} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
               Use This Task
             </Button>

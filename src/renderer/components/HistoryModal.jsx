@@ -1,15 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
+import { Tabs, TabsList, TabsTrigger } from './ui/Tabs';
 import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, NotebookPen, Trash2, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ITEMS_PER_PAGE = 5;
+const DEFAULT_TAB = 'resume';
+
 const formatSessionDate = (createdAt) => {
   const parsed = new Date(createdAt);
   if (Number.isNaN(parsed.getTime())) return 'Unknown date';
   return format(parsed, 'MMM d, yyyy');
+};
+
+const getNormalizedNotes = (session) => (
+  typeof session?.notes === 'string' ? session.notes.trim() : ''
+);
+
+const EMPTY_STATE_COPY = {
+  resume: 'No resumable sessions yet.',
+  discarded: 'No discarded sessions yet.',
+  completed: 'No completed sessions yet.',
 };
 
 export default function HistoryModal({
@@ -23,14 +36,17 @@ export default function HistoryModal({
 }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [activeFilter, setActiveFilter] = useState('needs-attention');
+  const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
   const [pendingDelete, setPendingDelete] = useState(null);
 
-  const filteredSessions = sessions.filter((session) => {
-    if (activeFilter === 'completed') return !!session?.completed;
-    return !session?.completed;
-  });
+  const filteredSessions = useMemo(() => sessions.filter((session) => {
+    const hasNotes = getNormalizedNotes(session).length > 0;
+    if (activeTab === 'completed') return Boolean(session?.completed);
+    if (activeTab === 'discarded') return !session?.completed && !hasNotes;
+    return !session?.completed && hasNotes;
+  }), [sessions, activeTab]);
 
+  const allowReuseActions = activeTab !== 'completed';
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE));
   const startIndex = currentPage * ITEMS_PER_PAGE;
   const paginatedSessions = filteredSessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -41,10 +57,15 @@ export default function HistoryModal({
     if (isOpen) {
       setCurrentPage(0);
       setSelectedIds([]);
-      setActiveFilter('needs-attention');
+      setActiveTab(DEFAULT_TAB);
       setPendingDelete(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    setCurrentPage(0);
+    setSelectedIds([]);
+  }, [activeTab]);
 
   useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE) - 1);
@@ -54,6 +75,10 @@ export default function HistoryModal({
 
   const handleUseAndClose = (session) => {
     onUseTask(session);
+  };
+
+  const handlePreview = (session) => {
+    onPreviewTask?.(session, { allowUseTask: allowReuseActions });
   };
 
   const toggleSessionSelection = (sessionId) => {
@@ -111,177 +136,170 @@ export default function HistoryModal({
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '32rem' }}>
-        <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
-          <X style={{ width: 16, height: 16 }} />
-        </button>
-        <DialogHeader>
-          <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <History style={{ width: 24, height: 24, color: 'var(--brand-action)' }} />
-            Session History
-          </DialogTitle>
-        </DialogHeader>
+          <button className="dialog-close-btn" onClick={onClose} aria-label="Close">
+            <X style={{ width: 16, height: 16 }} />
+          </button>
+          <DialogHeader>
+            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <History style={{ width: 24, height: 24, color: 'var(--brand-action)' }} />
+              Session History
+            </DialogTitle>
+          </DialogHeader>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-          <Button
-            type="button"
-            size="sm"
-            variant={activeFilter === 'needs-attention' ? 'default' : 'outline'}
-            onClick={() => setActiveFilter('needs-attention')}
-            style={activeFilter === 'needs-attention' ? { background: 'var(--brand-primary)', color: 'var(--text-on-brand)' } : undefined}
-          >
-            Needs Attention
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={activeFilter === 'completed' ? 'default' : 'outline'}
-            onClick={() => setActiveFilter('completed')}
-            style={activeFilter === 'completed' ? { background: 'var(--brand-primary)', color: 'var(--text-on-brand)' } : undefined}
-          >
-            Completed
-          </Button>
-        </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} style={{ marginTop: '0.5rem' }}>
+            <TabsList style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <TabsTrigger value="resume">Resume</TabsTrigger>
+              <TabsTrigger value="discarded">Discarded</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        <div className="space-y-3" style={{ padding: '1rem 0', minHeight: 250 }}>
-          {paginatedSessions.length > 0 ? paginatedSessions.map((session) => (
-            <div
-              key={session.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.5rem',
-                background: 'var(--bg-card)',
-                borderRadius: '0.375rem',
-                border: `1px solid ${selectedIds.includes(session.id) ? 'var(--border-focus)' : 'transparent'}`,
-                transition: 'border-color 0.15s',
-              }}
-              onClick={() => onPreviewTask?.(session)}
-            >
-              <label
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.375rem', marginRight: '0.125rem' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(session.id)}
-                  onChange={() => toggleSessionSelection(session.id)}
-                  aria-label={`Select session ${session.task}`}
-                  style={{ width: 16, height: 16, accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
-                />
-              </label>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {session.task}
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  <span>{Math.round(session.durationMinutes)} min</span>
-                  <span>{formatSessionDate(session.createdAt)}</span>
-                  {session.notes && (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <FileText style={{ width: 12, height: 12, color: 'var(--brand-primary)' }} />
-                      </TooltipTrigger>
-                      <TooltipContent><p>Has notes</p></TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.125rem', marginLeft: '0.5rem', flexShrink: 0 }}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      aria-label="Preview Session Notes"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPreviewTask?.(session);
-                      }}
-                      size="icon"
-                      variant="ghost"
-                      style={{ color: 'var(--text-secondary)', borderRadius: '9999px' }}
-                    >
-                      <NotebookPen style={{ width: 18, height: 18 }} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>View/Add notes</p></TooltipContent>
-                </Tooltip>
+          <div className="space-y-3" style={{ padding: '1rem 0', minHeight: 250 }}>
+            {paginatedSessions.length > 0 ? paginatedSessions.map((session) => {
+              const hasNotes = getNormalizedNotes(session).length > 0;
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      aria-label="Use This Task"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUseAndClose(session);
-                      }}
-                      size="icon"
-                      variant="ghost"
-                      style={{ color: 'var(--brand-primary)', borderRadius: '9999px' }}
-                    >
-                      <ChevronsRight style={{ width: 20, height: 20 }} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Open this task</p></TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      aria-label="Delete Session"
-                      onClick={(e) => handleDeleteOne(e, session.id)}
-                      size="icon"
-                      variant="ghost"
-                      style={{ color: 'var(--error)', borderRadius: '9999px' }}
-                    >
-                      <Trash2 style={{ width: 18, height: 18 }} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Delete session</p></TooltipContent>
-                </Tooltip>
-              </div>
-            </div>
-          )) : (
-            <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-secondary)', paddingTop: '4rem' }}>
-              No sessions for the current filter.
-            </p>
-          )}
-        </div>
-
-        <DialogFooter className="dialog-footer-between" style={{ flexWrap: 'nowrap', alignItems: 'flex-end', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', rowGap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-            {filteredSessions.length > 0 && (
-              <>
-                <Button variant="outline" onClick={handleToggleSelectPage}>
-                  {allOnPageSelected ? 'Unselect Page' : 'Select Page'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDeleteSelected}
-                  disabled={selectedIds.length === 0}
-                  style={{ color: selectedIds.length === 0 ? 'var(--text-secondary)' : 'var(--error)' }}
+              return (
+                <div
+                  key={session.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.5rem',
+                    background: 'var(--bg-card)',
+                    borderRadius: '0.375rem',
+                    border: `1px solid ${selectedIds.includes(session.id) ? 'var(--border-focus)' : 'transparent'}`,
+                    transition: 'border-color 0.15s',
+                  }}
+                  onClick={() => handlePreview(session)}
                 >
-                  Delete Selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
-                </Button>
-              </>
-            )}
-            {filteredSessions.length > ITEMS_PER_PAGE && (
-              <>
-                <Button variant="outline" size="icon" onClick={() => setCurrentPage((p) => Math.max(p - 1, 0))} disabled={currentPage === 0}>
-                  <ChevronLeft style={{ width: 16, height: 16 }} />
-                </Button>
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', width: '5rem', textAlign: 'center' }}>
-                  Page {currentPage + 1} of {totalPages}
-                </span>
-                <Button variant="outline" size="icon" onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages - 1))} disabled={currentPage === totalPages - 1}>
-                  <ChevronRight style={{ width: 16, height: 16 }} />
-                </Button>
-              </>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.375rem', marginRight: '0.125rem' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(session.id)}
+                      onChange={() => toggleSessionSelection(session.id)}
+                      aria-label={`Select session ${session.task}`}
+                      style={{ width: 16, height: 16, accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
+                    />
+                  </label>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {session.task}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <span>{Math.round(session.durationMinutes)} min</span>
+                      <span>{formatSessionDate(session.createdAt)}</span>
+                      {hasNotes && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <FileText style={{ width: 12, height: 12, color: 'var(--brand-primary)' }} />
+                          </TooltipTrigger>
+                          <TooltipContent><p>Has notes</p></TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.125rem', marginLeft: '0.5rem', flexShrink: 0 }}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          aria-label="Preview Session Notes"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreview(session);
+                          }}
+                          size="icon"
+                          variant="ghost"
+                          style={{ color: 'var(--text-secondary)', borderRadius: '9999px' }}
+                        >
+                          <NotebookPen style={{ width: 18, height: 18 }} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>View/Add notes</p></TooltipContent>
+                    </Tooltip>
+
+                    {allowReuseActions && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label="Use This Task"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUseAndClose(session);
+                            }}
+                            size="icon"
+                            variant="ghost"
+                            style={{ color: 'var(--brand-primary)', borderRadius: '9999px' }}
+                          >
+                            <ChevronsRight style={{ width: 20, height: 20 }} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Open this task</p></TooltipContent>
+                      </Tooltip>
+                    )}
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          aria-label="Delete Session"
+                          onClick={(e) => handleDeleteOne(e, session.id)}
+                          size="icon"
+                          variant="ghost"
+                          style={{ color: 'var(--error)', borderRadius: '9999px' }}
+                        >
+                          <Trash2 style={{ width: 18, height: 18 }} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Delete session</p></TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              );
+            }) : (
+              <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-secondary)', paddingTop: '4rem' }}>
+                {EMPTY_STATE_COPY[activeTab]}
+              </p>
             )}
           </div>
-          <Button onClick={() => onClose()} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', flexShrink: 0 }}>
-            Close
-          </Button>
-        </DialogFooter>
+
+          <DialogFooter className="dialog-footer-between" style={{ flexWrap: 'nowrap', alignItems: 'flex-end', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', rowGap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+              {filteredSessions.length > 0 && (
+                <>
+                  <Button variant="outline" onClick={handleToggleSelectPage}>
+                    {allOnPageSelected ? 'Unselect Page' : 'Select Page'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleDeleteSelected}
+                    disabled={selectedIds.length === 0}
+                    style={{ color: selectedIds.length === 0 ? 'var(--text-secondary)' : 'var(--error)' }}
+                  >
+                    Delete Selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+                  </Button>
+                </>
+              )}
+              {filteredSessions.length > ITEMS_PER_PAGE && (
+                <>
+                  <Button variant="outline" size="icon" onClick={() => setCurrentPage((p) => Math.max(p - 1, 0))} disabled={currentPage === 0}>
+                    <ChevronLeft style={{ width: 16, height: 16 }} />
+                  </Button>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', width: '5rem', textAlign: 'center' }}>
+                    Page {currentPage + 1} of {totalPages}
+                  </span>
+                  <Button variant="outline" size="icon" onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages - 1))} disabled={currentPage === totalPages - 1}>
+                    <ChevronRight style={{ width: 16, height: 16 }} />
+                  </Button>
+                </>
+              )}
+            </div>
+            <Button onClick={() => onClose()} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', flexShrink: 0 }}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -30,10 +30,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modalClosed: () => ipcRenderer.invoke('modal-closed'),
 
   // Pill mode resize
-  enterPillMode: () => ipcRenderer.invoke('enter-pill-mode'),
+  enterPillMode: (options) => ipcRenderer.invoke('enter-pill-mode', options),
   exitPillMode: () => ipcRenderer.invoke('exit-pill-mode'),
   setPillWidth: (width) => ipcRenderer.invoke('set-pill-width', width),
   setPillSize: (size) => ipcRenderer.invoke('set-pill-size', size),
+  capturePillRestoreBounds: () => ipcRenderer.invoke('capture-pill-restore-bounds'),
+  beginCompactTransient: (source) => ipcRenderer.invoke('begin-compact-transient', { source }),
+  endCompactTransient: (source, delayMs = 0) => ipcRenderer.invoke('end-compact-transient', { source, delayMs }),
   startPillPulseResize: () => ipcRenderer.invoke('start-pill-pulse-resize'),
   endPillPulseResize: () => ipcRenderer.invoke('end-pill-pulse-resize'),
   ensureMainWindowSize: (minWidth, minHeight) => ipcRenderer.invoke('ensure-main-window-size', minWidth, minHeight),

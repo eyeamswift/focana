@@ -11,9 +11,12 @@ let lastFullBounds = null;
 let isModalExpanded = false;
 let preModalBounds = null;
 let pillDragStart = null;
-let pillPulseAnchor = null;
-let pillPulseClearing = false;
+let compactTransientBaseBounds = null;
+let compactTransientClearing = false;
+let compactTransientSources = new Set();
 let lastStablePillBounds = null;
+let compactTransientClearTimer = null;
+let pendingPillRestoreBounds = null;
 let floatingIconWindow = null;
 let isFloatingMinimized = false;
 let floatingPulseTimeout = null;
@@ -99,41 +102,46 @@ function buildBottomRightBounds(area, width, height) {
 }
 
 function getPillTargetBounds(currentBounds, targetWidth, targetHeight, pulseActive = false) {
-  const shouldUsePulseAnchor = (pulseActive || pillPulseClearing) && pillPulseAnchor;
-  const stableBounds = shouldUsePulseAnchor ? (lastStablePillBounds || currentBounds) : currentBounds;
-
-  if (shouldUsePulseAnchor && stableBounds) {
-    const display = screen.getDisplayMatching(stableBounds);
-    const area = display.bounds;
-    const rightEdge = area.x + area.width;
-    const bottomEdge = area.y + area.height;
-    const stableRight = stableBounds.x + stableBounds.width;
-    const stableBottom = stableBounds.y + stableBounds.height;
-    const touchesLeft = Math.abs(stableBounds.x - area.x) <= PILL_EDGE_EPSILON;
-    const touchesRight = Math.abs(stableRight - rightEdge) <= PILL_EDGE_EPSILON;
-    const touchesTop = Math.abs(stableBounds.y - area.y) <= PILL_EDGE_EPSILON;
-    const touchesBottom = Math.abs(stableBottom - bottomEdge) <= PILL_EDGE_EPSILON;
-
-    const centeredBounds = buildCenteredBounds(pillPulseAnchor, targetWidth, targetHeight);
-
+  const transientBounds = (pulseActive || compactTransientSources.size > 0 || compactTransientClearing)
+    ? compactTransientBaseBounds
+    : null;
+  const stableBounds = transientBounds || lastStablePillBounds || currentBounds;
+  if (!stableBounds) {
     return {
-      x: touchesRight && !touchesLeft
-        ? Math.round(stableRight - targetWidth)
-        : touchesLeft && !touchesRight
-          ? Math.round(stableBounds.x)
-          : centeredBounds.x,
-      y: touchesBottom && !touchesTop
-        ? Math.round(stableBottom - targetHeight)
-        : touchesTop && !touchesBottom
-          ? Math.round(stableBounds.y)
-          : centeredBounds.y,
+      x: currentBounds.x,
+      y: currentBounds.y,
       width: targetWidth,
       height: targetHeight,
     };
   }
 
-  const anchorCenter = getBoundsCenter(stableBounds);
-  return buildCenteredBounds(anchorCenter, targetWidth, targetHeight);
+  const display = screen.getDisplayMatching(stableBounds);
+  const area = display.bounds;
+  const rightEdge = area.x + area.width;
+  const bottomEdge = area.y + area.height;
+  const stableRight = stableBounds.x + stableBounds.width;
+  const stableBottom = stableBounds.y + stableBounds.height;
+  const touchesLeft = Math.abs(stableBounds.x - area.x) <= PILL_EDGE_EPSILON;
+  const touchesRight = Math.abs(stableRight - rightEdge) <= PILL_EDGE_EPSILON;
+  const touchesTop = Math.abs(stableBounds.y - area.y) <= PILL_EDGE_EPSILON;
+  const touchesBottom = Math.abs(stableBottom - bottomEdge) <= PILL_EDGE_EPSILON;
+
+  const centeredBounds = buildCenteredBounds(getBoundsCenter(stableBounds), targetWidth, targetHeight);
+
+  return {
+    x: touchesRight && !touchesLeft
+      ? Math.round(stableRight - targetWidth)
+      : touchesLeft && !touchesRight
+        ? Math.round(stableBounds.x)
+        : centeredBounds.x,
+    y: touchesBottom && !touchesTop
+      ? Math.round(stableBottom - targetHeight)
+      : touchesTop && !touchesBottom
+        ? Math.round(stableBounds.y)
+        : centeredBounds.y,
+    width: targetWidth,
+    height: targetHeight,
+  };
 }
 
 function rememberStablePillBounds(bounds) {
@@ -144,6 +152,78 @@ function rememberStablePillBounds(bounds) {
     width: Math.round(Number(bounds.width) || PILL_MIN_WIDTH),
     height: Math.round(Number(bounds.height) || PILL_MIN_HEIGHT),
   };
+}
+
+function clearCompactTransientClearTimer() {
+  if (compactTransientClearTimer) {
+    clearTimeout(compactTransientClearTimer);
+    compactTransientClearTimer = null;
+  }
+}
+
+function hasActiveCompactTransient() {
+  return compactTransientSources.size > 0 || compactTransientClearing;
+}
+
+function clearCompactTransientState() {
+  clearCompactTransientClearTimer();
+  compactTransientBaseBounds = null;
+  compactTransientClearing = false;
+  compactTransientSources.clear();
+}
+
+function restoreAndClearCompactTransient() {
+  if (!compactTransientBaseBounds) {
+    clearCompactTransientState();
+    return;
+  }
+
+  const restoreBounds = clampBounds(compactTransientBaseBounds, 'display');
+  if (mainWindow && isPillMode) {
+    const currentBounds = mainWindow.getBounds();
+    if (!boundsEqual(currentBounds, restoreBounds)) {
+      setMainWindowBoundsClamped(restoreBounds, { areaType: 'display' });
+    }
+  }
+  rememberStablePillBounds(restoreBounds);
+  clearCompactTransientState();
+}
+
+function beginCompactTransient(source) {
+  if (!mainWindow || !isPillMode) return;
+  clearCompactTransientClearTimer();
+  compactTransientClearing = false;
+  if (!compactTransientBaseBounds) {
+    compactTransientBaseBounds = clampBounds(lastStablePillBounds || mainWindow.getBounds(), 'display');
+  }
+  if (source) {
+    compactTransientSources.add(String(source));
+  }
+}
+
+function endCompactTransient(source, delayMs = 0) {
+  if (source) {
+    compactTransientSources.delete(String(source));
+  }
+  if (compactTransientSources.size > 0) return;
+
+  clearCompactTransientClearTimer();
+
+  if (!compactTransientBaseBounds) {
+    compactTransientClearing = false;
+    return;
+  }
+
+  const safeDelay = Math.max(0, Math.floor(Number(delayMs) || 0));
+  if (safeDelay === 0) {
+    restoreAndClearCompactTransient();
+    return;
+  }
+
+  compactTransientClearing = true;
+  compactTransientClearTimer = setTimeout(() => {
+    restoreAndClearCompactTransient();
+  }, safeDelay);
 }
 
 function normalizeShortcuts(rawShortcuts) {
@@ -354,9 +434,10 @@ function setDockIcon() {
   if (process.platform !== 'darwin' || !app.dock) return;
 
   const candidatePaths = [
-    // Dev: generated high-resolution app icon.
+    // Preferred dock/app artwork shared by dev and packaged runtime.
+    path.join(__dirname, '..', 'assets', 'focana-logo-MacDock.png'),
+    // Fallbacks for older local builds.
     path.join(__dirname, '..', '..', 'build', 'icon.png'),
-    // Fallback: packaged/runtime asset icon.
     path.join(__dirname, '..', 'assets', 'icon.png'),
   ];
 
@@ -595,6 +676,7 @@ function createWindow() {
     height: initialBounds.height,
     frame: false,
     transparent: true,
+    roundedCorners: false,
     hasShadow: false,
     backgroundColor: '#00000000',
     alwaysOnTop: isE2EBackground ? false : true,
@@ -603,8 +685,8 @@ function createWindow() {
     minHeight: FULL_MIN_HEIGHT,
     skipTaskbar: isE2EBackground ? true : false,
     show: isE2EBackground ? false : true,
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: -20, y: -20 }, // Hide native traffic lights
+    /* titleBarStyle removed — frame:false already hides the title bar;
+       'hidden' caused macOS to draw a native window border. */
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -879,13 +961,13 @@ ipcMain.handle('modal-closed', () => {
 });
 
 // Pill mode resize
-ipcMain.handle('enter-pill-mode', () => {
+ipcMain.handle('enter-pill-mode', (_, options = {}) => {
   if (mainWindow) {
     const current = mainWindow.getBounds();
     const displayBounds = screen.getDisplayMatching(current).bounds;
+    const restorePreviousBounds = options?.restorePreviousBounds === true;
     lastFullBounds = current;
-    pillPulseAnchor = null;
-    pillPulseClearing = false;
+    clearCompactTransientState();
     isPillMode = true;
     mainWindow.setBackgroundColor('#00000000');
     mainWindow.setHasShadow(false);
@@ -896,11 +978,31 @@ ipcMain.handle('enter-pill-mode', () => {
     // Initial default size for compact mode before renderer computes exact width.
     const targetWidth = 182;
     const targetHeight = PILL_MIN_HEIGHT;
-    const nextBounds = buildBottomRightBounds(displayBounds, targetWidth, targetHeight);
+    const nextBounds = restorePreviousBounds && pendingPillRestoreBounds
+      ? clampBounds(pendingPillRestoreBounds, 'display')
+      : buildBottomRightBounds(displayBounds, targetWidth, targetHeight);
+    pendingPillRestoreBounds = null;
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
     rememberStablePillBounds(clampBounds(nextBounds, 'display'));
     mainWindow.setResizable(false);
   }
+});
+
+ipcMain.handle('capture-pill-restore-bounds', () => {
+  if (!mainWindow || !isPillMode) return;
+  pendingPillRestoreBounds = clampBounds(
+    compactTransientBaseBounds || lastStablePillBounds || mainWindow.getBounds(),
+    'display',
+  );
+});
+
+ipcMain.handle('begin-compact-transient', (_, payload = {}) => {
+  if (!mainWindow || !isPillMode) return;
+  beginCompactTransient(payload?.source || null);
+});
+
+ipcMain.handle('end-compact-transient', (_, payload = {}) => {
+  endCompactTransient(payload?.source || null, payload?.delayMs || 0);
 });
 
 // Dynamic pill width — called by renderer as content expands/contracts
@@ -911,10 +1013,8 @@ ipcMain.handle('set-pill-width', (_, width) => {
     const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, current.height || PILL_MIN_HEIGHT));
     const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, false);
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
-    rememberStablePillBounds(clampBounds(nextBounds, 'display'));
-    if (pillPulseClearing) {
-      pillPulseAnchor = null;
-      pillPulseClearing = false;
+    if (!hasActiveCompactTransient()) {
+      rememberStablePillBounds(clampBounds(nextBounds, 'display'));
     }
   }
 });
@@ -930,30 +1030,20 @@ ipcMain.handle('set-pill-size', (_, size) => {
     const targetHeight = Math.round(clampNumber(requestedHeight, PILL_MIN_HEIGHT, PILL_MAX_HEIGHT, current.height));
     const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, pulseActive);
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
-    if (!pulseActive) {
+    if (!hasActiveCompactTransient()) {
       rememberStablePillBounds(clampBounds(nextBounds, 'display'));
-    }
-    if (pillPulseClearing && !pulseActive) {
-      pillPulseAnchor = null;
-      pillPulseClearing = false;
     }
   }
 });
 
 ipcMain.handle('start-pill-pulse-resize', () => {
   if (mainWindow && isPillMode) {
-    const anchorSource = lastStablePillBounds || mainWindow.getBounds();
-    pillPulseAnchor = getBoundsCenter(anchorSource);
-    pillPulseClearing = false;
+    beginCompactTransient('pulse');
   }
 });
 
 ipcMain.handle('end-pill-pulse-resize', () => {
-  if (pillPulseAnchor) {
-    pillPulseClearing = true;
-    return;
-  }
-  pillPulseClearing = false;
+  endCompactTransient('pulse', 400);
 });
 
 // JS-based pill drag — renderer tracks mouse delta, main moves the window
@@ -973,34 +1063,43 @@ ipcMain.on('pill-drag-move', (_, payload) => {
     pillDragStart.lastDx = safeDx;
     pillDragStart.lastDy = safeDy;
 
-    if (stepX === 0 && stepY === 0) return;
-
     const current = mainWindow.getBounds();
-    if (pillPulseAnchor) {
-      pillPulseAnchor = {
-        x: pillPulseAnchor.x + stepX,
-        y: pillPulseAnchor.y + stepY,
-      };
-    }
     const nextBounds = clampBounds({
       x: Math.round(current.x + stepX),
       y: Math.round(current.y + stepY),
       width: current.width,
       height: current.height,
     }, 'display');
-    rememberStablePillBounds(nextBounds);
+    const actualStepX = nextBounds.x - current.x;
+    const actualStepY = nextBounds.y - current.y;
+    if (actualStepX === 0 && actualStepY === 0) return;
+    if (compactTransientBaseBounds) {
+      compactTransientBaseBounds = clampBounds({
+        x: Math.round(compactTransientBaseBounds.x + actualStepX),
+        y: Math.round(compactTransientBaseBounds.y + actualStepY),
+        width: compactTransientBaseBounds.width,
+        height: compactTransientBaseBounds.height,
+      }, 'display');
+    }
+    if (compactTransientBaseBounds) {
+      rememberStablePillBounds(compactTransientBaseBounds);
+    } else {
+      rememberStablePillBounds(nextBounds);
+    }
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
   }
 });
 
 ipcMain.on('pill-drag-end', () => {
   pillDragStart = null;
+  if (mainWindow && isPillMode) {
+    rememberStablePillBounds(compactTransientBaseBounds || mainWindow.getBounds());
+  }
 });
 
 ipcMain.handle('exit-pill-mode', () => {
   if (mainWindow) {
-    pillPulseAnchor = null;
-    pillPulseClearing = false;
+    clearCompactTransientState();
     lastStablePillBounds = null;
     isPillMode = false;
     mainWindow.setResizable(true);
@@ -1033,7 +1132,7 @@ ipcMain.handle('exit-pill-mode', () => {
 });
 
 ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeight = FULL_MIN_HEIGHT) => {
-  if (!mainWindow || isPillMode) return;
+  if (!mainWindow || isPillMode || isModalExpanded) return;
 
   const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2400, FULL_MIN_WIDTH);
   const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2400, FULL_MIN_HEIGHT);

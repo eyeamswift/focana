@@ -17,7 +17,7 @@ files:
   - '!.claude'
   - '!src/renderer'
 mac:
-  icon: build/icon.icns
+  icon: build/icon.png
   target:
     - target: dmg
       arch:

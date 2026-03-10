@@ -42,6 +42,9 @@
   --border-strong: rgba(46, 31, 24, 0.18);
   --border-focus: #B94E10;
   --focus-ring: #B94E10;
+  --window-frame-color: #2E1F18;
+  --window-frame-width: 2px;
+  --window-frame-radius: 0;
 
   --overlay: rgba(46, 31, 24, 0.34);
   --shadow-minimal: 0 1px 2px rgba(46, 31, 24, 0.12);
@@ -74,6 +77,7 @@
   --border-strong: rgba(255, 249, 230, 0.24);
   --border-focus: #F59E0B;
   --focus-ring: #F59E0B;
+  --window-frame-color: #FFF9E6;
   --info-bg: rgba(245, 158, 11, 0.14);
   --info-border: rgba(245, 158, 11, 0.35);
   --info-text: #FFF0C2;
@@ -749,7 +753,7 @@ html[data-window-mode='pill'] #root {
   background: var(--compact-pill);
   border-radius: 9999px;
   box-shadow: var(--shadow-minimal);
-  border: 1px solid var(--border-default);
+  border: var(--window-frame-width) solid var(--window-frame-color);
   cursor: default;
   user-select: none;
   -webkit-app-region: no-drag;
@@ -1270,17 +1274,35 @@ html[data-window-mode='pill'] #root {
 
 /* === App Container === */
 .app-container {
+  position: relative;
+  width: 100%;
   height: 100%;
   padding: 0;
   font-family: var(--font-family);
   overflow: hidden;
   display: flex;
   align-items: flex-start;
-  background: transparent;
+  background: var(--bg-window);
+  border-radius: var(--window-frame-radius);
 }
 
 .app-container--suppress-tooltips .tooltip-content {
   opacity: 0 !important;
+}
+
+.app-container--transitioning {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  box-shadow: inset 0 0 0 var(--window-frame-width) var(--window-frame-color);
+  pointer-events: none;
+  z-index: 20;
 }
 
 /* Pill/compact mode — centers the pill in the window.
@@ -1297,6 +1319,10 @@ html[data-window-mode='pill'] #root {
   box-shadow: none !important;
   border: none !important;
   backdrop-filter: none !important;
+}
+
+.app-container.pill-mode::after {
+  display: none;
 }
 
 .app-container.pill-mode.pill-mode--transitioning {

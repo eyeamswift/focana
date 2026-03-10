@@ -5,7 +5,7 @@ import { formatTime } from '../utils/time';
 // ---------------------------------------------------------------------------
 // Pill width constants (px)
 // ---------------------------------------------------------------------------
-const H_MARGIN   = 0;   // no extra side margin; window matches visible pill
+const H_MARGIN   = 4;   // account for the stronger 2px pill frame on both sides
 const PILL_PAD   = 40;  // 20px left + 20px right padding
 const PILL_BASE_H = 72;
 const PILL_MAX_H = 260;
@@ -132,6 +132,20 @@ export default function CompactMode({
     window.electronAPI.endPillPulseResize();
     return undefined;
   }, [isPulseAnimating]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.beginCompactTransient || !window.electronAPI?.endCompactTransient) return undefined;
+
+    if (checkInPromptActive) {
+      window.electronAPI.beginCompactTransient('checkin-prompt');
+      return () => {
+        window.electronAPI.endCompactTransient('checkin-prompt', 260);
+      };
+    }
+
+    window.electronAPI.endCompactTransient('checkin-prompt', 260);
+    return undefined;
+  }, [checkInPromptActive]);
 
   // ---------------------------------------------------------------------------
   // Sync window size with pill state via IPC

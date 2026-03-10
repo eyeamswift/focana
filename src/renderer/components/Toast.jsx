@@ -8,7 +8,7 @@ const TOAST_TYPES = {
   info: { icon: Info, className: 'toast-info' },
 };
 
-export default function Toast({ toast, onDismiss }) {
+export default function Toast({ toast, onDismiss, placement = 'top-right' }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
@@ -43,10 +43,34 @@ export default function Toast({ toast, onDismiss }) {
   const { icon: Icon, className } = TOAST_TYPES[toast.type] || TOAST_TYPES.info;
   const showIcon = toast.showIcon !== false;
   const showCloseButton = toast.showCloseButton !== false;
+  const isCentered = placement === 'pill-center' || placement === 'window-center';
+  const hostStyle = isCentered
+    ? {
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0.5rem',
+        zIndex: 50,
+        pointerEvents: 'none',
+      }
+    : {
+        position: 'fixed',
+        top: '1rem',
+        right: '1rem',
+        zIndex: 50,
+      };
+  const toastStyle = isCentered
+    ? {
+        maxWidth: 'min(24rem, calc(100% - 1rem))',
+        pointerEvents: 'auto',
+      }
+    : undefined;
 
   return (
-    <div style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 50 }}>
-      <div className={`toast ${className} ${isExiting ? 'toast-exit' : 'toast-enter'}`}>
+    <div style={hostStyle}>
+      <div className={`toast ${className} ${isExiting ? 'toast-exit' : 'toast-enter'}`} style={toastStyle}>
         {showIcon ? <Icon style={{ width: 20, height: 20, flexShrink: 0 }} /> : null}
         <p style={{ fontSize: '0.875rem', fontWeight: 500, flex: 1 }}>{toast.message}</p>
         {showCloseButton ? (

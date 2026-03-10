@@ -198,6 +198,7 @@ export default function App() {
   // Task preview
   const [showTaskPreview, setShowTaskPreview] = useState(false);
   const [previewSession, setPreviewSession] = useState(null);
+  const [previewUseTaskEnabled, setPreviewUseTaskEnabled] = useState(true);
   const modalStackRef = useRef([]);
 
   // Compact mode
@@ -266,10 +267,14 @@ export default function App() {
   const checkInTimedIndexRef = useRef(0);
   const checkInTimedPendingIndexRef = useRef(null);
   const timedCheckInLastElapsedRef = useRef(0);
+  const timedCheckInLastSegmentElapsedRef = useRef(0);
   const freeflowPulseNextRef = useRef(null);
   const compactPulseThresholdsRef = useRef([]);
   const compactPulseIndexRef = useRef(0);
   const timedPulseLastElapsedRef = useRef(0);
+  const timedPulseLastSegmentElapsedRef = useRef(0);
+  const timedCueSegmentStartElapsedRef = useRef(0);
+  const timedCueSegmentDurationRef = useRef(0);
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
   const checkInPromptCooldownUntilRef = useRef(0);
@@ -288,6 +293,7 @@ export default function App() {
   const suppressToolbarTooltipTimerRef = useRef(null);
   const pendingCompactExitHeightRef = useRef(null);
   const compactRevealTimerRef = useRef(null);
+  const pendingCompactRestoreRef = useRef(false);
   const compactPrevTimerVisibleRef = useRef(null);
   const wasCompactRef = useRef(false);
   const hasTrackedAppOpenedRef = useRef(false);
@@ -429,6 +435,10 @@ export default function App() {
   const showToast = useCallback((type, message, duration = 2000, options = {}) => {
     setToast({ type, message, duration, ...options });
   }, []);
+
+  const showCenteredFullWindowCheckInToast = !isCompact
+    && toast?.source === 'checkin-success'
+    && toast?.placement === 'window-center';
 
   const buildThoughtRecord = useCallback((text, sessionId = null) => ({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -699,6 +709,7 @@ export default function App() {
   }, []);
 
   const handleExitCompact = useCallback(() => {
+    setCompactTransitioning(true);
     setIsCompact(false);
 
     const shouldForceIdleLayout = (
@@ -933,9 +944,13 @@ export default function App() {
         checkInTimedIndexRef.current = 0;
         checkInTimedPendingIndexRef.current = null;
         timedCheckInLastElapsedRef.current = 0;
+        timedCheckInLastSegmentElapsedRef.current = 0;
         compactPulseThresholdsRef.current = [];
         compactPulseIndexRef.current = 0;
         timedPulseLastElapsedRef.current = 0;
+        timedPulseLastSegmentElapsedRef.current = 0;
+        timedCueSegmentStartElapsedRef.current = 0;
+        timedCueSegmentDurationRef.current = 0;
         setTask('');
         setContextNotes('');
         setTime(0);
@@ -1108,6 +1123,28 @@ export default function App() {
     return Math.max(60, Math.round(standardInterval * 0.4));
   }, [mode, initialTime, getStandardCheckInIntervalSeconds]);
 
+  const getTimedCueSegmentElapsed = useCallback((elapsedSec) => {
+    const normalizedElapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    return Math.max(0, normalizedElapsed - timedCueSegmentStartElapsedRef.current);
+  }, []);
+
+  const getTimedCueSegmentDuration = useCallback((fallbackTotalSec = initialTime) => {
+    const segmentDuration = Math.max(0, Math.floor(Number(timedCueSegmentDurationRef.current) || 0));
+    if (segmentDuration > 0) return segmentDuration;
+    return Math.max(1, Math.floor(Number(fallbackTotalSec) || 0));
+  }, [initialTime]);
+
+  const setTimedCueSegment = useCallback((startElapsedSec = 0, durationSec = 0) => {
+    timedCueSegmentStartElapsedRef.current = Math.max(0, Math.floor(Number(startElapsedSec) || 0));
+    timedCueSegmentDurationRef.current = Math.max(0, Math.floor(Number(durationSec) || 0));
+    timedCheckInLastSegmentElapsedRef.current = 0;
+    timedPulseLastSegmentElapsedRef.current = 0;
+  }, []);
+
+  const clearTimedCueSegment = useCallback(() => {
+    setTimedCueSegment(0, 0);
+  }, [setTimedCueSegment]);
+
   const clearCheckInUi = useCallback(() => {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInResolveTimeoutRef.current = null;
@@ -1123,6 +1160,7 @@ export default function App() {
     checkInTimedIndexRef.current = 0;
     checkInTimedPendingIndexRef.current = null;
     timedCheckInLastElapsedRef.current = 0;
+    timedCheckInLastSegmentElapsedRef.current = 0;
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
     checkInPromptCooldownUntilRef.current = 0;
@@ -1135,18 +1173,22 @@ export default function App() {
     compactPulseThresholdsRef.current = [];
     compactPulseIndexRef.current = 0;
     timedPulseLastElapsedRef.current = 0;
+    timedPulseLastSegmentElapsedRef.current = 0;
   }, []);
 
-  const resetCheckInSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
+  const resetCheckInSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0, options = {}) => {
     const previousFreeflowNext = checkInFreeflowNextRef.current;
     const previousTimedThresholds = checkInTimedThresholdsRef.current;
     const previousTimedIndex = checkInTimedIndexRef.current;
+    const normalizedElapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    const restartTimedSegment = options?.restartTimedSegment === true;
 
     checkInFreeflowNextRef.current = null;
     checkInTimedThresholdsRef.current = [];
     checkInTimedIndexRef.current = 0;
     checkInTimedPendingIndexRef.current = null;
-    timedCheckInLastElapsedRef.current = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    timedCheckInLastElapsedRef.current = normalizedElapsed;
+    timedCheckInLastSegmentElapsedRef.current = getTimedCueSegmentElapsed(normalizedElapsed);
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
 
@@ -1154,8 +1196,8 @@ export default function App() {
 
     if (nextMode === 'freeflow') {
       const intervalSeconds = getStandardCheckInIntervalSeconds(nextMode, nextInitialTimeSec);
-      const nextTarget = elapsedSec + intervalSeconds;
-      if (Number.isFinite(previousFreeflowNext) && previousFreeflowNext > elapsedSec) {
+      const nextTarget = normalizedElapsed + intervalSeconds;
+      if (Number.isFinite(previousFreeflowNext) && previousFreeflowNext > normalizedElapsed) {
         checkInFreeflowNextRef.current = Math.min(previousFreeflowNext, nextTarget);
       } else {
         checkInFreeflowNextRef.current = nextTarget;
@@ -1163,10 +1205,11 @@ export default function App() {
       return;
     }
 
-    const nextThresholds = buildTimedThresholds(TIMED_CHECKIN_PERCENTS, nextInitialTimeSec);
+    const segmentElapsed = getTimedCueSegmentElapsed(normalizedElapsed);
+    const nextThresholds = buildTimedThresholds(TIMED_CHECKIN_PERCENTS, getTimedCueSegmentDuration(nextInitialTimeSec));
     let nextTimedIndex = 0;
 
-    const sameThresholds = (
+    const sameThresholds = !restartTimedSegment && (
       previousTimedThresholds.length === nextThresholds.length
       && previousTimedThresholds.every((value, idx) => value === nextThresholds[idx])
     );
@@ -1176,28 +1219,31 @@ export default function App() {
         : 0;
       nextTimedIndex = clampedPrevIndex;
     } else {
-      while (nextTimedIndex < nextThresholds.length && elapsedSec >= nextThresholds[nextTimedIndex]) {
+      while (nextTimedIndex < nextThresholds.length && segmentElapsed >= nextThresholds[nextTimedIndex]) {
         nextTimedIndex += 1;
       }
     }
 
     checkInTimedThresholdsRef.current = nextThresholds;
     checkInTimedIndexRef.current = nextTimedIndex;
-  }, [checkInSettings.enabled, initialTime, getStandardCheckInIntervalSeconds]);
+  }, [checkInSettings.enabled, initialTime, getStandardCheckInIntervalSeconds, getTimedCueSegmentDuration, getTimedCueSegmentElapsed]);
 
-  const resetCompactPulseSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0) => {
+  const resetCompactPulseSchedule = useCallback((nextMode, nextInitialTimeSec = initialTime, elapsedSec = 0, options = {}) => {
     const previousFreeflowPulseNext = freeflowPulseNextRef.current;
     const previousThresholds = compactPulseThresholdsRef.current;
     const previousIndex = compactPulseIndexRef.current;
+    const normalizedElapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    const restartTimedSegment = options?.restartTimedSegment === true;
 
     freeflowPulseNextRef.current = null;
     compactPulseThresholdsRef.current = [];
     compactPulseIndexRef.current = 0;
-    timedPulseLastElapsedRef.current = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    timedPulseLastElapsedRef.current = normalizedElapsed;
+    timedPulseLastSegmentElapsedRef.current = getTimedCueSegmentElapsed(normalizedElapsed);
 
     if (nextMode === 'freeflow') {
-      const nextTarget = getNextFreeflowPulseTarget(elapsedSec);
-      if (Number.isFinite(previousFreeflowPulseNext) && previousFreeflowPulseNext > elapsedSec) {
+      const nextTarget = getNextFreeflowPulseTarget(normalizedElapsed);
+      if (Number.isFinite(previousFreeflowPulseNext) && previousFreeflowPulseNext > normalizedElapsed) {
         freeflowPulseNextRef.current = Math.min(previousFreeflowPulseNext, nextTarget);
       } else {
         freeflowPulseNextRef.current = nextTarget;
@@ -1207,10 +1253,11 @@ export default function App() {
 
     if (nextMode !== 'timed') return;
 
-    const nextThresholds = buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, nextInitialTimeSec);
+    const segmentElapsed = getTimedCueSegmentElapsed(normalizedElapsed);
+    const nextThresholds = buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, getTimedCueSegmentDuration(nextInitialTimeSec));
     let nextIndex = 0;
 
-    const sameThresholds = (
+    const sameThresholds = !restartTimedSegment && (
       previousThresholds.length === nextThresholds.length
       && previousThresholds.every((value, idx) => value === nextThresholds[idx])
     );
@@ -1220,19 +1267,20 @@ export default function App() {
         ? Math.max(0, Math.min(Math.floor(previousIndex), nextThresholds.length))
         : 0;
     } else {
-      while (nextIndex < nextThresholds.length && elapsedSec >= nextThresholds[nextIndex]) {
+      while (nextIndex < nextThresholds.length && segmentElapsed >= nextThresholds[nextIndex]) {
         nextIndex += 1;
       }
     }
 
     compactPulseThresholdsRef.current = nextThresholds;
     compactPulseIndexRef.current = nextIndex;
-  }, [initialTime]);
+  }, [initialTime, getTimedCueSegmentDuration, getTimedCueSegmentElapsed]);
 
   const clearCompactSessionCues = useCallback(() => {
     clearCheckInRuntime();
     clearCompactPulseRuntime();
-  }, [clearCheckInRuntime, clearCompactPulseRuntime]);
+    clearTimedCueSegment();
+  }, [clearCheckInRuntime, clearCompactPulseRuntime, clearTimedCueSegment]);
 
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
@@ -1301,18 +1349,22 @@ export default function App() {
 
   const advanceCheckInScheduleAfterResult = useCallback((elapsedSec) => {
     if (!checkInSettings.enabled) return;
+    const normalizedElapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
     if (mode === 'freeflow') {
       const intervalSeconds = getStandardCheckInIntervalSeconds(mode, initialTime);
-      checkInFreeflowNextRef.current = elapsedSec + intervalSeconds;
+      checkInFreeflowNextRef.current = normalizedElapsed + intervalSeconds;
       return;
     }
+    const segmentElapsed = getTimedCueSegmentElapsed(normalizedElapsed);
     while (
       checkInTimedIndexRef.current < checkInTimedThresholdsRef.current.length &&
-      elapsedSec >= checkInTimedThresholdsRef.current[checkInTimedIndexRef.current]
+      segmentElapsed >= checkInTimedThresholdsRef.current[checkInTimedIndexRef.current]
     ) {
       checkInTimedIndexRef.current += 1;
     }
-  }, [checkInSettings.enabled, mode, initialTime, getStandardCheckInIntervalSeconds]);
+    timedCheckInLastElapsedRef.current = normalizedElapsed;
+    timedCheckInLastSegmentElapsedRef.current = segmentElapsed;
+  }, [checkInSettings.enabled, mode, initialTime, getStandardCheckInIntervalSeconds, getTimedCueSegmentElapsed]);
 
   const logCheckIn = useCallback(async (status, elapsedSec) => {
     if (!task.trim()) return null;
@@ -1376,8 +1428,14 @@ export default function App() {
       advanceCheckInScheduleAfterResult(elapsedSec);
     }
     const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
+    showToast('success', randomMessage, 2000, {
+      showIcon: false,
+      showCloseButton: false,
+      placement: isCompact ? 'pill-center' : 'window-center',
+      source: 'checkin-success',
+    });
+
     if (isCompact) {
-      showToast('success', randomMessage, 1000, { showIcon: false, showCloseButton: false });
       setCheckInMessage(randomMessage);
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');
@@ -1398,7 +1456,7 @@ export default function App() {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInResolveTimeoutRef.current = setTimeout(() => {
       clearCheckInUi();
-    }, 1500);
+    }, 2000);
   }, [
     advanceCheckInScheduleAfterResult,
     clearCheckInUi,
@@ -1422,6 +1480,8 @@ export default function App() {
     };
 
     if (isCompact) {
+      window.electronAPI.capturePillRestoreBounds?.();
+      pendingCompactRestoreRef.current = true;
       checkInReturnToCompactRef.current = true;
       handleExitCompact();
       setTimeout(() => {
@@ -1430,6 +1490,7 @@ export default function App() {
       return;
     }
 
+    pendingCompactRestoreRef.current = false;
     checkInReturnToCompactRef.current = false;
     applyDetourChoiceState();
   }, [isCompact, handleExitCompact]);
@@ -1437,6 +1498,7 @@ export default function App() {
   const handleCheckInFinished = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+    pendingCompactRestoreRef.current = false;
     checkInReturnToCompactRef.current = false; // session ending — no return to compact
 
     const elapsedSec = getElapsedSeconds();
@@ -1489,14 +1551,28 @@ export default function App() {
     checkInResolveTimeoutRef.current = setTimeout(() => {
       clearCheckInUi();
       if (shouldReturnToCompact) {
+        pendingCompactRestoreRef.current = true;
         setTimeout(() => setIsCompact(true), 80);
+      } else {
+        pendingCompactRestoreRef.current = false;
       }
     }, 700);
   }, [clearCheckInUi, triggerPulse]);
 
+  const hasBlockingWindowOpen =
+    showSettings ||
+    showHistoryModal ||
+    showTaskPreview ||
+    distractionJarOpen ||
+    Boolean(postSessionParkingLotSessionId) ||
+    showTimeUpModal ||
+    showNotesModal ||
+    showQuickCapture;
+
   const triggerCheckInPrompt = useCallback(({ skipCooldown = false } = {}) => {
     if (!checkInSettings.enabled) return false;
     if (dndEnabled) return false;
+    if (hasBlockingWindowOpen) return false;
     if (!isRunning) return false;
     if (!isTimerVisible) return false;
     if (!task.trim()) return false;
@@ -1516,7 +1592,7 @@ export default function App() {
     }
     // Keep the prompt open until the user explicitly responds.
     return true;
-  }, [checkInSettings.enabled, dndEnabled, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, resolveCheckIn, mode, getElapsedSeconds]);
+  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, resolveCheckIn, mode, getElapsedSeconds]);
 
   useEffect(() => {
     checkInStateRef.current = checkInState;
@@ -1528,16 +1604,6 @@ export default function App() {
       clearCheckInRuntime();
     }
   }, [checkInSettings.enabled, clearCheckInRuntime]);
-
-  const hasBlockingWindowOpen =
-    showSettings ||
-    showHistoryModal ||
-    showTaskPreview ||
-    distractionJarOpen ||
-    Boolean(postSessionParkingLotSessionId) ||
-    showTimeUpModal ||
-    showNotesModal ||
-    showQuickCapture;
 
   useEffect(() => {
     if (!isRunning) return;
@@ -1565,26 +1631,29 @@ export default function App() {
 
     if (mode === 'timed') {
       const thresholds = compactPulseThresholdsRef.current;
-      const previousElapsed = timedPulseLastElapsedRef.current;
+      const segmentElapsed = getTimedCueSegmentElapsed(elapsed);
+      const previousSegmentElapsed = timedPulseLastSegmentElapsedRef.current;
       let crossedThreshold = false;
 
       if (!thresholds.length) {
         timedPulseLastElapsedRef.current = elapsed;
+        timedPulseLastSegmentElapsedRef.current = segmentElapsed;
         return;
       }
 
       while (
         compactPulseIndexRef.current < thresholds.length
-        && elapsed >= thresholds[compactPulseIndexRef.current]
+        && segmentElapsed >= thresholds[compactPulseIndexRef.current]
       ) {
         const threshold = thresholds[compactPulseIndexRef.current];
-        if (previousElapsed < threshold) {
+        if (previousSegmentElapsed < threshold) {
           crossedThreshold = true;
         }
         compactPulseIndexRef.current += 1;
       }
 
       timedPulseLastElapsedRef.current = elapsed;
+      timedPulseLastSegmentElapsedRef.current = segmentElapsed;
 
       if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen) {
         if (isCompact) {
@@ -1597,7 +1666,8 @@ export default function App() {
     }
 
     timedPulseLastElapsedRef.current = elapsed;
-  }, [time, isRunning, mode, getElapsedSeconds, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
+    timedPulseLastSegmentElapsedRef.current = 0;
+  }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
 
   useEffect(() => {
     if (!isRunning || !isTimerVisible || !task.trim() || !checkInSettings.enabled) {
@@ -1628,14 +1698,15 @@ export default function App() {
 
     // Timed mode — fire only on the actual 40% / 80% crossings.
     const thresholds = checkInTimedThresholdsRef.current;
-    const previousElapsed = timedCheckInLastElapsedRef.current;
+    const segmentElapsed = getTimedCueSegmentElapsed(elapsed);
+    const previousSegmentElapsed = timedCheckInLastSegmentElapsedRef.current;
 
     while (
       checkInTimedIndexRef.current < thresholds.length
-      && elapsed >= thresholds[checkInTimedIndexRef.current]
+      && segmentElapsed >= thresholds[checkInTimedIndexRef.current]
     ) {
       const threshold = thresholds[checkInTimedIndexRef.current];
-      const crossedThisTick = previousElapsed < threshold;
+      const crossedThisTick = previousSegmentElapsed < threshold;
       checkInTimedIndexRef.current += 1;
 
       if (crossedThisTick && checkInState === 'idle') {
@@ -1647,6 +1718,7 @@ export default function App() {
     }
 
     timedCheckInLastElapsedRef.current = elapsed;
+    timedCheckInLastSegmentElapsedRef.current = segmentElapsed;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [time]);
 
@@ -1707,6 +1779,7 @@ export default function App() {
   };
 
   const handleMinimizeToFloating = () => {
+    if (isTimerVisible) return;
     window.electronAPI.toggleFloatingMinimize?.();
   };
 
@@ -1715,6 +1788,7 @@ export default function App() {
     const reopenedPrevModal = popAndOpenPrevModal();
     if (parkingLotReturnToCompactRef.current && !reopenedPrevModal) {
       parkingLotReturnToCompactRef.current = false;
+      pendingCompactRestoreRef.current = true;
       setTimeout(() => {
         setIsCompact(true);
       }, 80);
@@ -1748,9 +1822,10 @@ export default function App() {
     if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
     if (checkInState === 'detour-choice') return WINDOW_SIZES.timerCheckInDetourChoiceHeight;
     if (checkInState === 'detour-resolved') return WINDOW_SIZES.timerCheckInDetourResolvedHeight;
+    if (checkInState === 'resolved' && showCenteredFullWindowCheckInToast) return WINDOW_SIZES.timerHeight;
     if (checkInState === 'resolved') return WINDOW_SIZES.timerCheckInResolvedHeight;
     return WINDOW_SIZES.timerHeight;
-  }, [contextNotes, checkInState]);
+  }, [contextNotes, checkInState, showCenteredFullWindowCheckInToast]);
 
   const getIdleScreenDefaultHeight = useCallback(() => {
     if (startupGateState !== 'ready') return WINDOW_SIZES.onboardingHeight;
@@ -1880,8 +1955,11 @@ export default function App() {
     });
 
     clearCompactSessionCues();
-    resetCheckInSchedule(selectedMode, initialSeconds, 0);
-    resetCompactPulseSchedule(selectedMode, initialSeconds, 0);
+    if (selectedMode === 'timed') {
+      setTimedCueSegment(0, initialSeconds);
+    }
+    resetCheckInSchedule(selectedMode, initialSeconds, 0, { restartTimedSegment: selectedMode === 'timed' });
+    resetCompactPulseSchedule(selectedMode, initialSeconds, 0, { restartTimedSegment: selectedMode === 'timed' });
     setIsStartModalOpen(false);
     setTimeout(() => setIsCompact(true), 100);
   };
@@ -2033,8 +2111,9 @@ export default function App() {
     setIsRunning(true);
     setSessionStartTime(Date.now());
     setShowTimeUpModal(false);
-    resetCheckInSchedule('timed', nextInitial, elapsedAtExtension);
-    resetCompactPulseSchedule('timed', nextInitial, elapsedAtExtension);
+    setTimedCueSegment(elapsedAtExtension, extraSeconds);
+    resetCheckInSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
+    resetCompactPulseSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
     if (shouldReturnToCompact) {
       setTimeout(() => setIsCompact(true), 80);
     }
@@ -2140,8 +2219,9 @@ export default function App() {
     return Math.min(Math.max(parsed, 1), 240);
   }, [sessionMinutes]);
 
-  const handlePreviewTask = (session) => {
+  const handlePreviewTask = (session, options = {}) => {
     setPreviewSession(session);
+    setPreviewUseTaskEnabled(options.allowUseTask !== false);
     pushModal('history');
     setShowTaskPreview(true);
     setShowHistoryModal(false);
@@ -2149,6 +2229,7 @@ export default function App() {
 
   const handleCloseTaskPreview = () => {
     setShowTaskPreview(false);
+    setPreviewUseTaskEnabled(true);
     popAndOpenPrevModal();
   };
 
@@ -2376,7 +2457,13 @@ export default function App() {
       const retryTimer = setTimeout(() => {
         window.electronAPI.modalOpened(active[1], active[2]);
       }, 120);
-      return () => clearTimeout(retryTimer);
+      const settleTimer = setTimeout(() => {
+        window.electronAPI.modalOpened(active[1], active[2]);
+      }, 260);
+      return () => {
+        clearTimeout(retryTimer);
+        clearTimeout(settleTimer);
+      };
     } else {
       window.electronAPI.modalClosed();
       const pendingResize = pendingPostModalResizeRef.current;
@@ -2495,7 +2582,9 @@ export default function App() {
         if (targetMode === 'pill') {
           compactEnteredAtRef.current = Date.now();
           setCompactTransitioning(true);
-          await window.electronAPI.enterPillMode();
+          const restorePreviousBounds = pendingCompactRestoreRef.current === true;
+          pendingCompactRestoreRef.current = false;
+          await window.electronAPI.enterPillMode({ restorePreviousBounds });
           windowModeActualRef.current = 'pill';
 
           if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
@@ -2504,13 +2593,13 @@ export default function App() {
             compactRevealTimerRef.current = null;
           }, 40);
         } else {
-          setCompactTransitioning(false);
           if (compactEnteredAtRef.current) {
             const durationSec = Math.round((Date.now() - compactEnteredAtRef.current) / 1000);
             track('view_mode_session', { mode: 'compact', duration_seconds: durationSec });
             compactEnteredAtRef.current = null;
           }
 
+          setCompactTransitioning(true);
           await window.electronAPI.exitPillMode();
           windowModeActualRef.current = 'full';
 
@@ -2519,6 +2608,14 @@ export default function App() {
             window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
             pendingCompactExitHeightRef.current = null;
           }
+          if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
+          compactRevealTimerRef.current = setTimeout(() => {
+            if (Number.isFinite(pendingHeight)) {
+              window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
+            }
+            setCompactTransitioning(false);
+            compactRevealTimerRef.current = null;
+          }, 90);
         }
       }
     } finally {
@@ -2694,6 +2791,7 @@ export default function App() {
           sessions={sessions}
           onUseTask={handleUseTask}
           onUpdateNotes={handleUpdateTaskNotes}
+          canUseTask={previewUseTaskEnabled}
         />
         <HistoryModal
           isOpen={showHistoryModal}
@@ -2705,7 +2803,7 @@ export default function App() {
           onDeleteSessions={handleDeleteSessions}
         />
         <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
-        <Toast toast={toast} onDismiss={() => setToast(null)} />
+        <Toast toast={toast} onDismiss={() => setToast(null)} placement="pill-center" />
         {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
       </div>
     );
@@ -2713,7 +2811,7 @@ export default function App() {
 
   // Full view render
   return (
-    <div className={`app-container${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}`}>
+    <div className={`app-container${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}${compactTransitioning ? ' app-container--transitioning' : ''}`}>
       <div ref={mainCardRef} className="main-card electron-draggable">
         {/* Header */}
         <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -2797,11 +2895,31 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="Minimize to Floating Icon" onClick={handleMinimizeToFloating} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                <Button aria-label="Enter Compact Mode" onClick={() => setIsCompact(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Minimize2 style={{ width: 16, height: 16 }} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Enter Compact Mode</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label="Minimize to Floating Icon"
+                  onClick={handleMinimizeToFloating}
+                  disabled={isTimerVisible}
+                  size="icon"
+                  variant="ghost"
+                  style={{
+                    height: '2rem',
+                    width: '2rem',
+                    color: 'var(--text-secondary)',
+                    opacity: isTimerVisible ? 0.45 : 1,
+                  }}
+                >
                   <Minus style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Minimize to Floating Icon</p></TooltipContent>
+              <TooltipContent><p>{isTimerVisible ? 'Unavailable while clock is active' : 'Minimize to Floating Icon'}</p></TooltipContent>
             </Tooltip>
             {enabledMainControls.close && pinnedControls.close && (
               <Tooltip>
@@ -2833,7 +2951,7 @@ export default function App() {
             onLockedInteraction={handleLockedTaskInputInteraction}
           />
 
-          {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || checkInState === 'resolved') && (
+          {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || (checkInState === 'resolved' && !showCenteredFullWindowCheckInToast)) && (
             <div
               style={{
                 width: '100%',
@@ -3116,6 +3234,7 @@ export default function App() {
         sessions={sessions}
         onUseTask={handleUseTask}
         onUpdateNotes={handleUpdateTaskNotes}
+        canUseTask={previewUseTaskEnabled}
       />
       <HistoryModal
         isOpen={showHistoryModal}
@@ -3178,7 +3297,7 @@ export default function App() {
         }}
       />
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast toast={toast} onDismiss={() => setToast(null)} placement={toast?.placement || 'top-right'} />
       {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
     </div>
   );
