@@ -4,6 +4,7 @@ import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Button } from './ui/Button';
 
 const COMPACT_BURST_COUNT = 3;
+const COMPACT_INITIAL_DELAY_MS = 3000;
 const COMPACT_BURST_BREAK_MS = 30000;
 const COMPACT_PULSE_STEP_MS = 1000;
 const COMPACT_PULSE_ACTIVE_MS = 650;
@@ -41,7 +42,7 @@ export default function CheckInPromptPopup({
     };
 
     for (let burstIndex = 0; burstIndex < COMPACT_BURST_COUNT; burstIndex += 1) {
-      const burstOffset = burstIndex * COMPACT_BURST_INTERVAL_MS;
+      const burstOffset = COMPACT_INITIAL_DELAY_MS + (burstIndex * COMPACT_BURST_INTERVAL_MS);
 
       COMPACT_PULSE_SEQUENCE.forEach((step, stepIndex) => {
         const stepOffset = burstOffset + (stepIndex * COMPACT_PULSE_STEP_MS);
