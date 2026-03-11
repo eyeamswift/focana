@@ -61,10 +61,18 @@ async function triggerShortcutAction(electronApp, action) {
 
 function parseTimerTextToSeconds(timerText) {
   if (typeof timerText !== 'string') return null;
-  const match = timerText.match(/^(\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const minutes = Number(match[1]);
-  const seconds = Number(match[2]);
+  const hourMatch = timerText.match(/^(\d+)h (\d{2})m$/);
+  if (hourMatch) {
+    const hours = Number(hourMatch[1]);
+    const minutes = Number(hourMatch[2]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    return (hours * 3600) + (minutes * 60);
+  }
+
+  const minuteMatch = timerText.match(/^(\d{2}):(\d{2})$/);
+  if (!minuteMatch) return null;
+  const minutes = Number(minuteMatch[1]);
+  const seconds = Number(minuteMatch[2]);
   if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
   return (minutes * 60) + seconds;
 }
@@ -73,7 +81,7 @@ async function readDisplayedTimerSeconds(page) {
   const timerText = await page.evaluate(() => {
     const allText = Array.from(document.querySelectorAll('div, span'))
       .map((el) => (el.textContent || '').trim())
-      .filter((text) => /^\d{2}:\d{2}$/.test(text));
+      .filter((text) => /^\d{2}:\d{2}$/.test(text) || /^\d+h \d{2}m$/.test(text));
     return allText.length > 0 ? allText[0] : null;
   });
 
@@ -448,7 +456,7 @@ test('escape closes only the top-most dialog', async () => {
   }
 });
 
-test('timed start clamps invalid minute input to safe range', async () => {
+test('timed start blocks values above 240 until a valid whole number is entered', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -457,12 +465,47 @@ test('timed start clamps invalid minute input to safe range', async () => {
     await taskInput.press('Enter');
 
     const minutesInput = page.locator('input[type="number"]').first();
-    await minutesInput.fill('-5');
-    await page.getByRole('button', { name: 'Set Timer' }).click();
+    await minutesInput.fill('300');
+    await minutesInput.press('Enter');
 
-    await expect(page.getByText(/0[01]:[0-5][0-9]/)).toBeVisible();
-    await page.waitForTimeout(2000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Timer input error' })).toBeVisible();
+    await expect(page.getByText('240 minuntes max')).toBeVisible();
+
+    const blockedState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(blockedState.isRunning).toBe(false);
+    expect(blockedState.seconds).toBe(0);
+
+    await page.getByRole('button', { name: 'OK' }).click();
+    await minutesInput.fill('240');
+    await minutesInput.press('Enter');
+
+    await expect.poll(async () => {
+      const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+      return `${timerState.initialTime}:${timerState.isRunning}`;
+    }).toBe(`${240 * 60}:true`);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed start only accepts whole numbers', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    const taskInput = page.locator(TASK_INPUT_SELECTOR);
+    await taskInput.fill('Whole number validation task');
+    await taskInput.press('Enter');
+
+    const minutesInput = page.locator('input[type="number"]').first();
+    await minutesInput.fill('12.5');
+    await minutesInput.press('Enter');
+
+    await expect(page.getByRole('heading', { name: 'Timer input error' })).toBeVisible();
+    await expect(page.getByText('Whole numbers only')).toBeVisible();
+
+    const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(timerState.isRunning).toBe(false);
+    expect(timerState.seconds).toBe(0);
   } finally {
     await cleanup();
   }

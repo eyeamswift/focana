@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { Button } from './components/ui/Button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './components/ui/Dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
   X, Play, Pause, Square, RotateCcw, Minimize2, Minus,
@@ -172,6 +173,8 @@ export default function App() {
   const [isTimerVisible, setIsTimerVisible] = useState(false);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState('25');
+  const [showTimerValidationModal, setShowTimerValidationModal] = useState(false);
+  const [timerValidationMessage, setTimerValidationMessage] = useState('');
   const [windowHeight, setWindowHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 500
   );
@@ -247,6 +250,7 @@ export default function App() {
   const timerRef = useRef(null);
   const sessionToSave = useRef(null);
   const taskInputRef = useRef(null);
+  const sessionMinutesInputRef = useRef(null);
   const mainCardRef = useRef(null);
   const thoughtsLoadedRef = useRef(false);
   const confettiTimerRef = useRef(null);
@@ -326,6 +330,34 @@ export default function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (!isStartModalOpen) return undefined;
+
+    const focusTimer = window.setTimeout(() => {
+      sessionMinutesInputRef.current?.focus();
+      sessionMinutesInputRef.current?.select();
+    }, 0);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [isStartModalOpen]);
+
+  const focusSessionMinutesInput = useCallback(() => {
+    window.setTimeout(() => {
+      sessionMinutesInputRef.current?.focus();
+      sessionMinutesInputRef.current?.select();
+    }, 0);
+  }, []);
+
+  const openTimerValidationModal = useCallback((message) => {
+    setTimerValidationMessage(message);
+    setShowTimerValidationModal(true);
+  }, []);
+
+  const closeTimerValidationModal = useCallback(() => {
+    setShowTimerValidationModal(false);
+    focusSessionMinutesInput();
+  }, [focusSessionMinutesInput]);
 
   useEffect(() => {
     // Normalize full-view size on launch so hidden oversized window bounds
@@ -2213,11 +2245,26 @@ export default function App() {
     };
   };
 
-  const getSafeSessionMinutes = useCallback(() => {
-    const parsed = Number.parseInt(sessionMinutes, 10);
-    if (!Number.isFinite(parsed)) return 25;
-    return Math.min(Math.max(parsed, 1), 240);
-  }, [sessionMinutes]);
+  const getValidatedSessionMinutes = useCallback(() => {
+    const rawMinutes = sessionMinutes.trim();
+    if (!/^\d+$/.test(rawMinutes)) {
+      openTimerValidationModal('Whole numbers only');
+      return null;
+    }
+
+    const parsed = Number.parseInt(rawMinutes, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      openTimerValidationModal('Enter 1 to 240 minutes');
+      return null;
+    }
+
+    if (parsed > 240) {
+      openTimerValidationModal('240 minuntes max');
+      return null;
+    }
+
+    return parsed;
+  }, [openTimerValidationModal, sessionMinutes]);
 
   const handlePreviewTask = (session, options = {}) => {
     setPreviewSession(session);
@@ -3083,19 +3130,36 @@ export default function App() {
               borderRadius: '0.625rem',
               border: '1px solid var(--border-strong)',
             }}>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Set timer</span>
-              <input
-                type="number"
-                value={sessionMinutes}
-                onChange={(e) => setSessionMinutes(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleStartSession('timed', getSafeSessionMinutes()); }}
-                min="1"
-                max="240"
-                className="input"
-                ref={(el) => { if (el) { el.focus(); el.select(); } }}
-                style={{ width: '3.25rem', textAlign: 'center', height: '2rem', fontSize: '0.8125rem', padding: '0 0.25rem', flexShrink: 0 }}
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', flexShrink: 0 }}>min</span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.3rem 0.45rem',
+                border: '1px solid var(--brand-primary)',
+                borderRadius: '0.5rem',
+                background: 'var(--bg-surface)',
+                flexShrink: 0,
+              }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Set timer</span>
+                <input
+                  type="number"
+                  value={sessionMinutes}
+                  onChange={(e) => setSessionMinutes(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    const validatedMinutes = getValidatedSessionMinutes();
+                    if (validatedMinutes === null) return;
+                    handleStartSession('timed', validatedMinutes);
+                  }}
+                  min="1"
+                  max="240"
+                  step="1"
+                  className="input"
+                  ref={sessionMinutesInputRef}
+                  style={{ width: '4ch', minWidth: '4rem', textAlign: 'center', height: '2rem', fontSize: '0.8125rem', padding: '0 0.35rem', flexShrink: 0 }}
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', flexShrink: 0 }}>min</span>
+              </div>
               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.75rem', marginRight: '0.25rem' }}>or</span>
               <Button
                 onClick={() => handleStartSession('freeflow', 0)}
@@ -3295,6 +3359,26 @@ export default function App() {
           }));
         }}
       />
+      <Dialog open={showTimerValidationModal} onOpenChange={(open) => { if (!open) closeTimerValidationModal(); }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '22rem' }}>
+          <DialogHeader>
+            <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Timer input error
+            </DialogTitle>
+          </DialogHeader>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5 }}>
+            {timerValidationMessage}
+          </p>
+          <DialogFooter>
+            <Button
+              onClick={closeTimerValidationModal}
+              style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
       <Toast toast={toast} onDismiss={() => setToast(null)} placement={toast?.placement || 'top-right'} />
       {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
