@@ -56,6 +56,7 @@ const ALLOWED_STORE_KEYS = new Set([
   'settings',
   'settings.shortcuts',
   'settings.shortcutsEnabled',
+  'settings.alwaysOnTop',
   'settings.bringToFront',
   'settings.keepTextAfterCompletion',
   'settings.showTaskInCompactDefault',
@@ -73,6 +74,34 @@ const ALLOWED_STORE_KEYS = new Set([
 function boundsEqual(a, b) {
   if (!a || !b) return false;
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function getStoredAlwaysOnTop() {
+  return store.get('settings.alwaysOnTop', true) !== false;
+}
+
+function getEffectiveAlwaysOnTop() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow.isAlwaysOnTop();
+  }
+  return getStoredAlwaysOnTop();
+}
+
+function applyAlwaysOnTop(enabled, options = {}) {
+  const persist = options.persist !== false;
+  const next = Boolean(enabled);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setAlwaysOnTop(next);
+  }
+  if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
+    floatingIconWindow.setAlwaysOnTop(next);
+  }
+  if (persist) {
+    store.set('settings.alwaysOnTop', next);
+  }
+
+  return next;
 }
 
 function getBoundsCenter(bounds) {
@@ -322,6 +351,7 @@ function sanitizeStoreValue(key, value) {
       return value.trim().slice(0, 320);
     case 'emailPromptSkipped':
     case 'settings.shortcutsEnabled':
+    case 'settings.alwaysOnTop':
     case 'settings.bringToFront':
     case 'settings.keepTextAfterCompletion':
     case 'settings.showTaskInCompactDefault':
@@ -600,7 +630,7 @@ function createFloatingIconWindow() {
     transparent: true,
     backgroundColor: '#00000000',
     hasShadow: false,
-    alwaysOnTop: isE2EBackground ? false : true,
+    alwaysOnTop: isE2EBackground ? false : getStoredAlwaysOnTop(),
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -679,7 +709,7 @@ function createWindow() {
     roundedCorners: false,
     hasShadow: false,
     backgroundColor: '#00000000',
-    alwaysOnTop: isE2EBackground ? false : true,
+    alwaysOnTop: isE2EBackground ? false : getStoredAlwaysOnTop(),
     resizable: true,
     minWidth: FULL_MIN_WIDTH,
     minHeight: FULL_MIN_HEIGHT,
@@ -789,12 +819,15 @@ ipcMain.on('minimize-to-tray', () => {
 });
 
 ipcMain.handle('toggle-always-on-top', () => {
-  if (mainWindow) {
-    const current = mainWindow.isAlwaysOnTop();
-    mainWindow.setAlwaysOnTop(!current);
-    return !current;
-  }
-  return false;
+  return applyAlwaysOnTop(!getEffectiveAlwaysOnTop());
+});
+
+ipcMain.handle('set-always-on-top', (_event, enabled) => {
+  return applyAlwaysOnTop(Boolean(enabled));
+});
+
+ipcMain.handle('get-always-on-top', () => {
+  return getEffectiveAlwaysOnTop();
 });
 
 ipcMain.on('bring-to-front', () => {

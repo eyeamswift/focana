@@ -95,6 +95,7 @@ const schema = {
         },
       },
       shortcutsEnabled: { type: 'boolean', default: true },
+      alwaysOnTop: { type: 'boolean', default: true },
       bringToFront: { type: 'boolean', default: true },
       keepTextAfterCompletion: { type: 'boolean', default: false },
       showTaskInCompactDefault: { type: 'boolean', default: true },

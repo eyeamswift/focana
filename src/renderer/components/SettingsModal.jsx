@@ -90,6 +90,7 @@ const SHORTCUT_DESCRIPTIONS = {
 };
 
 const PINNED_CONTROLS_DEFAULT = {
+  alwaysOnTop: true,
   dnd: true,
   theme: true,
   parkingLot: true,
@@ -98,6 +99,7 @@ const PINNED_CONTROLS_DEFAULT = {
   close: true,
 };
 const ENABLED_CONTROLS_DEFAULT = {
+  alwaysOnTop: true,
   dnd: true,
   theme: true,
   parkingLot: true,
@@ -107,6 +109,7 @@ const ENABLED_CONTROLS_DEFAULT = {
 };
 
 const MAIN_SCREEN_CONTROLS = [
+  { key: 'alwaysOnTop', label: 'Always on Top', icon: Pin },
   { key: 'dnd', label: 'Do Not Disturb', icon: BellOff },
   { key: 'theme', label: 'Light mode/Dark mode', icon: Sun },
   { key: 'parkingLot', label: 'View Parking Lot', icon: ClipboardList },
@@ -122,6 +125,8 @@ export default function SettingsModal({
   onToggleTheme,
   onOpenParkingLot,
   onOpenSessionHistory,
+  alwaysOnTopDefault,
+  onAlwaysOnTopChange,
   onRestartApp,
   onCloseApp,
   shortcuts,
@@ -141,6 +146,7 @@ export default function SettingsModal({
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(mergeShortcutsWithDefaults(shortcuts));
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(alwaysOnTopDefault ?? true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
@@ -178,6 +184,7 @@ export default function SettingsModal({
         const settings = await window.electronAPI.storeGet('settings') || {};
         setTempShortcuts(mergeShortcutsWithDefaults(settings.shortcuts || shortcuts));
         setShortcutsEnabled(settings.shortcutsEnabled ?? shortcutsEnabledDefault ?? true);
+        setAlwaysOnTop(settings.alwaysOnTop ?? alwaysOnTopDefault ?? true);
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
         const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
@@ -195,7 +202,7 @@ export default function SettingsModal({
         );
       })();
     }
-  }, [isOpen, shortcuts, showTaskInCompactDefault, shortcutsEnabledDefault, pinnedControlsDefault, enabledControlsDefault, dndEnabled, checkInSettings]);
+  }, [isOpen, shortcuts, showTaskInCompactDefault, shortcutsEnabledDefault, alwaysOnTopDefault, pinnedControlsDefault, enabledControlsDefault, dndEnabled, checkInSettings]);
 
   const handleSave = async () => {
     const normalizedShortcuts = mergeShortcutsWithDefaults(tempShortcuts);
@@ -205,6 +212,7 @@ export default function SettingsModal({
 
     await Promise.all([
       window.electronAPI.storeSet('settings.shortcutsEnabled', shortcutsEnabled),
+      window.electronAPI.setAlwaysOnTop(alwaysOnTop),
       window.electronAPI.storeSet('settings.bringToFront', bringToFront),
       window.electronAPI.storeSet('settings.keepTextAfterCompletion', keepTextAfterCompletion),
       window.electronAPI.storeSet('settings.showTaskInCompactDefault', showTaskInCompact),
@@ -219,12 +227,13 @@ export default function SettingsModal({
     // Track changed settings
     const diffs = {};
     const trackable = {
-      shortcutsEnabled, bringToFront, keepTextAfterCompletion,
+      shortcutsEnabled, alwaysOnTop, bringToFront, keepTextAfterCompletion,
       showTaskInCompact, pinnedControls, enabledControls, doNotDisturb,
       checkInEnabled, checkInIntervalFreeflow,
     };
     const oldMap = {
       shortcutsEnabled: oldSettings.shortcutsEnabled,
+      alwaysOnTop: oldSettings.alwaysOnTop,
       bringToFront: oldSettings.bringToFront,
       keepTextAfterCompletion: oldSettings.keepTextAfterCompletion,
       showTaskInCompact: oldSettings.showTaskInCompactDefault,
@@ -241,6 +250,7 @@ export default function SettingsModal({
       track('settings_changed', diffs);
     }
     onShortcutsEnabledChange?.(shortcutsEnabled);
+    onAlwaysOnTopChange?.(alwaysOnTop);
     onShowTaskInCompactDefaultChange?.(showTaskInCompact);
     onPinnedControlsChange?.(pinnedControls);
     onEnabledControlsChange?.(enabledControls);
@@ -253,6 +263,7 @@ export default function SettingsModal({
   const handleRestoreDefaults = () => {
     setTempShortcuts(DEFAULT_SHORTCUTS);
     setShortcutsEnabled(true);
+    setAlwaysOnTop(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
     setShowTaskInCompact(true);
@@ -487,6 +498,10 @@ export default function SettingsModal({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Lock task in compact mode</span>
                   <Switch checked={showTaskInCompact} onCheckedChange={setShowTaskInCompact} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Keep Focana always on top</span>
+                  <Switch checked={alwaysOnTop} onCheckedChange={setAlwaysOnTop} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Bring Focana to front on shortcut</span>

@@ -9,6 +9,7 @@ const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 async function launchApp({ seedConfig = null, background = true, waitForTaskInput = true, onPage = null } = {}) {
   const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focana-e2e-'));
   const effectiveSeedConfig = {
+    userEmail: 'justin.franklin90@gmail.com',
     emailPromptSkipped: true,
     ...(seedConfig || {}),
   };
@@ -189,6 +190,37 @@ test('quick capture thought persists after parking lot interactions', async () =
 
     await page.getByRole('button', { name: 'Open Parking Lot' }).click();
     await expect(page.getByText(capturedThought)).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('always-on-top toggle persists and applies to floating icon mode', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      return main ? main.isAlwaysOnTop() : null;
+    })).toBe(true);
+
+    await page.getByRole('button', { name: 'Disable Always on Top' }).click();
+
+    await expect(page.getByRole('button', { name: 'Enable Always on Top' })).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.alwaysOnTop'))).toBe(false);
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      return main ? main.isAlwaysOnTop() : null;
+    })).toBe(false);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'));
+      return floating ? floating.isAlwaysOnTop() : null;
+    }), { timeout: 7000 }).toBe(false);
   } finally {
     await cleanup();
   }

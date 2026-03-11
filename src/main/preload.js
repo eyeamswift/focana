@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
   toggleFloatingMinimize: () => ipcRenderer.send('toggle-floating-minimize'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
+  setAlwaysOnTop: (enabled) => ipcRenderer.invoke('set-always-on-top', enabled),
+  getAlwaysOnTop: () => ipcRenderer.invoke('get-always-on-top'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),
 
   // Shortcuts

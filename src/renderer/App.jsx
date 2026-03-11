@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
   X, Play, Pause, Square, RotateCcw, Minimize2, Minus,
-  Settings, ClipboardList, History, Sun, Moon, Check, Undo2, BellOff,
+  Settings, ClipboardList, History, Sun, Moon, Check, Undo2, BellOff, Pin,
 } from 'lucide-react';
 import posthog from 'posthog-js';
 import { SessionStore } from './adapters/store';
@@ -101,6 +101,7 @@ const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60;
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
 const EMAIL_CAPTURE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PINNED_CONTROLS_DEFAULT = {
+  alwaysOnTop: true,
   dnd: true,
   theme: true,
   parkingLot: true,
@@ -109,6 +110,7 @@ const PINNED_CONTROLS_DEFAULT = {
   close: true,
 };
 const ENABLED_MAIN_CONTROLS_DEFAULT = {
+  alwaysOnTop: true,
   dnd: true,
   theme: true,
   parkingLot: true,
@@ -173,6 +175,7 @@ export default function App() {
   const [isTimerVisible, setIsTimerVisible] = useState(false);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState('25');
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [showTimerValidationModal, setShowTimerValidationModal] = useState(false);
   const [timerValidationMessage, setTimerValidationMessage] = useState('');
   const [windowHeight, setWindowHeight] = useState(
@@ -971,6 +974,7 @@ export default function App() {
         setPinnedControls({ ...PINNED_CONTROLS_DEFAULT, ...(settings.pinnedControls || {}) });
         setEnabledMainControls({ ...ENABLED_MAIN_CONTROLS_DEFAULT, ...(settings.mainScreenControlsEnabled || {}) });
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
+        setIsAlwaysOnTop(await window.electronAPI.getAlwaysOnTop());
         syncDoNotDisturb(settings.doNotDisturbEnabled ?? false);
         elapsedBeforeRunRef.current = 0;
         freeflowPulseNextRef.current = null;
@@ -1806,6 +1810,16 @@ export default function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
     setIsThemeManual(true);
   };
+
+  const handleToggleAlwaysOnTop = useCallback(async () => {
+    try {
+      const next = await window.electronAPI.toggleAlwaysOnTop();
+      setIsAlwaysOnTop(Boolean(next));
+      track('always_on_top_toggled', { enabled: Boolean(next), source: 'toolbar' });
+    } catch (error) {
+      console.error('Failed to toggle always-on-top:', error);
+    }
+  }, []);
 
   const handleCloseWindow = () => {
     window.electronAPI.closeWindow();
@@ -2934,6 +2948,28 @@ export default function App() {
                 <TooltipContent><p>{theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</p></TooltipContent>
               </Tooltip>
             )}
+            {enabledMainControls.alwaysOnTop && pinnedControls.alwaysOnTop && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-label={isAlwaysOnTop ? 'Disable Always on Top' : 'Enable Always on Top'}
+                    onClick={handleToggleAlwaysOnTop}
+                    size="icon"
+                    variant="ghost"
+                    style={{
+                      height: '2rem',
+                      width: '2rem',
+                      color: isAlwaysOnTop ? 'var(--brand-action)' : 'var(--text-secondary)',
+                      background: isAlwaysOnTop ? 'color-mix(in srgb, var(--brand-primary) 14%, transparent)' : 'transparent',
+                      border: isAlwaysOnTop ? '1px solid color-mix(in srgb, var(--brand-primary) 60%, transparent)' : '1px solid transparent',
+                    }}
+                  >
+                    <Pin style={{ width: 16, height: 16, fill: isAlwaysOnTop ? 'currentColor' : 'none' }} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>{isAlwaysOnTop ? 'Disable Always on Top' : 'Enable Always on Top'}</p></TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button aria-label="Open Settings" onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
@@ -3324,6 +3360,8 @@ export default function App() {
           pushModal('settings');
           setShowHistoryModal(true);
         }}
+        alwaysOnTopDefault={isAlwaysOnTop}
+        onAlwaysOnTopChange={setIsAlwaysOnTop}
         onRestartApp={() => {
           setShowSettings(false);
           settingsReturnToCompactRef.current = false;
