@@ -11,7 +11,9 @@ const PILL_BASE_H = 72;
 const PILL_MAX_H = 260;
 const TIMER_W    = 56;  // "MM:SS" in ui-monospace bold ~56px (conservative)
 const INFO_W     = 24;  // info icon + spacing
-const TASK_PAD_R = 8;   // padding-right on .pill-task-text
+const TASK_TEXT_PAD_X = 8;
+const TASK_TEXT_PAD_Y = 3;
+const TASK_TIMER_GAP = 8;
 const CTRL_W     = 90;  // 8px pad + 3×26px btns + 2×2px gaps = 90px
 
 const TASK_MIN_W = 120;
@@ -20,9 +22,8 @@ const TASK_LINE_H = 15;
 const TASK_V_PAD  = 26;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
-const COMPACT_PULSE_SCALE = 1.5;
-const COMPACT_PULSE_CYCLE_MS = 3000;
-const COMPACT_PULSE_REPEAT_COUNT = 2;
+const COMPACT_PULSE_CYCLE_MS = 4500;
+const COMPACT_PULSE_REPEAT_COUNT = 1;
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -78,9 +79,11 @@ export default function CompactMode({
       measuredTextWidth = Math.ceil(ctx.measureText(label).width);
     }
 
-    const taskWidth = clamp(measuredTextWidth, TASK_MIN_W, TASK_MAX_W);
-    const lines = Math.max(1, Math.ceil(measuredTextWidth / taskWidth));
-    const neededHeight = Math.ceil(lines * TASK_LINE_H + TASK_V_PAD);
+    const paddedTextWidth = measuredTextWidth + (TASK_TEXT_PAD_X * 2);
+    const taskWidth = clamp(paddedTextWidth, TASK_MIN_W, TASK_MAX_W);
+    const availableTextWidth = Math.max(1, taskWidth - (TASK_TEXT_PAD_X * 2));
+    const lines = Math.max(1, Math.ceil(measuredTextWidth / availableTextWidth));
+    const neededHeight = Math.ceil(lines * TASK_LINE_H + TASK_V_PAD + (TASK_TEXT_PAD_Y * 2));
     const taskHeight = clamp(Math.max(PILL_BASE_H, neededHeight), PILL_BASE_H, PILL_MAX_H);
 
     setTaskMetrics({ width: taskWidth, height: taskHeight });
@@ -98,7 +101,7 @@ export default function CompactMode({
   }, [basePillW, checkInPromptActive]);
   const hoverWinW  = useMemo(
     () => {
-      const hoverWidth = basePillW + TASK_PAD_R + taskMetrics.width + H_MARGIN;
+      const hoverWidth = basePillW + taskMetrics.width + TASK_TIMER_GAP + H_MARGIN;
       return checkInPromptActive ? Math.max(hoverWidth, CHECKIN_POPUP_MIN_W) : hoverWidth;
     },
     [basePillW, taskMetrics.width, checkInPromptActive],
@@ -113,25 +116,6 @@ export default function CompactMode({
     [checkInPromptActive, pillH],
   );
   const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive;
-  const pulseScale = isPulseAnimating ? COMPACT_PULSE_SCALE : 1;
-  const scaledBaseWinW = Math.ceil(baseWinW * pulseScale);
-  const scaledHoverWinW = Math.ceil(hoverWinW * pulseScale);
-  const scaledCtrlWinW = Math.ceil(ctrlWinW * pulseScale);
-  const scaledWinH = Math.ceil(winH * pulseScale);
-
-  useEffect(() => {
-    if (!window.electronAPI?.startPillPulseResize || !window.electronAPI?.endPillPulseResize) return undefined;
-
-    if (isPulseAnimating) {
-      window.electronAPI.startPillPulseResize();
-      return () => {
-        window.electronAPI.endPillPulseResize();
-      };
-    }
-
-    window.electronAPI.endPillPulseResize();
-    return undefined;
-  }, [isPulseAnimating]);
 
   useEffect(() => {
     if (!window.electronAPI?.beginCompactTransient || !window.electronAPI?.endCompactTransient) return undefined;
@@ -155,9 +139,9 @@ export default function CompactMode({
   useEffect(() => {
     if (!window.electronAPI?.setPillWidth && !window.electronAPI?.setPillSize) return;
 
-    const pushPillSize = (width, height, pulseActive = false) => {
+    const pushPillSize = (width, height) => {
       if (window.electronAPI?.setPillSize) {
-        window.electronAPI.setPillSize({ width, height, pulseActive });
+        window.electronAPI.setPillSize({ width, height, source: 'compact-layout' });
       } else {
         window.electronAPI.setPillWidth(width);
       }
@@ -166,22 +150,22 @@ export default function CompactMode({
     // Initial mount — set immediately without shrink delay
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      pushPillSize(scaledBaseWinW, scaledWinH, isPulseAnimating);
+      pushPillSize(baseWinW, winH);
       return;
     }
 
     if (showControls) {
-      pushPillSize(scaledCtrlWinW, scaledWinH, isPulseAnimating);
+      pushPillSize(ctrlWinW, winH);
     } else if (isTaskVisible) {
-      pushPillSize(scaledHoverWinW, scaledWinH, isPulseAnimating);
+      pushPillSize(hoverWinW, winH);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
       const t = setTimeout(() => {
-        pushPillSize(scaledBaseWinW, scaledWinH, isPulseAnimating);
+        pushPillSize(baseWinW, winH);
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, showControls, scaledHoverWinW, scaledCtrlWinW, scaledBaseWinW, scaledWinH, isPulseAnimating]);
+  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW, winH]);
 
   useEffect(() => {
     if (pulseSignal === lastPulseSignalRef.current) return;
@@ -317,7 +301,7 @@ export default function CompactMode({
 
   return (
     <div
-      className={`pill pill--logo${isPulseAnimating ? ' animate-pulse-compact' : ''}`}
+      className={`pill pill--logo${isPulseAnimating ? ' animate-pulse-compact pill--pulse-active' : ''}`}
       style={pillStyle}
       onMouseDown={handleMouseDown}
       onDragStart={(e) => e.preventDefault()}
@@ -326,87 +310,96 @@ export default function CompactMode({
       onClick={handlePillClick}
       onDoubleClick={handlePillDoubleClick}
     >
-      {/* Task text — fades/slides in on hover */}
-      <div
-        className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}
-        style={{ maxWidth: isTaskVisible ? taskMetrics.width : 0 }}
-      >
-        <span className="pill-task-text">{taskLabel}</span>
-      </div>
+      <span className="pill-pulse-border" aria-hidden="true" />
+      <span className="pill-pulse-wash" aria-hidden="true" />
+      <span className="pill-pulse-ripple" aria-hidden="true" />
 
-      {/* Timer */}
-      <div className="pill-core">
-        <span className="pill-timer" style={{ color: timerColor }}>
-          {formatTime(time)}
-        </span>
-      </div>
-
-      <span
-        className="pill-help electron-no-drag"
-        onClick={(e) => e.stopPropagation()}
-        onDoubleClick={(e) => e.stopPropagation()}
-        onMouseEnter={() => setShowHelpHint(true)}
-        onMouseLeave={() => setShowHelpHint(false)}
-      >
-        <button
-          type="button"
-          className="pill-help-btn"
-          title="Compact mode help"
-          aria-label="Compact mode help"
-          tabIndex={-1}
+      <div className={`pill-content${isPulseAnimating ? ' pill-content--pulse' : ''}`}>
+        {/* Task text — fades/slides in on hover */}
+        <div
+          className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}
+          style={{ maxWidth: isTaskVisible ? taskMetrics.width : 0 }}
         >
-          <Info style={{ width: 16, height: 16 }} />
-        </button>
-      </span>
-      {showHelpHint && (
-        <span className="pill-help-hint">
-          Single click to see pause/play controls. Double click to enter fullscreen mode.
-        </span>
-      )}
+          <span className="pill-task-text">{taskLabel}</span>
+        </div>
 
-      {/* DND indicator */}
-      {dndActive && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.45, marginLeft: 2 }}>
-          <BellOff style={{ width: 11, height: 11, color: 'var(--compact-text)' }} />
-        </span>
-      )}
+        {/* Timer */}
+        <div className="pill-core">
+          <span className="pill-timer" style={{ color: timerColor }}>
+            {formatTime(time)}
+          </span>
+        </div>
 
-      {/* Controls — fade/slide in on single click, auto-hide after 3s */}
-      <div
-        className={`pill-controls electron-no-drag${showControls ? ' pill-controls--visible' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="pill-controls-inner">
-          <button
-            className="pill-btn"
-            onClick={ctrl(isRunning ? onPause : onPlay)}
-            title={isRunning ? 'Pause' : 'Resume'}
-            style={isRunning ? { background: 'var(--pause-bg)', color: 'var(--pause-fg)' } : undefined}
+        {/* DND indicator */}
+        {dndActive && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.45, marginLeft: 2 }}>
+            <BellOff style={{ width: 11, height: 11, color: 'var(--compact-text)' }} />
+          </span>
+        )}
+
+        {/* Info icon — visible by default, hidden when controls are showing */}
+        {!showControls && (
+          <span
+            className="pill-help electron-no-drag"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onMouseEnter={() => setShowHelpHint(true)}
+            onMouseLeave={() => setShowHelpHint(false)}
           >
-            {isRunning
-              ? <Pause  style={{ width: 14, height: 14 }} />
-              : <Play   style={{ width: 14, height: 14 }} />}
-          </button>
+            <button
+              type="button"
+              className="pill-help-btn"
+              title="Compact mode help"
+              aria-label="Compact mode help"
+              tabIndex={-1}
+            >
+              <Info style={{ width: 16, height: 16 }} />
+            </button>
+          </span>
+        )}
+        {showHelpHint && !showControls && (
+          <span className="pill-help-hint">
+            Single click for controls. Double-click for fullscreen.
+          </span>
+        )}
 
-          <button
-            className="pill-btn"
-            onClick={ctrl(onStop)}
-            title="Stop &amp; Save"
-            disabled={!task || !task.trim()}
-          >
-            <Square style={{ width: 14, height: 14 }} />
-          </button>
+        {/* Controls — fade/slide in on single click, auto-hide after 3s */}
+        <div
+          className={`pill-controls electron-no-drag${showControls ? ' pill-controls--visible' : ''}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="pill-controls-inner">
+            <button
+              className="pill-btn"
+              onClick={ctrl(isRunning ? onPause : onPlay)}
+              title={isRunning ? 'Pause' : 'Resume'}
+              style={isRunning ? { background: 'var(--pause-bg)', color: 'var(--pause-fg)' } : undefined}
+            >
+              {isRunning
+                ? <Pause  style={{ width: 14, height: 14 }} />
+                : <Play   style={{ width: 14, height: 14 }} />}
+            </button>
 
-          <button
-            className="pill-btn pill-btn--notepad"
-            onClick={ctrl(onOpenDistractionJar)}
-            title="Open Parking Lot"
-          >
-            <ClipboardList style={{ width: 14, height: 14 }} />
-            {thoughtCount > 0 && (
-              <span className="pill-badge">{thoughtCount}</span>
-            )}
-          </button>
+            <button
+              className="pill-btn"
+              onClick={ctrl(onStop)}
+              title="Stop &amp; Save"
+              disabled={!task || !task.trim()}
+            >
+              <Square style={{ width: 14, height: 14 }} />
+            </button>
+
+            <button
+              className="pill-btn pill-btn--notepad"
+              onClick={ctrl(onOpenDistractionJar)}
+              title="Open Parking Lot"
+            >
+              <ClipboardList style={{ width: 14, height: 14 }} />
+              {thoughtCount > 0 && (
+                <span className="pill-badge">{thoughtCount}</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

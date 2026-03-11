@@ -70,7 +70,7 @@ export default function Toast({ toast, onDismiss, placement = 'top-right' }) {
 
   return (
     <div style={hostStyle}>
-      <div className={`toast ${className} ${isExiting ? 'toast-exit' : 'toast-enter'}`} style={toastStyle}>
+      <div className={`toast ${className}${toast.source === 'checkin-success' ? ' toast-checkin' : ''} ${isExiting ? 'toast-exit' : 'toast-enter'}`} style={toastStyle}>
         {showIcon ? <Icon style={{ width: 20, height: 20, flexShrink: 0 }} /> : null}
         <p style={{ fontSize: '0.875rem', fontWeight: 500, flex: 1 }}>{toast.message}</p>
         {showCloseButton ? (

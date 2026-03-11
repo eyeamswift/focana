@@ -100,6 +100,7 @@ const TaskInput = forwardRef(({
         placeholder="Type your task here and hit Enter/Return"
         maxLength={120}
         readOnly={isLocked}
+        tabIndex={1}
         rows={1}
         style={{
           width: '100%',

@@ -78,7 +78,7 @@ const CHECKIN_MESSAGES = [
   'Good Job! 🍊',
   '🙂',
   "You're locked in",
-  'Still at it, love that',
+  'Great. You got this.',
   "You're doing good 👍🏾",
   'Crushing it',
   'In the zone',
@@ -345,6 +345,7 @@ export default function App() {
     }, 100);
     return () => clearTimeout(t);
   }, [startupGateState]);
+
 
   // Analytics: app opened
   useEffect(() => {
@@ -2047,7 +2048,6 @@ export default function App() {
     setInitialTime(0);
     setIsTimerVisible(false);
     setSessionStartTime(null);
-    showToast('info', 'Session saved. Task kept active');
     if (hasPostSessionParkingLotItems(endedSessionId)) {
       openPostSessionParkingLot(endedSessionId);
     }
@@ -2591,7 +2591,7 @@ export default function App() {
           compactRevealTimerRef.current = setTimeout(() => {
             setCompactTransitioning(false);
             compactRevealTimerRef.current = null;
-          }, 40);
+          }, 200);
         } else {
           if (compactEnteredAtRef.current) {
             const durationSec = Math.round((Date.now() - compactEnteredAtRef.current) / 1000);
@@ -2833,6 +2833,7 @@ export default function App() {
                 aria-label="Open Session History"
                 onClick={() => setShowHistoryModal(true)}
                 variant="ghost"
+                tabIndex={2}
                 style={{ height: '1.75rem', padding: '0 0.625rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500 }}
               >
                 History
@@ -2843,6 +2844,7 @@ export default function App() {
                 aria-label="Open Parking Lot"
                 onClick={() => setDistractionJarOpen(true)}
                 variant="ghost"
+                tabIndex={3}
                 style={{ height: '1.75rem', padding: '0 0.625rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500, position: 'relative' }}
               >
                 Parking Lot
@@ -3081,19 +3083,7 @@ export default function App() {
               borderRadius: '0.625rem',
               border: '1px solid var(--border-strong)',
             }}>
-              <Button
-                onClick={() => handleStartSession('freeflow', 0)}
-                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
-              >
-                Freeflow
-              </Button>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>OR</span>
-              <Button
-                onClick={() => handleStartSession('timed', getSafeSessionMinutes())}
-                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
-              >
-                Set Timer
-              </Button>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Set timer</span>
               <input
                 type="number"
                 value={sessionMinutes}
@@ -3102,12 +3092,21 @@ export default function App() {
                 min="1"
                 max="240"
                 className="input"
+                ref={(el) => { if (el) { el.focus(); el.select(); } }}
                 style={{ width: '3.25rem', textAlign: 'center', height: '2rem', fontSize: '0.8125rem', padding: '0 0.25rem', flexShrink: 0 }}
               />
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', flexShrink: 0 }}>min</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.75rem', marginRight: '0.25rem' }}>or</span>
+              <Button
+                onClick={() => handleStartSession('freeflow', 0)}
+                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
+              >
+                Freeflow
+              </Button>
               <div style={{ flex: 1 }} />
               <button
                 onClick={() => setIsStartModalOpen(false)}
+                tabIndex={-1}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.25rem', display: 'flex', alignItems: 'center', flexShrink: 0, borderRadius: '0.25rem' }}
                 aria-label="Cancel"
               >
