@@ -78,6 +78,7 @@ const schema = {
     type: 'object',
     properties: {
       theme: { type: 'string', default: 'light' },
+      themeManual: { type: 'boolean', default: false },
       shortcuts: {
         type: 'object',
         default: {

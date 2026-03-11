@@ -259,6 +259,7 @@ export default function App() {
   const confettiTimerRef = useRef(null);
   const pulseIntervalRef = useRef(null);
   const pulseTimeoutRef = useRef(null);
+  const themeSettingsHydratedRef = useRef(false);
   const timeRef = useRef(0);
   const elapsedBeforeRunRef = useRef(0);
   const pendingPostModalResizeRef = useRef(null);
@@ -419,6 +420,12 @@ export default function App() {
     } else {
       window.localStorage.removeItem(THEME_STORAGE_KEY);
     }
+  }, [theme, isThemeManual]);
+
+  useEffect(() => {
+    if (!themeSettingsHydratedRef.current) return;
+    window.electronAPI.storeSet('settings.theme', theme);
+    window.electronAPI.storeSet('settings.themeManual', isThemeManual);
   }, [theme, isThemeManual]);
 
   useLayoutEffect(() => {
@@ -930,6 +937,24 @@ export default function App() {
         thoughtsLoadedRef.current = true;
 
         const settings = await window.electronAPI.storeGet('settings') || {};
+        const persistedTheme = settings.theme === 'dark' ? 'dark' : 'light';
+        const hasStoredThemePreference = typeof settings.themeManual === 'boolean';
+        if (hasStoredThemePreference) {
+          if (settings.themeManual) {
+            setTheme(persistedTheme);
+            setIsThemeManual(true);
+          } else {
+            setTheme(getSystemTheme());
+            setIsThemeManual(false);
+          }
+        } else {
+          const localTheme = getStoredTheme();
+          const nextTheme = localTheme || getSystemTheme();
+          const nextIsThemeManual = Boolean(localTheme);
+          setTheme(nextTheme);
+          setIsThemeManual(nextIsThemeManual);
+        }
+        themeSettingsHydratedRef.current = true;
         const normalizedShortcuts = mergeShortcutsWithDefaults(settings.shortcuts);
         setShortcuts(normalizedShortcuts);
         if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {

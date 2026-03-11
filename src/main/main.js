@@ -54,6 +54,8 @@ const ALLOWED_STORE_KEYS = new Set([
   'userEmail',
   'emailPromptSkipped',
   'settings',
+  'settings.theme',
+  'settings.themeManual',
   'settings.shortcuts',
   'settings.shortcutsEnabled',
   'settings.alwaysOnTop',
@@ -350,6 +352,7 @@ function sanitizeStoreValue(key, value) {
       if (typeof value !== 'string') throw new Error('userEmail must be a string');
       return value.trim().slice(0, 320);
     case 'emailPromptSkipped':
+    case 'settings.themeManual':
     case 'settings.shortcutsEnabled':
     case 'settings.alwaysOnTop':
     case 'settings.bringToFront':
@@ -361,6 +364,8 @@ function sanitizeStoreValue(key, value) {
       return Boolean(value);
     case 'settings.doNotDisturbUntil':
       return sanitizeOptionalIsoTimestamp(value);
+    case 'settings.theme':
+      return value === 'dark' ? 'dark' : 'light';
     case 'settings.checkInIntervalFreeflow':
       return clampNumber(value, 1, 240, 15);
     case 'settings.checkInIntervalTimed':
@@ -454,6 +459,13 @@ function applyDndState(nextState) {
   store.set('settings.doNotDisturbUntil', normalized.until);
   setDndState(normalized);
   scheduleDndExpiry(normalized);
+  if (isFloatingMinimized) {
+    if (normalized.enabled) {
+      stopFloatingPulseSchedule();
+    } else {
+      startFloatingPulseSchedule();
+    }
+  }
   return normalized;
 }
 
@@ -602,6 +614,7 @@ function stopFloatingPulseSchedule() {
 
 function sendFloatingPulse() {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !floatingIconWindow.isVisible()) return;
+  if (readStoredDndState().enabled) return;
   floatingIconWindow.webContents.send('floating-icon-pulse');
 }
 
@@ -686,9 +699,25 @@ function exitFloatingIconMode({ focusMain = true } = {}) {
   }
 }
 
+function hasVisibleTimerState() {
+  const timerState = store.get('timerState', {});
+  if (!timerState || typeof timerState !== 'object') return false;
+
+  return Boolean(
+    timerState.isRunning
+    || (Number(timerState.seconds) || 0) > 0
+    || (Number(timerState.initialTime) || 0) > 0
+    || (Number(timerState.elapsedSeconds) || 0) > 0
+    || timerState.mode === 'timed'
+  );
+}
+
 function toggleFloatingMinimize() {
   if (isFloatingMinimized) {
     exitFloatingIconMode();
+    return;
+  }
+  if (hasVisibleTimerState()) {
     return;
   }
   enterFloatingIconMode();

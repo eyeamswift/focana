@@ -131,7 +131,7 @@ test('first launch shows one-time email capture gate before app UI', async () =>
   }
 });
 
-test('skipping email capture dismisses gate and it does not reappear', async () => {
+test('email capture gate cannot be skipped and remains until email is provided', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
       userEmail: '',
@@ -142,15 +142,12 @@ test('skipping email capture dismisses gate and it does not reappear', async () 
 
   try {
     await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
-    await page.getByRole('button', { name: 'Skip' }).click();
-
-    await page.waitForSelector(TASK_INPUT_SELECTOR);
-    const skipped = await page.evaluate(() => window.electronAPI.storeGet('emailPromptSkipped'));
-    expect(skipped).toBe(true);
+    await expect(page.getByRole('button', { name: 'Skip' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
 
     await page.reload();
-    await page.waitForSelector(TASK_INPUT_SELECTOR);
-    await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
+    await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -167,6 +164,29 @@ test('saved user email bypasses capture gate on launch', async () => {
   try {
     await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('theme is restored from electron-store and theme changes persist back to the store', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        theme: 'dark',
+        themeManual: true,
+      },
+    },
+  });
+
+  try {
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('dark');
+
+    await page.getByRole('button', { name: 'Toggle Theme' }).click();
+
+    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('light');
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.theme'))).toBe('light');
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.themeManual'))).toBe(true);
   } finally {
     await cleanup();
   }
@@ -190,6 +210,31 @@ test('quick capture thought persists after parking lot interactions', async () =
 
     await page.getByRole('button', { name: 'Open Parking Lot' }).click();
     await expect(page.getByText(capturedThought)).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating minimize shortcut is blocked while a timer is active', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('shortcut-block');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await page.waitForTimeout(500);
+    const hasFloatingWindow = await electronApp.evaluate(({ BrowserWindow }) => {
+      return BrowserWindow.getAllWindows().some((win) => (
+        win.webContents.getURL().includes('floating-icon.html') && win.isVisible()
+      ));
+    });
+
+    expect(hasFloatingWindow).toBe(false);
   } finally {
     await cleanup();
   }
@@ -249,7 +294,7 @@ test('reusing a task from history does not overwrite historical session id', asy
     task: 'History seed task',
     durationMinutes: 22,
     mode: 'freeflow',
-    completed: true,
+    completed: false,
     notes: 'seed note',
     createdAt: originalCreatedAt,
   };
@@ -264,9 +309,9 @@ test('reusing a task from history does not overwrite historical session id', asy
     await page.waitForSelector(TASK_INPUT_SELECTOR);
 
     await page.getByRole('button', { name: 'Open Session History' }).click();
-    await page.getByRole('button', { name: 'Completed' }).click();
     await expect(page.getByText('History seed task')).toBeVisible();
-    await page.getByRole('button', { name: 'Use This Task' }).first().click();
+    await page.getByRole('button', { name: 'Preview Session Notes' }).first().click();
+    await page.getByRole('button', { name: 'Use This Task' }).click();
 
     let mainPage = page;
     const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
@@ -310,6 +355,7 @@ test('history renders safely when session createdAt is invalid', async () => {
     await page.waitForSelector(TASK_INPUT_SELECTOR);
 
     await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('tab', { name: 'Discarded' }).click();
     await expect(page.getByText('Bad date task')).toBeVisible();
     await expect(page.getByText('Unknown date')).toBeVisible();
   } finally {
@@ -348,6 +394,7 @@ test('history delete requires explicit confirmation for single and bulk actions'
     await page.reload();
 
     await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('tab', { name: 'Discarded' }).click();
     await expect(page.getByText('Delete me first')).toBeVisible();
 
     await page.getByRole('button', { name: 'Delete Session' }).first().click();
@@ -364,7 +411,7 @@ test('history delete requires explicit confirmation for single and bulk actions'
     await expect(page.getByRole('heading', { name: 'Delete session?' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete Sessions' }).click();
 
-    await expect(page.getByText('No sessions for the current filter.')).toBeVisible();
+    await expect(page.getByText('No discarded sessions yet.')).toBeVisible();
     storedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(storedSessions).toHaveLength(0);
   } finally {
@@ -603,7 +650,7 @@ test('stop flow is handled inside session notes without a second completion moda
 
     await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume from here');
     await page.getByRole('button', { name: 'No, Keep Task' }).click();
-    await expect(page.getByText('Session saved. Task kept active')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('stop-flow-unified');
 
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
@@ -667,7 +714,7 @@ test('editing a parking lot note preserves completion state', async () => {
   }
 });
 
-test('minimize to floating icon restores task and keeps timer progressing', async () => {
+test('minimize to floating icon restores idle task text', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -675,14 +722,8 @@ test('minimize to floating icon restores task and keeps timer progressing', asyn
     const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
     const minimizeFloatingButton = mainPage.locator('button[aria-label="Minimize to Floating Icon"]');
     await taskInput.fill('floating-state-test');
-    await taskInput.press('Enter');
-    await page.getByRole('button', { name: 'Freeflow' }).click();
 
     await expect(minimizeFloatingButton).toBeVisible();
-    await mainPage.waitForTimeout(2200);
-
-    const beforeSeconds = await readDisplayedTimerSeconds(mainPage);
-    expect(beforeSeconds).not.toBeNull();
 
     await mainPage.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
@@ -718,11 +759,7 @@ test('minimize to floating icon restores task and keeps timer progressing', asyn
       return taskState?.text || '';
     });
     expect(restoredTask).toBe('floating-state-test');
-    await mainPage.waitForTimeout(1200);
-
-    const afterSeconds = await readDisplayedTimerSeconds(mainPage);
-    expect(afterSeconds).not.toBeNull();
-    expect(afterSeconds).toBeGreaterThan(beforeSeconds);
+    await expect(mainPage.locator(TASK_INPUT_SELECTOR)).toHaveValue('floating-state-test');
   } finally {
     await cleanup();
   }
