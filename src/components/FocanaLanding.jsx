@@ -873,7 +873,13 @@ export default function FocanaLanding() {
               marginBottom: "20px",
               animation: "fadeUp 0.6s ease 0.05s both",
             }}>
-              For macOS — founding member pricing now live
+              For mac<span style={{ fontSize: "1.1em" }}>OS</span> — founding member pricing now live
+            </p>
+            <p style={{
+              fontSize: "14px", color: COLORS.coffeeBrown, opacity: 0.7,
+              animation: "fadeUp 0.6s ease 0.1s both",
+            }}>
+              Windows coming soon — <span onClick={() => setWaitlistOpen(true)} style={{ textDecoration: "underline", cursor: "pointer" }}>join the waitlist</span>
             </p>
 
             <h1 style={{
@@ -928,7 +934,7 @@ export default function FocanaLanding() {
                 Try for Free
                 <span style={{ fontSize: "22px" }}>→</span>
               </button>
-              <a href="#how-it-works" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+              <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                 See How It Works
               </a>
             </div>
@@ -1033,72 +1039,17 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla, position: "relative" }}>
-        <div className="floating-chip" style={{
-          position: "absolute", top: "20px", right: "5%",
-          background: "white", borderRadius: "12px", padding: "12px 16px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-          display: "flex", alignItems: "center", gap: "10px",
-          animation: "float 4s ease-in-out infinite",
-          zIndex: 1,
-        }}>
-          <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
-          <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
-            You focused for 23 minutes!
-          </span>
-        </div>
-        <div className="section">
-          <h3 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
-            color: COLORS.warmBrown, marginBottom: "8px",
-          }}>
-            It only takes a few seconds to get started. No sign-up/account needed.
-          </h3>
-
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-            gap: "32px", marginTop: "32px",
-          }}>
-            {[
-              { step: "1", title: "Type your task", desc: "One thing. That's the whole point. Write what you're working on right now.", icon: "✏️" },
-              { step: "2", title: "Start the timer", desc: "Freeflow if you're in the zone. Timeboxed if you need a hard stop. No forced 25-minute rules.", icon: "⏱️" },
-              { step: "3", title: "It floats on top", desc: "Above Slack. Above Chrome. Above VS Code. Your task and your timer stay right there — the whole time.", icon: "📌" },
-              { step: "4", title: "You get the win", desc: "\"You focused for 23 minutes.\" Not \"session incomplete.\" Every minute counts.", icon: "🎉" },
-            ].map((item, i) => (
-              <div key={i} style={{ textAlign: "center", position: "relative" }}>
-                <div style={{
-                  width: "clamp(48px, 12vw, 64px)", height: "clamp(48px, 12vw, 64px)", borderRadius: "50%",
-                  background: `linear-gradient(135deg, ${COLORS.sunshineYellow}33, ${COLORS.creamYellow})`,
-                  border: `2px solid ${COLORS.sunshineYellow}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  margin: "0 auto 20px", fontSize: "28px",
-                }}>
-                  {item.icon}
-                </div>
-                <div style={{
-                  fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 700,
-                  color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-                  marginBottom: "8px",
-                }}>Step {item.step}</div>
-                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700, marginBottom: "10px", color: COLORS.warmBrown }}>
-                  {item.title}
-                </h3>
-                <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* FEATURES */}
       <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
         <div className="section">
           <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(28px, 3.5vw, 40px)",
-            fontWeight: 800, color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px",
+            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+            fontWeight: 800, color: COLORS.deepAmber, lineHeight: 1.15,
+            textAlign: "center", marginBottom: "12px",
+          }}>Key Features</h2>
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "20px",
+            fontWeight: 700, color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px", textAlign: "center",
           }}>
             Everything you need. Nothing you don't.
           </h2>
@@ -1159,6 +1110,66 @@ export default function FocanaLanding() {
         </div>
       </section>
 
+      {/* HOW IT WORKS */}
+      <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla, position: "relative" }}>
+        <div className="floating-chip" style={{
+          position: "absolute", top: "20px", right: "5%",
+          background: "white", borderRadius: "12px", padding: "12px 16px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          display: "flex", alignItems: "center", gap: "10px",
+          animation: "float 4s ease-in-out infinite",
+          zIndex: 1,
+        }}>
+          <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
+          <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
+            You focused for 23 minutes!
+          </span>
+        </div>
+        <div className="section">
+          <h3 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
+            color: COLORS.deepAmber, marginBottom: "8px",
+          }}>
+            It only takes a few seconds to get started. No sign-up/account needed.
+          </h3>
+
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
+            gap: "32px", marginTop: "32px",
+          }}>
+            {[
+              { step: "1", title: "Type your task", desc: "One thing. That's the whole point. Write what you're working on right now.", icon: "✏️" },
+              { step: "2", title: "Start the timer", desc: "Freeflow if you're in the zone. Timeboxed if you need a hard stop. No forced 25-minute rules.", icon: "⏱️" },
+              { step: "3", title: "It floats on top", desc: "Above Slack. Above Chrome. Above VS Code. Your task and your timer stay right there — the whole time.", icon: "📌" },
+              { step: "4", title: "You get the win", desc: "\"You focused for 23 minutes.\" Not \"session incomplete.\" Every minute counts.", icon: "🎉" },
+            ].map((item, i) => (
+              <div key={i} style={{ textAlign: "center", position: "relative" }}>
+                <div style={{
+                  width: "clamp(48px, 12vw, 64px)", height: "clamp(48px, 12vw, 64px)", borderRadius: "50%",
+                  background: `linear-gradient(135deg, ${COLORS.sunshineYellow}33, ${COLORS.creamYellow})`,
+                  border: `2px solid ${COLORS.sunshineYellow}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  margin: "0 auto 20px", fontSize: "28px",
+                }}>
+                  {item.icon}
+                </div>
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 700,
+                  color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
+                  marginBottom: "8px",
+                }}>Step {item.step}</div>
+                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700, marginBottom: "10px", color: COLORS.warmBrown }}>
+                  {item.title}
+                </h3>
+                <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* WHO IT'S FOR */}
       <section style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section">
@@ -1167,44 +1178,57 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 44px)",
               fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
             }}>
-              You're in the right place if...
+              Built for You
             </h2>
+            <p style={{ fontSize: "20px", lineHeight: 1.7, color: COLORS.deepAmber, fontWeight: 500, marginTop: "12px" }}>
+              If any of these sound like you, you're in the right place.
+            </p>
           </div>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
-            gap: "20px",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            gap: "28px 24px",
+            maxWidth: "960px",
+            margin: "0 auto",
           }}>
             {[
-              "People say 'just focus' like that's not the thing you're trying to do every single day.",
-              "You've tried the productivity apps. Something is still missing.",
-              "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.",
-              "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.",
-              "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.",
-              "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.",
-            ].map((text, i) => (
+              { text: "People say 'just focus' like that's not the thing you're trying to do every single day.", rotate: "-2deg", color: "#FFF9E6" },
+              { text: "You've tried Notion, Todoist, Forest, a paper planner. Each one worked for exactly three days.", rotate: "1.5deg", color: "#E8F5E9" },
+              { text: "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.", rotate: "-1deg", color: "#FFF3E0" },
+              { text: "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.", rotate: "2deg", color: "#FFF9E6" },
+              { text: "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.", rotate: "-1.5deg", color: "#E8F5E9" },
+              { text: "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.", rotate: "1deg", color: "#FFF3E0" },
+            ].map((item, i) => (
               <div key={i} style={{
-                background: "white",
-                borderRadius: "16px",
-                padding: "24px 28px",
+                background: item.color,
+                borderRadius: "4px",
+                padding: "24px 22px",
                 display: "flex",
                 alignItems: "flex-start",
-                gap: "14px",
-                border: `1px solid ${COLORS.beigeBorder}`,
-              }}>
+                gap: "12px",
+                transform: `rotate(${item.rotate})`,
+                boxShadow: "2px 3px 12px rgba(0,0,0,0.1), 1px 1px 3px rgba(0,0,0,0.06)",
+                border: "none",
+                minHeight: "140px",
+                transition: "transform 0.2s ease",
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = "rotate(0deg) scale(1.03)"}
+              onMouseLeave={e => e.currentTarget.style.transform = `rotate(${item.rotate})`}
+              >
                 <span style={{
-                  fontSize: "20px", flexShrink: 0,
-                  background: `${COLORS.sunshineYellow}22`,
-                  borderRadius: "8px",
-                  width: "36px", height: "36px",
+                  flexShrink: 0,
+                  width: "28px", height: "28px",
+                  borderRadius: "50%",
+                  background: "#4CAF50",
                   display: "flex", alignItems: "center", justifyContent: "center",
+                  marginTop: "2px",
                 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COLORS.deepAmber} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </span>
-                <p style={{ fontSize: "16px", lineHeight: 1.5, color: COLORS.warmBrown, fontWeight: 500 }}>
-                  {text}
+                <p style={{ fontSize: "15px", lineHeight: 1.55, color: COLORS.warmBrown, fontWeight: 500, margin: 0 }}>
+                  {item.text}
                 </p>
               </div>
             ))}
