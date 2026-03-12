@@ -1008,12 +1008,8 @@ export default function FocanaLanding() {
               A timer that can't disappear.<br />
               One task, always visible, floating above every app on your screen.
             </p>
-            <p style={{ fontSize: "22px", fontWeight: 700, color: COLORS.warmBrown, marginBottom: "24px" }}>
-              That's Focana.
-            </p>
             <p style={{ fontSize: "17px", lineHeight: 1.7, fontStyle: "italic", color: COLORS.coffeeBrown }}>
-              Built by someone with ADHD, for everyone whose focus
-              disappears the moment they switch apps.
+              Built by someone with ADHD, for anyone else who can't "just focus" at will.
             </p>
           </div>
 
