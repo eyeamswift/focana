@@ -1177,11 +1177,11 @@ export default function FocanaLanding() {
           }}>
             {[
               "People say 'just focus' like that's not the thing you're trying to do every single day.",
-              "You've tried the productivity apps. Something is always missing.",
-              "You say it'll take 20 minutes. It's been two hours and you haven't noticed.",
+              "You've tried the productivity apps. Something is still missing.",
+              "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.",
               "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.",
-              "You sit down to do one thing, open your laptop, and have no idea what it was.",
-              "You're not procrastinating because you're lazy. Starting just feels impossible.",
+              "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.",
+              "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.",
             ].map((text, i) => (
               <div key={i} style={{
                 background: "white",
