@@ -6,18 +6,43 @@ const { test, expect, _electron: electron } = require('@playwright/test');
 const APP_ROOT = path.resolve(__dirname, '..', '..');
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 
-async function launchApp({ seedConfig = null, background = true, waitForTaskInput = true, onPage = null } = {}) {
-  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focana-e2e-'));
-  const effectiveSeedConfig = {
+function buildSeedConfig(seedConfig = null) {
+  return {
     userEmail: 'justin.franklin90@gmail.com',
     emailPromptSkipped: true,
     ...(seedConfig || {}),
   };
+}
+
+function writeSeedConfig(storeDir, seedConfig = null) {
   fs.writeFileSync(
     path.join(storeDir, 'config.json'),
-    JSON.stringify(effectiveSeedConfig, null, 2),
+    JSON.stringify(buildSeedConfig(seedConfig), null, 2),
     'utf8'
   );
+}
+
+function createStoreDir(seedConfig = null) {
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focana-e2e-'));
+  writeSeedConfig(storeDir, seedConfig);
+  return storeDir;
+}
+
+function removeStoreDir(storeDir) {
+  fs.rmSync(storeDir, { recursive: true, force: true });
+}
+
+async function launchApp({
+  seedConfig = null,
+  background = true,
+  waitForTaskInput = true,
+  onPage = null,
+  storeDir = null,
+} = {}) {
+  const effectiveStoreDir = storeDir || createStoreDir(seedConfig);
+  if (storeDir && seedConfig) {
+    writeSeedConfig(storeDir, seedConfig);
+  }
 
   const electronApp = await electron.launch({
     cwd: APP_ROOT,
@@ -26,7 +51,7 @@ async function launchApp({ seedConfig = null, background = true, waitForTaskInpu
       ...process.env,
       FOCANA_E2E: '1',
       FOCANA_E2E_BACKGROUND: background ? '1' : '0',
-      FOCANA_STORE_CWD: storeDir,
+      FOCANA_STORE_CWD: effectiveStoreDir,
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
     },
   });
@@ -39,14 +64,20 @@ async function launchApp({ seedConfig = null, background = true, waitForTaskInpu
     await page.waitForSelector(TASK_INPUT_SELECTOR);
   }
 
+  let didCleanup = false;
   return {
     electronApp,
     page,
-    async cleanup() {
+    storeDir: effectiveStoreDir,
+    async cleanup({ deleteStoreDir = !storeDir } = {}) {
+      if (didCleanup) return;
+      didCleanup = true;
       try {
         await electronApp.close();
       } finally {
-        fs.rmSync(storeDir, { recursive: true, force: true });
+        if (deleteStoreDir) {
+          removeStoreDir(effectiveStoreDir);
+        }
       }
     },
   };
@@ -92,6 +123,51 @@ async function readDisplayedTimerSeconds(page) {
 function isMainAppWindow(win) {
   const url = win.url();
   return url.includes('localhost:5173') || (url.includes('/index.html') && !url.includes('floating-icon.html'));
+}
+
+async function installTimeOffsetControl(page) {
+  await page.evaluate(() => {
+    if (!window.__focanaE2ETimeControlInstalled) {
+      window.__focanaE2EOriginalDateNow = Date.now.bind(Date);
+      window.__focanaE2EOffsetMs = 0;
+      Date.now = () => window.__focanaE2EOriginalDateNow() + (window.__focanaE2EOffsetMs || 0);
+      window.__focanaE2ETimeControlInstalled = true;
+      return;
+    }
+
+    window.__focanaE2EOffsetMs = 0;
+  });
+}
+
+async function setTimeOffset(page, nextOffsetMs) {
+  await page.evaluate((offsetMs) => {
+    window.__focanaE2EOffsetMs = Number(offsetMs) || 0;
+  }, nextOffsetMs);
+}
+
+async function readWindowMode(page) {
+  return page.evaluate(() => document.documentElement.getAttribute('data-window-mode'));
+}
+
+async function startFreeflowSession(page, taskName) {
+  await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
+  await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+  await page.getByRole('button', { name: 'Freeflow' }).click();
+  await expect.poll(() => readWindowMode(page)).toBe('pill');
+}
+
+async function startTimedSession(page, taskName, minutes) {
+  await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
+  await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+  const minutesInput = page.locator('input[type="number"]').first();
+  await minutesInput.fill(String(minutes));
+  await minutesInput.press('Enter');
+  await expect.poll(() => readWindowMode(page)).toBe('pill');
+}
+
+async function exitCompactMode(page) {
+  await page.locator('.pill').dblclick();
+  await expect.poll(() => readWindowMode(page)).toBe('full');
 }
 
 test('first launch shows one-time email capture gate before app UI', async () => {
@@ -192,6 +268,95 @@ test('theme is restored from electron-store and theme changes persist back to th
   }
 });
 
+test('theme and always-on-top survive relaunch', async () => {
+  const storeDir = createStoreDir({
+    settings: {
+      theme: 'dark',
+      themeManual: true,
+      alwaysOnTop: true,
+    },
+  });
+
+  let firstLaunch = null;
+  let secondLaunch = null;
+
+  try {
+    firstLaunch = await launchApp({ background: false, storeDir });
+    await expect.poll(async () => firstLaunch.page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('dark');
+    await expect.poll(async () => firstLaunch.electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      return main ? main.isAlwaysOnTop() : null;
+    })).toBe(true);
+
+    await firstLaunch.page.getByRole('button', { name: 'Toggle Theme' }).click();
+    await firstLaunch.page.getByRole('button', { name: 'Disable Always on Top' }).click();
+
+    await expect.poll(async () => firstLaunch.page.evaluate(() => window.electronAPI.storeGet('settings.theme'))).toBe('light');
+    await expect.poll(async () => firstLaunch.page.evaluate(() => window.electronAPI.storeGet('settings.themeManual'))).toBe(true);
+    await expect.poll(async () => firstLaunch.page.evaluate(() => window.electronAPI.storeGet('settings.alwaysOnTop'))).toBe(false);
+    await firstLaunch.cleanup({ deleteStoreDir: false });
+    firstLaunch = null;
+
+    secondLaunch = await launchApp({ background: false, storeDir });
+    await expect.poll(async () => secondLaunch.page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('light');
+    await expect.poll(async () => secondLaunch.electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      return main ? main.isAlwaysOnTop() : null;
+    })).toBe(false);
+  } finally {
+    if (secondLaunch) {
+      await secondLaunch.cleanup({ deleteStoreDir: false });
+    }
+    if (firstLaunch) {
+      await firstLaunch.cleanup({ deleteStoreDir: false });
+    }
+    removeStoreDir(storeDir);
+  }
+});
+
+test('timed time-up flows keep going and resume later without losing task state', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timeup-audit', 1);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Keep Going' }).click();
+
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+    const keepGoingState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(keepGoingState.initialTime).toBe(360);
+    expect(keepGoingState.isRunning).toBe(true);
+    expect(keepGoingState.seconds).toBeGreaterThanOrEqual(299);
+    expect(keepGoingState.seconds).toBeLessThanOrEqual(300);
+
+    await setTimeOffset(page, 365000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Resume Later' }).click();
+    await expect(page.getByRole('heading', { name: 'Where did you leave off?' })).toBeVisible();
+    await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume later note');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('timeup-audit');
+    const finalTimerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(finalTimerState.isRunning).toBe(false);
+    expect(finalTimerState.seconds).toBe(0);
+    expect(finalTimerState.initialTime).toBe(0);
+
+    const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    expect(savedSessions[0].task).toBe('timeup-audit');
+    expect(savedSessions[0].durationMinutes).toBe(6);
+    expect(savedSessions[0].completed).toBe(false);
+    expect(savedSessions[0].notes).toBe('resume later note');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('quick capture thought persists after parking lot interactions', async () => {
   const { electronApp, page, cleanup } = await launchApp();
   try {
@@ -275,13 +440,74 @@ test('open parking lot shortcut exits compact mode before showing quick capture'
   const { electronApp, page, cleanup } = await launchApp();
   try {
     await triggerShortcutAction(electronApp, 'toggleCompact');
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-window-mode')))
-      .toBe('pill');
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
 
     await triggerShortcutAction(electronApp, 'openParkingLot');
     await expect(page.locator('[data-quick-capture-textarea]')).toBeVisible();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-window-mode')))
-      .toBe('full');
+    await expect.poll(() => readWindowMode(page)).toBe('full');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow check-in appears at the configured interval', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await expect.poll(async () => {
+      const settings = await page.evaluate(() => window.electronAPI.storeGet('settings'));
+      return settings?.checkInIntervalFreeflow ?? null;
+    }).toBe(5);
+
+    await startFreeflowSession(page, 'checkin-interval');
+    await setTimeOffset(page, 301000);
+
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('checkin-interval?')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow check-ins stay suppressed during DND and appear after DND is turned off', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+        doNotDisturbEnabled: true,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await expect.poll(async () => {
+      const settings = await page.evaluate(() => window.electronAPI.storeGet('settings'));
+      return JSON.stringify({
+        interval: settings?.checkInIntervalFreeflow ?? null,
+        dnd: settings?.doNotDisturbEnabled ?? null,
+      });
+    }).toBe(JSON.stringify({ interval: 5, dnd: true }));
+
+    await startFreeflowSession(page, 'dnd-ui-checkin');
+    await setTimeOffset(page, 301000);
+    await page.waitForTimeout(1000);
+    await expect(page.getByText('Still focused on')).toHaveCount(0);
+
+    await exitCompactMode(page);
+    await page.getByRole('button', { name: 'Turn Off Do Not Disturb' }).click();
+
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('dnd-ui-checkin?')).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -639,8 +865,7 @@ test('stop flow is handled inside session notes without a second completion moda
     await page.locator(TASK_INPUT_SELECTOR).fill('stop-flow-unified');
     await page.locator(TASK_INPUT_SELECTOR).press('Enter');
     await page.getByRole('button', { name: 'Freeflow' }).click();
-    await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-window-mode')))
-      .toBe('pill');
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
     await page.waitForTimeout(6500);
     await page.locator('.pill').click();
     await page.locator('button[title="Stop & Save"]').click();
