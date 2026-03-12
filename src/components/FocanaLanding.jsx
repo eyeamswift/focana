@@ -660,25 +660,28 @@ export default function FocanaLanding() {
               }}>What was it?</span>
             </h1>
 
-            <div style={{
-              fontSize: "clamp(18px, 2.2vw, 22px)",
+            <p style={{
+              fontSize: "clamp(16px, 1.8vw, 19px)",
               lineHeight: 1.6,
-              color: COLORS.coffeeBrown,
+              fontStyle: "italic",
+              color: COLORS.warmBrown,
+              opacity: 0.7,
+              marginBottom: "12px",
+              animation: "fadeUp 0.6s ease 0.15s both",
+            }}>
+              Sound familiar?
+            </p>
+            <p style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "clamp(20px, 2.5vw, 28px)",
+              fontWeight: 700,
+              lineHeight: 1.4,
+              color: COLORS.warmBrown,
               marginBottom: "40px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              <p style={{ marginBottom: "16px" }}>
-                You open a few new tabs, check Slack, respond to an email.
-                And just like that...you're in a ChatGPT rabbit hole
-                thinking "what was I even doing"
-              </p>
-              <p style={{ fontStyle: "italic", marginBottom: "16px", color: COLORS.warmBrown, fontWeight: 600 }}>
-                out of sight. out of mind.
-              </p>
-              <p>
-                For busy brains, if a task isn't visible, it doesn't exist.
-              </p>
-            </div>
+              Meet Focana - the desktop focus buddy for busy brains.
+            </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
@@ -695,60 +698,10 @@ export default function FocanaLanding() {
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
               Free for macOS. No account. No setup maze.
-            </p>
-            <p style={{
-              marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
-              animation: "fadeUp 0.6s ease 0.4s both",
-            }}>
-              Windows coming soon — join the waitlist
-            </p>
-            <p style={{
-              marginTop: "16px", fontSize: "16px", fontStyle: "italic", color: COLORS.warmBrown,
-              fontWeight: 500, animation: "fadeUp 0.6s ease 0.45s both",
-            }}>
-              Focana — the desktop focus buddy for busy brains.
+              <br />
+              Windows coming soon - join the waitlist
             </p>
 
-          </div>
-
-          {/* Video / Demo Placeholder */}
-          <div style={{
-            maxWidth: "880px", margin: "60px auto 0", borderRadius: "20px",
-            background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
-            border: `2px solid ${COLORS.beigeBorder}`,
-            aspectRatio: "16/9",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            position: "relative", overflow: "hidden",
-            boxShadow: "0 20px 60px rgba(92, 64, 51, 0.12)",
-            animation: "fadeUp 0.8s ease 0.5s both",
-          }}>
-            <div style={{
-              width: "80px", height: "80px", borderRadius: "50%",
-              background: COLORS.sunshineYellow,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 8px 30px rgba(245, 158, 11, 0.3)",
-              transition: "all 0.3s ease",
-            }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill={COLORS.warmBrown} aria-hidden="true">
-                <polygon points="8,5 19,12 8,19" />
-              </svg>
-            </div>
-            <p style={{ marginTop: "16px", fontSize: "15px", color: COLORS.coffeeBrown, fontWeight: 500 }}>
-              Demo video coming soon
-            </p>
-            <div style={{
-              position: "absolute", bottom: "20px", right: "20px",
-              background: "white", borderRadius: "12px", padding: "12px 16px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-              display: "flex", alignItems: "center", gap: "10px",
-              animation: "float 4s ease-in-out infinite",
-            }}>
-              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
-              <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
-                You focused for 23 minutes!
-              </span>
-            </div>
           </div>
         </div>
       </section>
@@ -756,9 +709,25 @@ export default function FocanaLanding() {
       {/* PROBLEM */}
       <section style={{ padding: "100px 0", background: "white" }}>
         <div className="section">
+          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
+            <h2 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+              fontWeight: 800, marginBottom: "24px", color: COLORS.warmBrown,
+              lineHeight: 1.15,
+            }}>
+              <span style={{ fontStyle: "italic" }}>out of sight. out of mind.</span>
+            </h2>
+            <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown, opacity: 0.8, marginBottom: "20px" }}>
+              We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply - and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing"
+            </p>
+            <p style={{ fontSize: "19px", lineHeight: 1.7, fontStyle: "italic", fontWeight: 700, color: COLORS.sunshineYellow }}>
+              For busy brains, if a task isn't visible, it doesn't exist.
+            </p>
+          </div>
+
           <div style={{
             display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
-            gap: "24px", marginTop: "60px",
+            gap: "24px",
           }}>
             {[
               { icon: "🫥", title: "Browser extensions disappear", desc: "Switch to Slack or your IDE and your focus tool vanishes. Gone. Along with your intention." },
@@ -807,6 +776,49 @@ export default function FocanaLanding() {
               Built by someone with ADHD, for everyone whose focus
               disappears the moment they switch apps.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* DEMO VIDEO */}
+      <section style={{ padding: "0 0 60px 0", background: COLORS.warmVanilla }}>
+        <div className="section">
+          <div style={{
+            maxWidth: "880px", margin: "0 auto", borderRadius: "20px",
+            background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
+            border: `2px solid ${COLORS.beigeBorder}`,
+            aspectRatio: "16/9",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            position: "relative", overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(92, 64, 51, 0.12)",
+          }}>
+            <div style={{
+              width: "80px", height: "80px", borderRadius: "50%",
+              background: COLORS.sunshineYellow,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 8px 30px rgba(245, 158, 11, 0.3)",
+              transition: "all 0.3s ease",
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill={COLORS.warmBrown} aria-hidden="true">
+                <polygon points="8,5 19,12 8,19" />
+              </svg>
+            </div>
+            <p style={{ marginTop: "16px", fontSize: "15px", color: COLORS.coffeeBrown, fontWeight: 500 }}>
+              Demo video coming soon
+            </p>
+            <div style={{
+              position: "absolute", bottom: "20px", right: "20px",
+              background: "white", borderRadius: "12px", padding: "12px 16px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+              display: "flex", alignItems: "center", gap: "10px",
+              animation: "float 4s ease-in-out infinite",
+            }}>
+              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
+              <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
+                You focused for 23 minutes!
+              </span>
+            </div>
           </div>
         </div>
       </section>
