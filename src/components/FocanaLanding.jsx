@@ -101,6 +101,178 @@ function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
   );
 }
 
+// Windows waitlist modal
+function WaitlistModal({ open, onClose }) {
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | loading | success | error
+  const [errorMsg, setErrorMsg] = useState("");
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+      setTimeout(() => {
+        const input = modalRef.current?.querySelector("input");
+        if (input) input.focus();
+      }, 0);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setEmail("");
+      setPhone("");
+      setStatus("idle");
+      setErrorMsg("");
+      return;
+    }
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setStatus("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/windows-waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone: phone || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+      setStatus("success");
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(err.message || "Something went wrong. Please try again.");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="waitlist-modal-title"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "white", borderRadius: "20px", padding: "40px",
+          maxWidth: "440px", width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        {status === "success" ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🎉</div>
+            <h3 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "22px",
+              fontWeight: 700, color: COLORS.warmBrown, marginBottom: "12px",
+            }}>You're on the list!</h3>
+            <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.6 }}>
+              We'll let you know the moment Focana for Windows is ready.
+            </p>
+            <button onClick={onClose} className="cta-btn" style={{ padding: "12px 32px", fontSize: "15px" }}>
+              Got it
+            </button>
+          </div>
+        ) : (
+          <>
+            <h3 id="waitlist-modal-title" style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "22px",
+              fontWeight: 700, color: COLORS.warmBrown, marginBottom: "8px",
+            }}>
+              Get notified when Focana hits Windows
+            </h3>
+            <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.5 }}>
+              Drop your email and we'll let you know the moment it's ready.
+            </p>
+            <form onSubmit={handleSubmit}>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="form-input"
+                style={{
+                  width: "100%", padding: "14px 16px", fontSize: "16px",
+                  border: `1.5px solid ${COLORS.beigeBorder}`, borderRadius: "10px",
+                  fontFamily: "'DM Sans', sans-serif", color: COLORS.warmBrown,
+                  marginBottom: "12px",
+                }}
+              />
+              <input
+                type="tel"
+                placeholder="Phone (optional)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="form-input"
+                style={{
+                  width: "100%", padding: "14px 16px", fontSize: "16px",
+                  border: `1.5px solid ${COLORS.beigeBorder}`, borderRadius: "10px",
+                  fontFamily: "'DM Sans', sans-serif", color: COLORS.warmBrown,
+                  marginBottom: "20px",
+                }}
+              />
+              {status === "error" && (
+                <p style={{ color: COLORS.error || "#DC2626", fontSize: "14px", marginBottom: "12px" }}>
+                  {errorMsg}
+                </p>
+              )}
+              <button
+                type="submit"
+                className="cta-btn"
+                disabled={status === "loading"}
+                style={{ width: "100%", justifyContent: "center", padding: "14px", fontSize: "16px" }}
+              >
+                {status === "loading" ? "Joining..." : "Join the Waitlist"}
+              </button>
+            </form>
+            <button
+              onClick={onClose}
+              style={{
+                display: "block", margin: "16px auto 0", background: "none",
+                border: "none", color: COLORS.coffeeBrown, fontSize: "14px",
+                cursor: "pointer", padding: "4px",
+              }}
+            >
+              Maybe later
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.2/Focana-1.2.0-beta.2-mac-arm64.dmg";
 const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.2/Focana-1.2.0-beta.2-mac-x64.dmg";
 
@@ -383,6 +555,7 @@ export default function FocanaLanding() {
   const [modalOpen, setModalOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const headlines = ["What was it?", "It didn't get done.", "You did 3 other things.", "Where did the time go?"];
 
@@ -719,7 +892,15 @@ export default function FocanaLanding() {
               marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
               opacity: 0.7, animation: "fadeUp 0.6s ease 0.4s both",
             }}>
-              Windows coming soon - join the waitlist
+              Windows coming soon -{" "}
+              <button
+                onClick={() => setWaitlistOpen(true)}
+                style={{
+                  background: "none", border: "none", padding: 0,
+                  color: COLORS.deepAmber, fontSize: "inherit", fontFamily: "inherit",
+                  cursor: "pointer", textDecoration: "underline",
+                }}
+              >join the waitlist</button>
             </p>
 
           </div>
@@ -1173,12 +1354,21 @@ export default function FocanaLanding() {
             Focana — the desktop focus buddy for busy brains.
           </p>
           <p style={{ fontSize: "14px", color: "#FEF3C7", marginTop: "12px", opacity: 0.8 }}>
-            Windows coming soon — join the waitlist
+            Windows coming soon —{" "}
+            <button
+              onClick={() => setWaitlistOpen(true)}
+              style={{
+                background: "none", border: "none", padding: 0,
+                color: COLORS.goldenGlow, fontSize: "inherit", fontFamily: "inherit",
+                cursor: "pointer", textDecoration: "underline",
+              }}
+            >join the waitlist</button>
           </p>
         </div>
       </section>
 
       <DownloadModal open={modalOpen} onClose={() => setModalOpen(false)} onSuccess={handleDownloadSuccess} />
+      <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
       <DownloadToast visible={toastVisible} onDismiss={() => setToastVisible(false)} />
 
       {/* FOOTER */}
