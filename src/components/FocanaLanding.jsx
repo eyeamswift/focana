@@ -650,7 +650,8 @@ export default function FocanaLanding() {
               marginBottom: "24px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
-              You open your laptop to do one thing.{" "}
+              You opened your laptop to do one thing.
+              <br />
               <span style={{
                 background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
                 WebkitBackgroundClip: "text",
