@@ -407,7 +407,7 @@ function DownloadModal({ open, onClose, onSuccess }) {
           fontFamily: "'Outfit', sans-serif", fontSize: "24px",
           fontWeight: 800, color: COLORS.warmBrown, marginBottom: "8px",
         }}>
-          Try Focana Free
+          Lock In $29 Lifetime Access
         </h3>
         <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.5 }}>
           Enter your email to download Focana for macOS.
@@ -447,7 +447,7 @@ function DownloadModal({ open, onClose, onSuccess }) {
             disabled={status === "loading"}
             style={{ width: "100%", justifyContent: "center", animation: "none" }}
           >
-            {status === "loading" ? "Sending..." : "Try Focana Free →"}
+            {status === "loading" ? "Sending..." : "Lock In $29 Lifetime Access →"}
           </button>
         </form>
 
@@ -747,7 +747,7 @@ export default function FocanaLanding() {
             <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Try Focana Free</button>
+            <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Lock In $29 Lifetime Access</button>
           </div>
           <button
             className="hamburger-btn"
@@ -792,7 +792,7 @@ export default function FocanaLanding() {
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); setModalOpen(true); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Try Focana Free</button>
+          <button onClick={() => { setMobileMenuOpen(false); setModalOpen(true); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Lock In $29 Lifetime Access</button>
         </div>
       )}
 
@@ -874,7 +874,7 @@ export default function FocanaLanding() {
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Try Focana Free
+                Lock In $29 Lifetime Access
                 <span style={{ fontSize: "22px" }}>→</span>
               </button>
               <a href="#how-it-works" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
@@ -886,7 +886,7 @@ export default function FocanaLanding() {
               marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
-              Free for macOS. No account. No setup maze.
+              Try it risk-free for 7 days. If it doesn't stick, we'll refund you — no questions asked.
             </p>
             <p style={{
               marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
@@ -1303,15 +1303,11 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="What does it cost?"
-            answer="Focana is free to try — download it, no account needed. If it clicks, founding member access is $29 one-time. That locks in lifetime access before the price goes up at launch. No subscription. No renewals."
+            answer="$29 one-time. That's lifetime access — no subscription, no renewals. You also get a 7-day money-back guarantee: if it doesn't stick, we'll refund you, no questions asked. After beta, the price moves to $49 lifetime or $8/month. This is the lowest it will ever be."
           />
           <FAQItem
             question="Will the $29 price go up?"
             answer="Yes. When open beta ends, Focana moves to $49 lifetime or $8/month. The founding member price is only available during beta and goes away when that window closes."
-          />
-          <FAQItem
-            question="What if I just want to try it first?"
-            answer="Download it free. No account, no credit card. If it becomes part of your routine, grab founding member access from inside the app or right here."
           />
         </div>
       </section>
@@ -1333,21 +1329,11 @@ export default function FocanaLanding() {
         <div className="section" style={{ position: "relative", zIndex: 2, textAlign: "center", maxWidth: "640px" }}>
           <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "32px" }}>
             Takes 10 seconds to start your first session.<br />
-            Download it free. See if it sticks.<br />
-            Then lock in founding member access before beta ends.
+            $29 once. Yours forever. 7-day guarantee.
           </p>
 
           <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Try Focana Free <span style={{ fontSize: "22px" }}>→</span>
-          </button>
-
-          <p style={{ fontSize: "15px", color: "#FEF3C7", marginTop: "24px", opacity: 0.8 }}>
-            Already know you want it?
-          </p>
-          <button onClick={() => setModalOpen(true)} className="ghost-btn" style={{
-            marginTop: "12px", color: "#FEF3C7", borderColor: "rgba(254, 243, 199, 0.4)",
-          }}>
-            Get Founding Member Access — $29 lifetime
+            Lock In $29 Lifetime Access <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
