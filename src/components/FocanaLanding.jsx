@@ -348,6 +348,10 @@ function DownloadToast({ visible, onDismiss }) {
           <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
             Need the <a href={altUrl} style={{ color: COLORS.coffeeBrown, textDecoration: "underline" }}>{altLabel}</a> version?
           </p>
+          <p style={{ fontSize: "11.5px", color: COLORS.warmGray, marginTop: "10px", lineHeight: 1.45 }}>
+            <strong style={{ color: COLORS.coffeeBrown }}>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
+            <strong style={{ color: COLORS.coffeeBrown }}>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
+          </p>
         </>
       ) : (
         <>
@@ -364,6 +368,10 @@ function DownloadToast({ visible, onDismiss }) {
               color: "white", fontSize: "13px", fontWeight: 600, textDecoration: "none",
             }}>Intel</a>
           </div>
+          <p style={{ fontSize: "11.5px", color: COLORS.warmGray, marginTop: "10px", lineHeight: 1.45 }}>
+            <strong style={{ color: COLORS.coffeeBrown }}>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
+            <strong style={{ color: COLORS.coffeeBrown }}>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
+          </p>
         </>
       )}
     </div>
