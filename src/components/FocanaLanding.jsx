@@ -1036,32 +1036,27 @@ export default function FocanaLanding() {
               {
                 icon: "📌",
                 title: "It never disappears",
-                desc: "Focana uses native macOS permissions to float above every app on your screen. Not a browser extension. Not a web app. It can't hide — because that's the whole point.",
-              },
-              {
-                icon: "🧠",
-                title: "No account. No setup.",
-                desc: "Download it. Open it. Type your task. You're focused in under 10 seconds. No onboarding maze. No 47 settings to configure. If you've bounced off every other focus app by day three, this is why they failed — not you.",
+                desc: "Not a browser extension. Not a web app. It can't hide — because that's the whole point.",
               },
               {
                 icon: "🕐",
                 title: "Your timer, your rules",
-                desc: "Freeflow when you're in flow. Timeboxed when you need a hard stop. No app telling your brain when to start and when to quit.",
+                desc: "Freeflow when you're in flow. Timeboxed when you need a hard stop.",
               },
               {
                 icon: "🔁",
                 title: "When life interrupts",
-                desc: "Session cut short? Before you close out, Focana asks where you want to pick up. Come back tomorrow — or next week — and you're not starting from scratch. You're starting from exactly where you left off.",
+                desc: "Before you close out, Focana asks where you want to pick up. Come back tomorrow — or next week — and continue exactly where you left off.",
               },
               {
                 icon: "🅿️",
                 title: "Your parking lot, delivered back to you",
-                desc: "Random thought mid-session? Park it and stay focused. When your session ends, every note you parked comes back to you. You stayed on task. And you kept everything that came up. Nothing gets lost.",
+                desc: "Random thought mid-session? Park it and stay focused. When your session ends, Focana shows your notes. Nothing gets lost.",
               },
               {
                 icon: "👀",
                 title: "A gentle nudge",
-                desc: "\"Still on track?\" — a soft check-in before you're 30 minutes deep in something you didn't mean to open. Tap yes, keep going. Tap no, get back. No alarm. No guilt. Just a tap.",
+                desc: "\"Still on track?\" — a soft check-in before you're 30 minutes deep in something you didn't mean to open.",
               },
               {
                 icon: "🔄",
