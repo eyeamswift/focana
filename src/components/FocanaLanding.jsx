@@ -995,6 +995,10 @@ export default function FocanaLanding() {
       {/* FEATURES */}
       <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
         <div className="section">
+          <p style={{
+            fontSize: "19px", fontWeight: 700, color: COLORS.sunshineYellow,
+            textAlign: "center", marginBottom: "12px",
+          }}>Key Features</p>
           <h2 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
             fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
