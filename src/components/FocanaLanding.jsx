@@ -1053,7 +1053,7 @@ export default function FocanaLanding() {
             fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
             color: COLORS.warmBrown, marginBottom: "8px",
           }}>
-            Four steps. Thirty seconds. No onboarding.
+            It only takes a few seconds to get started. No sign-up/account needed.
           </h3>
 
           <div style={{
@@ -1163,15 +1163,11 @@ export default function FocanaLanding() {
       <section style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section">
           <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
-            <span style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>Who it's for</span>
             <h2 style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 44px)",
-              fontWeight: 800, marginTop: "16px", color: COLORS.warmBrown, lineHeight: 1.15,
+              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
             }}>
-              This is for you if...
+              You're in the right place if...
             </h2>
           </div>
 
@@ -1180,9 +1176,12 @@ export default function FocanaLanding() {
             gap: "20px",
           }}>
             {[
-              "You've tried every focus app and nothing stuck past week one",
-              "You switch between Slack, Chrome, and your IDE all day and lose your thread every single time",
-              "You've heard of time blindness and thought \"oh. that's me.\"",
+              "People say 'just focus' like that's not the thing you're trying to do every single day.",
+              "You've tried the productivity apps. Something is always missing.",
+              "You say it'll take 20 minutes. It's been two hours and you haven't noticed.",
+              "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.",
+              "You sit down to do one thing, open your laptop, and have no idea what it was.",
+              "You're not procrastinating because you're lazy. Starting just feels impossible.",
             ].map((text, i) => (
               <div key={i} style={{
                 background: "white",
