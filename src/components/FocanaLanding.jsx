@@ -557,7 +557,7 @@ export default function FocanaLanding() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [headlineIndex, setHeadlineIndex] = useState(0);
-  const headlines = ["What was it?", "It didn't get done.", "You did 3 other things instead.", "Where did the time go?"];
+  const headlines = ["What was it?", "It didn't get done.", "You did 3 other things.", "Where did the time go?"];
 
   useEffect(() => {
     let rafId = 0;
