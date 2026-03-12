@@ -179,6 +179,7 @@ function WaitlistModal({ open, onClose }) {
     >
       <div
         ref={modalRef}
+        className="modal-inner"
         role="dialog"
         aria-modal="true"
         aria-labelledby="waitlist-modal-title"
@@ -381,6 +382,7 @@ function DownloadModal({ open, onClose, onSuccess }) {
     >
       <div
         ref={modalRef}
+        className="modal-inner"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "white", borderRadius: "20px", padding: "40px",
@@ -704,12 +706,36 @@ export default function FocanaLanding() {
           .nav-links { display: none !important; }
           .hamburger-btn { display: flex !important; }
           .sticky-note { display: none !important; }
+          .floating-chip { display: none !important; }
           .download-toast {
             left: 16px !important;
             right: 16px !important;
             bottom: 16px !important;
             max-width: none !important;
             width: auto !important;
+          }
+          .hero-section {
+            padding-top: 100px !important;
+            padding-bottom: 60px !important;
+          }
+          .cta-btn {
+            padding: 14px 24px !important;
+            font-size: 15px !important;
+          }
+          section {
+            padding-top: 60px !important;
+            padding-bottom: 60px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .modal-inner {
+            padding: 24px !important;
+          }
+          .pricing-card {
+            padding: 24px !important;
+          }
+          .cta-btn {
+            font-size: 14px !important;
           }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -797,7 +823,7 @@ export default function FocanaLanding() {
       )}
 
       {/* HERO */}
-      <section style={{
+      <section className="hero-section" style={{
         paddingTop: "140px", paddingBottom: "100px", position: "relative", overflow: "hidden",
         background: `linear-gradient(160deg, ${COLORS.warmVanilla} 0%, ${COLORS.softCream} 50%, ${COLORS.creamYellow}22 100%)`,
       }}>
@@ -991,7 +1017,7 @@ export default function FocanaLanding() {
             boxShadow: "0 20px 60px rgba(92, 64, 51, 0.12)",
           }}>
             <div style={{
-              width: "80px", height: "80px", borderRadius: "50%",
+              width: "clamp(60px, 15vw, 80px)", height: "clamp(60px, 15vw, 80px)", borderRadius: "50%",
               background: COLORS.sunshineYellow,
               display: "flex", alignItems: "center", justifyContent: "center",
               boxShadow: "0 8px 30px rgba(245, 158, 11, 0.3)",
@@ -1010,7 +1036,7 @@ export default function FocanaLanding() {
 
       {/* HOW IT WORKS */}
       <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla, position: "relative" }}>
-        <div style={{
+        <div className="floating-chip" style={{
           position: "absolute", top: "20px", right: "5%",
           background: "white", borderRadius: "12px", padding: "12px 16px",
           boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
@@ -1032,7 +1058,7 @@ export default function FocanaLanding() {
           </h3>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
             gap: "32px", marginTop: "32px",
           }}>
             {[
@@ -1043,7 +1069,7 @@ export default function FocanaLanding() {
             ].map((item, i) => (
               <div key={i} style={{ textAlign: "center", position: "relative" }}>
                 <div style={{
-                  width: "64px", height: "64px", borderRadius: "50%",
+                  width: "clamp(48px, 12vw, 64px)", height: "clamp(48px, 12vw, 64px)", borderRadius: "50%",
                   background: `linear-gradient(135deg, ${COLORS.sunshineYellow}33, ${COLORS.creamYellow})`,
                   border: `2px solid ${COLORS.sunshineYellow}`,
                   display: "flex", alignItems: "center", justifyContent: "center",
@@ -1075,10 +1101,10 @@ export default function FocanaLanding() {
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(28px, 3.5vw, 40px)",
             fontWeight: 800, color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px",
           }}>
-            Everything it does. Nothing it doesn't.
+            Everything you need. Nothing you don't.
           </h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "24px" }}>
             {[
               {
                 icon: "📌",
@@ -1151,7 +1177,7 @@ export default function FocanaLanding() {
           </div>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
             gap: "20px",
           }}>
             {[
@@ -1205,7 +1231,7 @@ export default function FocanaLanding() {
             </p>
           </div>
 
-          <div style={{
+          <div className="pricing-card" style={{
             background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
             border: `2px solid ${COLORS.sunshineYellow}`,
             borderRadius: "20px",
@@ -1321,7 +1347,7 @@ export default function FocanaLanding() {
       }}>
         <div style={{
           position: "absolute", top: "-50%", left: "50%", transform: "translateX(-50%)",
-          width: "600px", height: "600px", borderRadius: "50%",
+          width: "min(600px, 150vw)", height: "600px", borderRadius: "50%",
           background: `radial-gradient(circle, ${COLORS.sunshineYellow}15 0%, transparent 70%)`,
           pointerEvents: "none",
         }} />
