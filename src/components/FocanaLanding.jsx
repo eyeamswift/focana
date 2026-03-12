@@ -383,6 +383,8 @@ export default function FocanaLanding() {
   const [modalOpen, setModalOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [headlineIndex, setHeadlineIndex] = useState(0);
+  const headlines = ["What was it?", "It didn't get done.", "You did 3 other things.", "Where did the time go?"];
 
   useEffect(() => {
     let rafId = 0;
@@ -398,6 +400,14 @@ export default function FocanaLanding() {
       window.removeEventListener("scroll", handle);
       if (rafId) cancelAnimationFrame(rafId);
     };
+  }, []);
+
+  // Rotating headline
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeadlineIndex((prev) => (prev + 1) % 4);
+    }, 2500);
+    return () => clearInterval(timer);
   }, []);
 
   // Close mobile menu on Escape
@@ -429,6 +439,7 @@ export default function FocanaLanding() {
         @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); } 70% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+        @keyframes headlineFade { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
         .section { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
         .cta-btn {
           background: ${COLORS.sunshineYellow};
@@ -638,7 +649,7 @@ export default function FocanaLanding() {
               marginBottom: "20px",
               animation: "fadeUp 0.6s ease 0.05s both",
             }}>
-              For macOS — free, no account needed
+              For macOS — founding member pricing now live
             </p>
 
             <h1 style={{
@@ -652,12 +663,17 @@ export default function FocanaLanding() {
             }}>
               You opened your laptop to do one thing.
               <br />
-              <span style={{
-                background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}>What was it?</span>
+              <span
+                key={headlineIndex}
+                style={{
+                  background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  display: "inline-block",
+                  animation: "headlineFade 2.5s ease both",
+                }}
+              >{headlines[headlineIndex]}</span>
             </h1>
 
             <p style={{
@@ -698,7 +714,11 @@ export default function FocanaLanding() {
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
               Free for macOS. No account. No setup maze.
-              <br />
+            </p>
+            <p style={{
+              marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
+              opacity: 0.7, animation: "fadeUp 0.6s ease 0.4s both",
+            }}>
               Windows coming soon - join the waitlist
             </p>
 
@@ -777,14 +797,10 @@ export default function FocanaLanding() {
               disappears the moment they switch apps.
             </p>
           </div>
-        </div>
-      </section>
 
-      {/* DEMO VIDEO */}
-      <section style={{ padding: "0 0 60px 0", background: COLORS.warmVanilla }}>
-        <div className="section">
+          {/* Demo Video */}
           <div style={{
-            maxWidth: "880px", margin: "0 auto", borderRadius: "20px",
+            maxWidth: "880px", margin: "60px auto 0", borderRadius: "20px",
             background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
             border: `2px solid ${COLORS.beigeBorder}`,
             aspectRatio: "16/9",
@@ -807,24 +823,25 @@ export default function FocanaLanding() {
             <p style={{ marginTop: "16px", fontSize: "15px", color: COLORS.coffeeBrown, fontWeight: 500 }}>
               Demo video coming soon
             </p>
-            <div style={{
-              position: "absolute", bottom: "20px", right: "20px",
-              background: "white", borderRadius: "12px", padding: "12px 16px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-              display: "flex", alignItems: "center", gap: "10px",
-              animation: "float 4s ease-in-out infinite",
-            }}>
-              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
-              <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
-                You focused for 23 minutes!
-              </span>
-            </div>
           </div>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla }}>
+      <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla, position: "relative" }}>
+        <div style={{
+          position: "absolute", top: "20px", right: "5%",
+          background: "white", borderRadius: "12px", padding: "12px 16px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          display: "flex", alignItems: "center", gap: "10px",
+          animation: "float 4s ease-in-out infinite",
+          zIndex: 1,
+        }}>
+          <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
+          <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
+            You focused for 23 minutes!
+          </span>
+        </div>
         <div className="section">
           <h3 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
@@ -990,6 +1007,79 @@ export default function FocanaLanding() {
         </div>
       </section>
 
+      {/* FOUNDING MEMBER PRICING */}
+      <section id="pricing" style={{ padding: "100px 0", background: "white" }}>
+        <div className="section" style={{ maxWidth: "720px" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <h2 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15, marginBottom: "20px",
+            }}>
+              Own it forever. $29.
+            </h2>
+            <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
+              Focana is in open beta — which means two things:<br />
+              you get to help shape what gets built,<br />
+              and you get the best price it will ever be.
+            </p>
+          </div>
+
+          <div style={{
+            background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
+            border: `2px solid ${COLORS.sunshineYellow}`,
+            borderRadius: "20px",
+            padding: "40px",
+            textAlign: "center",
+            marginBottom: "32px",
+          }}>
+            <span style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
+              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
+            }}>Founding Member</span>
+            <div style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 56px)",
+              fontWeight: 800, color: COLORS.warmBrown, margin: "12px 0",
+            }}>
+              $29 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>lifetime</span>
+            </div>
+            <p style={{ fontSize: "17px", lineHeight: 1.7, color: COLORS.coffeeBrown, marginBottom: "24px" }}>
+              Full access. No subscription. No renewals.<br />
+              Every feature, now and everything we ship next.
+            </p>
+            <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "28px", opacity: 0.8 }}>
+              When beta ends, Focana moves to $49 lifetime or $8/month.<br />
+              This price goes away when that happens.
+            </p>
+            <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Get Founding Member Access — $29
+            </button>
+            <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
+              One-time payment. macOS. Instant download.<br />
+              No subscription. Ever.
+            </p>
+          </div>
+
+          <div style={{
+            background: COLORS.warmVanilla, borderRadius: "16px", padding: "28px 32px",
+            border: `1px solid ${COLORS.beigeBorder}`,
+          }}>
+            <h3 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
+              color: COLORS.warmBrown, marginBottom: "12px",
+            }}>
+              Why a lifetime deal during beta?
+            </h3>
+            <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
+              Most apps charge full price to test an unfinished product.
+              We'd rather reward the people willing to bet on us early.
+              You get the lowest price it will ever be.
+              We get real users, real feedback, and the resources to build faster.
+              Fair trade.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ */}
       <section id="faq" style={{ padding: "100px 0", background: COLORS.warmVanilla }}>
         <div className="section" style={{ maxWidth: "760px" }}>
@@ -1012,7 +1102,7 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="I have ADHD and I've tried dozens of productivity apps. Why would this one stick?"
-            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No settings. Type your task, start the timer, and it's floating on your screen. That's it."
+            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No settings. Type your task, start the timer, and it's floating on your screen. The reason other apps don't stick is because they ask too much of you before you've gotten any value. Focana doesn't."
           />
           <FAQItem
             question='What does "always on top" actually mean?'
@@ -1032,7 +1122,15 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="What does it cost?"
-            answer="Focana is free. Early supporters get access to a lifetime deal before the official launch — so downloading now gets you in early."
+            answer="Focana is free to try — download it, no account needed. If it clicks, founding member access is $29 one-time. That locks in lifetime access before the price goes up at launch. No subscription. No renewals."
+          />
+          <FAQItem
+            question="Will the $29 price go up?"
+            answer="Yes. When open beta ends, Focana moves to $49 lifetime or $8/month. The founding member price is only available during beta and goes away when that window closes."
+          />
+          <FAQItem
+            question="What if I just want to try it first?"
+            answer="Download it free. No account, no credit card. If it becomes part of your routine, grab founding member access from inside the app or right here."
           />
         </div>
       </section>
@@ -1054,14 +1152,24 @@ export default function FocanaLanding() {
         <div className="section" style={{ position: "relative", zIndex: 2, textAlign: "center", maxWidth: "640px" }}>
           <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "32px" }}>
             Takes 10 seconds to start your first session.<br />
-            Download it. Type your task. You're focused.
+            Download it free. See if it sticks.<br />
+            Then lock in founding member access before beta ends.
           </p>
 
           <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
             Try Focana Free <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
-          <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "24px" }}>
+          <p style={{ fontSize: "15px", color: "#FEF3C7", marginTop: "24px", opacity: 0.8 }}>
+            Already know you want it?
+          </p>
+          <button onClick={() => setModalOpen(true)} className="ghost-btn" style={{
+            marginTop: "12px", color: "#FEF3C7", borderColor: "rgba(254, 243, 199, 0.4)",
+          }}>
+            Get Founding Member Access — $29 lifetime
+          </button>
+
+          <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
             Focana — the desktop focus buddy for busy brains.
           </p>
           <p style={{ fontSize: "14px", color: "#FEF3C7", marginTop: "12px", opacity: 0.8 }}>
