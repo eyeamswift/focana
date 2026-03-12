@@ -101,8 +101,8 @@ function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
   );
 }
 
-const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.1/Focana-1.2.0-beta.1-mac-arm64.dmg";
-const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.1/Focana-1.2.0-beta.1-mac-x64.dmg";
+const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.2/Focana-1.2.0-beta.2-mac-arm64.dmg";
+const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.2/Focana-1.2.0-beta.2-mac-x64.dmg";
 
 function getIsAppleSilicon() {
   try {
@@ -628,6 +628,19 @@ export default function FocanaLanding() {
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
+            <p style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: COLORS.deepAmber,
+              textTransform: "uppercase",
+              letterSpacing: "2px",
+              marginBottom: "20px",
+              animation: "fadeUp 0.6s ease 0.05s both",
+            }}>
+              For macOS — free, no account needed
+            </p>
+
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(40px, 5.5vw, 64px)",
@@ -637,26 +650,34 @@ export default function FocanaLanding() {
               marginBottom: "24px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
-              The focus buddy for{" "}
+              You open your laptop to do one thing.{" "}
               <span style={{
                 background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
-              }}>busy brains</span>
+              }}>What was it?</span>
             </h1>
 
-            <p style={{
+            <div style={{
               fontSize: "clamp(18px, 2.2vw, 22px)",
               lineHeight: 1.6,
               color: COLORS.coffeeBrown,
               marginBottom: "40px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Focana is a <strong>desktop focus tool</strong> — a floating timer that keeps your
-              current task visible above every window. Built by a distracted mind, for distracted minds — and anyone whose
-              focus disappears the moment they switch tabs.
-            </p>
+              <p style={{ marginBottom: "16px" }}>
+                You open a few new tabs, check Slack, respond to an email.
+                And just like that...you're in a ChatGPT rabbit hole
+                thinking "what was I even doing"
+              </p>
+              <p style={{ fontStyle: "italic", marginBottom: "16px", color: COLORS.warmBrown, fontWeight: 600 }}>
+                out of sight. out of mind.
+              </p>
+              <p>
+                For busy brains, if a task isn't visible, it doesn't exist.
+              </p>
+            </div>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
@@ -672,7 +693,19 @@ export default function FocanaLanding() {
               marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
-              Available now for macOS. Windows coming soon.
+              Free for macOS. No account. No setup maze.
+            </p>
+            <p style={{
+              marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
+              animation: "fadeUp 0.6s ease 0.4s both",
+            }}>
+              Windows coming soon — join the waitlist
+            </p>
+            <p style={{
+              marginTop: "16px", fontSize: "16px", fontStyle: "italic", color: COLORS.warmBrown,
+              fontWeight: 500, animation: "fadeUp 0.6s ease 0.45s both",
+            }}>
+              Focana — the desktop focus buddy for busy brains.
             </p>
 
           </div>
@@ -722,35 +755,14 @@ export default function FocanaLanding() {
       {/* PROBLEM */}
       <section style={{ padding: "100px 0", background: "white" }}>
         <div className="section">
-          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto" }}>
-            <span style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>The problem</span>
-            <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-              fontWeight: 800, marginTop: "16px", marginBottom: "20px", color: COLORS.warmBrown,
-              lineHeight: 1.15,
-            }}>
-              "What was I just doing" 🤔
-            </h2>
-            <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              You open your laptop to work on a project. Naturally you open a few new tabs, check slack, respond to an email...And just like that — "Wait, what was I even doing?"
-              <br /><br />
-              Sound familiar?
-              <br /><br />
-              For busy brains, if a task isn't visible, it doesn't exist.
-            </p>
-          </div>
-
           <div style={{
             display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
             gap: "24px", marginTop: "60px",
           }}>
             {[
               { icon: "🫥", title: "Browser extensions disappear", desc: "Switch to Slack or your IDE and your focus tool vanishes. Gone. Along with your intention." },
-              { icon: "📱", title: "Mobile apps are on the wrong device", desc: "Your phone timer doesn't help when the distraction is on your computer screen." },
-              { icon: "🤯", title: "Complex suites cause overload", desc: "47 features, 12 settings, 8 views. Your already-overwhelmed brain shuts down before you start." },
+              { icon: "📱", title: "Mobile apps are on the wrong device", desc: "Your phone timer doesn't help when the distraction is happening on your computer screen." },
+              { icon: "🤯", title: "Complex suites cause overload", desc: "47 features. 12 settings. 8 views. Your already-overwhelmed brain shuts down before you even start." },
             ].map((item, i) => (
               <div key={i} style={{
                 background: COLORS.softCream,
@@ -771,33 +783,41 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" style={{ padding: "100px 0", background: COLORS.warmVanilla }}>
+      {/* SOLUTION BRIDGE */}
+      <section id="how-it-works" style={{ padding: "100px 0 60px 0", background: COLORS.warmVanilla }}>
         <div className="section">
           <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto" }}>
-            <span style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>The solution</span>
             <h2 style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-              fontWeight: 800, marginTop: "16px", marginBottom: "20px", color: COLORS.warmBrown,
+              fontWeight: 800, marginBottom: "24px", color: COLORS.warmBrown,
               lineHeight: 1.15,
             }}>
-              Your intention, floating above everything
+              So we built the obvious thing.
             </h2>
-            <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              Focana is a desktop focus buddy that stays visible above every app on your screen.
-              Built for busy brains and anyone drowning in digital chaos.
-              One task. One timer. Always on top. Zero overwhelm.
+            <p style={{ fontSize: "19px", lineHeight: 1.8, color: COLORS.coffeeBrown, marginBottom: "24px" }}>
+              A sticky note that can't get buried.<br />
+              A timer that can't disappear.<br />
+              One task, always visible, floating above every app on your screen.
+            </p>
+            <p style={{ fontSize: "22px", fontWeight: 700, color: COLORS.warmBrown, marginBottom: "24px" }}>
+              That's Focana.
+            </p>
+            <p style={{ fontSize: "17px", lineHeight: 1.7, fontStyle: "italic", color: COLORS.coffeeBrown }}>
+              Built by someone with ADHD, for everyone whose focus
+              disappears the moment they switch apps.
             </p>
           </div>
+        </div>
+      </section>
 
+      {/* HOW IT WORKS */}
+      <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla }}>
+        <div className="section">
           <h3 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
-            color: COLORS.warmBrown, marginTop: "70px", marginBottom: "0",
+            color: COLORS.warmBrown, marginBottom: "8px",
           }}>
-            How it works:
+            Four steps. Thirty seconds. No onboarding.
           </h3>
 
           <div style={{
@@ -805,10 +825,10 @@ export default function FocanaLanding() {
             gap: "32px", marginTop: "32px",
           }}>
             {[
-              { step: "1", title: "Type your task", desc: "Write what you're focusing on. Just one thing. That's the whole point.", icon: "✏️" },
-              { step: "2", title: "Start the timer", desc: "Freeflow or timeboxed — your choice. No rigid 25-minute rules here.", icon: "⏱️" },
-              { step: "3", title: "It floats on top", desc: "Your focus intention stays visible above Slack, Chrome, VS Code — everything.", icon: "📌" },
-              { step: "4", title: "Get celebrated", desc: "\"You focused for 23 minutes!\" Focana celebrates progress, not perfection.", icon: "🎉" },
+              { step: "1", title: "Type your task", desc: "One thing. That's the whole point. Write what you're working on right now.", icon: "✏️" },
+              { step: "2", title: "Start the timer", desc: "Freeflow if you're in the zone. Timeboxed if you need a hard stop. No forced 25-minute rules.", icon: "⏱️" },
+              { step: "3", title: "It floats on top", desc: "Above Slack. Above Chrome. Above VS Code. Your task and your timer stay right there — the whole time.", icon: "📌" },
+              { step: "4", title: "You get the win", desc: "\"You focused for 23 minutes.\" Not \"session incomplete.\" Every minute counts.", icon: "🎉" },
             ].map((item, i) => (
               <div key={i} style={{ textAlign: "center", position: "relative" }}>
                 <div style={{
@@ -841,79 +861,51 @@ export default function FocanaLanding() {
       <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
         <div className="section">
           <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
-            color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px",
+            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(28px, 3.5vw, 40px)",
+            fontWeight: 800, color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px",
           }}>
-            Features:
+            Everything it does. Nothing it doesn't.
           </h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: "24px" }}>
             {[
               {
                 icon: "📌",
-                title: "Always-on-top visibility",
-                desc: "Your focus intention floats above every application — browser, IDE, Slack, Zoom. The focus buddy that stays on screen when everything else gets buried.",
-                tag: "Core feature",
-              },
-              {
-                icon: "👀",
-                title: "Focus check-ins",
-                desc: "\u201CStill focused?\u201D Periodic nudges help you catch yourself before you're 20 minutes deep in a rabbit hole. Thumbs up to keep going, thumbs down to refocus.",
-                tag: "Gentle nudges",
-              },
-              {
-                icon: "🔁",
-                title: "Pick up where you left off",
-                desc: "Life interrupted your flow? No problem. Focana saves every session — your task, your notes, your progress. Come back tomorrow (or next week) and pick up exactly where you left off. One click and you're back in the zone.",
-                tag: "Continuity",
-              },
-              {
-                icon: "🕐",
-                title: "Flexible focus timer",
-                desc: "Freeflow mode when you're in the zone. Timebox mode when you need structure. No forced 25-minute intervals — your brain, your rules.",
-                tag: "Your rules",
-              },
-              {
-                icon: "🅿️",
-                title: "Parking Lot",
-                desc: "Random thought mid-session? Park it. The Parking Lot captures distracting ideas without breaking your flow. Stay focused now, come back to them later.",
-                tag: "Game-changer",
-              },
-              {
-                icon: "🎉",
-                title: "Celebratory, not punitive",
-                desc: "\u201CYou focused for 17 minutes!\u201D — not \u201CSession incomplete.\u201D Focana celebrates every minute of progress because busy brains need the win, not another guilt trip.",
-                tag: "Motivation",
-              },
-              {
-                icon: "🔄",
-                title: "Three window modes",
-                desc: "Full card when you need it. Compact pill when you don't. Floating icon when you want it out of the way but never gone. One click between any mode.",
-                tag: "Adapts to you",
+                title: "It never disappears",
+                desc: "Focana uses native macOS permissions to float above every app on your screen. Not a browser extension. Not a web app. It can't hide — because that's the whole point.",
               },
               {
                 icon: "🧠",
-                title: "Zero cognitive load",
-                desc: "No accounts, no onboarding maze, no 47 settings to configure. Type your task. Start the timer. That's it. Made for brains that are already overwhelmed.",
-                tag: "Simplicity",
+                title: "No account. No setup.",
+                desc: "Download it. Open it. Type your task. You're focused in under 10 seconds. No onboarding maze. No 47 settings to configure. If you've bounced off every other focus app by day three, this is why they failed — not you.",
               },
               {
-                icon: "🖥️",
-                title: "True desktop app",
-                desc: "Not a browser extension. Not a web app. A native desktop application with OS-level always-on-top, keyboard shortcuts, and system tray access. Works offline, always.",
-                tag: "Desktop native",
+                icon: "🕐",
+                title: "Your timer, your rules",
+                desc: "Freeflow when you're in flow. Timeboxed when you need a hard stop. No app telling your brain when to start and when to quit.",
+              },
+              {
+                icon: "🔁",
+                title: "When life interrupts",
+                desc: "Session cut short? Before you close out, Focana asks where you want to pick up. Come back tomorrow — or next week — and you're not starting from scratch. You're starting from exactly where you left off.",
+              },
+              {
+                icon: "🅿️",
+                title: "Your parking lot, delivered back to you",
+                desc: "Random thought mid-session? Park it and stay focused. When your session ends, every note you parked comes back to you. You stayed on task. And you kept everything that came up. Nothing gets lost.",
+              },
+              {
+                icon: "👀",
+                title: "A gentle nudge",
+                desc: "\"Still on track?\" — a soft check-in before you're 30 minutes deep in something you didn't mean to open. Tap yes, keep going. Tap no, get back. No alarm. No guilt. Just a tap.",
+              },
+              {
+                icon: "🔄",
+                title: "Stays out of your way",
+                desc: "Full card when you need it. Compact pill when you don't. Floating icon when you want it there — but never gone. One click between any mode.",
               },
             ].map((item, i) => (
               <div key={i} className="feature-card">
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: "6px",
-                  background: `${COLORS.sunshineYellow}18`,
-                  borderRadius: "100px", padding: "4px 14px", marginBottom: "16px",
-                }}>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "1px" }}>
-                    {item.tag}
-                  </span>
-                </div>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
                   <span style={{ fontSize: "32px", flexShrink: 0, marginTop: "2px" }}>{item.icon}</span>
                   <div>
@@ -943,7 +935,7 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 44px)",
               fontWeight: 800, marginTop: "16px", color: COLORS.warmBrown, lineHeight: 1.15,
             }}>
-              If this sounds like you...
+              This is for you if...
             </h2>
           </div>
 
@@ -952,12 +944,9 @@ export default function FocanaLanding() {
             gap: "20px",
           }}>
             {[
-              "You open your laptop with one goal and end up down a Wikipedia rabbit hole",
-              "You've tried Notion, Forest, Todoist — nothing sticks longer than a week",
-              "You set a timer but forget what you were timing by the time it goes off",
-              "You write your task on a sticky note that ends up buried under 14 tabs",
-              "You have 47 open tabs and can't remember why you opened any of them",
-              "You need external working memory because your brain's RAM is always full — ADHD or not",
+              "You've tried every focus app and nothing stuck past week one",
+              "You switch between Slack, Chrome, and your IDE all day and lose your thread every single time",
+              "You've heard of time blindness and thought \"oh. that's me.\"",
             ].map((text, i) => (
               <div key={i} style={{
                 background: "white",
@@ -1005,32 +994,32 @@ export default function FocanaLanding() {
           </div>
 
           <FAQItem
-            question="How is Focana different from a browser extension focus timer?"
-            answer="Browser extensions disappear the moment you switch to another app — Slack, your IDE, Figma. Focana is a native desktop app that floats above every application on your screen. Your focus intention stays visible no matter what you're doing. It's the ADHD timer that never hides."
+            question="How is this different from a browser extension?"
+            answer="Browser extensions live in your browser. Switch to Slack or your code editor and they're gone. Focana is a native Mac app — it uses OS-level permissions to float above every application on your screen. It can't disappear. That's the difference."
           />
           <FAQItem
             question="I have ADHD and I've tried dozens of productivity apps. Why would this one stick?"
-            answer="Most productivity tools fail busy brains because they rely on you remembering to check them. Focana flips that — it stays in your line of sight at all times, acting as external working memory. There's nothing to remember, no app to switch to. It's always right there. Plus, it celebrates your progress instead of punishing you for incomplete sessions. Whether you have ADHD or just a brain that's overwhelmed by modern digital chaos, the principle is the same: if you can see it, you can do it."
+            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No settings. Type your task, start the timer, and it's floating on your screen. That's it."
           />
           <FAQItem
-            question="What does 'always on top' actually mean?"
-            answer="Focana uses native OS integration to float a small, beautiful window above every other application on your computer — above Chrome, Slack, VS Code, Zoom, everything. It's like a digital sticky note that never gets buried. You can position it anywhere on your screen and it stays put."
+            question='What does "always on top" actually mean?'
+            answer="It means Focana uses a macOS system-level feature to stay above every other window on your screen. Open Chrome, Slack, VS Code, Zoom — Focana stays visible. You can't accidentally bury it."
           />
           <FAQItem
             question="Does Focana help with ADHD time blindness?"
-            answer="Yes. Time blindness — the feeling that time moves differently than you expect — is a core ADHD challenge. Focana's visible timer gives you gentle, always-present time awareness without the anxiety of ticking clocks. You see time passing in real-time, which helps anchor you in the present moment."
+            answer="Yes. The always-visible timer gives you a constant anchor for how long you've been working. Focus check-ins nudge you before you lose track of time completely. It's not a cure — it's a guardrail."
           />
           <FAQItem
-            question="Is Focana available for Mac and Windows?"
-            answer="Focana is available now for macOS. Windows is in development — sign up to get notified the moment it's ready."
+            question="Do I need to have ADHD to use it?"
+            answer="No. Focana was built from ADHD experience but the problem it solves happens to anyone who works across multiple apps. If you've ever switched tabs and forgotten why, it's for you."
           />
           <FAQItem
-            question="How much does Focana cost?"
-            answer="Focana is free. We'll be offering an introductory lifetime deal for early supporters, plus an affordable monthly subscription when we officially launch."
+            question="Is Windows coming?"
+            answer="macOS is live now. Windows is in development — drop your email and you'll be the first to know when it's ready."
           />
           <FAQItem
-            question="Do I need to have ADHD to use Focana?"
-            answer="Not at all. Focana was born from ADHD experience, but the core problem it solves — losing your focus intention when you switch contexts — is universal. Remote workers, developers, writers, students, anyone battling tab overload and digital distraction will feel the difference immediately. If you've ever switched tabs and forgotten what you were doing, Focana was built for you."
+            question="What does it cost?"
+            answer="Focana is free. Early supporters get access to a lifetime deal before the official launch — so downloading now gets you in early."
           />
         </div>
       </section>
@@ -1050,23 +1039,20 @@ export default function FocanaLanding() {
         }} />
 
         <div className="section" style={{ position: "relative", zIndex: 2, textAlign: "center", maxWidth: "640px" }}>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, marginBottom: "20px", color: "white", lineHeight: 1.15,
-          }}>
-            Stop losing your focus to{" "}
-            <span style={{ color: COLORS.sunshineYellow }}>invisible tools</span>
-          </h2>
-          <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "40px" }}>
-            Try the focus buddy that finally stays where you can see it. Free — available now for macOS.
+          <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "32px" }}>
+            Takes 10 seconds to start your first session.<br />
+            Download it. Type your task. You're focused.
           </p>
 
           <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
             Try Focana Free <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
-          <p style={{ fontSize: "13px", color: "#FEF3C7", marginTop: "20px" }}>
-            Free for macOS. No account required.
+          <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "24px" }}>
+            Focana — the desktop focus buddy for busy brains.
+          </p>
+          <p style={{ fontSize: "14px", color: "#FEF3C7", marginTop: "12px", opacity: 0.8 }}>
+            Windows coming soon — join the waitlist
           </p>
         </div>
       </section>
