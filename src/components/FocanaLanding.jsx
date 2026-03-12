@@ -992,30 +992,6 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* SOLUTION BRIDGE */}
-      <section id="how-it-works" style={{ padding: "100px 0 60px 0", background: COLORS.warmVanilla }}>
-        <div className="section">
-          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto" }}>
-            <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-              fontWeight: 800, marginBottom: "24px", color: COLORS.warmBrown,
-              lineHeight: 1.15,
-            }}>
-              So we built the obvious thing.
-            </h2>
-            <p style={{ fontSize: "19px", lineHeight: 1.8, color: COLORS.coffeeBrown, marginBottom: "24px" }}>
-              A sticky note that can't get buried.<br />
-              A timer that can't disappear.<br />
-              One task, always visible, floating above every app on your screen.
-            </p>
-            <p style={{ fontSize: "17px", lineHeight: 1.7, fontStyle: "italic", color: COLORS.coffeeBrown }}>
-              Built by someone with ADHD, for anyone else who can't "just focus" at will.
-            </p>
-          </div>
-
-        </div>
-      </section>
-
       {/* FEATURES */}
       <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
         <div className="section">
@@ -1023,13 +999,7 @@ export default function FocanaLanding() {
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
             fontWeight: 800, color: COLORS.deepAmber, lineHeight: 1.15,
             textAlign: "center", marginBottom: "12px",
-          }}>Key Features</h2>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "20px",
-            fontWeight: 700, color: COLORS.warmBrown, marginTop: "0", marginBottom: "32px", textAlign: "center",
-          }}>
-            Everything you need. Nothing you don't.
-          </h2>
+          }}>Everything you need. Nothing you don't.</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "24px" }}>
             {[
