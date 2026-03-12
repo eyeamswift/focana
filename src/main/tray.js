@@ -120,6 +120,13 @@ function buildTrayTemplate(mainWindow) {
     ...buildDndMenuTemplate('tray'),
     { type: 'separator' },
     {
+      label: 'Restart App',
+      click: () => {
+        app.relaunch();
+        app.exit(0);
+      },
+    },
+    {
       label: 'Quit',
       click: () => {
         app.quit();

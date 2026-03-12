@@ -4,6 +4,7 @@ const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
 const { createTray, popupFloatingContextMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
+const { createUpdaterService } = require('./updater');
 
 let mainWindow = null;
 let isPillMode = false;
@@ -23,6 +24,7 @@ let floatingPulseTimeout = null;
 let floatingPulseInterval = null;
 let floatingIconDragStart = null;
 let dndExpiryTimer = null;
+const updater = createUpdaterService({ app, Notification });
 
 const isDev = !app.isPackaged && process.env.FOCANA_E2E !== '1';
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
@@ -45,7 +47,6 @@ const DEFAULT_SHORTCUTS = {
 };
 let pendingProgrammaticMainBounds = null;
 let clearProgrammaticMainBoundsTimer = null;
-const MAX_NOTIFICATION_TEXT_LENGTH = 160;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -388,17 +389,6 @@ function sanitizeStoreValue(key, value) {
     default:
       return value;
   }
-}
-
-function sanitizeNotificationPayload(payload) {
-  if (!ensurePlainObject(payload)) {
-    throw new Error('Notification payload must be an object');
-  }
-
-  return {
-    title: typeof payload.title === 'string' ? payload.title.slice(0, MAX_NOTIFICATION_TEXT_LENGTH) : 'Focana',
-    body: typeof payload.body === 'string' ? payload.body.slice(0, MAX_NOTIFICATION_TEXT_LENGTH) : '',
-  };
 }
 
 function sanitizeShortcutsPayload(shortcuts) {
@@ -760,6 +750,7 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   }
+  updater.attachWindow(mainWindow);
 
   // Keep window fully on-screen after any user move/resize and persist full-mode bounds.
   const handleBoundsChange = () => {
@@ -841,6 +832,18 @@ ipcMain.on('close-window', () => {
 ipcMain.on('restart-app', () => {
   app.relaunch();
   app.exit(0);
+});
+
+ipcMain.handle('updates:get-state', () => {
+  return updater.getState();
+});
+
+ipcMain.handle('updates:check', () => {
+  return updater.checkForUpdates({ userInitiated: true });
+});
+
+ipcMain.handle('updates:install', () => {
+  return updater.quitAndInstall();
 });
 
 ipcMain.on('minimize-to-tray', () => {
@@ -977,15 +980,6 @@ ipcMain.handle('checkin:update', (_event, id, updates) => {
 // Do Not Disturb — renderer → tray sync
 ipcMain.on('set-dnd', (_event, enabled) => {
   applyDndState(enabled);
-});
-
-// Notifications
-ipcMain.on('show-notification', (_event, payload) => {
-  try {
-    new Notification(sanitizeNotificationPayload(payload)).show();
-  } catch (e) {
-    console.error('Failed to show notification:', e);
-  }
 });
 
 // Modal window expansion
@@ -1230,9 +1224,11 @@ app.whenReady().then(() => {
     }
   }
   createWindow();
+  updater.start();
 });
 
 app.on('window-all-closed', () => {
+  updater.stop();
   stopFloatingPulseSchedule();
   clearDndExpiryTimer();
   unregisterAll();
@@ -1240,6 +1236,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  updater.stop();
   stopFloatingPulseSchedule();
   clearDndExpiryTimer();
   unregisterAll();

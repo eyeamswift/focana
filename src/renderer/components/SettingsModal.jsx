@@ -118,6 +118,47 @@ const MAIN_SCREEN_CONTROLS = [
   { key: 'close', label: 'Close', icon: X },
 ];
 
+function formatUpdateTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getUpdateStatusSummary(updateState) {
+  if (!updateState) {
+    return 'Loading update status...';
+  }
+
+  switch (updateState.status) {
+    case 'unsupported':
+      return 'Auto-updates are available in packaged builds published to GitHub Releases.';
+    case 'checking':
+      return 'Checking GitHub Releases for updates...';
+    case 'downloading':
+      return updateState.availableVersion
+        ? `Downloading Focana ${updateState.availableVersion}${Number.isFinite(updateState.downloadPercent) ? ` (${updateState.downloadPercent}%)` : ''}.`
+        : 'Downloading update...';
+    case 'downloaded':
+      return updateState.availableVersion
+        ? `Focana ${updateState.availableVersion} is ready to install.`
+        : 'Update is ready to install.';
+    case 'installing':
+      return 'Restarting Focana to install the update...';
+    case 'error':
+      return updateState.error || 'Could not check for updates.';
+    default:
+      return updateState.lastCheckedAt
+        ? 'You are up to date.'
+        : 'Automatic update checks run on app launch.';
+  }
+}
+
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -143,6 +184,9 @@ export default function SettingsModal({
   onDndChange,
   checkInSettings,
   onCheckInSettingsChange,
+  updateState,
+  onCheckForUpdates,
+  onInstallUpdate,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(mergeShortcutsWithDefaults(shortcuts));
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
@@ -370,6 +414,14 @@ export default function SettingsModal({
       .replace('Alt', '\u2325');
   };
 
+  const updateStatusSummary = getUpdateStatusSummary(updateState);
+  const currentVersionLabel = updateState?.currentVersion || 'Unknown';
+  const updateChannelLabel = updateState?.channel && updateState.channel !== 'latest'
+    ? `${updateState.channel} channel`
+    : 'stable channel';
+  const lastCheckedLabel = formatUpdateTimestamp(updateState?.lastCheckedAt);
+  const updateActionDisabled = !updateState?.supported || ['checking', 'downloading', 'downloaded', 'installing'].includes(updateState?.status);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="dialog-content-lg" style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)' }}>
@@ -402,6 +454,68 @@ export default function SettingsModal({
 
           <TabsContent value="main" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }} className="space-y-3">
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+                  <div>
+                    <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Updates</h4>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, marginTop: '0.125rem' }}>
+                      Current version {currentVersionLabel} on the {updateChannelLabel}.
+                    </p>
+                  </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onCheckForUpdates?.()}
+                      disabled={updateActionDisabled}
+                      style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                    >
+                      Check for Updates
+                    </Button>
+                    {updateState?.status === 'downloaded' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => onInstallUpdate?.()}
+                        style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
+                      >
+                        Restart to Update
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: updateState?.status === 'error' ? '#DC2626' : 'var(--text-secondary)' }}>
+                  {updateStatusSummary}
+                </p>
+                {lastCheckedLabel ? (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.75 }}>
+                    Last checked {lastCheckedLabel}.
+                  </p>
+                ) : null}
+                {updateState?.releaseNotes ? (
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '0.5rem',
+                    padding: '0.625rem 0.75rem',
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.45,
+                    maxHeight: '6.5rem',
+                    overflowY: 'auto',
+                  }}>
+                    {updateState.releaseNotes}
+                  </div>
+                ) : null}
+              </div>
+
               <div style={{
                 padding: '0.75rem',
                 background: 'var(--bg-card)',
@@ -554,6 +668,40 @@ export default function SettingsModal({
                     />
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>min</span>
                   </div>
+                </div>
+              </div>
+
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }} className="space-y-3">
+                <div>
+                  <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Application</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, marginTop: '0.125rem' }}>
+                    Restart or quit Focana without leaving Settings.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onRestartApp?.()}
+                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                  >
+                    <RotateCcw style={{ width: 14, height: 14, marginRight: '0.4rem' }} />
+                    Restart App
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onCloseApp?.()}
+                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                  >
+                    <X style={{ width: 14, height: 14, marginRight: '0.4rem' }} />
+                    Quit Focana
+                  </Button>
                 </div>
               </div>
             </div>

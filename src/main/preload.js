@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke('set-always-on-top', enabled),
   getAlwaysOnTop: () => ipcRenderer.invoke('get-always-on-top'),
+  getUpdateState: () => ipcRenderer.invoke('updates:get-state'),
+  checkForAppUpdates: () => ipcRenderer.invoke('updates:check'),
+  installAppUpdate: () => ipcRenderer.invoke('updates:install'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),
 
   // Shortcuts
@@ -23,9 +26,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Store (persistence)
   storeGet: (key) => ipcRenderer.invoke('store-get', key),
   storeSet: (key, value) => ipcRenderer.invoke('store-set', key, value),
-
-  // Notifications
-  showNotification: (title, body) => ipcRenderer.send('show-notification', { title, body }),
 
   // Modal window expansion
   modalOpened: (minWidth, minHeight) => ipcRenderer.invoke('modal-opened', minWidth, minHeight),
@@ -73,6 +73,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event, theme) => callback(theme);
     ipcRenderer.on('tray-theme-select', handler);
     return () => ipcRenderer.removeListener('tray-theme-select', handler);
+  },
+  onUpdateStateChange: (callback) => {
+    const handler = (_event, state) => callback(state);
+    ipcRenderer.on('updates:state-changed', handler);
+    return () => ipcRenderer.removeListener('updates:state-changed', handler);
   },
   setDnd: (enabled) => ipcRenderer.send('set-dnd', enabled),
 

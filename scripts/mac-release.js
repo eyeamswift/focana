@@ -3,6 +3,40 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const projectRoot = path.resolve(__dirname, '..');
+const builderConfigPath = path.join(projectRoot, 'electron-builder.config.js');
+
+function getAppVersion() {
+  const packageJsonPath = path.join(projectRoot, 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  return typeof packageJson.version === 'string' ? packageJson.version.trim() : '0.0.0';
+}
+
+function getUpdateChannel(version) {
+  const prereleaseMatch = String(version || '').match(/-([0-9A-Za-z-]+)/);
+  if (!prereleaseMatch) return 'latest';
+  return prereleaseMatch[1].split('.')[0].toLowerCase() || 'latest';
+}
+
+function getReleaseType(version) {
+  return getUpdateChannel(version) === 'latest' ? 'release' : 'prerelease';
+}
+
+function parsePublishMode(argv) {
+  const publishFlagIndex = argv.indexOf('--publish');
+  if (publishFlagIndex === -1) return 'never';
+
+  const nextValue = argv[publishFlagIndex + 1];
+  if (!nextValue || nextValue.startsWith('--')) {
+    return 'always';
+  }
+
+  const validModes = new Set(['always', 'never', 'onTag', 'onTagOrDraft']);
+  if (!validModes.has(nextValue)) {
+    console.error(`[release] Invalid publish mode "${nextValue}". Use one of: always, never, onTag, onTagOrDraft`);
+    process.exit(1);
+  }
+  return nextValue;
+}
 
 function loadEnvFile(envPath) {
   if (!fs.existsSync(envPath)) return {};
@@ -57,16 +91,30 @@ function applyReleaseEnv() {
   }
 }
 
-function getBuilderArgs(mode) {
+function getBuilderArgs(mode, publishMode, version) {
+  const channel = getUpdateChannel(version);
+  const releaseType = getReleaseType(version);
+  const args = [
+    '--config',
+    builderConfigPath,
+    '-c.publish.channel=' + channel,
+    '--publish',
+    publishMode,
+  ];
+
+  if (publishMode !== 'never') {
+    args.push('-c.publish.releaseType=' + releaseType);
+  }
+
   if (mode === 'zip') {
-    return ['--mac', 'zip', '--x64', '--arm64', '--publish', 'never'];
+    return [...args, '--mac', 'zip', '--x64', '--arm64'];
   }
 
   if (mode === 'universal') {
-    return ['--mac', 'zip', '--universal', '--publish', 'never'];
+    return [...args, '--mac', 'zip', '--universal'];
   }
 
-  return ['--mac', '--publish', 'never'];
+  return [...args, '--mac'];
 }
 
 function runElectronBuilder(args) {
@@ -92,6 +140,7 @@ function runElectronBuilder(args) {
 
 const mode = process.argv[2] || 'zip';
 const requireNotarization = process.argv.includes('--require-notarization');
+const publishMode = parsePublishMode(process.argv.slice(3));
 const validModes = new Set(['zip', 'full', 'universal']);
 if (!validModes.has(mode)) {
   console.error(`[release] Invalid mode "${mode}". Use one of: zip, full, universal`);
@@ -103,5 +152,5 @@ if (requireNotarization) {
   process.env.REQUIRE_NOTARIZATION = '1';
 }
 
-const builderArgs = getBuilderArgs(mode);
+const builderArgs = getBuilderArgs(mode, publishMode, getAppVersion());
 runElectronBuilder(builderArgs);

@@ -237,6 +237,21 @@ export default function App() {
     intervalFreeflow: 15,
     timedPercents: TIMED_CHECKIN_PERCENTS,
   });
+  const [updateState, setUpdateState] = useState({
+    supported: false,
+    currentVersion: null,
+    channel: 'latest',
+    provider: 'github',
+    status: 'unsupported',
+    availableVersion: null,
+    releaseName: null,
+    releaseNotes: null,
+    releaseDate: null,
+    downloadPercent: null,
+    lastCheckedAt: null,
+    lastCheckSource: null,
+    error: null,
+  });
   const [checkInState, setCheckInState] = useState('idle'); // idle | prompting | detour-choice | detour-resolved | resolved
   const [checkInMessage, setCheckInMessage] = useState('');
   const [checkInCelebrating, setCheckInCelebrating] = useState(false);
@@ -479,9 +494,60 @@ export default function App() {
     setToast({ type, message, duration, ...options });
   }, []);
 
+  const handleCheckForUpdates = useCallback(async () => {
+    try {
+      const nextState = await window.electronAPI.checkForAppUpdates?.();
+      if (nextState) {
+        setUpdateState(nextState);
+      }
+    } catch (error) {
+      console.error('Error checking for updates:', error);
+      showToast('warning', 'Could not check for updates');
+    }
+  }, [showToast]);
+
+  const handleInstallUpdate = useCallback(async () => {
+    try {
+      const startedInstall = await window.electronAPI.installAppUpdate?.();
+      if (!startedInstall) {
+        showToast('info', 'No downloaded update is ready yet.');
+      }
+    } catch (error) {
+      console.error('Error installing update:', error);
+      showToast('warning', 'Could not install update');
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    void (async () => {
+      try {
+        const nextState = await window.electronAPI.getUpdateState?.();
+        if (!disposed && nextState) {
+          setUpdateState(nextState);
+        }
+      } catch (error) {
+        console.warn('Failed to read updater state:', error);
+      }
+    })();
+
+    const cleanup = window.electronAPI.onUpdateStateChange?.((nextState) => {
+      if (!disposed && nextState) {
+        setUpdateState(nextState);
+      }
+    });
+
+    return () => {
+      disposed = true;
+      if (cleanup) cleanup();
+    };
+  }, []);
+
   const showCenteredFullWindowCheckInToast = !isCompact
     && toast?.source === 'checkin-success'
     && toast?.placement === 'window-center';
+  const showUpdateBanner = updateState.status === 'downloaded' && Boolean(updateState.availableVersion);
 
   const buildThoughtRecord = useCallback((text, sessionId = null) => ({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -2615,6 +2681,7 @@ export default function App() {
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
+    showUpdateBanner,
   ]);
 
   // Active full-view states: deterministic default heights by screen.
@@ -2653,6 +2720,7 @@ export default function App() {
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
+    showUpdateBanner,
     getActiveScreenDefaultHeight,
     resizeToMainCardContent,
   ]);
@@ -3044,6 +3112,53 @@ export default function App() {
           </div>
         </div>
 
+        {showUpdateBanner && (
+          <div
+            className="electron-no-drag"
+            style={{
+              marginTop: '0.75rem',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.875rem',
+              padding: '0.75rem 0.875rem',
+              borderRadius: '0.875rem',
+              border: '1px solid color-mix(in srgb, var(--brand-primary) 70%, transparent)',
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 16%, var(--bg-card)) 0%, var(--bg-card) 58%, color-mix(in srgb, var(--brand-primary) 9%, var(--bg-surface)) 100%)',
+              boxShadow: '0 14px 34px rgba(46, 31, 24, 0.14)',
+            }}
+          >
+            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--brand-action)' }}>
+                Update Ready
+              </span>
+              <span style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                Focana {updateState.availableVersion} is downloaded and ready.
+              </span>
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                Restart when you want to install the update. Your current work stays saved.
+              </span>
+            </div>
+            <Button
+              type="button"
+              onClick={() => { void handleInstallUpdate(); }}
+              style={{
+                background: 'var(--brand-primary)',
+                color: 'var(--text-on-brand)',
+                minWidth: '9.5rem',
+                height: '2.35rem',
+                borderRadius: '9999px',
+                flexShrink: 0,
+                boxShadow: '0 10px 18px rgba(180, 83, 9, 0.22)',
+              }}
+            >
+              <RotateCcw style={{ width: 14, height: 14, marginRight: '0.45rem' }} />
+              Restart to Update
+            </Button>
+          </div>
+        )}
+
         {/* Content */}
         <div className={`electron-no-drag ${getPulseClassName()}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
           <TaskInput
@@ -3421,6 +3536,9 @@ export default function App() {
             timedPercents: TIMED_CHECKIN_PERCENTS,
           }));
         }}
+        updateState={updateState}
+        onCheckForUpdates={handleCheckForUpdates}
+        onInstallUpdate={handleInstallUpdate}
       />
       <Dialog open={showTimerValidationModal} onOpenChange={(open) => { if (!open) closeTimerValidationModal(); }}>
         <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '22rem' }}>

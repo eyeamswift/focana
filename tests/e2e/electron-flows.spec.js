@@ -38,6 +38,7 @@ async function launchApp({
   waitForTaskInput = true,
   onPage = null,
   storeDir = null,
+  extraEnv = null,
 } = {}) {
   const effectiveStoreDir = storeDir || createStoreDir(seedConfig);
   if (storeDir && seedConfig) {
@@ -53,6 +54,7 @@ async function launchApp({
       FOCANA_E2E_BACKGROUND: background ? '1' : '0',
       FOCANA_STORE_CWD: effectiveStoreDir,
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
+      ...(extraEnv || {}),
     },
   });
 
@@ -311,6 +313,52 @@ test('theme and always-on-top survive relaunch', async () => {
       await firstLaunch.cleanup({ deleteStoreDir: false });
     }
     removeStoreDir(storeDir);
+  }
+});
+
+test('settings surfaces mocked update availability and install action', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_E2E_UPDATER_SCENARIO: 'available',
+      FOCANA_E2E_UPDATER_VERSION: '1.2.0-beta.2',
+    },
+  });
+
+  try {
+    await expect(page.getByText('Update Ready')).toBeVisible();
+    await expect(page.getByText('Focana 1.2.0-beta.2 is downloaded and ready.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+
+    await expect(page.getByText('Current version 1.2.0-beta.1 on the beta channel.')).toBeVisible();
+    await expect(page.getByText('Focana 1.2.0-beta.2 is ready to install.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Restart to Update' }).last().click();
+
+    await expect.poll(async () => {
+      const state = await page.evaluate(() => window.electronAPI.getUpdateState());
+      return state?.status || null;
+    }).toBe('installing');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('manual update check reports when the app is already current', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_E2E_UPDATER_SCENARIO: 'none',
+      FOCANA_DISABLE_AUTO_UPDATES: '1',
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('button', { name: 'Check for Updates' }).click();
+
+    await expect(page.getByText('You are up to date.')).toBeVisible();
+  } finally {
+    await cleanup();
   }
 });
 
