@@ -863,25 +863,6 @@ export default function FocanaLanding() {
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
-            <p style={{
-              fontFamily: "'Outfit', sans-serif",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: COLORS.deepAmber,
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-              marginBottom: "20px",
-              animation: "fadeUp 0.6s ease 0.05s both",
-            }}>
-              For mac<span style={{ fontSize: "1.1em" }}>OS</span> — founding member pricing now live
-            </p>
-            <p style={{
-              fontSize: "14px", color: COLORS.coffeeBrown, opacity: 0.7,
-              animation: "fadeUp 0.6s ease 0.1s both",
-            }}>
-              Windows coming soon — <span onClick={() => setWaitlistOpen(true)} style={{ textDecoration: "underline", cursor: "pointer" }}>join the waitlist</span>
-            </p>
-
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(40px, 5.5vw, 64px)",
