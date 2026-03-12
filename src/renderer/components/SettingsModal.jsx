@@ -153,7 +153,7 @@ function getUpdateStatusSummary(updateState) {
     case 'error':
       return updateState.error || 'Could not check for updates.';
     default:
-      return updateState.lastCheckedAt
+      return updateState.lastCheckSucceeded
         ? 'You are up to date.'
         : 'Automatic update checks run on app launch.';
   }

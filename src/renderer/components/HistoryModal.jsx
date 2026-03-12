@@ -225,7 +225,7 @@ export default function HistoryModal({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            aria-label="Use This Task"
+                            aria-label="Start This Task"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleUseAndClose(session);
@@ -237,7 +237,7 @@ export default function HistoryModal({
                             <ChevronsRight style={{ width: 20, height: 20 }} />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent><p>Open this task</p></TooltipContent>
+                        <TooltipContent><p>Start this task</p></TooltipContent>
                       </Tooltip>
                     )}
 

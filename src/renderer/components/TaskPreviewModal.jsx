@@ -157,7 +157,7 @@ export default function TaskPreviewModal({
 
           {!isEditing && canUseTask && (
             <Button onClick={handleUseTask} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-              Use This Task
+              Start This Task
             </Button>
           )}
         </DialogFooter>

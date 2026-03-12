@@ -41,6 +41,7 @@ function buildUpdateSnapshot(version, supported) {
     downloadPercent: null,
     lastCheckedAt: null,
     lastCheckSource: null,
+    lastCheckSucceeded: false,
     error: null,
   };
 }
@@ -96,6 +97,21 @@ class MockUpdater extends EventEmitter {
   quitAndInstall() {
     this.emit('before-quit-for-update');
   }
+}
+
+function getUserFacingUpdateError(error) {
+  const message = typeof error?.message === 'string' ? error.message : '';
+  const code = typeof error?.code === 'string' ? error.code : '';
+
+  if (code === 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND' || message.includes('latest-mac.yml') || message.includes('beta-mac.yml')) {
+    return 'Update metadata for this release was not found on GitHub. If you just published it, wait a minute and try again.';
+  }
+
+  if (code === 'ERR_UPDATER_LATEST_VERSION_NOT_FOUND') {
+    return 'Could not find a published update on GitHub.';
+  }
+
+  return 'Could not check for updates.';
 }
 
 function createUpdaterService({ app, Notification }) {
@@ -206,11 +222,21 @@ function createUpdaterService({ app, Notification }) {
       .then(() => updater.checkForUpdates())
       .then(() => getState())
       .catch((error) => {
-        setState({
-          status: 'error',
-          error: error?.message || 'Could not check for updates.',
-          downloadPercent: null,
-        });
+        if (userInitiated) {
+          setState({
+            status: 'error',
+            error: getUserFacingUpdateError(error),
+            downloadPercent: null,
+            lastCheckSucceeded: false,
+          });
+        } else {
+          setState({
+            status: 'idle',
+            error: null,
+            downloadPercent: null,
+            lastCheckSucceeded: false,
+          });
+        }
         return getState();
       })
       .finally(() => {
@@ -268,6 +294,7 @@ function createUpdaterService({ app, Notification }) {
         releaseNotes: normalizeReleaseNotes(info?.releaseNotes),
         releaseDate: info?.releaseDate || null,
         downloadPercent: 0,
+        lastCheckSucceeded: true,
         error: null,
       });
     });
@@ -293,6 +320,7 @@ function createUpdaterService({ app, Notification }) {
         releaseNotes: normalizeReleaseNotes(info?.releaseNotes) || currentState.releaseNotes,
         releaseDate: info?.releaseDate || currentState.releaseDate,
         downloadPercent: 100,
+        lastCheckSucceeded: true,
         error: null,
       });
       notifyUpdateReady(version);
@@ -306,16 +334,28 @@ function createUpdaterService({ app, Notification }) {
         releaseNotes: null,
         releaseDate: null,
         downloadPercent: null,
+        lastCheckSucceeded: true,
         error: null,
       });
     });
 
     updater.on('error', (error) => {
-      setState({
-        status: 'error',
-        error: error?.message || 'Could not check for updates.',
-        downloadPercent: null,
-      });
+      const userInitiated = currentState.lastCheckSource === 'manual';
+      if (userInitiated) {
+        setState({
+          status: 'error',
+          error: getUserFacingUpdateError(error),
+          downloadPercent: null,
+          lastCheckSucceeded: false,
+        });
+      } else {
+        setState({
+          status: 'idle',
+          error: null,
+          downloadPercent: null,
+          lastCheckSucceeded: false,
+        });
+      }
     });
   }
 

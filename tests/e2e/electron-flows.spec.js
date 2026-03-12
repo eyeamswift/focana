@@ -4,6 +4,9 @@ const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 
 const APP_ROOT = path.resolve(__dirname, '..', '..');
+const APP_VERSION = JSON.parse(
+  fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')
+).version;
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 
 function buildSeedConfig(seedConfig = null) {
@@ -330,7 +333,7 @@ test('settings surfaces mocked update availability and install action', async ()
 
     await page.getByRole('button', { name: 'Open Settings' }).click();
 
-    await expect(page.getByText('Current version 1.2.0-beta.1 on the beta channel.')).toBeVisible();
+    await expect(page.getByText(`Current version ${APP_VERSION} on the beta channel.`)).toBeVisible();
     await expect(page.getByText('Focana 1.2.0-beta.2 is ready to install.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Restart to Update' }).last().click();
@@ -561,7 +564,7 @@ test('freeflow check-ins stay suppressed during DND and appear after DND is turn
   }
 });
 
-test('reusing a task from history does not overwrite historical session id', async () => {
+test('reusing a task from history does not overwrite historical session id or leave the window oversized', async () => {
   const originalCreatedAt = new Date('2026-01-01T12:00:00.000Z').toISOString();
   const seedSession = {
     id: 'hist-1',
@@ -573,7 +576,7 @@ test('reusing a task from history does not overwrite historical session id', asy
     createdAt: originalCreatedAt,
   };
 
-  const { page, cleanup } = await launchApp();
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await page.evaluate(async (session) => {
@@ -585,7 +588,16 @@ test('reusing a task from history does not overwrite historical session id', asy
     await page.getByRole('button', { name: 'Open Session History' }).click();
     await expect(page.getByText('History seed task')).toBeVisible();
     await page.getByRole('button', { name: 'Preview Session Notes' }).first().click();
-    await page.getByRole('button', { name: 'Use This Task' }).click();
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      return main ? main.getBounds().height : null;
+    })).toBeLessThanOrEqual(580);
+
+    await page.getByRole('button', { name: 'Start This Task' }).click();
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      return main ? main.getBounds().height : null;
+    })).toBeLessThanOrEqual(420);
 
     let mainPage = page;
     const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
@@ -604,6 +616,42 @@ test('reusing a task from history does not overwrite historical session id', asy
 
     const spawned = sessions.filter((item) => item.id !== 'hist-1' && item.task === 'History seed task');
     expect(spawned.length).toBeGreaterThan(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('update errors are shown as concise user-facing copy', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_E2E_UPDATER_SCENARIO: 'error',
+      FOCANA_DISABLE_AUTO_UPDATES: '1',
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('button', { name: 'Check for Updates' }).click();
+    await expect(page.getByText('Could not check for updates.')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('automatic update check failures stay quiet until the user manually checks', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_E2E_UPDATER_SCENARIO: 'error',
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await expect(page.getByText('Automatic update checks run on app launch.')).toBeVisible();
+    await expect(page.getByText('Could not check for updates.')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Check for Updates' }).click();
+    await expect(page.getByText('Could not check for updates.')).toBeVisible();
   } finally {
     await cleanup();
   }

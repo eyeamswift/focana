@@ -66,7 +66,7 @@ const WINDOW_SIZES = {
   modal: {
     settings: [420, 580],
     history: [420, 500],
-    taskPreview: [520, 620],
+    taskPreview: [520, 540],
     parkingLot: [420, 500],
     postSessionParkingLot: [520, 560],
     timeUp: [540, 460],
@@ -277,8 +277,6 @@ export default function App() {
   const themeSettingsHydratedRef = useRef(false);
   const timeRef = useRef(0);
   const elapsedBeforeRunRef = useRef(0);
-  const pendingPostModalResizeRef = useRef(null);
-  const postModalResizeTimerRef = useRef(null);
   const parkingLotReturnToCompactRef = useRef(false);
   const historyReturnToCompactRef = useRef(false);
   const settingsReturnToCompactRef = useRef(false);
@@ -476,7 +474,6 @@ export default function App() {
       if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current);
       if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
       if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
-      if (postModalResizeTimerRef.current) clearTimeout(postModalResizeTimerRef.current);
       if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
       if (suppressToolbarTooltipTimerRef.current) clearTimeout(suppressToolbarTooltipTimerRef.current);
       if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
@@ -2343,11 +2340,6 @@ export default function App() {
     } catch (error) {
       console.error('Analytics tracking failed in handleUseTask:', error);
     }
-
-    pendingPostModalResizeRef.current = {
-      minWidth: 500,
-      minHeight: nextNotes.trim() ? WINDOW_SIZES.contextHeight : WINDOW_SIZES.timerHeight,
-    };
   };
 
   const getValidatedSessionMinutes = useCallback(() => {
@@ -2618,26 +2610,13 @@ export default function App() {
       };
     } else {
       window.electronAPI.modalClosed();
-      const pendingResize = pendingPostModalResizeRef.current;
-      if (pendingResize) {
-        pendingPostModalResizeRef.current = null;
-        if (postModalResizeTimerRef.current) {
-          clearTimeout(postModalResizeTimerRef.current);
-        }
-        // Wait a tick so main-process modal-close restoration applies first.
-        postModalResizeTimerRef.current = setTimeout(() => {
-          window.electronAPI.ensureMainWindowSize?.(pendingResize.minWidth, pendingResize.minHeight);
-          postModalResizeTimerRef.current = null;
-        }, 30);
-      } else {
-        // Modal close can restore older bounds from main process;
-        // re-apply current screen target after restoration settles.
-        const settleTimer = setTimeout(() => {
-          resyncFullWindowSize();
-          setTimeout(() => resyncFullWindowSize(), 140);
-        }, 60);
-        return () => clearTimeout(settleTimer);
-      }
+      // Modal close can restore older bounds from main process;
+      // re-apply current screen target after restoration settles.
+      const settleTimer = setTimeout(() => {
+        resyncFullWindowSize();
+        setTimeout(() => resyncFullWindowSize(), 140);
+      }, 60);
+      return () => clearTimeout(settleTimer);
     }
     return undefined;
   }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, postSessionParkingLotSessionId, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);

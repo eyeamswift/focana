@@ -135,7 +135,25 @@ function runElectronBuilder(args) {
     process.exit(1);
   }
 
-  process.exit(result.status ?? 1);
+  return result.status ?? 1;
+}
+
+function expectedMacManifestName(version) {
+  const channel = getUpdateChannel(version);
+  return channel === 'latest' ? 'latest-mac.yml' : `${channel}-mac.yml`;
+}
+
+function verifyMacUpdateManifest(version) {
+  const manifestName = expectedMacManifestName(version);
+  const manifestPath = path.join(projectRoot, 'release', manifestName);
+
+  if (!fs.existsSync(manifestPath)) {
+    console.error(`[release] Missing expected updater manifest: ${manifestName}`);
+    console.error('[release] Auto-update checks will fail unless this file is present in the release assets.');
+    process.exit(1);
+  }
+
+  console.log(`[release] Verified updater manifest: ${manifestName}`);
 }
 
 const mode = process.argv[2] || 'zip';
@@ -153,4 +171,11 @@ if (requireNotarization) {
 }
 
 const builderArgs = getBuilderArgs(mode, publishMode, getAppVersion());
-runElectronBuilder(builderArgs);
+const version = getAppVersion();
+const exitCode = runElectronBuilder(builderArgs);
+if (exitCode !== 0) {
+  process.exit(exitCode);
+}
+
+verifyMacUpdateManifest(version);
+process.exit(0);
