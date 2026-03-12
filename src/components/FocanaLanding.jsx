@@ -997,8 +997,8 @@ export default function FocanaLanding() {
         <div className="section">
           <h2 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, color: COLORS.deepAmber, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "12px",
+            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+            textAlign: "center", marginBottom: "60px",
           }}>Everything you need. Nothing you don't.</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "24px" }}>
