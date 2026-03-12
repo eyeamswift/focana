@@ -101,8 +101,8 @@ function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
   );
 }
 
-const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.0.1/Focana-1.0.1-mac-arm64.dmg";
-const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.0.1/Focana-1.0.1-mac-x64.dmg";
+const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.1/Focana-1.2.0-beta.1-mac-arm64.dmg";
+const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.1/Focana-1.2.0-beta.1-mac-x64.dmg";
 
 function getIsAppleSilicon() {
   try {
