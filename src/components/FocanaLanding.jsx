@@ -1030,32 +1030,6 @@ export default function FocanaLanding() {
             </p>
           </div>
 
-          {/* Demo Video */}
-          <div style={{
-            maxWidth: "880px", margin: "60px auto 0", borderRadius: "20px",
-            background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
-            border: `2px solid ${COLORS.beigeBorder}`,
-            aspectRatio: "16/9",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            position: "relative", overflow: "hidden",
-            boxShadow: "0 20px 60px rgba(92, 64, 51, 0.12)",
-          }}>
-            <div style={{
-              width: "clamp(60px, 15vw, 80px)", height: "clamp(60px, 15vw, 80px)", borderRadius: "50%",
-              background: COLORS.sunshineYellow,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 8px 30px rgba(245, 158, 11, 0.3)",
-              transition: "all 0.3s ease",
-            }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill={COLORS.warmBrown} aria-hidden="true">
-                <polygon points="8,5 19,12 8,19" />
-              </svg>
-            </div>
-            <p style={{ marginTop: "16px", fontSize: "15px", color: COLORS.coffeeBrown, fontWeight: 500 }}>
-              Demo video coming soon
-            </p>
-          </div>
         </div>
       </section>
 
