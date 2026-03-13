@@ -5,6 +5,9 @@ const canonicalURL = "https://focana.app/download";
 
 const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-arm64.dmg";
 const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-x64.dmg";
+
+const email = Astro.url.searchParams.get("email") || "";
+const orderId = Astro.url.searchParams.get("order_id") || "";
 ---
 
 <html lang="en">
@@ -44,7 +47,7 @@ const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 24px;
+        padding: 24px 24px 48px;
       }
       .download-card {
         background: white;
@@ -190,82 +193,294 @@ const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0
       .info-tooltip:focus-within .tooltip-img {
         display: block;
       }
+      /* Survey section */
+      .page-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+        width: 100%;
+        max-width: 520px;
+      }
+      .survey-section {
+        display: none;
+        opacity: 0;
+        background: white;
+        border-radius: 24px;
+        padding: 40px;
+        width: 100%;
+        box-shadow: 0 24px 80px rgba(92, 64, 51, 0.12);
+        text-align: left;
+        transition: opacity 0.4s ease;
+      }
+      .survey-section.visible {
+        display: block;
+      }
+      .survey-section.fade-in {
+        opacity: 1;
+      }
+      .survey-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 28px;
+      }
+      .survey-header h2 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: #5C4033;
+        line-height: 1.4;
+        flex: 1;
+        margin-right: 16px;
+      }
+      .skip-link {
+        font-size: 14px;
+        font-weight: 600;
+        color: #8B6F47;
+        cursor: pointer;
+        background: none;
+        border: none;
+        font-family: 'DM Sans', sans-serif;
+        white-space: nowrap;
+        padding: 4px 0;
+        flex-shrink: 0;
+      }
+      .skip-link:hover {
+        color: #D97706;
+        text-decoration: underline;
+      }
+      .survey-question {
+        margin-bottom: 24px;
+      }
+      .survey-question:last-of-type {
+        margin-bottom: 28px;
+      }
+      .survey-question label.question-label {
+        display: block;
+        font-family: 'Outfit', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        color: #5C4033;
+        margin-bottom: 12px;
+      }
+      .survey-options {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .survey-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1.5px solid #E5D4B1;
+        background: #FFFEF8;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease;
+        font-size: 14px;
+        color: #5C4033;
+        line-height: 1.4;
+      }
+      .survey-option:hover {
+        border-color: #D97706;
+        background: #FFF9E6;
+      }
+      .survey-option input[type="radio"],
+      .survey-option input[type="checkbox"] {
+        accent-color: #F59E0B;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .survey-option span {
+        cursor: pointer;
+      }
+      .survey-submit {
+        width: 100%;
+        padding: 14px 24px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+      }
+      .survey-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3);
+      }
+      .survey-submit:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      .survey-thanks {
+        display: none;
+        text-align: center;
+        padding: 20px 0 4px;
+      }
+      .survey-thanks.visible {
+        display: block;
+      }
+      .survey-thanks p {
+        font-size: 16px;
+        font-weight: 600;
+        color: #5C4033;
+        line-height: 1.5;
+      }
       @media (max-width: 480px) {
         .download-card { padding: 32px 24px; }
         .download-card h1 { font-size: 24px; }
         .download-buttons { flex-direction: column; }
         .download-btn { min-width: unset; }
+        .survey-section { padding: 28px 20px; }
+        .survey-header h2 { font-size: 18px; }
       }
     </style>
   </head>
   <body>
-    <div class="download-card">
-      <h1>Thank you for your purchase!</h1>
-      <p class="subtitle">
-        You're in. Download Focana and start your first session in seconds.
-      </p>
+    <div class="page-wrapper">
+      <div class="download-card">
+        <h1>Thank you for your purchase!</h1>
+        <p class="subtitle">
+          You're in. Download Focana and start your first session in seconds.
+        </p>
 
-      <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
-      <div class="download-buttons" id="download-buttons">
-        <a href={ARM_URL} class="download-btn primary" id="arm-btn">
-          Apple Silicon (M1–M4)
-        </a>
-        <a href={INTEL_URL} class="download-btn secondary" id="intel-btn">
-          Intel Mac
-        </a>
+        <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
+        <div class="download-buttons" id="download-buttons">
+          <a href={ARM_URL} class="download-btn primary" id="arm-btn">
+            Apple Silicon (M1–M4)
+          </a>
+          <a href={INTEL_URL} class="download-btn secondary" id="intel-btn">
+            Intel Mac
+          </a>
+        </div>
+
+        <p class="chip-help">
+          <strong>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
+          <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
+        </p>
+
+        <div class="not-sure-box">
+          <span class="info-tooltip">
+            Not sure which to pick? Click the  icon in the top left of your screen and select "About This Mac."
+            <span class="info-icon" tabindex="0" aria-label="Show helper image">?</span>
+            <span class="tooltip-img"><img src="/download-help.png" alt="Screenshot showing Apple menu with About This Mac highlighted" /></span>
+          </span>
+        </div>
+
+        <a href="/" class="back-link">&larr; Back to focana.app</a>
       </div>
 
-      <p class="chip-help">
-        <strong>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
-        <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
-      </p>
+      <div class="survey-section" id="survey-section">
+        <div class="survey-header">
+          <h2>While Focana downloads — help us with 3 quick questions</h2>
+          <button class="skip-link" id="survey-skip">Skip</button>
+        </div>
 
-      <div class="not-sure-box">
-        <span class="info-tooltip">
-          Not sure which to pick? Click the  icon in the top left of your screen and select "About This Mac."
-          <span class="info-icon" tabindex="0" aria-label="Show helper image">?</span>
-          <span class="tooltip-img"><img src="/download-help.png" alt="Screenshot showing Apple menu with About This Mac highlighted" /></span>
-        </span>
+        <form id="survey-form">
+          <div class="survey-question">
+            <label class="question-label">1. How'd you find Focana?</label>
+            <div class="survey-options">
+              <label class="survey-option"><input type="radio" name="how_found" value="Reddit" /><span>Reddit</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Twitter / X" /><span>Twitter / X</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="TikTok" /><span>TikTok</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="YouTube" /><span>YouTube</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="A friend or coworker" /><span>A friend or coworker</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="An ADHD creator or coach" /><span>An ADHD creator or coach</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Product Hunt" /><span>Product Hunt</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Google search" /><span>Google search</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Blog or article" /><span>Blog or article</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Other" /><span>Other</span></label>
+            </div>
+          </div>
+
+          <div class="survey-question">
+            <label class="question-label">2. What's your biggest focus struggle?</label>
+            <div class="survey-options">
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I can't start tasks even when I know what to do" /><span>I can't start tasks even when I know what to do</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I lose track of what I'm working on when I switch apps" /><span>I lose track of what I'm working on when I switch apps</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I don't notice time passing until it's too late" /><span>I don't notice time passing until it's too late</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="Random thoughts pull me off track constantly" /><span>Random thoughts pull me off track constantly</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I've tried other tools and nothing sticks" /><span>I've tried other tools and nothing sticks</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I forget where I left off between work sessions" /><span>I forget where I left off between work sessions</span></label>
+            </div>
+          </div>
+
+          <div class="survey-question">
+            <label class="question-label">3. What have you tried before?</label>
+            <div class="survey-options">
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Phone timers or alarms" /><span>Phone timers or alarms</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Pomodoro apps (Forest, Focus Keeper, etc.)" /><span>Pomodoro apps (Forest, Focus Keeper, etc.)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Notion / Todoist / task managers" /><span>Notion / Todoist / task managers</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Focus music (Brain.fm, Endel, lo-fi)" /><span>Focus music (Brain.fm, Endel, lo-fi)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Website blockers (Cold Turkey, Freedom)" /><span>Website blockers (Cold Turkey, Freedom)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Body doubling (Focusmate, co-working streams)" /><span>Body doubling (Focusmate, co-working streams)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Sticky notes (physical or digital)" /><span>Sticky notes (physical or digital)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Nothing — this is my first try" /><span>Nothing — this is my first try</span></label>
+            </div>
+          </div>
+
+          <button type="submit" class="survey-submit" id="survey-submit">Send &amp; start focusing</button>
+        </form>
+
+        <div class="survey-thanks" id="survey-thanks">
+          <p>Thanks! Now go open Focana and start your first session.</p>
+        </div>
       </div>
-
-      <a href="/" class="back-link">&larr; Back to focana.app</a>
     </div>
+
+    <script type="text/javascript" data-email={email} data-order-id={orderId} id="page-data"></script>
 
     <script>
       (function() {
+        // Read server-injected data
+        var pageData = document.getElementById('page-data');
+        var customerEmail = pageData ? pageData.getAttribute('data-email') : '';
+        var orderId = pageData ? pageData.getAttribute('data-order-id') : '';
+
         function getIsAppleSilicon() {
           try {
             if (!/Mac/.test(navigator.userAgent)) return null;
-            // Check UA for ARM
             if (/ARM/.test(navigator.userAgent)) return true;
-            // iPad-as-Mac detection
             if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
-            // WebGL renderer — Apple GPU = Apple Silicon, Intel = Intel Mac
-            const canvas = document.createElement("canvas");
-            const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+            var canvas = document.createElement("canvas");
+            var gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
             if (gl) {
-              const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+              var dbg = gl.getExtension("WEBGL_debug_renderer_info");
               if (dbg) {
-                const renderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+                var renderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
                 if (/Apple/.test(renderer) && !/Intel/.test(renderer)) return true;
                 if (/Intel/.test(renderer)) return false;
               }
             }
-          } catch {}
+          } catch(e) {}
           return null;
         }
 
-        const isArm = getIsAppleSilicon();
-        const armBtn = document.getElementById('arm-btn');
-        const intelBtn = document.getElementById('intel-btn');
-        const label = document.getElementById('recommended-label');
+        var isArm = getIsAppleSilicon();
+        var armBtn = document.getElementById('arm-btn');
+        var intelBtn = document.getElementById('intel-btn');
+        var label = document.getElementById('recommended-label');
 
         function phCapture(event, props) {
           if (window.posthog) window.posthog.capture(event, props);
         }
 
         // Track download page view
-        phCapture("download_page_viewed", { chip_detected: isArm === true ? "apple_silicon" : isArm === false ? "intel" : "unknown" });
+        phCapture("download_page_viewed", {
+          chip_detected: isArm === true ? "apple_silicon" : isArm === false ? "intel" : "unknown",
+          email: customerEmail,
+          order_id: orderId
+        });
 
         if (isArm === true) {
           label.classList.add('visible');
@@ -281,12 +496,102 @@ const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0
           intelBtn.classList.add('primary');
         }
 
-        // Track download clicks
+        // Survey elements
+        var surveySection = document.getElementById('survey-section');
+        var surveyForm = document.getElementById('survey-form');
+        var surveySkip = document.getElementById('survey-skip');
+        var surveyThanks = document.getElementById('survey-thanks');
+        var surveySubmitBtn = document.getElementById('survey-submit');
+        var surveyShown = false;
+
+        function showSurvey() {
+          if (surveyShown) return;
+          surveyShown = true;
+          surveySection.classList.add('visible');
+          // Trigger reflow then fade in
+          surveySection.offsetHeight;
+          surveySection.classList.add('fade-in');
+          // Scroll to survey smoothly
+          setTimeout(function() {
+            surveySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+        }
+
+        function showThanks() {
+          surveyForm.style.display = 'none';
+          document.querySelector('.survey-header').style.display = 'none';
+          surveyThanks.classList.add('visible');
+        }
+
+        // Supabase config
+        var SUPABASE_URL = 'https://blqkhjgngrcyuafektvk.supabase.co';
+        var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJscWtoamduZ3JjeXVhZmVrdHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3MzUwNDEsImV4cCI6MjA4ODMxMTA0MX0.G1VH5t9ATCkO41bx991xBW1-NtXFQQf2Wg_9ZXjEoDM';
+
+        // Track download clicks & show survey
         armBtn.addEventListener('click', function() {
-          phCapture("dmg_downloaded", { chip: "apple_silicon" });
+          phCapture("dmg_downloaded", { chip: "apple_silicon", email: customerEmail, order_id: orderId });
+          showSurvey();
         });
         intelBtn.addEventListener('click', function() {
-          phCapture("dmg_downloaded", { chip: "intel" });
+          phCapture("dmg_downloaded", { chip: "intel", email: customerEmail, order_id: orderId });
+          showSurvey();
+        });
+
+        // Skip survey
+        surveySkip.addEventListener('click', function() {
+          phCapture("survey_skipped", { email: customerEmail, order_id: orderId });
+          showThanks();
+        });
+
+        // Submit survey
+        surveyForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          surveySubmitBtn.disabled = true;
+          surveySubmitBtn.textContent = 'Sending...';
+
+          // Gather responses
+          var howFoundEl = surveyForm.querySelector('input[name="how_found"]:checked');
+          var howFound = howFoundEl ? howFoundEl.value : null;
+
+          var focusStruggles = [];
+          surveyForm.querySelectorAll('input[name="focus_struggles"]:checked').forEach(function(cb) {
+            focusStruggles.push(cb.value);
+          });
+
+          var toolsTried = [];
+          surveyForm.querySelectorAll('input[name="tools_tried"]:checked').forEach(function(cb) {
+            toolsTried.push(cb.value);
+          });
+
+          // Fire PostHog event
+          phCapture("survey_completed", {
+            email: customerEmail,
+            order_id: orderId,
+            how_found: howFound,
+            focus_struggles: focusStruggles,
+            tools_tried: toolsTried
+          });
+
+          // Patch Supabase customer row
+          if (customerEmail) {
+            var patchBody = {};
+            if (howFound) patchBody.how_found = howFound;
+            if (focusStruggles.length) patchBody.focus_struggles = focusStruggles;
+            if (toolsTried.length) patchBody.tools_tried = toolsTried;
+
+            fetch(SUPABASE_URL + '/rest/v1/customers?email=eq.' + encodeURIComponent(customerEmail), {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify(patchBody)
+            }).catch(function() { /* silent fail */ });
+          }
+
+          showThanks();
         });
       })();
     </script>

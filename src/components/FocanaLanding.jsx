@@ -345,8 +345,16 @@ export default function FocanaLanding() {
         window.LemonSqueezy.Setup({
           eventHandler: (event) => {
             if (event.event === "Checkout.Success") {
-              phCapture("purchase_completed");
-              window.location.href = "/download";
+              const data = event.data || {};
+              const order = data.order || {};
+              const email = order.user_email || "";
+              const orderId = order.id || order.order_id || "";
+              phCapture("purchase_completed", { email, order_id: orderId });
+              const params = new URLSearchParams();
+              if (email) params.set("email", email);
+              if (orderId) params.set("order_id", orderId);
+              const qs = params.toString();
+              window.location.href = "/download" + (qs ? "?" + qs : "");
             }
             if (event.event === "Checkout.Open") {
               phCapture("checkout_opened");
