@@ -1,0 +1,197 @@
+---
+const title = "Download Focana — Thank You!";
+const description = "Download Focana for macOS. Choose Apple Silicon or Intel.";
+const canonicalURL = "https://focana.app/download";
+
+const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-arm64.dmg";
+const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-x64.dmg";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html { scroll-behavior: smooth; }
+      body {
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: linear-gradient(160deg, #FFFEF8 0%, #FFF9E6 50%, #FEF3C722 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .download-card {
+        background: white;
+        border-radius: 24px;
+        padding: 48px 40px;
+        max-width: 520px;
+        width: 100%;
+        box-shadow: 0 24px 80px rgba(92, 64, 51, 0.12);
+        text-align: center;
+      }
+      .download-card h1 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 28px;
+        font-weight: 800;
+        color: #5C4033;
+        margin-bottom: 8px;
+      }
+      .download-card .subtitle {
+        font-size: 16px;
+        color: #8B6F47;
+        margin-bottom: 32px;
+        line-height: 1.5;
+      }
+      .download-buttons {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .download-btn {
+        flex: 1;
+        min-width: 180px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: none;
+      }
+      .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3);
+      }
+      .download-btn.primary {
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+      }
+      .download-btn.secondary {
+        background: #FEF3C7;
+        color: #5C4033;
+        border: 2px solid #E5D4B1;
+      }
+      .download-btn.recommended {
+        position: relative;
+      }
+      .recommended-badge {
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        background: #5C4033;
+        color: white;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 6px;
+      }
+      .chip-help {
+        font-size: 12px;
+        color: #7A6548;
+        line-height: 1.5;
+        margin-bottom: 24px;
+      }
+      .chip-help strong {
+        color: #8B6F47;
+      }
+      .back-link {
+        display: inline-block;
+        font-size: 14px;
+        color: #D97706;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .back-link:hover {
+        text-decoration: underline;
+      }
+      @media (max-width: 480px) {
+        .download-card { padding: 32px 24px; }
+        .download-card h1 { font-size: 24px; }
+        .download-buttons { flex-direction: column; }
+        .download-btn { min-width: unset; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="download-card">
+      <h1>Thank you for your purchase!</h1>
+      <p class="subtitle">
+        You're in. Download Focana and start your first session in seconds.
+      </p>
+
+      <div class="download-buttons" id="download-buttons">
+        <a href={ARM_URL} class="download-btn primary" id="arm-btn">
+          Apple Silicon (M1–M4)
+        </a>
+        <a href={INTEL_URL} class="download-btn secondary" id="intel-btn">
+          Intel Mac
+        </a>
+      </div>
+
+      <p class="chip-help">
+        <strong>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
+        <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
+      </p>
+
+      <a href="/" class="back-link">&larr; Back to focana.app</a>
+    </div>
+
+    <script>
+      (function() {
+        function getIsAppleSilicon() {
+          try {
+            const ua = navigator.userAgent;
+            if (/Mac/.test(ua) && /ARM/.test(ua)) return true;
+            if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
+          } catch {}
+          return null;
+        }
+
+        const isArm = getIsAppleSilicon();
+        const armBtn = document.getElementById('arm-btn');
+        const intelBtn = document.getElementById('intel-btn');
+
+        if (isArm === true) {
+          armBtn.classList.add('recommended');
+          armBtn.innerHTML = 'Apple Silicon (M1–M4) <span class="recommended-badge">Recommended</span>';
+          intelBtn.classList.remove('primary');
+          intelBtn.classList.add('secondary');
+          armBtn.classList.remove('secondary');
+          armBtn.classList.add('primary');
+        } else if (isArm === false) {
+          intelBtn.classList.add('recommended');
+          intelBtn.innerHTML = 'Intel Mac <span class="recommended-badge">Recommended</span>';
+          armBtn.classList.remove('primary');
+          armBtn.classList.add('secondary');
+          intelBtn.classList.remove('secondary');
+          intelBtn.classList.add('primary');
+        }
+      })();
+    </script>
+  </body>
+</html>

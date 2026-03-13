@@ -286,311 +286,10 @@ function getIsAppleSilicon() {
   return null; // unknown
 }
 
-// Download modal
-function DownloadModal({ open, onClose }) {
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [status, setStatus] = useState("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const modalRef = useRef(null);
-  const previousFocusRef = useRef(null);
-
-  useEffect(() => {
-    if (open) {
-      previousFocusRef.current = document.activeElement;
-      document.body.style.overflow = "hidden";
-      // Focus first input after render
-      setTimeout(() => {
-        const firstInput = modalRef.current?.querySelector("input, button");
-        if (firstInput) firstInput.focus();
-      }, 0);
-    } else {
-      document.body.style.overflow = "";
-      if (previousFocusRef.current) {
-        previousFocusRef.current.focus();
-        previousFocusRef.current = null;
-      }
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      setEmail("");
-      setPhone("");
-      setStatus("idle");
-      setErrorMsg("");
-      return;
-    }
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") { onClose(); return; }
-      if (e.key === "Tab" && modalRef.current) {
-        const focusable = modalRef.current.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])');
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!email) return;
-
-    setStatus("loading");
-    setErrorMsg("");
-
-    try {
-      const res = await fetch("/api/beta-download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, phone: phone || undefined }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Something went wrong. Please try again.");
-      }
-
-      setStatus("success");
-    } catch (err) {
-      setStatus("error");
-      setErrorMsg(err.message || "Something went wrong. Please try again.");
-    }
-  };
-
-  if (!open) return null;
-
-  return (
-    <div
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="download-modal-title"
-      style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "24px",
-      }}
-    >
-      <div
-        ref={modalRef}
-        className="modal-inner"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "white", borderRadius: "20px", padding: "40px",
-          maxWidth: "440px", width: "100%", position: "relative",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.2)",
-        }}
-      >
-        <button
-          onClick={onClose}
-          aria-label="Close dialog"
-          style={{
-            position: "absolute", top: "12px", right: "12px",
-            background: "none", border: "none", fontSize: "24px",
-            cursor: "pointer", color: COLORS.coffeeBrown, lineHeight: 1,
-            width: "44px", height: "44px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            borderRadius: "8px",
-          }}
-        >
-          &times;
-        </button>
-
-        {status === "success" ? (
-          <>
-            <h3 id="download-modal-title" style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "24px",
-              fontWeight: 800, color: COLORS.warmBrown, marginBottom: "8px",
-            }}>
-              You're in! Download Focana
-            </h3>
-            <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.5 }}>
-              Select your Mac type to start the download:
-            </p>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
-              <a href={ARM_URL} className="cta-btn" style={{
-                flex: 1, minWidth: "160px", textAlign: "center", textDecoration: "none",
-                fontSize: "15px", padding: "14px 20px", animation: "none",
-              }}>
-                Apple Silicon (M1–M4)
-              </a>
-              <a href={INTEL_URL} className="cta-btn" style={{
-                flex: 1, minWidth: "160px", textAlign: "center", textDecoration: "none",
-                fontSize: "15px", padding: "14px 20px", animation: "none",
-              }}>
-                Intel Mac
-              </a>
-            </div>
-            <p style={{ fontSize: "11.5px", color: COLORS.warmGray, lineHeight: 1.45, marginBottom: "12px" }}>
-              <strong style={{ color: COLORS.coffeeBrown }}>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
-              <strong style={{ color: COLORS.coffeeBrown }}>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
-            </p>
-            <p style={{ fontSize: "13px", color: COLORS.warmGray, textAlign: "center" }}>
-              Check your email for getting started tips.
-            </p>
-          </>
-        ) : (
-          <>
-            <h3 id="download-modal-title" style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "24px",
-              fontWeight: 800, color: COLORS.warmBrown, marginBottom: "8px",
-            }}>
-              Try Focana for Free
-            </h3>
-            <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.5 }}>
-              Enter your email to download Focana for macOS.
-            </p>
-
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <input
-                className="form-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@email.com"
-                required
-                style={{
-                  padding: "14px 16px", borderRadius: "10px",
-                  border: `2px solid ${COLORS.beigeBorder}`,
-                  fontSize: "16px", fontFamily: "'DM Sans', sans-serif",
-                  width: "100%", boxSizing: "border-box",
-                }}
-              />
-              <input
-                className="form-input"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Phone (optional — for new features and updates)"
-                style={{
-                  padding: "14px 16px", borderRadius: "10px",
-                  border: `2px solid ${COLORS.beigeBorder}`,
-                  fontSize: "16px", fontFamily: "'DM Sans', sans-serif",
-                  width: "100%", boxSizing: "border-box",
-                }}
-              />
-              <button
-                className="cta-btn"
-                type="submit"
-                disabled={status === "loading"}
-                style={{ width: "100%", justifyContent: "center", animation: "none" }}
-              >
-                {status === "loading" ? "Sending..." : "Try for Free →"}
-              </button>
-            </form>
-
-            {status === "error" && (
-              <p style={{ color: "#EF4444", fontSize: "14px", marginTop: "10px" }}>
-                {errorMsg}
-              </p>
-            )}
-
-            <p style={{ fontSize: "13px", color: COLORS.warmGray, marginTop: "16px", textAlign: "center" }}>
-              macOS only. Windows coming soon.
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Success toast with fallback download link
-function DownloadToast({ visible, onDismiss }) {
-  const isArm = getIsAppleSilicon();
-  const primaryUrl = isArm ? ARM_URL : INTEL_URL;
-  const altUrl = isArm ? INTEL_URL : ARM_URL;
-  const altLabel = isArm ? "Intel Mac" : "Apple Silicon (M1–M4)";
-  const detected = isArm !== null;
-
-  useEffect(() => {
-    if (visible) {
-      const t = setTimeout(onDismiss, 15000);
-      return () => clearTimeout(t);
-    }
-  }, [visible, onDismiss]);
-
-  if (!visible) return null;
-
-  return (
-    <div className="download-toast" style={{
-      position: "fixed", bottom: "32px", right: "32px", zIndex: 1100,
-      background: "white", borderRadius: "16px", padding: "24px",
-      boxShadow: "0 12px 48px rgba(0,0,0,0.18)", maxWidth: "380px", width: "calc(100% - 64px)",
-      border: `1px solid ${COLORS.deepAmber}`,
-    }}>
-      <button
-        onClick={onDismiss}
-        aria-label="Dismiss notification"
-        style={{
-          position: "absolute", top: "8px", right: "8px",
-          background: "none", border: "none", fontSize: "20px",
-          cursor: "pointer", color: COLORS.coffeeBrown, lineHeight: 1,
-          width: "44px", height: "44px",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          borderRadius: "8px",
-        }}
-      >
-        &times;
-      </button>
-      <p style={{ fontSize: "17px", fontWeight: 700, color: COLORS.deepAmber, marginBottom: "4px" }}>
-        {detected ? "Your download is starting!" : "You're all set!"}
-      </p>
-      <p style={{ fontSize: "14px", color: COLORS.coffeeBrown, marginBottom: "14px", lineHeight: 1.5 }}>
-        {detected ? "Check your email for getting started tips." : "Check your email for getting started tips, and grab your download below."}
-      </p>
-      {detected ? (
-        <>
-          <a href={primaryUrl} style={{
-            display: "inline-block", fontSize: "14px", fontWeight: 600,
-            color: COLORS.deepAmber, textDecoration: "underline", marginBottom: "6px",
-          }}>
-            Download didn't start? Click here.
-          </a>
-          <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
-            Need the <a href={altUrl} style={{ color: COLORS.coffeeBrown, textDecoration: "underline" }}>{altLabel}</a> version?
-          </p>
-          <p style={{ fontSize: "11.5px", color: COLORS.warmGray, marginTop: "10px", lineHeight: 1.45 }}>
-            <strong style={{ color: COLORS.coffeeBrown }}>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
-            <strong style={{ color: COLORS.coffeeBrown }}>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
-          </p>
-        </>
-      ) : (
-        <>
-          <p style={{ fontSize: "14px", color: COLORS.coffeeBrown, marginBottom: "10px" }}>
-            Select your Mac type to download:
-          </p>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <a href={ARM_URL} style={{
-              padding: "8px 16px", borderRadius: "8px", background: COLORS.deepAmber,
-              color: "white", fontSize: "13px", fontWeight: 600, textDecoration: "none",
-            }}>Apple Silicon (M1–M4)</a>
-            <a href={INTEL_URL} style={{
-              padding: "8px 16px", borderRadius: "8px", background: COLORS.deepAmber,
-              color: "white", fontSize: "13px", fontWeight: 600, textDecoration: "none",
-            }}>Intel</a>
-          </div>
-          <p style={{ fontSize: "11.5px", color: COLORS.warmGray, marginTop: "10px", lineHeight: 1.45 }}>
-            <strong style={{ color: COLORS.coffeeBrown }}>Apple Silicon (M1–M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
-            <strong style={{ color: COLORS.coffeeBrown }}>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
+const CHECKOUT_URL = "https://focana.lemonsqueezy.com/checkout/buy/d4f23c8d-b002-48c9-8ed6-a5ea6220ac59?embed=1";
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
-  const [modalOpen, setModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [headlineIndex, setHeadlineIndex] = useState(0);
@@ -618,6 +317,22 @@ export default function FocanaLanding() {
       setHeadlineIndex((prev) => (prev + 1) % 4);
     }, 2500);
     return () => clearInterval(timer);
+  }, []);
+
+  // Lemon Squeezy checkout success → redirect to download page
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (typeof event.data === "string") {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === "Checkout.Success") {
+            window.location.href = "/download";
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   // Close mobile menu on Escape
@@ -798,7 +513,7 @@ export default function FocanaLanding() {
             <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Try for Free</button>
+            <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Try Risk Free</a>
           </div>
           <button
             className="hamburger-btn"
@@ -843,7 +558,7 @@ export default function FocanaLanding() {
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); setModalOpen(true); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Try for Free</button>
+          <a href={CHECKOUT_URL} onClick={() => setMobileMenuOpen(false)} className="lemonsqueezy-button cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center", textDecoration: "none" }}>Try Risk Free</a>
         </div>
       )}
 
@@ -912,10 +627,10 @@ export default function FocanaLanding() {
             </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Try for Free
+              <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
+                Try Risk Free
                 <span style={{ fontSize: "22px" }}>→</span>
-              </button>
+              </a>
               <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                 See How It Works
               </a>
@@ -1226,9 +941,9 @@ export default function FocanaLanding() {
               When beta ends, Focana moves to $49 lifetime or $8/month.<br />
               This price goes away when that happens.
             </p>
-            <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Try for Free
-            </button>
+            <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
+              Lock in Founding Member Pricing
+            </a>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
               One-time payment. macOS. Instant download.<br />
               No subscription. Ever.
@@ -1327,9 +1042,9 @@ export default function FocanaLanding() {
             $29 once. Yours forever. 7-day guarantee.
           </p>
 
-          <button onClick={() => setModalOpen(true)} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Try for Free <span style={{ fontSize: "22px" }}>→</span>
-          </button>
+          <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
+            Try Risk Free <span style={{ fontSize: "22px" }}>→</span>
+          </a>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
             Focana — the desktop focus buddy for busy brains.
@@ -1348,7 +1063,6 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      <DownloadModal open={modalOpen} onClose={() => setModalOpen(false)} />
       <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
 
       {/* FOOTER */}
