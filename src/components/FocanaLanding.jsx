@@ -893,7 +893,8 @@ export default function FocanaLanding() {
               fontStyle: "italic",
               color: COLORS.warmBrown,
               opacity: 0.7,
-              marginBottom: "12px",
+              marginTop: "24px",
+              marginBottom: "24px",
               animation: "fadeUp 0.6s ease 0.15s both",
             }}>
               Sound familiar?
