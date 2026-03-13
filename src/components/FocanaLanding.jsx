@@ -14,6 +14,12 @@ const COLORS = {
   warmGray: "#7A6548",
 };
 
+function phCapture(event, props) {
+  if (typeof window !== "undefined" && window.posthog) {
+    window.posthog.capture(event, props);
+  }
+}
+
 // FAQ Item
 let faqCounter = 0;
 function FAQItem({ question, answer }) {
@@ -27,7 +33,10 @@ function FAQItem({ question, answer }) {
       }}
     >
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!open) phCapture("faq_clicked", { question });
+          setOpen(!open);
+        }}
         aria-expanded={open}
         aria-controls={`${id}-panel`}
         style={{
@@ -336,7 +345,11 @@ export default function FocanaLanding() {
         window.LemonSqueezy.Setup({
           eventHandler: (event) => {
             if (event.event === "Checkout.Success") {
+              phCapture("purchase_completed");
               window.location.href = "/download";
+            }
+            if (event.event === "Checkout.Open") {
+              phCapture("checkout_opened");
             }
           },
         });
@@ -354,6 +367,53 @@ export default function FocanaLanding() {
         clearTimeout(t);
       };
     }
+  }, []);
+
+  // Scroll depth tracking (25%, 50%, 75%, 100%)
+  useEffect(() => {
+    const thresholds = [25, 50, 75, 100];
+    const fired = new Set();
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+      const pct = Math.round((scrollTop / docHeight) * 100);
+      for (const t of thresholds) {
+        if (pct >= t && !fired.has(t)) {
+          fired.add(t);
+          phCapture("page_scrolled", { depth: t });
+        }
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Section viewed tracking via IntersectionObserver
+  useEffect(() => {
+    const sections = {
+      features: "Features",
+      pricing: "Pricing",
+      faq: "FAQ",
+      "who-its-for": "Who It's For",
+    };
+    const fired = new Set();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !fired.has(entry.target.id)) {
+            fired.add(entry.target.id);
+            phCapture("section_viewed", { section: sections[entry.target.id] });
+          }
+        }
+      },
+      { threshold: 0.3 }
+    );
+    for (const id of Object.keys(sections)) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
   }, []);
 
   // Close mobile menu on Escape
@@ -534,7 +594,7 @@ export default function FocanaLanding() {
             <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Try Risk Free</a>
+            <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "nav" })} className="lemonsqueezy-button cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Try Risk Free</a>
           </div>
           <button
             className="hamburger-btn"
@@ -579,7 +639,7 @@ export default function FocanaLanding() {
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <a href={CHECKOUT_URL} onClick={() => setMobileMenuOpen(false)} className="lemonsqueezy-button cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center", textDecoration: "none" }}>Try Risk Free</a>
+          <a href={CHECKOUT_URL} onClick={() => { setMobileMenuOpen(false); phCapture("cta_clicked", { location: "mobile_nav" }); }} className="lemonsqueezy-button cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center", textDecoration: "none" }}>Try Risk Free</a>
         </div>
       )}
 
@@ -648,7 +708,7 @@ export default function FocanaLanding() {
             </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
+              <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "hero" })} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
                 Try Risk Free
                 <span style={{ fontSize: "22px" }}>→</span>
               </a>
@@ -854,7 +914,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* WHO IT'S FOR */}
-      <section style={{ padding: "100px 0", background: COLORS.softCream }}>
+      <section id="who-its-for" style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section">
           <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
             <h2 style={{
@@ -962,7 +1022,7 @@ export default function FocanaLanding() {
               When beta ends, Focana moves to $49 lifetime or $8/month.<br />
               This price goes away when that happens.
             </p>
-            <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
+            <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "pricing" })} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
               Lock in Founding Member Pricing
             </a>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
@@ -1063,7 +1123,7 @@ export default function FocanaLanding() {
             $29 once. Yours forever. 7-day guarantee.
           </p>
 
-          <a href={CHECKOUT_URL} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
+          <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "final_cta" })} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
             Try Risk Free <span style={{ fontSize: "22px" }}>→</span>
           </a>
 
