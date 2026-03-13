@@ -279,14 +279,24 @@ const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0
 
 function getIsAppleSilicon() {
   try {
-    const ua = navigator.userAgent;
-    if (/Mac/.test(ua) && /ARM/.test(ua)) return true;
+    if (!/Mac/.test(navigator.userAgent)) return null;
+    if (/ARM/.test(navigator.userAgent)) return true;
     if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+    if (gl) {
+      const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      if (dbg) {
+        const renderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+        if (/Apple/.test(renderer) && !/Intel/.test(renderer)) return true;
+        if (/Intel/.test(renderer)) return false;
+      }
+    }
   } catch {}
-  return null; // unknown
+  return null;
 }
 
-const CHECKOUT_URL = "https://focana.lemonsqueezy.com/checkout/buy/d4f23c8d-b002-48c9-8ed6-a5ea6220ac59?embed=1";
+const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/d4f23c8d-b002-48c9-8ed6-a5ea6220ac59?embed=1";
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
@@ -321,18 +331,29 @@ export default function FocanaLanding() {
 
   // Lemon Squeezy checkout success → redirect to download page
   useEffect(() => {
-    const handleMessage = (event) => {
-      if (typeof event.data === "string") {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.event === "Checkout.Success") {
-            window.location.href = "/download";
-          }
-        } catch {}
+    const setupLS = () => {
+      if (window.LemonSqueezy) {
+        window.LemonSqueezy.Setup({
+          eventHandler: (event) => {
+            if (event.event === "Checkout.Success") {
+              window.location.href = "/download";
+            }
+          },
+        });
       }
     };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+    // LemonJS may already be loaded or may load later
+    if (window.LemonSqueezy) {
+      setupLS();
+    } else {
+      window.addEventListener("lemon:ready", setupLS);
+      // Fallback: poll briefly in case the ready event already fired
+      const t = setTimeout(setupLS, 2000);
+      return () => {
+        window.removeEventListener("lemon:ready", setupLS);
+        clearTimeout(t);
+      };
+    }
   }, []);
 
   // Close mobile menu on Escape
