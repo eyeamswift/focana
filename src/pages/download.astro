@@ -523,10 +523,6 @@ const orderId = Astro.url.searchParams.get("order_id") || "";
           surveyThanks.classList.add('visible');
         }
 
-        // Supabase config
-        var SUPABASE_URL = 'https://blqkhjgngrcyuafektvk.supabase.co';
-        var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJscWtoamduZ3JjeXVhZmVrdHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3MzUwNDEsImV4cCI6MjA4ODMxMTA0MX0.G1VH5t9ATCkO41bx991xBW1-NtXFQQf2Wg_9ZXjEoDM';
-
         // Track download clicks & show survey
         armBtn.addEventListener('click', function() {
           phCapture("dmg_downloaded", { chip: "apple_silicon", email: customerEmail, order_id: orderId });
@@ -572,23 +568,20 @@ const orderId = Astro.url.searchParams.get("order_id") || "";
             tools_tried: toolsTried
           });
 
-          // Patch Supabase customer row
+          // Save survey answers via server-side API
           if (customerEmail) {
-            var patchBody = {};
-            if (howFound) patchBody.how_found = howFound;
-            if (focusStruggles.length) patchBody.focus_struggles = focusStruggles;
-            if (toolsTried.length) patchBody.tools_tried = toolsTried;
-
-            fetch(SUPABASE_URL + '/rest/v1/customers?email=eq.' + encodeURIComponent(customerEmail), {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                'Prefer': 'return=minimal'
-              },
-              body: JSON.stringify(patchBody)
-            }).catch(function() { /* silent fail */ });
+            fetch('/api/survey', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: customerEmail,
+                how_found: howFound,
+                focus_struggles: focusStruggles,
+                tools_tried: toolsTried
+              })
+            }).catch(function(err) {
+              console.error('Survey submit failed:', err);
+            });
           }
 
           showThanks();
