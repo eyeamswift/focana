@@ -443,6 +443,19 @@ const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0
         var customerEmail = urlParams.get('email') || '';
         var orderId = urlParams.get('order_id') || '';
 
+        if (!customerEmail || !orderId) {
+          try {
+            var storedContext = window.sessionStorage.getItem('focana_purchase_context');
+            if (storedContext) {
+              var parsedContext = JSON.parse(storedContext);
+              if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
+              if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
+            }
+          } catch (err) {
+            console.error('Failed to read stored purchase context:', err);
+          }
+        }
+
         function getIsAppleSilicon() {
           try {
             if (!/Mac/.test(navigator.userAgent)) return null;

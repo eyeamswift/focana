@@ -340,16 +340,43 @@ export default function FocanaLanding() {
 
   // Lemon Squeezy checkout success → redirect to download page
   useEffect(() => {
+    const getCheckoutSuccessContext = (event) => {
+      const payload = event?.data || {};
+      const nestedOrder = payload.order || {};
+      const attributes = payload.attributes || nestedOrder.attributes || {};
+
+      const email =
+        payload.user_email ||
+        attributes.user_email ||
+        nestedOrder.user_email ||
+        "";
+
+      const orderId =
+        payload.id ||
+        payload.order_id ||
+        nestedOrder.id ||
+        nestedOrder.order_id ||
+        "";
+
+      return {
+        email: email ? String(email).trim() : "",
+        orderId: orderId ? String(orderId).trim() : "",
+      };
+    };
+
     const setupLS = () => {
       if (window.LemonSqueezy) {
         window.LemonSqueezy.Setup({
           eventHandler: (event) => {
             if (event.event === "Checkout.Success") {
-              const data = event.data || {};
-              const order = data.order || {};
-              const email = order.user_email || "";
-              const orderId = order.id || order.order_id || "";
+              const { email, orderId } = getCheckoutSuccessContext(event);
               phCapture("purchase_completed", { email, order_id: orderId });
+              try {
+                window.sessionStorage.setItem(
+                  "focana_purchase_context",
+                  JSON.stringify({ email, orderId })
+                );
+              } catch {}
               const params = new URLSearchParams();
               if (email) params.set("email", email);
               if (orderId) params.set("order_id", orderId);
