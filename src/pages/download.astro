@@ -6,8 +6,6 @@ const canonicalURL = "https://focana.app/download";
 const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-arm64.dmg";
 const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-x64.dmg";
 
-const email = Astro.url.searchParams.get("email") || "";
-const orderId = Astro.url.searchParams.get("order_id") || "";
 ---
 
 <html lang="en">
@@ -438,14 +436,12 @@ const orderId = Astro.url.searchParams.get("order_id") || "";
       </div>
     </div>
 
-    <script type="text/javascript" data-email={email} data-order-id={orderId} id="page-data"></script>
-
     <script>
       (function() {
-        // Read server-injected data
-        var pageData = document.getElementById('page-data');
-        var customerEmail = pageData ? pageData.getAttribute('data-email') : '';
-        var orderId = pageData ? pageData.getAttribute('data-order-id') : '';
+        // Read query params client-side (page is statically built)
+        var urlParams = new URLSearchParams(window.location.search);
+        var customerEmail = urlParams.get('email') || '';
+        var orderId = urlParams.get('order_id') || '';
 
         function getIsAppleSilicon() {
           try {
