@@ -26,12 +26,11 @@ function buildCustomerLookupUrl(
   url.searchParams.set('select', 'id');
   url.searchParams.set('limit', '1');
 
-  if (orderId && email) {
-    url.searchParams.set('or', `(order_id.eq.${orderId},email.eq.${email})`);
-  } else if (orderId) {
+  if (orderId) {
     url.searchParams.set('order_id', `eq.${orderId}`);
   } else if (email) {
     url.searchParams.set('email', `eq.${email}`);
+    url.searchParams.set('order', 'created_at.desc');
   }
 
   return url.toString();
