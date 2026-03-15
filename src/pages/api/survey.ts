@@ -13,17 +13,19 @@ type SurveyRequestBody = {
   tools_tried?: string[];
 };
 
+type CustomerRow = {
+  id: string;
+  email: string | null;
+  order_id: string | null;
+};
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildCustomerLookupUrl(
-  supabaseUrl: string,
-  email?: string,
-  orderId?: string
-) {
+function buildCustomerLookupUrl(supabaseUrl: string, email?: string, orderId?: string) {
   const url = new URL(`${supabaseUrl}/rest/v1/customers`);
-  url.searchParams.set('select', 'id');
+  url.searchParams.set('select', 'id,email,order_id');
   url.searchParams.set('limit', '1');
 
   if (orderId) {
@@ -36,7 +38,7 @@ function buildCustomerLookupUrl(
   return url.toString();
 }
 
-async function findCustomerId(
+async function findCustomer(
   supabaseUrl: string,
   supabaseServiceKey: string,
   email?: string,
@@ -57,9 +59,9 @@ async function findCustomerId(
       throw new Error(`Customer lookup failed: ${errText || lookupRes.status}`);
     }
 
-    const rows = (await lookupRes.json()) as Array<{ id: string }>;
+    const rows = (await lookupRes.json()) as CustomerRow[];
     if (rows.length > 0) {
-      return rows[0].id;
+      return rows[0];
     }
 
     if (attempt < LOOKUP_RETRY_ATTEMPTS - 1) {
@@ -68,6 +70,73 @@ async function findCustomerId(
   }
 
   return null;
+}
+
+async function patchCustomerByOrderId(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  orderId: string,
+  patchBody: Record<string, unknown>
+) {
+  const patchUrl = new URL(`${supabaseUrl}/rest/v1/customers`);
+  patchUrl.searchParams.set('order_id', `eq.${orderId}`);
+
+  for (let attempt = 0; attempt < LOOKUP_RETRY_ATTEMPTS; attempt += 1) {
+    const patchRes = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseServiceKey,
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify(patchBody),
+    });
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text();
+      throw new Error(`Order patch failed: ${errText || patchRes.status}`);
+    }
+
+    const updatedRows = (await patchRes.json()) as Array<{ id: string }>;
+    if (updatedRows.length > 0) {
+      return updatedRows;
+    }
+
+    if (attempt < LOOKUP_RETRY_ATTEMPTS - 1) {
+      await sleep(LOOKUP_RETRY_DELAY_MS);
+    }
+  }
+
+  return [];
+}
+
+async function patchCustomerById(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  customerId: string,
+  patchBody: Record<string, unknown>
+) {
+  const patchUrl = new URL(`${supabaseUrl}/rest/v1/customers`);
+  patchUrl.searchParams.set('id', `eq.${customerId}`);
+
+  const patchRes = await fetch(patchUrl, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': supabaseServiceKey,
+      'Authorization': `Bearer ${supabaseServiceKey}`,
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify(patchBody),
+  });
+
+  if (!patchRes.ok) {
+    const errText = await patchRes.text();
+    throw new Error(`Customer patch failed: ${errText || patchRes.status}`);
+  }
+
+  return (await patchRes.json()) as Array<{ id: string }>;
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -116,50 +185,72 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   try {
-    const customerId = await findCustomerId(
-      supabaseUrl,
-      supabaseServiceKey,
-      email,
-      orderId
-    );
+    let updatedRows: Array<{ id: string }> = [];
 
-    if (!customerId) {
-      console.error(
-        `[survey] No matching customer row found for email=${email || 'n/a'} order_id=${orderId || 'n/a'}`
+    if (orderId) {
+      const customer = await findCustomer(
+        supabaseUrl,
+        supabaseServiceKey,
+        undefined,
+        orderId
       );
-      return new Response(JSON.stringify({ error: 'Customer record not ready yet' }), {
-        status: 409,
-        headers: { 'Content-Type': 'application/json' },
-      });
+
+      if (!customer) {
+        console.error(
+          `[survey] No matching customer row found for email=${email || 'n/a'} order_id=${orderId}`
+        );
+        return new Response(JSON.stringify({ error: 'Customer record not ready yet' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (
+        email &&
+        customer.email &&
+        customer.email.trim().toLowerCase() !== email.toLowerCase()
+      ) {
+        console.error(
+          `[survey] Email mismatch for order_id=${orderId}: submitted=${email} stored=${customer.email}`
+        );
+        return new Response(JSON.stringify({ error: 'Customer email mismatch' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      updatedRows = await patchCustomerByOrderId(
+        supabaseUrl,
+        supabaseServiceKey,
+        orderId,
+        patchBody
+      );
+    } else {
+      const customer = await findCustomer(
+        supabaseUrl,
+        supabaseServiceKey,
+        email,
+        orderId
+      );
+
+      if (!customer) {
+        console.error(
+          `[survey] No matching customer row found for email=${email || 'n/a'} order_id=${orderId || 'n/a'}`
+        );
+        return new Response(JSON.stringify({ error: 'Customer record not ready yet' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      updatedRows = await patchCustomerById(
+        supabaseUrl,
+        supabaseServiceKey,
+        customer.id,
+        patchBody
+      );
     }
 
-    const patchUrl = new URL(`${supabaseUrl}/rest/v1/customers`);
-    patchUrl.searchParams.set('id', `eq.${customerId}`);
-
-    const patchRes = await fetch(patchUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseServiceKey,
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-        'Prefer': 'return=representation',
-      },
-      body: JSON.stringify(patchBody),
-    });
-
-    if (!patchRes.ok) {
-      const errText = await patchRes.text();
-      console.error(
-        `[survey] Supabase patch error for email=${email || 'n/a'} order_id=${orderId || 'n/a'}:`,
-        errText
-      );
-      return new Response(JSON.stringify({ error: 'Failed to save survey' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const updatedRows = (await patchRes.json()) as Array<{ id: string }>;
     if (updatedRows.length === 0) {
       console.error(
         `[survey] Patch completed without updating a row for email=${email || 'n/a'} order_id=${orderId || 'n/a'}`
@@ -169,6 +260,10 @@ export const POST: APIRoute = async ({ request }) => {
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    console.log(
+      `[survey] Saved survey for email=${email || 'n/a'} order_id=${orderId || 'n/a'} updated_rows=${updatedRows.length}`
+    );
   } catch (error) {
     console.error(
       `[survey] Unexpected error for email=${email || 'n/a'} order_id=${orderId || 'n/a'}:`,
