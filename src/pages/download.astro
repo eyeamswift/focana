@@ -565,19 +565,31 @@ const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0
           });
 
           // Save survey answers via server-side API
-          if (customerEmail) {
+          if (customerEmail || orderId) {
             fetch('/api/survey', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 email: customerEmail,
+                order_id: orderId,
                 how_found: howFound,
                 focus_struggles: focusStruggles,
                 tools_tried: toolsTried
               })
+            }).then(function(res) {
+              if (!res.ok) {
+                return res.text().then(function(text) {
+                  throw new Error(text || ('Request failed with status ' + res.status));
+                });
+              }
+
+              showThanks();
             }).catch(function(err) {
               console.error('Survey submit failed:', err);
+              surveySubmitBtn.disabled = false;
+              surveySubmitBtn.textContent = 'Try sending again';
             });
+            return;
           }
 
           showThanks();
