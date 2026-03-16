@@ -20,6 +20,104 @@ function phCapture(event, props) {
   }
 }
 
+// Feature Video with click-to-play overlay
+function FeatureVideo({ src }) {
+  const videoRef = useRef(null);
+  const [state, setState] = useState("idle"); // "idle" | "playing" | "ended"
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onEnded = () => setState("ended");
+    video.addEventListener("ended", onEnded);
+    return () => video.removeEventListener("ended", onEnded);
+  }, []);
+
+  const handleClick = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (state === "playing") {
+      video.pause();
+      setState("idle");
+    } else {
+      if (state === "ended") video.currentTime = 0;
+      video.play();
+      setState("playing");
+    }
+  };
+
+  const isActive = state === "playing";
+  const isEnded = state === "ended";
+
+  return (
+    <div
+      onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: "relative",
+        cursor: "pointer",
+        borderRadius: "12px",
+        overflow: "hidden",
+        boxShadow: "0 4px 20px rgba(92, 64, 51, 0.1)",
+      }}
+    >
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        src={src}
+        style={{
+          width: "100%",
+          display: "block",
+          opacity: isActive ? 1 : hovered ? 0.8 : 0.65,
+          transition: "opacity 0.25s ease",
+        }}
+      />
+      {!isActive && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "transform 0.2s ease",
+          }}
+        >
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.85)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transform: hovered ? "scale(1.1)" : "scale(1)",
+              transition: "transform 0.2s ease",
+            }}
+          >
+            {isEnded ? (
+              /* Replay arrow */
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 1 }}>
+                <path d="M12 5V1L7 6l5 5V7a6 6 0 110 10 5.97 5.97 0 01-4.24-1.76l-1.42 1.42A8 8 0 1012 5z" fill={COLORS.warmBrown} />
+              </svg>
+            ) : (
+              /* Play triangle */
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 3 }}>
+                <path d="M8 5v14l11-7z" fill={COLORS.warmBrown} />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // FAQ Item
 let faqCounter = 0;
 function FAQItem({ question, answer }) {
@@ -282,9 +380,6 @@ function WaitlistModal({ open, onClose }) {
     </div>
   );
 }
-
-const ARM_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-arm64.dmg";
-const INTEL_URL = "https://github.com/eyeamswift/focana/releases/download/v1.2.0-beta.3/Focana-1.2.0-beta.3-mac-x64.dmg";
 
 function getIsAppleSilicon() {
   try {
@@ -582,6 +677,9 @@ export default function FocanaLanding() {
             padding-top: 60px !important;
             padding-bottom: 60px !important;
           }
+          .zigzag-row {
+            flex-direction: column !important;
+          }
         }
         @media (max-width: 480px) {
           .modal-inner {
@@ -777,174 +875,89 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* PROBLEM */}
-      <section style={{ padding: "100px 0", background: "white" }}>
-        <div className="section">
-          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
-            <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-              fontWeight: 800, marginBottom: "24px", color: COLORS.warmBrown,
-              lineHeight: 1.15,
-            }}>
-              <span style={{ fontStyle: "italic" }}>out of sight. out of mind.</span>
-            </h2>
-            <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown, opacity: 0.8, marginBottom: "20px" }}>
-              We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply - and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing"
-            </p>
-            <p style={{ fontSize: "19px", lineHeight: 1.7, fontStyle: "italic", fontWeight: 700, color: COLORS.sunshineYellow }}>
-              For busy brains, if a task isn't visible, it doesn't exist.
-            </p>
-          </div>
-
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
-            gap: "24px",
-          }}>
-            {[
-              { icon: "🫥", title: "Browser extensions disappear", desc: "Switch to Slack or your IDE and your focus tool vanishes. Gone. Along with your intention." },
-              { icon: "📱", title: "Mobile apps are on the wrong device", desc: "Your phone timer doesn't help when the distraction is happening on your computer screen." },
-              { icon: "🤯", title: "Complex suites cause overload", desc: "47 features. 12 settings. 8 views. Your already-overwhelmed brain shuts down before you even start." },
-            ].map((item, i) => (
-              <div key={i} style={{
-                background: COLORS.softCream,
-                borderRadius: "20px",
-                padding: "36px",
-                border: `1px solid ${COLORS.beigeBorder}`,
-              }}>
-                <span style={{ fontSize: "40px", display: "block", marginBottom: "16px" }}>{item.icon}</span>
-                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700, marginBottom: "10px", color: COLORS.warmBrown }}>
-                  {item.title}
-                </h3>
-                <p style={{ fontSize: "16px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* FEATURES */}
       <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
         <div className="section">
           <p style={{
-            fontSize: "19px", fontWeight: 700, color: COLORS.sunshineYellow,
+            fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
             textAlign: "center", marginBottom: "12px",
+            textTransform: "uppercase", letterSpacing: "2px",
           }}>Key Features</p>
           <h2 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
             fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "60px",
+            textAlign: "center", marginBottom: "80px",
           }}>Everything you need. Nothing you don't.</h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "24px" }}>
-            {[
-              {
-                icon: "📌",
-                title: "It never disappears",
-                desc: "Not a browser extension. Not a web app. It can't hide — because that's the whole point.",
-              },
-              {
-                icon: "🕐",
-                title: "Your timer, your rules",
-                desc: "Freeflow when you're in flow. Timeboxed when you need a hard stop.",
-              },
-              {
-                icon: "🔁",
-                title: "When life interrupts",
-                desc: "Before you close out, Focana asks where you want to pick up. Come back tomorrow — or next week — and continue exactly where you left off.",
-              },
-              {
-                icon: "🅿️",
-                title: "Your parking lot, delivered back to you",
-                desc: "Random thought mid-session? Park it and stay focused. When your session ends, Focana shows your notes. Nothing gets lost.",
-              },
-              {
-                icon: "👀",
-                title: "A gentle nudge",
-                desc: "\"Still on track?\" — a soft check-in before you're 30 minutes deep in something you didn't mean to open.",
-              },
-              {
-                icon: "🔄",
-                title: "Stays out of your way",
-                desc: "Full card when you need it. Compact pill when you don't. Floating icon when you want it there — but never gone. One click between any mode.",
-              },
-            ].map((item, i) => (
-              <div key={i} className="feature-card">
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
-                  <span style={{ fontSize: "32px", flexShrink: 0, marginTop: "2px" }}>{item.icon}</span>
-                  <div>
-                    <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "19px", fontWeight: 700, marginBottom: "8px", color: COLORS.warmBrown }}>
-                      {item.title}
-                    </h3>
-                    <p style={{ fontSize: "15px", lineHeight: 1.65, color: COLORS.coffeeBrown }}>
-                      {item.desc}
-                    </p>
-                  </div>
-                </div>
+          {[
+            {
+              video: "/videos/always-on-top.mp4",
+              headline: "Out of sight, out of mind.",
+              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana floats above every app, every tab, every window. Your task and timer stay visible no matter where your work takes you. If you can see it, you can do it.</>,
+            },
+            {
+              video: "/videos/nudge-checkin.mp4",
+              headline: "You got distracted 10 minutes ago and didn't even notice.",
+              body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
+            },
+            {
+              video: "/videos/parking-lot.mp4",
+              headline: "Every random thought feels urgent and you have to deal with it right now or you'll forget.",
+              body: <><strong>Parking lot.</strong> Catch every stray thought mid-session without breaking your flow. Jot it down, close the panel, keep working. Everything's waiting for you when you're done — nothing lost, nothing derailed.</>,
+            },
+            {
+              video: "/videos/pick-up-where-you-left-off.mp4",
+              headline: "You finally made progress but tomorrow you'll open your laptop and have no idea where you left off.",
+              body: <><strong>Pickup where you left off.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
+            },
+            {
+              video: "/videos/get-started.mp4",
+              headline: "It takes just a few seconds to get started.",
+              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No learning curve.</>,
+            },
+          ].map((row, i) => {
+            const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
+            const videoEl = (
+              <div key="video" style={{ flex: "1 1 50%", minWidth: 0 }}>
+                <FeatureVideo src={row.video} />
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section style={{ padding: "60px 0 100px 0", background: COLORS.warmVanilla, position: "relative" }}>
-        <div className="floating-chip" style={{
-          position: "absolute", top: "20px", right: "5%",
-          background: "white", borderRadius: "12px", padding: "12px 16px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-          display: "flex", alignItems: "center", gap: "10px",
-          animation: "float 4s ease-in-out infinite",
-          zIndex: 1,
-        }}>
-          <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.sunshineYellow }} />
-          <span style={{ fontFamily: "'Caveat', cursive", fontSize: "16px", color: COLORS.warmBrown }}>
-            You focused for 23 minutes!
-          </span>
-        </div>
-        <div className="section">
-          <h3 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700,
-            color: COLORS.deepAmber, marginBottom: "8px",
-          }}>
-            It only takes a few seconds to get started. No sign-up/account needed.
-          </h3>
-
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-            gap: "32px", marginTop: "32px",
-          }}>
-            {[
-              { step: "1", title: "Type your task", desc: "One thing. That's the whole point. Write what you're working on right now.", icon: "✏️" },
-              { step: "2", title: "Start the timer", desc: "Freeflow if you're in the zone. Timeboxed if you need a hard stop. No forced 25-minute rules.", icon: "⏱️" },
-              { step: "3", title: "It floats on top", desc: "Above Slack. Above Chrome. Above VS Code. Your task and your timer stay right there — the whole time.", icon: "📌" },
-              { step: "4", title: "You get the win", desc: "\"You focused for 23 minutes.\" Not \"session incomplete.\" Every minute counts.", icon: "🎉" },
-            ].map((item, i) => (
-              <div key={i} style={{ textAlign: "center", position: "relative" }}>
-                <div style={{
-                  width: "clamp(48px, 12vw, 64px)", height: "clamp(48px, 12vw, 64px)", borderRadius: "50%",
-                  background: `linear-gradient(135deg, ${COLORS.sunshineYellow}33, ${COLORS.creamYellow})`,
-                  border: `2px solid ${COLORS.sunshineYellow}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  margin: "0 auto 20px", fontSize: "28px",
+            );
+            const copyEl = (
+              <div key="copy" style={{
+                flex: "1 1 50%", minWidth: 0,
+                display: "flex", alignItems: "center",
+              }}>
+                <p style={{
+                  fontSize: "clamp(16px, 2vw, 19px)", lineHeight: 1.7,
+                  color: COLORS.coffeeBrown,
                 }}>
-                  {item.icon}
-                </div>
-                <div style={{
-                  fontFamily: "'Outfit', sans-serif", fontSize: "12px", fontWeight: 700,
-                  color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-                  marginBottom: "8px",
-                }}>Step {item.step}</div>
-                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 700, marginBottom: "10px", color: COLORS.warmBrown }}>
-                  {item.title}
-                </h3>
-                <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
-                  {item.desc}
+                  {row.body}
                 </p>
               </div>
-            ))}
-          </div>
+            );
+            return (
+              <div key={i} style={{ marginBottom: i < 4 ? "80px" : 0 }}>
+                <h3 style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "clamp(22px, 3vw, 30px)",
+                  fontWeight: 700,
+                  color: COLORS.warmBrown,
+                  lineHeight: 1.3,
+                  marginBottom: "32px",
+                }}>
+                  {row.headline}
+                </h3>
+                <div className="zigzag-row" style={{
+                  display: "flex",
+                  gap: "40px",
+                  flexDirection: isOdd ? "row" : "row-reverse",
+                }}>
+                  {videoEl}
+                  {copyEl}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -1088,7 +1101,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" style={{ padding: "100px 0", background: COLORS.warmVanilla }}>
+      <section id="faq" style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section" style={{ maxWidth: "760px" }}>
           <div style={{ textAlign: "center", marginBottom: "50px" }}>
             <span style={{
