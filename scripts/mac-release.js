@@ -166,6 +166,14 @@ if (!validModes.has(mode)) {
 }
 
 applyReleaseEnv();
+
+// electron-builder's built-in notarization expects APPLE_API_KEY (the file path to the
+// .p8 key). We allow APPLE_API_KEY_PATH as an alias for clarity in .env.release files.
+if (process.env.APPLE_API_KEY_PATH && !process.env.APPLE_API_KEY) {
+  process.env.APPLE_API_KEY = process.env.APPLE_API_KEY_PATH;
+  console.log(`[release] Set APPLE_API_KEY from APPLE_API_KEY_PATH: ${process.env.APPLE_API_KEY_PATH}`);
+}
+
 if (requireNotarization) {
   process.env.REQUIRE_NOTARIZATION = '1';
 }
