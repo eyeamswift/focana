@@ -1,10 +1,9 @@
 ---
-const title = "Download Focana";
-const description = "Choose the right Focana build for your Mac.";
-const canonicalURL = "https://focana.app/download";
+const title = "Focana — Next Steps";
+const description = "Open Focana, paste your license key, and start your first session.";
+const canonicalURL = "https://focana.app/next-steps";
 const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
 const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
-const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
 ---
 
 <html lang="en">
@@ -46,7 +45,7 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
       }
       .card {
         width: 100%;
-        max-width: 580px;
+        max-width: 620px;
         background: white;
         border-radius: 24px;
         padding: 42px 36px;
@@ -90,13 +89,17 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
         font-size: 14px;
         line-height: 1.5;
       }
-      .status-card[data-tone="error"] {
-        background: #FEF2F2;
-        border-color: #FCA5A5;
+      .steps {
+        margin: 0 0 22px;
+        padding-left: 22px;
+        color: #5C4033;
       }
-      .status-card[data-tone="error"] strong,
-      .status-card[data-tone="error"] p {
-        color: #991B1B;
+      .steps li {
+        margin-bottom: 12px;
+        line-height: 1.55;
+      }
+      .steps strong {
+        color: #5C4033;
       }
       .help-box {
         background: #F8FAFC;
@@ -167,68 +170,6 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
       .recommended-label.visible {
         display: block;
       }
-      .chip-help {
-        font-size: 12px;
-        color: #7A6548;
-        line-height: 1.7;
-        margin-bottom: 18px;
-        text-align: left;
-      }
-      .chip-help strong {
-        color: #8B6F47;
-      }
-      .not-sure-box {
-        background: #F5F5F5;
-        border-radius: 8px;
-        padding: 10px 14px;
-        margin-bottom: 20px;
-        text-align: left;
-        font-size: 12px;
-        color: #7A6548;
-        line-height: 1.5;
-      }
-      .info-tooltip {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-      }
-      .info-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        background: #E5D4B1;
-        color: #5C4033;
-        font-size: 12px;
-        font-weight: 700;
-        line-height: 1;
-        flex-shrink: 0;
-      }
-      .tooltip-img {
-        display: none;
-        position: absolute;
-        bottom: calc(100% + 10px);
-        left: 50%;
-        transform: translateX(-50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.18);
-        padding: 8px;
-        z-index: 10;
-        width: 280px;
-      }
-      .tooltip-img img {
-        width: 100%;
-        border-radius: 8px;
-        display: block;
-      }
-      .info-tooltip:hover .tooltip-img,
-      .info-tooltip:focus-within .tooltip-img {
-        display: block;
-      }
       .support-note {
         color: #8B6F47;
         font-size: 13px;
@@ -252,15 +193,27 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
   </head>
   <body>
     <div class="card">
-      <p class="eyebrow">Step 1 of 3</p>
-      <h1>Download your copy of Focana</h1>
+      <p class="eyebrow">Step 3 of 3</p>
+      <h1>Your app should be ready to go now</h1>
       <p class="subtitle">
-        Pick the version for your Mac. Your license key lives in your Lemon receipt email and in Lemon My Orders.
+        When you launch Focana for the first time, paste the license key from your email from Lemon Squeezy or from Lemon My Orders.
       </p>
 
-      <div class="status-card" id="status-card" data-tone={downloadsConfigured ? "ready" : "error"}>
-        <strong id="status-title">{downloadsConfigured ? "Your download is ready" : "Downloads are not configured yet"}</strong>
-        <p id="status-message">{downloadsConfigured ? "Choose Apple Silicon or Intel. After the download starts, we’ll take you to one optional question page." : "Set the public GitHub DMG URLs for this deployment before sharing the page."}</p>
+      <div class="status-card">
+        <strong>Next up: install and activate</strong>
+        <p>Open the installer, move Focana to Applications if prompted, then launch the app and enter your license key.</p>
+      </div>
+
+      <ol class="steps">
+        <li><strong>Open the DMG</strong> that just downloaded.</li>
+        <li><strong>Move Focana to Applications</strong> if macOS shows that step.</li>
+        <li><strong>Launch Focana</strong> and paste the license key from your Lemon receipt email.</li>
+        <li><strong>Start your first session</strong> once the app activates successfully.</li>
+      </ol>
+
+      <div class="help-box">
+        <strong>Need the installer again?</strong>
+        <p>Use the buttons below if the download did not finish or you want the other Mac build.</p>
       </div>
 
       <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
@@ -269,26 +222,8 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
         <a href={x64DownloadUrl || "#"} class="download-btn secondary" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"}>Intel Mac</a>
       </div>
 
-      <p class="chip-help">
-        <strong>Apple Silicon (M1-M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
-        <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
-      </p>
-
-      <div class="help-box">
-        <strong>Where is my key?</strong>
-        <p>We do not show license keys on this page. Your key is in your Lemon receipt email and in your Lemon My Orders page. You’ll paste that key into the app when you launch Focana.</p>
-      </div>
-
-      <div class="not-sure-box">
-        <span class="info-tooltip">
-          Not sure which to pick? Click the icon in the top left of your screen and select "About This Mac."
-          <span class="info-icon" tabindex="0" aria-label="Show helper image">?</span>
-          <span class="tooltip-img"><img src="/download-help.png" alt="Screenshot showing Apple menu with About This Mac highlighted" /></span>
-        </span>
-      </div>
-
       <p class="support-note">
-        If the download does not start, try the other button or email <a href="mailto:hello@focana.app">hello@focana.app</a>.
+        Need help? Email <a href="mailto:hello@focana.app">hello@focana.app</a> and include your purchase email or order id if you have it.
       </p>
     </div>
 
@@ -297,6 +232,7 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
         var urlParams = new URLSearchParams(window.location.search);
         var customerEmail = urlParams.get('email') || '';
         var orderId = urlParams.get('order_id') || '';
+        var selectedChip = urlParams.get('chip') || '';
 
         var armBtn = document.getElementById('arm-btn');
         var intelBtn = document.getElementById('intel-btn');
@@ -313,6 +249,7 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
             var parsedContext = JSON.parse(storedContext);
             if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
             if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
+            if (!selectedChip && parsedContext.chip) selectedChip = parsedContext.chip;
           } catch (err) {
             console.error('Failed to read stored purchase context:', err);
           }
@@ -325,8 +262,9 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
             var nextContext = {
               email: customerEmail || parsed.email || '',
               orderId: orderId || parsed.orderId || '',
-              chip: chip || parsed.chip || ''
+              chip: chip || selectedChip || parsed.chip || ''
             };
+            selectedChip = nextContext.chip;
             window.sessionStorage.setItem('focana_purchase_context', JSON.stringify(nextContext));
           } catch (err) {
             console.error('Failed to store purchase context:', err);
@@ -352,45 +290,32 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
           document.body.removeChild(anchor);
         }
 
-        function redirectToSurvey(chip) {
-          var params = new URLSearchParams();
-          if (customerEmail) params.set('email', customerEmail);
-          if (orderId) params.set('order_id', orderId);
-          if (chip) params.set('chip', chip);
-
-          window.setTimeout(function() {
-            window.location.href = '/survey' + (params.toString() ? '?' + params.toString() : '');
-          }, 180);
-        }
-
-        function handleChipClick(event, chip, button) {
+        function handleDownloadClick(event, chip, button) {
           var downloadUrl = button.dataset.downloadUrl || '';
           if (!downloadUrl) return;
 
           event.preventDefault();
           persistContext(chip);
-
-          phCapture('dmg_downloaded', {
-            chip: chip,
-            email: customerEmail,
-            order_id: orderId
-          });
-
           startDownload(downloadUrl);
-          redirectToSurvey(chip);
+
+          phCapture('next_steps_download_clicked', {
+            email: customerEmail,
+            order_id: orderId,
+            chip: chip
+          });
         }
 
         readStoredContext();
-        persistContext('');
+        persistContext(selectedChip);
 
         var isArm = getIsAppleSilicon();
-        if (isArm === true) {
+        if (selectedChip === 'apple_silicon' || isArm === true) {
           label.classList.add('visible');
           intelBtn.classList.remove('primary');
           intelBtn.classList.add('secondary');
           armBtn.classList.remove('secondary');
           armBtn.classList.add('primary');
-        } else if (isArm === false) {
+        } else if (selectedChip === 'intel' || isArm === false) {
           label.classList.add('visible');
           armBtn.classList.remove('primary');
           armBtn.classList.add('secondary');
@@ -398,18 +323,18 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
           intelBtn.classList.add('primary');
         }
 
-        phCapture('download_page_viewed', {
+        phCapture('next_steps_page_viewed', {
           email: customerEmail,
           order_id: orderId,
-          chip_detected: isArm === true ? 'apple_silicon' : isArm === false ? 'intel' : 'unknown'
+          chip: selectedChip || 'unknown'
         });
 
         armBtn.addEventListener('click', function(event) {
-          handleChipClick(event, 'apple_silicon', armBtn);
+          handleDownloadClick(event, 'apple_silicon', armBtn);
         });
 
         intelBtn.addEventListener('click', function(event) {
-          handleChipClick(event, 'intel', intelBtn);
+          handleDownloadClick(event, 'intel', intelBtn);
         });
       })();
     </script>

@@ -27,6 +27,9 @@ Required env vars:
 - `PUBLIC_SUPABASE_URL` — Your Supabase project URL
 - `PUBLIC_SUPABASE_ANON_KEY` — Your Supabase anon/public key
 - `LOOPS_API_KEY` — Your Loops API key (server-side only)
+- `PUBLIC_GITHUB_ARM64_DMG_URL` — Public GitHub Release DMG URL for Apple Silicon
+- `PUBLIC_GITHUB_X64_DMG_URL` — Public GitHub Release DMG URL for Intel Macs
+- `PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` — Lemon Squeezy checkout URL
 
 3. Create a `Beta_Downloads` table in Supabase with columns:
    - `email` (text, unique)

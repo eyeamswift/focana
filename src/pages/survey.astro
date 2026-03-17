@@ -2,6 +2,8 @@
 const title = "Focana — Quick Survey";
 const description = "Tell us a little about how you found Focana and what you want it to solve.";
 const canonicalURL = "https://focana.app/survey";
+const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
+const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 ---
 
 <html lang="en">
@@ -112,10 +114,6 @@ const canonicalURL = "https://focana.app/survey";
         background: #F0FDF4;
         border: 1px solid #86EFAC;
       }
-      .status-card[data-tone="pending"] {
-        background: #FFFBEB;
-        border-color: #FDE68A;
-      }
       .status-card[data-tone="error"] {
         background: #FEF2F2;
         border-color: #FCA5A5;
@@ -125,9 +123,6 @@ const canonicalURL = "https://focana.app/survey";
         color: #14532D;
         margin-bottom: 4px;
       }
-      .status-card[data-tone="pending"] strong {
-        color: #92400E;
-      }
       .status-card[data-tone="error"] strong {
         color: #991B1B;
       }
@@ -135,9 +130,6 @@ const canonicalURL = "https://focana.app/survey";
         font-size: 14px;
         line-height: 1.5;
         color: #166534;
-      }
-      .status-card[data-tone="pending"] p {
-        color: #7C2D12;
       }
       .status-card[data-tone="error"] p {
         color: #7F1D1D;
@@ -230,17 +222,6 @@ const canonicalURL = "https://focana.app/survey";
         height: 16px;
         flex-shrink: 0;
       }
-      .survey-thanks {
-        display: none;
-      }
-      .survey-thanks.visible {
-        display: block;
-      }
-      .survey-thanks p {
-        color: #5C4033;
-        font-size: 15px;
-        line-height: 1.6;
-      }
       @media (max-width: 520px) {
         .card, .survey-card { padding: 28px 20px; }
         .survey-header { flex-direction: column; }
@@ -251,13 +232,13 @@ const canonicalURL = "https://focana.app/survey";
   <body>
     <div class="page-wrapper">
       <div class="card">
-        <p class="eyebrow">Step 2 of 2</p>
+        <p class="eyebrow">Step 2 of 3</p>
         <h1>Your download should be starting</h1>
-        <p class="subtitle">Answer these three quick questions while Focana finishes downloading. Your license key is in your Lemon receipt email and in Lemon My Orders.</p>
+        <p class="subtitle">This survey is optional. If we can match this visit to your purchase, we’ll attach your answers automatically.</p>
 
-        <div class="status-card" id="status-card" data-tone="pending">
-          <strong id="status-title">Checking your purchase context...</strong>
-          <p id="status-message">We’re making sure this survey is connected to the right order before you submit it.</p>
+        <div class="status-card" id="status-card" data-tone="ready">
+          <strong id="status-title">Tell us what brought you here</strong>
+          <p id="status-message">If the download did not start, use the buttons below. Skip or submit and we’ll take you to the final setup steps.</p>
         </div>
 
         <div class="helper-box">
@@ -266,15 +247,16 @@ const canonicalURL = "https://focana.app/survey";
         </div>
 
         <div class="action-row">
-          <button type="button" class="action-btn secondary" id="download-again-btn">Download again</button>
+          <button type="button" class="action-btn secondary" id="arm-download-btn" data-download-url={arm64DownloadUrl}>Download Apple Silicon Again</button>
+          <button type="button" class="action-btn secondary" id="intel-download-btn" data-download-url={x64DownloadUrl}>Download Intel Again</button>
         </div>
       </div>
 
-      <div class="survey-card" id="survey-card" style="display:none;">
+      <div class="survey-card">
         <div class="survey-header">
           <div>
             <h2>Help us make Focana stick</h2>
-            <p class="helper-text">This feedback gets attached to your purchase so we can learn what brought you here and what you’ve already tried.</p>
+            <p class="helper-text">This helps us understand what brought you here and what you’ve already tried.</p>
           </div>
           <button class="skip-link" id="survey-skip" type="button">Skip</button>
         </div>
@@ -322,12 +304,8 @@ const canonicalURL = "https://focana.app/survey";
             </div>
           </div>
 
-          <button type="submit" class="action-btn" id="survey-submit">Send and start focusing</button>
+          <button type="submit" class="action-btn" id="survey-submit">Send and continue</button>
         </form>
-
-        <div class="survey-thanks" id="survey-thanks">
-          <p>Thanks. Your answers were saved to this purchase. Open the app, paste the key from your Lemon receipt email, and start your first session.</p>
-        </div>
       </div>
     </div>
 
@@ -337,16 +315,16 @@ const canonicalURL = "https://focana.app/survey";
         var customerEmail = urlParams.get('email') || '';
         var orderId = urlParams.get('order_id') || '';
         var selectedChip = urlParams.get('chip') || '';
+        var redirectScheduled = false;
 
         var statusCard = document.getElementById('status-card');
         var statusTitle = document.getElementById('status-title');
         var statusMessage = document.getElementById('status-message');
-        var surveyCard = document.getElementById('survey-card');
         var surveyForm = document.getElementById('survey-form');
         var surveySkip = document.getElementById('survey-skip');
         var surveySubmit = document.getElementById('survey-submit');
-        var surveyThanks = document.getElementById('survey-thanks');
-        var downloadAgainBtn = document.getElementById('download-again-btn');
+        var armDownloadBtn = document.getElementById('arm-download-btn');
+        var intelDownloadBtn = document.getElementById('intel-download-btn');
 
         function phCapture(event, props) {
           if (window.posthog) window.posthog.capture(event, props);
@@ -358,18 +336,33 @@ const canonicalURL = "https://focana.app/survey";
           statusMessage.textContent = message;
         }
 
-        function showSurvey() {
-          surveyCard.style.display = 'block';
+        function readStoredContext() {
+          try {
+            var storedContext = window.sessionStorage.getItem('focana_purchase_context');
+            if (!storedContext) return;
+            var parsedContext = JSON.parse(storedContext);
+            if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
+            if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
+            if (!selectedChip && parsedContext.chip) selectedChip = parsedContext.chip;
+          } catch (err) {
+            console.error('Failed to read stored purchase context:', err);
+          }
         }
 
-        function showThanks() {
-          surveyForm.style.display = 'none';
-          surveySkip.style.display = 'none';
-          surveyThanks.classList.add('visible');
-        }
-
-        function hasKnownChip() {
-          return selectedChip === 'apple_silicon' || selectedChip === 'intel';
+        function persistContext(chip) {
+          try {
+            var existing = window.sessionStorage.getItem('focana_purchase_context');
+            var parsed = existing ? JSON.parse(existing) : {};
+            var nextContext = {
+              email: customerEmail || parsed.email || '',
+              orderId: orderId || parsed.orderId || '',
+              chip: chip || selectedChip || parsed.chip || ''
+            };
+            selectedChip = nextContext.chip;
+            window.sessionStorage.setItem('focana_purchase_context', JSON.stringify(nextContext));
+          } catch (err) {
+            console.error('Failed to store purchase context:', err);
+          }
         }
 
         function startDownload(downloadUrl) {
@@ -382,55 +375,75 @@ const canonicalURL = "https://focana.app/survey";
           document.body.removeChild(anchor);
         }
 
-        async function requestDownloadLinks() {
-          var response = await fetch('/api/download-links?order_id=' + encodeURIComponent(orderId) + '&email=' + encodeURIComponent(customerEmail));
-          var payload = await response.json();
-          if (!response.ok) {
-            throw new Error(payload.error || ('Request failed with status ' + response.status));
-          }
-          return payload;
+        function redirectToNextSteps() {
+          if (redirectScheduled) return;
+          redirectScheduled = true;
+
+          persistContext(selectedChip);
+          setStatus('ready', 'Almost done', 'Taking you to the final setup steps now.');
+
+          var params = new URLSearchParams();
+          if (customerEmail) params.set('email', customerEmail);
+          if (orderId) params.set('order_id', orderId);
+          if (selectedChip) params.set('chip', selectedChip);
+
+          window.setTimeout(function() {
+            window.location.href = '/next-steps' + (params.toString() ? '?' + params.toString() : '');
+          }, 180);
         }
 
-        async function verifySurveyContext() {
-          if (!customerEmail || !orderId) {
-            setStatus('error', 'We could not verify this survey', 'Re-open the purchase link from your Lemon receipt email so we can attach your answers to the right order.');
+        function sendSurveyBestEffort(payload) {
+          fetch('/api/survey', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }).then(function(response) {
+            if (!response.ok) {
+              return response.text().then(function(text) {
+                throw new Error(text || ('Request failed with status ' + response.status));
+              });
+            }
+          }).catch(function(error) {
+            console.error('Survey submit failed:', error);
+            phCapture('survey_save_failed', {
+              email: customerEmail,
+              order_id: orderId,
+              chip: selectedChip || 'unknown'
+            });
+          });
+        }
+
+        function handleDownloadAgain(event, chip, button) {
+          event.preventDefault();
+          var downloadUrl = button.dataset.downloadUrl || '';
+          if (!downloadUrl) {
+            setStatus('error', 'Download links are not configured', 'Set the public GitHub DMG URLs for this deployment to enable re-downloads.');
             return;
           }
 
-          try {
-            var payload = await requestDownloadLinks();
+          selectedChip = chip;
+          persistContext(selectedChip);
+          startDownload(downloadUrl);
 
-            if (payload.status !== 'authorized') {
-              setStatus('error', 'This survey link is not active', 'Use the link from your Lemon receipt email if you want to submit feedback for this purchase.');
-              return;
-            }
+          phCapture('download_again_clicked', {
+            email: customerEmail,
+            order_id: orderId,
+            chip: selectedChip
+          });
 
-            if (!hasKnownChip()) {
-              downloadAgainBtn.disabled = true;
-              setStatus('ready', 'Your download should already be in progress', 'We can still save your survey answers, but Download again is disabled because we could not recover which Mac build you picked.');
-            } else {
-              downloadAgainBtn.disabled = false;
-              setStatus('ready', 'Your download should already be in progress', 'If it did not start, use Download again below. When you open Focana, paste the key from your Lemon receipt email or Lemon My Orders.');
-            }
-            showSurvey();
-          } catch (error) {
-            console.error('Failed to verify survey context:', error);
-            setStatus('error', 'We could not verify this survey', 'Refresh the page or contact support if this purchase should still be active.');
-          }
+          setStatus('ready', 'Downloading again...', 'The installer should start again in a moment. You can still skip or finish the survey.');
         }
 
-        if (!customerEmail || !orderId || !selectedChip) {
-          try {
-            var storedContext = window.sessionStorage.getItem('focana_purchase_context');
-            if (storedContext) {
-              var parsedContext = JSON.parse(storedContext);
-              if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
-              if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
-              if (!selectedChip && parsedContext.chip) selectedChip = parsedContext.chip;
-            }
-          } catch (err) {
-            console.error('Failed to read stored purchase context:', err);
-          }
+        readStoredContext();
+        persistContext(selectedChip);
+
+        if (selectedChip === 'apple_silicon') {
+          armDownloadBtn.classList.remove('secondary');
+          armDownloadBtn.classList.add('action-btn');
+        } else if (selectedChip === 'intel') {
+          intelDownloadBtn.classList.remove('secondary');
+          intelDownloadBtn.classList.add('action-btn');
         }
 
         phCapture('survey_page_viewed', {
@@ -439,50 +452,27 @@ const canonicalURL = "https://focana.app/survey";
           chip: selectedChip || 'unknown'
         });
 
-        downloadAgainBtn.addEventListener('click', async function() {
-          if (!hasKnownChip()) {
-            setStatus('error', 'We could not determine your Mac build', 'Go back to the verified download page and pick Apple Silicon or Intel again if you need a fresh download.');
-            return;
-          }
+        armDownloadBtn.addEventListener('click', function(event) {
+          handleDownloadAgain(event, 'apple_silicon', armDownloadBtn);
+        });
 
-          downloadAgainBtn.disabled = true;
-          downloadAgainBtn.textContent = 'Preparing...';
-
-          try {
-            var payload = await requestDownloadLinks();
-            if (payload.status !== 'authorized') {
-              throw new Error('Download link is not currently authorized.');
-            }
-
-            var downloadUrl = selectedChip === 'intel' ? payload.x64Url : payload.arm64Url;
-            if (!downloadUrl) {
-              throw new Error('The selected download is not available.');
-            }
-
-            phCapture('download_again_clicked', {
-              email: customerEmail,
-              order_id: orderId,
-              chip: selectedChip
-            });
-            startDownload(downloadUrl);
-          } catch (error) {
-            console.error('Failed to re-download:', error);
-            setStatus('error', 'Could not start the download again', 'Refresh the page or contact support if the signed download link expired.');
-          } finally {
-            downloadAgainBtn.disabled = false;
-            downloadAgainBtn.textContent = 'Download again';
-          }
+        intelDownloadBtn.addEventListener('click', function(event) {
+          handleDownloadAgain(event, 'intel', intelDownloadBtn);
         });
 
         surveySkip.addEventListener('click', function() {
-          phCapture('survey_skipped', { email: customerEmail, order_id: orderId, chip: selectedChip || 'unknown' });
-          showThanks();
+          phCapture('survey_skipped', {
+            email: customerEmail,
+            order_id: orderId,
+            chip: selectedChip || 'unknown'
+          });
+          redirectToNextSteps();
         });
 
         surveyForm.addEventListener('submit', function(event) {
           event.preventDefault();
           surveySubmit.disabled = true;
-          surveySubmit.textContent = 'Sending...';
+          surveySubmit.textContent = 'Continuing...';
 
           var howFoundEl = surveyForm.querySelector('input[name="how_found"]:checked');
           var howFound = howFoundEl ? howFoundEl.value : null;
@@ -506,32 +496,18 @@ const canonicalURL = "https://focana.app/survey";
             tools_tried: toolsTried
           });
 
-          fetch('/api/survey', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          if (customerEmail || orderId) {
+            sendSurveyBestEffort({
               email: customerEmail,
               order_id: orderId,
               how_found: howFound,
               focus_struggles: focusStruggles,
               tools_tried: toolsTried
-            })
-          }).then(function(response) {
-            if (!response.ok) {
-              return response.text().then(function(text) {
-                throw new Error(text || ('Request failed with status ' + response.status));
-              });
-            }
-            showThanks();
-          }).catch(function(error) {
-            console.error('Survey submit failed:', error);
-            setStatus('error', 'We could not save your answers', 'Please try again. Your download is still available through Download again above.');
-            surveySubmit.disabled = false;
-            surveySubmit.textContent = 'Try sending again';
-          });
-        });
+            });
+          }
 
-        verifySurveyContext();
+          redirectToNextSteps();
+        });
       })();
     </script>
   </body>
