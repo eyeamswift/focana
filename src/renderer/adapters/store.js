@@ -48,6 +48,7 @@ export const SessionStore = {
       mode: typeof data?.mode === 'string' ? data.mode : 'freeflow',
       completed: data?.completed ?? false,
       notes: typeof data?.notes === 'string' ? data.notes : '',
+      sessionFeedback: data?.sessionFeedback === 'down' ? 'down' : (data?.sessionFeedback === 'up' ? 'up' : null),
       createdAt: new Date().toISOString(),
     };
 

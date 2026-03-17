@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   activateLicense: (licenseKey) => ipcRenderer.invoke('license:activate', licenseKey),
   validateLicense: (options) => ipcRenderer.invoke('license:validate', options),
   deactivateLicense: () => ipcRenderer.invoke('license:deactivate'),
+  syncFeedbackQueue: () => ipcRenderer.invoke('feedback:sync'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),
 
   // Shortcuts

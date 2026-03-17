@@ -70,6 +70,10 @@ const schema = {
     type: 'array',
     default: [],
   },
+  feedbackQueue: {
+    type: 'array',
+    default: [],
+  },
   userEmail: {
     type: 'string',
     default: '',

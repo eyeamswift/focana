@@ -4,6 +4,7 @@ const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
 const { createTray, popupCompactContextMenu, popupFloatingContextMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
+const { createFeedbackSyncService } = require('./feedbackSync');
 const { createLicenseService } = require('./licenseService');
 const { createUpdaterService } = require('./updater');
 
@@ -33,6 +34,7 @@ let floatingTimedPulseLastElapsedSeconds = 0;
 let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
 const licenseService = createLicenseService({ app, store });
+const feedbackSyncService = createFeedbackSyncService({ store });
 
 const isDev = (process.env.FOCANA_DEV === '1' || !app.isPackaged) && process.env.FOCANA_E2E !== '1';
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
@@ -65,6 +67,7 @@ const ALLOWED_STORE_KEYS = new Set([
   'timerState',
   'thoughts',
   'sessions',
+  'feedbackQueue',
   'userEmail',
   'emailPromptSkipped',
   'settings',
@@ -362,6 +365,7 @@ function sanitizeStoreValue(key, value) {
       }
     case 'thoughts':
     case 'sessions':
+    case 'feedbackQueue':
       if (!Array.isArray(value)) throw new Error(`${key} must be an array`);
       return value;
     case 'userEmail':
@@ -1053,6 +1057,11 @@ function createWindow() {
         floatingIconWindow.hide();
       }
     }
+    feedbackSyncService.requestSync('main-window-show');
+  });
+
+  mainWindow.on('focus', () => {
+    feedbackSyncService.requestSync('main-window-focus');
   });
 
   mainWindow.on('minimize', (event) => {
@@ -1122,6 +1131,10 @@ ipcMain.handle('license:validate', (_event, options) => {
 
 ipcMain.handle('license:deactivate', () => {
   return licenseService.deactivateLicense();
+});
+
+ipcMain.handle('feedback:sync', () => {
+  return feedbackSyncService.syncNow({ reason: 'renderer-request' });
 });
 
 ipcMain.on('minimize-to-tray', () => {
@@ -1545,10 +1558,12 @@ app.whenReady().then(() => {
   }
   createWindow();
   updater.start();
+  feedbackSyncService.start();
 });
 
 app.on('window-all-closed', () => {
   updater.stop();
+  feedbackSyncService.stop();
   stopFloatingPulseSchedule();
   clearDndExpiryTimer();
   unregisterAll();
@@ -1557,12 +1572,14 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   updater.stop();
+  feedbackSyncService.stop();
   stopFloatingPulseSchedule();
   clearDndExpiryTimer();
   unregisterAll();
 });
 
 app.on('activate', () => {
+  feedbackSyncService.requestSync('app-activate');
   if (mainWindow === null) {
     createWindow();
     return;

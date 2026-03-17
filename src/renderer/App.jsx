@@ -99,6 +99,8 @@ const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60;
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
+const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 1000;
+const SESSION_FEEDBACK_CONTINUE_DELAY_MS = 200;
 const PINNED_CONTROLS_DEFAULT = {
   alwaysOnTop: true,
   dnd: true,
@@ -139,6 +141,13 @@ function getLicenseGateCopy(status) {
     default:
       return 'Paste the license key from your Lemon receipt email or Lemon My Orders to unlock Focana.';
   }
+}
+
+function createLocalFeedbackId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 const buildTimedThresholds = (percents, totalSeconds) => {
@@ -250,6 +259,7 @@ export default function App() {
   const [postSessionParkingLotHiddenIds, setPostSessionParkingLotHiddenIds] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
+  const [sessionFeedbackPrompt, setSessionFeedbackPrompt] = useState(null);
   const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | ready
   const [startupRevealComplete, setStartupRevealComplete] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState(null);
@@ -330,6 +340,8 @@ export default function App() {
   const timeUpReturnToCompactRef = useRef(false);
   const timeUpReturnToFloatingRef = useRef(false);
   const timeUpTriggerKeyRef = useRef('');
+  const sessionFeedbackFlowRef = useRef({ id: 0, captured: false });
+  const sessionFeedbackPendingActionRef = useRef(null);
   const lastInteractionTimeRef = useRef(Date.now());
   const isRunningRef = useRef(false);
   const sessionCreatePromiseRef = useRef(null);
@@ -968,6 +980,104 @@ export default function App() {
     return savedSessionId;
   }, [task, mode, loadSessions, currentSessionId]);
 
+  const beginSessionFeedbackFlow = useCallback(() => {
+    sessionFeedbackPendingActionRef.current = null;
+    sessionFeedbackFlowRef.current = {
+      id: sessionFeedbackFlowRef.current.id + 1,
+      captured: false,
+    };
+    setSessionFeedbackPrompt(null);
+  }, []);
+
+  const resetSessionFeedbackFlow = useCallback(() => {
+    sessionFeedbackPendingActionRef.current = null;
+    sessionFeedbackFlowRef.current = {
+      ...sessionFeedbackFlowRef.current,
+      captured: false,
+    };
+    setSessionFeedbackPrompt(null);
+  }, []);
+
+  const continueSessionFeedbackFlow = useCallback(() => {
+    const nextAction = sessionFeedbackPendingActionRef.current;
+    sessionFeedbackPendingActionRef.current = null;
+    setSessionFeedbackPrompt(null);
+    if (typeof nextAction === 'function') {
+      nextAction();
+    }
+  }, []);
+
+  const captureSessionFeedback = useCallback(async (feedback) => {
+    const prompt = sessionFeedbackPrompt;
+    if (!prompt) return;
+    if (prompt.flowId !== sessionFeedbackFlowRef.current.id || sessionFeedbackFlowRef.current.captured) return;
+
+    sessionFeedbackFlowRef.current = {
+      ...sessionFeedbackFlowRef.current,
+      captured: true,
+    };
+
+    const sessionId = prompt.sessionId || await ensureCurrentSessionId('session feedback');
+    const queueItem = {
+      id: createLocalFeedbackId(),
+      sessionId: sessionId || null,
+      feedback,
+      surface: prompt.surface,
+      completionType: prompt.completionType,
+      sessionMode: prompt.sessionMode,
+      sessionDurationMinutes: prompt.sessionDurationMinutes,
+      clientCreatedAt: new Date().toISOString(),
+      appVersion: runtimeInfo?.version || 'unknown',
+      osVersion: runtimeInfo?.osVersion || '',
+      channel: runtimeInfo?.channel || 'latest',
+      installId: licenseStatus?.installId || '',
+      licenseInstanceId: licenseStatus?.instanceId || null,
+      syncStatus: 'pending',
+      attemptCount: 0,
+      lastAttemptAt: null,
+      syncedAt: null,
+      lastError: null,
+    };
+
+    try {
+      const existingQueue = await window.electronAPI.storeGet('feedbackQueue');
+      const nextQueue = Array.isArray(existingQueue) ? [...existingQueue, queueItem] : [queueItem];
+      await window.electronAPI.storeSet('feedbackQueue', nextQueue);
+      if (sessionId) {
+        await SessionStore.update(sessionId, { sessionFeedback: feedback });
+      }
+      track('session_feedback', {
+        feedback,
+        sessionId: sessionId || 'unknown',
+        sessionDuration: prompt.sessionDurationMinutes,
+        sessionMode: prompt.sessionMode,
+        completionType: prompt.completionType,
+        surface: prompt.surface,
+      });
+      void window.electronAPI.syncFeedbackQueue?.();
+    } catch (error) {
+      console.error('Failed to capture session feedback:', error);
+    }
+  }, [ensureCurrentSessionId, licenseStatus?.installId, licenseStatus?.instanceId, runtimeInfo?.channel, runtimeInfo?.osVersion, runtimeInfo?.version, sessionFeedbackPrompt]);
+
+  const maybePromptSessionFeedback = useCallback(({ modal, surface, completionType, onContinue }) => {
+    if (sessionFeedbackFlowRef.current.captured) {
+      onContinue?.();
+      return;
+    }
+
+    sessionFeedbackPendingActionRef.current = onContinue;
+    setSessionFeedbackPrompt({
+      modal,
+      surface,
+      completionType,
+      flowId: sessionFeedbackFlowRef.current.id,
+      sessionId: currentSessionId || sessionToSave.current?.sessionId || null,
+      sessionDurationMinutes: Number((sessionToSave.current?.duration || 0).toFixed(2)),
+      sessionMode: mode,
+    });
+  }, [currentSessionId, mode]);
+
   // Pulse animation
   const triggerPulse = useCallback((type = 'gentle', repeats = 2) => {
     if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
@@ -1113,6 +1223,7 @@ export default function App() {
       sessionToSave.current = {
         duration: durationMin,
         completed: true,
+        sessionId: currentSessionId,
       };
       track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'shortcut' });
 
@@ -1629,9 +1740,10 @@ export default function App() {
     setSessionNotesMode('complete');
     setSessionStartTime(null);
     invalidatePendingSessionCreation();
+    resetSessionFeedbackFlow();
 
     clearCompactSessionCues();
-  }, [clearCompactSessionCues, invalidatePendingSessionCreation]);
+  }, [clearCompactSessionCues, invalidatePendingSessionCreation, resetSessionFeedbackFlow]);
 
   useEffect(() => {
     handleClearRef.current = handleClear;
@@ -2108,9 +2220,11 @@ export default function App() {
       setIsTimerVisible(true);
       setSessionStartTime(null);
       clearCompactSessionCues();
+      beginSessionFeedbackFlow();
       sessionToSave.current = {
         duration: initialTime / 60,
         completed: true,
+        sessionId: currentSessionId,
       };
       setShowTimeUpModal(true);
     };
@@ -2120,7 +2234,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [mode, time, initialTime, clearCompactSessionCues, currentSessionId, isCompact, showNotesModal, showTimeUpModal]);
+  }, [mode, time, initialTime, beginSessionFeedbackFlow, clearCompactSessionCues, currentSessionId, isCompact, showNotesModal, showTimeUpModal]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -2345,9 +2459,11 @@ export default function App() {
     if (isCompact) {
       handleExitCompact();
     }
+    beginSessionFeedbackFlow();
     sessionToSave.current = {
       duration: elapsedSeconds / 60,
       completed: false,
+      sessionId: currentSessionId,
     };
     setSessionNotesMode('stop-decision');
     setShowNotesModal(true);
@@ -2469,6 +2585,7 @@ export default function App() {
       setIsTimerVisible(false);
       setSessionStartTime(null);
       elapsedBeforeRunRef.current = 0;
+      resetSessionFeedbackFlow();
   
       return;
     }
@@ -2495,12 +2612,13 @@ export default function App() {
       setIsTimerVisible(false);
       setSessionStartTime(null);
       elapsedBeforeRunRef.current = 0;
+      resetSessionFeedbackFlow();
   
       return;
     }
 
     if (sessionNotesMode === 'stop-decision') {
-      await finalizeIncompleteStop('');
+      handleStopFlowIncomplete('');
       return;
     }
     await saveSessionWithNotes('');
@@ -2513,6 +2631,7 @@ export default function App() {
     if (!sessionToSave.current) {
       setShowNotesModal(false);
       setSessionNotesMode('complete');
+      resetSessionFeedbackFlow();
       return;
     }
 
@@ -2535,15 +2654,17 @@ export default function App() {
     setInitialTime(0);
     setIsTimerVisible(false);
     setSessionStartTime(null);
+    resetSessionFeedbackFlow();
     if (hasPostSessionParkingLotItems(endedSessionId)) {
       openPostSessionParkingLot(endedSessionId);
     }
-  }, [mode, saveSessionWithNotes, showToast, hasPostSessionParkingLotItems, openPostSessionParkingLot]);
+  }, [mode, saveSessionWithNotes, showToast, hasPostSessionParkingLotItems, openPostSessionParkingLot, resetSessionFeedbackFlow]);
 
-  const handleStopFlowComplete = useCallback(async (notes = '') => {
+  const finalizeStopFlowComplete = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
       setShowNotesModal(false);
       setSessionNotesMode('complete');
+      resetSessionFeedbackFlow();
       return;
     }
 
@@ -2562,15 +2683,16 @@ export default function App() {
 
     triggerConfetti();
     finalizeCompletedSessionUi(completedSessionId);
+    resetSessionFeedbackFlow();
 
     try {
       const allSessions = await SessionStore.list();
       const streak = computeStreak(allSessions);
       if (streak >= 2) track('session_streak', { streak_count: streak });
     } catch (_) { /* non-critical */ }
-  }, [mode, saveSessionWithNotes, triggerConfetti, finalizeCompletedSessionUi]);
+  }, [mode, saveSessionWithNotes, triggerConfetti, finalizeCompletedSessionUi, resetSessionFeedbackFlow]);
 
-  const handleTimeUpEndSession = () => {
+  const finalizeTimeUpEndSession = useCallback(() => {
     track('post_session_choice', { choice: 'end_session' });
     setShowTimeUpModal(false);
     timeUpReturnToCompactRef.current = false;
@@ -2580,7 +2702,38 @@ export default function App() {
     clearCompactSessionCues();
     setSessionNotesMode('stop-decision');
     setShowNotesModal(true);
-  };
+  }, [clearCompactSessionCues]);
+
+  const handleStopFlowComplete = useCallback((notes = '') => {
+    maybePromptSessionFeedback({
+      modal: 'session-notes',
+      surface: 'stop_yes_complete',
+      completionType: 'completed',
+      onContinue: () => {
+        void finalizeStopFlowComplete(notes);
+      },
+    });
+  }, [finalizeStopFlowComplete, maybePromptSessionFeedback]);
+
+  const handleStopFlowIncomplete = useCallback((notes = '') => {
+    maybePromptSessionFeedback({
+      modal: 'session-notes',
+      surface: 'stop_no_keep_task',
+      completionType: 'kept',
+      onContinue: () => {
+        void finalizeIncompleteStop(notes);
+      },
+    });
+  }, [finalizeIncompleteStop, maybePromptSessionFeedback]);
+
+  const handleTimeUpEndSession = useCallback(() => {
+    maybePromptSessionFeedback({
+      modal: 'time-up',
+      surface: 'time_up_end_session',
+      completionType: 'ended',
+      onContinue: finalizeTimeUpEndSession,
+    });
+  }, [finalizeTimeUpEndSession, maybePromptSessionFeedback]);
 
   const handleTimeUpKeepGoing = (extraMinutes) => {
     track('post_session_choice', { choice: 'keep_going', extra_minutes: Math.min(Math.max(extraMinutes || 5, 1), 240) });
@@ -2604,6 +2757,7 @@ export default function App() {
     setTimedCueSegment(elapsedAtExtension, extraSeconds);
     resetCheckInSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
     resetCompactPulseSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
+    resetSessionFeedbackFlow();
     if (shouldReturnToFloating) {
       setTimeout(() => {
         window.electronAPI.enterFloatingMinimize?.();
@@ -2632,6 +2786,7 @@ export default function App() {
     postSessionNotesActionRef.current = 'resume-later';
     setSessionNotesMode('resume-later');
     setShowNotesModal(true);
+    resetSessionFeedbackFlow();
   };
 
   const prepareTaskForStartChooser = useCallback(({
@@ -2654,6 +2809,7 @@ export default function App() {
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = normalizedCarryoverSeconds;
     timeUpReturnToFloatingRef.current = false;
+    resetSessionFeedbackFlow();
     clearCompactSessionCues();
     clearCheckInUi();
     setTask(nextTask);
@@ -2697,7 +2853,7 @@ export default function App() {
       compactPulseTimedIndex: 0,
     });
     return true;
-  }, [clearCheckInUi, clearCompactSessionCues, invalidatePendingSessionCreation]);
+  }, [clearCheckInUi, clearCompactSessionCues, invalidatePendingSessionCreation, resetSessionFeedbackFlow]);
 
   const handleUseTask = (session) => {
     if (!session || typeof session !== 'object') {
@@ -3352,13 +3508,33 @@ export default function App() {
           onClose={handleSkipSessionNotes}
           onSave={handleSaveSessionNotes}
           onComplete={handleStopFlowComplete}
-          onIncomplete={finalizeIncompleteStop}
+          onIncomplete={handleStopFlowIncomplete}
           sessionDuration={sessionToSave.current?.duration || 0}
           taskName={task}
           sessionFlowKey={sessionNotesFlowKey}
           flow={sessionNotesMode}
+          feedbackPrompt={sessionFeedbackPrompt?.modal === 'session-notes' ? {
+            isOpen: true,
+            onSelect: captureSessionFeedback,
+            onContinue: continueSessionFeedbackFlow,
+            autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
+            continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
+          } : null}
         />
-        <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} onResumeLater={handleTimeUpResumeLater} />
+        <TimeUpModal
+          isOpen={showTimeUpModal}
+          taskName={task}
+          onEndSession={handleTimeUpEndSession}
+          onKeepGoing={handleTimeUpKeepGoing}
+          onResumeLater={handleTimeUpResumeLater}
+          feedbackPrompt={sessionFeedbackPrompt?.modal === 'time-up' ? {
+            isOpen: true,
+            onSelect: captureSessionFeedback,
+            onContinue: continueSessionFeedbackFlow,
+            autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
+            continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
+          } : null}
+        />
         <TaskPreviewModal
           isOpen={showTaskPreview}
           onClose={handleCloseTaskPreview}
@@ -3864,13 +4040,33 @@ export default function App() {
         onClose={handleSkipSessionNotes}
         onSave={handleSaveSessionNotes}
         onComplete={handleStopFlowComplete}
-        onIncomplete={finalizeIncompleteStop}
+        onIncomplete={handleStopFlowIncomplete}
         sessionDuration={sessionToSave.current?.duration || 0}
         taskName={task}
         sessionFlowKey={sessionNotesFlowKey}
         flow={sessionNotesMode}
+        feedbackPrompt={sessionFeedbackPrompt?.modal === 'session-notes' ? {
+          isOpen: true,
+          onSelect: captureSessionFeedback,
+          onContinue: continueSessionFeedbackFlow,
+          autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
+          continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
+        } : null}
       />
-      <TimeUpModal isOpen={showTimeUpModal} taskName={task} onEndSession={handleTimeUpEndSession} onKeepGoing={handleTimeUpKeepGoing} onResumeLater={handleTimeUpResumeLater} />
+      <TimeUpModal
+        isOpen={showTimeUpModal}
+        taskName={task}
+        onEndSession={handleTimeUpEndSession}
+        onKeepGoing={handleTimeUpKeepGoing}
+        onResumeLater={handleTimeUpResumeLater}
+        feedbackPrompt={sessionFeedbackPrompt?.modal === 'time-up' ? {
+          isOpen: true,
+          onSelect: captureSessionFeedback,
+          onContinue: continueSessionFeedbackFlow,
+          autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
+          continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
+        } : null}
+      />
       <TaskPreviewModal
         isOpen={showTaskPreview}
         onClose={handleCloseTaskPreview}

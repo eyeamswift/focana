@@ -216,8 +216,10 @@ function createLicenseService({ app, store }) {
     const version = app.getVersion()
     const channel = getUpdateChannel(version)
     const licenseEnforced = isLicenseGateForced() || !isDevRuntime(app)
+    const osVersion = typeof os.version === 'function' ? os.version() : os.release()
     return {
       version,
+      osVersion,
       channel,
       licenseEnforced,
       licenseGateForced: isLicenseGateForced(),
