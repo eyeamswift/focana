@@ -408,6 +408,76 @@ test('timed time-up flows keep going and resume later without losing task state'
   }
 });
 
+test('session feedback prompt stays visible for three seconds before continuing the time-up flow', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'feedback-auto-advance', 1);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+
+    const feedbackPrompt = page.getByText('How was Focana this session?');
+    await expect(feedbackPrompt).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close feedback prompt' })).toBeVisible();
+
+    await page.waitForTimeout(2200);
+    await expect(feedbackPrompt).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+
+    await page.waitForTimeout(1400);
+    await expect(feedbackPrompt).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('selecting session feedback saves it and continues after the short post-click delay', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'feedback-select', 1);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+
+    const feedbackPrompt = page.getByText('How was Focana this session?');
+    await expect(feedbackPrompt).toBeVisible();
+
+    await page.getByRole('button', { name: 'Thumbs up' }).click();
+
+    await expect.poll(async () => {
+      const queue = await page.evaluate(() => window.electronAPI.storeGet('feedbackQueue'));
+      return Array.isArray(queue) ? queue.length : 0;
+    }).toBe(1);
+
+    const queue = await page.evaluate(() => window.electronAPI.storeGet('feedbackQueue'));
+    expect(queue[0].feedback).toBe('up');
+    expect(queue[0].surface).toBe('time_up_end_session');
+    expect(queue[0].completionType).toBe('ended');
+
+    await expect.poll(async () => {
+      const sessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+      return sessions?.[0]?.sessionFeedback || null;
+    }).toBe('up');
+
+    await page.waitForTimeout(100);
+    await expect(feedbackPrompt).toBeVisible();
+
+    await expect(feedbackPrompt).toHaveCount(0, { timeout: 1500 });
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
 test('quick capture thought persists after parking lot interactions', async () => {
   const { electronApp, page, cleanup } = await launchApp();
   try {
@@ -463,7 +533,7 @@ test('floating minimize shows a timer pill while a timer is active', async () =>
   }
 });
 
-test('floating minimize stays available when timer is visible but not running', async () => {
+test('floating minimize keeps the timer pill visible when timer is visible but not running', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -471,9 +541,9 @@ test('floating minimize stays available when timer is visible but not running', 
     await exitCompactMode(page);
     await triggerShortcutAction(electronApp, 'startPause');
 
-    const minimizeFloatingButton = page.locator('button[aria-label="Minimize to Floating Icon"]');
-    await expect(minimizeFloatingButton).toBeEnabled();
-    await minimizeFloatingButton.click();
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
 
     await expect.poll(() => {
       const windows = electronApp.windows();
@@ -483,7 +553,43 @@ test('floating minimize stays available when timer is visible but not running', 
     const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
     expect(floatingWindow).toBeTruthy();
 
-    await expect.poll(async () => floatingWindow.evaluate(() => document.body.dataset.mode), { timeout: 7000 }).toBe('icon');
+    await expect.poll(async () => floatingWindow.evaluate(() => ({
+      mode: document.body.dataset.mode,
+      timeText: document.getElementById('timer-pill')?.textContent?.trim() || '',
+      toggleLabel: document.getElementById('timer-toggle-btn')?.getAttribute('aria-label') || '',
+    })), { timeout: 7000 }).toMatchObject({
+      mode: 'timer',
+      timeText: expect.stringMatching(/^\d{2}:\d{2}$/),
+      toggleLabel: 'Resume timer',
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('stopping from the floating timer restores the main window and shows the stop flow', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'floating-stop');
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(() => {
+      const windows = electronApp.windows();
+      return windows.some((win) => win.url().includes('floating-icon.html'));
+    }, { timeout: 7000 }).toBe(true);
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    await floatingWindow.locator('#icon-button').click();
+    await floatingWindow.locator('#timer-stop-btn').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1010,6 +1116,45 @@ test('stop flow is handled inside session notes without a second completion moda
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].completed).toBe(false);
     expect(savedSessions[0].notes).toBe('resume from here');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('feedback prompt close button skips feedback and continues the stop flow action', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('feedback-close');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await page.waitForTimeout(6500);
+    await page.locator('.pill').click();
+    await page.locator('button[title="Stop & Save"]').click();
+
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByPlaceholder('Quick note about where to pick up next time...').fill('carry note');
+    await page.getByRole('button', { name: 'No, Keep Task' }).click();
+
+    const feedbackPrompt = page.getByText('How was Focana this session?');
+    await expect(feedbackPrompt).toBeVisible();
+
+    await page.getByRole('button', { name: 'Close feedback prompt' }).click();
+
+    await expect(feedbackPrompt).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('feedback-close');
+
+    await expect.poll(async () => {
+      const sessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+      return Array.isArray(sessions) ? sessions.length : 0;
+    }).toBe(1);
+
+    const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    expect(savedSessions[0].completed).toBe(false);
+    expect(savedSessions[0].notes).toBe('carry note');
   } finally {
     await cleanup();
   }

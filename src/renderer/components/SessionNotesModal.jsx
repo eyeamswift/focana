@@ -116,6 +116,7 @@ export default function SessionNotesModal({
             isOpen={feedbackPromptActive}
             onSelect={feedbackPrompt.onSelect}
             onContinue={feedbackPrompt.onContinue}
+            onDismiss={feedbackPrompt.onDismiss}
             autoAdvanceMs={feedbackPrompt.autoAdvanceMs}
             continueDelayMs={feedbackPrompt.continueDelayMs}
           />

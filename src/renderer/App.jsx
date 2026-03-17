@@ -99,7 +99,7 @@ const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60;
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
-const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 1000;
+const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 3000;
 const SESSION_FEEDBACK_CONTINUE_DELAY_MS = 200;
 const PINNED_CONTROLS_DEFAULT = {
   alwaysOnTop: true,
@@ -1383,11 +1383,13 @@ export default function App() {
         const restoredDisplayTime = restoredMode === 'timed'
           ? Math.max(0, restoredInitialTime - restoredElapsedSeconds)
           : restoredElapsedSeconds;
-        const restoredTimerVisible = Boolean(restoredTaskText.trim()) && (
-          restoredRunning
-          || restoredInitialTime > 0
-          || restoredElapsedSeconds > 0
-        );
+        const restoredTimerVisible = typeof savedTimerState?.timerVisible === 'boolean'
+          ? savedTimerState.timerVisible
+          : (Boolean(restoredTaskText.trim()) && (
+            restoredRunning
+            || restoredInitialTime > 0
+            || restoredElapsedSeconds > 0
+          ));
         const restoredSegmentElapsed = restoredMode === 'timed'
           ? Math.max(0, restoredElapsedSeconds - restoredSegmentStartElapsed)
           : 0;
@@ -1505,6 +1507,7 @@ export default function App() {
       window.electronAPI.storeSet('timerState', {
         mode,
         seconds: time,
+        timerVisible: isTimerVisible,
         isRunning: false,
         initialTime,
         elapsedSeconds: elapsedBeforeRunRef.current,
@@ -1516,7 +1519,7 @@ export default function App() {
         compactPulseTimedIndex: compactPulseIndexRef.current,
       });
     }
-  }, [task, time, mode, initialTime, contextNotes, isRunning]);
+  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -1529,6 +1532,7 @@ export default function App() {
     window.electronAPI.storeSet('timerState', {
       mode,
       seconds: time,
+      timerVisible: isTimerVisible,
       isRunning: true,
       initialTime,
       elapsedSeconds: elapsedBeforeRunRef.current,
@@ -1539,7 +1543,7 @@ export default function App() {
       checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
       compactPulseTimedIndex: compactPulseIndexRef.current,
     });
-  }, [task, contextNotes, mode, initialTime, isRunning, sessionStartTime, time]);
+  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, sessionStartTime, time]);
 
   const getStandardCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
     if (nextMode === 'freeflow') {
@@ -2842,6 +2846,7 @@ export default function App() {
     window.electronAPI.storeSet('timerState', {
       mode: 'freeflow',
       seconds: 0,
+      timerVisible: false,
       isRunning: false,
       initialTime: 0,
       elapsedSeconds: 0,
@@ -3517,6 +3522,7 @@ export default function App() {
             isOpen: true,
             onSelect: captureSessionFeedback,
             onContinue: continueSessionFeedbackFlow,
+            onDismiss: continueSessionFeedbackFlow,
             autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
             continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
           } : null}
@@ -3531,6 +3537,7 @@ export default function App() {
             isOpen: true,
             onSelect: captureSessionFeedback,
             onContinue: continueSessionFeedbackFlow,
+            onDismiss: continueSessionFeedbackFlow,
             autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
             continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
           } : null}
@@ -4049,6 +4056,7 @@ export default function App() {
           isOpen: true,
           onSelect: captureSessionFeedback,
           onContinue: continueSessionFeedbackFlow,
+          onDismiss: continueSessionFeedbackFlow,
           autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
           continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
         } : null}
@@ -4063,6 +4071,7 @@ export default function App() {
           isOpen: true,
           onSelect: captureSessionFeedback,
           onContinue: continueSessionFeedbackFlow,
+          onDismiss: continueSessionFeedbackFlow,
           autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
           continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
         } : null}

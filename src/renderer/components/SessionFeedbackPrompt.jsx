@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ThumbsDown, ThumbsUp, X } from 'lucide-react';
 
 export default function SessionFeedbackPrompt({
   isOpen,
   onSelect,
   onContinue,
-  autoAdvanceMs = 1000,
+  onDismiss,
+  autoAdvanceMs = 3000,
   continueDelayMs = 200,
 }) {
   const [selected, setSelected] = useState(null);
@@ -39,15 +40,19 @@ export default function SessionFeedbackPrompt({
     };
   }, [autoAdvanceMs, isOpen, onContinue]);
 
+  const clearContinueTimer = () => {
+    if (continueTimerRef.current) {
+      clearTimeout(continueTimerRef.current);
+      continueTimerRef.current = null;
+    }
+  };
+
   const handleSelect = async (feedback) => {
     if (!isOpen || submitting || selected) return;
 
     setSelected(feedback);
     setSubmitting(true);
-    if (continueTimerRef.current) {
-      clearTimeout(continueTimerRef.current);
-      continueTimerRef.current = null;
-    }
+    clearContinueTimer();
 
     try {
       await onSelect?.(feedback);
@@ -57,6 +62,11 @@ export default function SessionFeedbackPrompt({
         onContinue?.();
       }, continueDelayMs);
     }
+  };
+
+  const handleDismiss = () => {
+    clearContinueTimer();
+    (onDismiss || onContinue)?.();
   };
 
   const buildThumbStyle = (feedback) => {
@@ -85,6 +95,8 @@ export default function SessionFeedbackPrompt({
     <div
       className="electron-no-drag"
       style={{
+        position: 'relative',
+        width: '100%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -92,6 +104,30 @@ export default function SessionFeedbackPrompt({
         padding: '0.5rem 0 0.25rem',
       }}
     >
+      <button
+        type="button"
+        aria-label="Close feedback prompt"
+        onClick={handleDismiss}
+        style={{
+          position: 'absolute',
+          top: '-0.1rem',
+          right: 0,
+          width: '2rem',
+          height: '2rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: '9999px',
+          border: '1px solid var(--border-default)',
+          background: 'var(--bg-card)',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+          boxShadow: '0 1px 2px rgba(46, 31, 24, 0.08)',
+        }}
+      >
+        <X style={{ width: 14, height: 14 }} />
+      </button>
+
       <div style={{ textAlign: 'center', display: 'grid', gap: '0.35rem' }}>
         <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.98rem' }}>
           How was Focana this session?

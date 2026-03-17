@@ -15,6 +15,7 @@ const schema = {
     properties: {
       mode: { type: 'string', default: 'freeflow' },
       seconds: { type: 'number', default: 0 },
+      timerVisible: { type: 'boolean', default: false },
       isRunning: { type: 'boolean', default: false },
       initialTime: { type: 'number', default: 0 },
       elapsedSeconds: { type: 'number', default: 0 },
@@ -28,6 +29,7 @@ const schema = {
     default: {
       mode: 'freeflow',
       seconds: 0,
+      timerVisible: false,
       isRunning: false,
       initialTime: 0,
       elapsedSeconds: 0,

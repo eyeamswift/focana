@@ -69,6 +69,7 @@ export default function TimeUpModal({
             isOpen={feedbackPromptActive}
             onSelect={feedbackPrompt.onSelect}
             onContinue={feedbackPrompt.onContinue}
+            onDismiss={feedbackPrompt.onDismiss}
             autoAdvanceMs={feedbackPrompt.autoAdvanceMs}
             continueDelayMs={feedbackPrompt.continueDelayMs}
           />

@@ -352,6 +352,7 @@ function sanitizeStoreValue(key, value) {
         return {
           mode: value.mode === 'timed' ? 'timed' : 'freeflow',
           seconds: clampNumber(value.seconds, 0, 24 * 60 * 60, 0),
+          timerVisible: Boolean(value.timerVisible),
           isRunning: Boolean(value.isRunning),
           initialTime: clampNumber(value.initialTime, 0, 24 * 60 * 60, 0),
           elapsedSeconds: clampNumber(value.elapsedSeconds, 0, 24 * 60 * 60, 0),
@@ -702,10 +703,11 @@ function readFloatingTimerSnapshot() {
 function getFloatingWindowState() {
   const timerState = store.get('timerState', {});
   const isRunning = Boolean(timerState && typeof timerState === 'object' && timerState.isRunning);
+  const timerVisible = Boolean(timerState && typeof timerState === 'object' && timerState.timerVisible);
   const totalSeconds = Number(timerState?.seconds) || 0;
   const theme = store.get('settings.theme', 'light') === 'dark' ? 'dark' : 'light';
   return {
-    mode: isRunning ? 'timer' : 'icon',
+    mode: timerVisible ? 'timer' : 'icon',
     timeText: formatFloatingTime(totalSeconds),
     theme,
     running: isRunning,
@@ -1231,6 +1233,9 @@ ipcMain.on('compact-context-menu', () => {
 ipcMain.on('floating-timer-action', (_event, action) => {
   if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
   if (action !== 'startPause' && action !== 'stop') return;
+  if (action === 'stop') {
+    exitFloatingIconMode();
+  }
   mainWindow.webContents.send('floating-timer-action', action);
 });
 
