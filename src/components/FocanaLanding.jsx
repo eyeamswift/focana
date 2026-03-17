@@ -735,6 +735,17 @@ export default function FocanaLanding() {
 
   const navOpacity = Math.min(scrollY / 200, 1);
 
+  const openCheckout = (location) => {
+    phCapture("cta_clicked", { location });
+
+    if (window.LemonSqueezy?.Url?.Open) {
+      window.LemonSqueezy.Url.Open(CHECKOUT_URL);
+      return;
+    }
+
+    window.location.assign(CHECKOUT_URL);
+  };
+
   return (
     <div style={{ background: COLORS.warmVanilla, minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", color: COLORS.warmBrown, overflowX: "hidden" }}>
       <style>{`
@@ -906,7 +917,7 @@ export default function FocanaLanding() {
             <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => { setSignupModalOpen(true); setSignupLocation("nav"); phCapture("cta_clicked", { location: "nav" }); }} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Join Waitlist</button>
+            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Buy Focana</button>
           </div>
           <button
             className="hamburger-btn"
@@ -951,7 +962,7 @@ export default function FocanaLanding() {
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); setSignupModalOpen(true); setSignupLocation("mobile_nav"); phCapture("cta_clicked", { location: "mobile_nav" }); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Join Waitlist</button>
+          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Buy Focana</button>
         </div>
       )}
 
@@ -1020,8 +1031,8 @@ export default function FocanaLanding() {
             </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <button onClick={() => { setSignupModalOpen(true); setSignupLocation("hero"); phCapture("cta_clicked", { location: "hero" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Get Notified <span style={{ fontSize: "22px" }}>→</span>
+              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                Buy Focana <span style={{ fontSize: "22px" }}>→</span>
               </button>
               <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                 See How It Works
@@ -1247,8 +1258,8 @@ export default function FocanaLanding() {
               7-day money-back guarantee.<br />
               If it doesn't stick, we'll refund you.
             </p>
-            <button onClick={() => { setSignupModalOpen(true); setSignupLocation("pricing"); phCapture("cta_clicked", { location: "pricing" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Join Waitlist
+            <button onClick={() => openCheckout("pricing")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Buy Focana
             </button>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
               One-time payment. macOS. Instant download.<br />
@@ -1346,8 +1357,8 @@ export default function FocanaLanding() {
             $29 once. Yours forever. 7-day guarantee.
           </p>
 
-          <button onClick={() => { setSignupModalOpen(true); setSignupLocation("final_cta"); phCapture("cta_clicked", { location: "final_cta" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Get Notified <span style={{ fontSize: "22px" }}>→</span>
+          <button onClick={() => openCheckout("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Buy Focana <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
