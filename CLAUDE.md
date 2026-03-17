@@ -194,7 +194,7 @@ window.electronAPI = {
 - No body doubling
 - No analytics dashboard
 - No calendar integration
-- No auto-updates (manual distribution for now)
+- Auto-updates are supported through GitHub Releases for packaged builds
 
 ## Sprint 3 Cleanup Queue
 - **Remove `TaskCompletionModal` fully** (temporary technical debt after SessionNotes Yes/No integration)

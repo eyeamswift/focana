@@ -12,13 +12,13 @@ function getAppVersion() {
 }
 
 function getUpdateChannel(version) {
-  const prereleaseMatch = String(version || '').match(/-([0-9A-Za-z-]+)/);
-  if (!prereleaseMatch) return 'latest';
-  return prereleaseMatch[1].split('.')[0].toLowerCase() || 'latest';
+  void version;
+  return 'latest';
 }
 
 function getReleaseType(version) {
-  return getUpdateChannel(version) === 'latest' ? 'release' : 'prerelease';
+  void version;
+  return 'release';
 }
 
 function parsePublishMode(argv) {
@@ -139,8 +139,8 @@ function runElectronBuilder(args) {
 }
 
 function expectedMacManifestName(version) {
-  const channel = getUpdateChannel(version);
-  return channel === 'latest' ? 'latest-mac.yml' : `${channel}-mac.yml`;
+  void version;
+  return 'latest-mac.yml';
 }
 
 function verifyMacUpdateManifest(version) {

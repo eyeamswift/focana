@@ -2,16 +2,26 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // Window control
-  closeWindow: () => ipcRenderer.send('close-window'),
+  quitApp: () => ipcRenderer.send('quit-app'),
   restartApp: () => ipcRenderer.send('restart-app'),
   minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
   toggleFloatingMinimize: () => ipcRenderer.send('toggle-floating-minimize'),
+  getFloatingMinimized: () => ipcRenderer.invoke('get-floating-minimized'),
+  restoreFromFloatingForTimeUp: () => ipcRenderer.invoke('restore-from-floating-for-time-up'),
+  enterFloatingMinimize: () => ipcRenderer.invoke('enter-floating-minimize'),
+  showMainWindowAfterStartup: (width, height) => ipcRenderer.invoke('show-main-window-after-startup', width, height),
+  openCompactContextMenu: () => ipcRenderer.send('compact-context-menu'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke('set-always-on-top', enabled),
   getAlwaysOnTop: () => ipcRenderer.invoke('get-always-on-top'),
   getUpdateState: () => ipcRenderer.invoke('updates:get-state'),
   checkForAppUpdates: () => ipcRenderer.invoke('updates:check'),
   installAppUpdate: () => ipcRenderer.invoke('updates:install'),
+  getRuntimeInfo: () => ipcRenderer.invoke('app:get-runtime-info'),
+  getLicenseStatus: () => ipcRenderer.invoke('license:get-status'),
+  activateLicense: (licenseKey) => ipcRenderer.invoke('license:activate', licenseKey),
+  validateLicense: (options) => ipcRenderer.invoke('license:validate', options),
+  deactivateLicense: () => ipcRenderer.invoke('license:deactivate'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),
 
   // Shortcuts
@@ -73,6 +83,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event, theme) => callback(theme);
     ipcRenderer.on('tray-theme-select', handler);
     return () => ipcRenderer.removeListener('tray-theme-select', handler);
+  },
+  onFloatingTimerAction: (callback) => {
+    const handler = (_event, action) => callback(action);
+    ipcRenderer.on('floating-timer-action', handler);
+    return () => ipcRenderer.removeListener('floating-timer-action', handler);
   },
   onUpdateStateChange: (callback) => {
     const handler = (_event, state) => callback(state);

@@ -99,16 +99,12 @@ function buildTrayTemplate(mainWindow) {
     {
       label: 'Light Mode',
       click: () => {
-        mainWindow.show();
-        mainWindow.focus();
         mainWindow.webContents.send('tray-theme-select', 'light');
       },
     },
     {
       label: 'Dark Mode',
       click: () => {
-        mainWindow.show();
-        mainWindow.focus();
         mainWindow.webContents.send('tray-theme-select', 'dark');
       },
     },
@@ -236,4 +232,26 @@ function popupFloatingContextMenu(window, options = {}) {
   menu.popup({ window });
 }
 
-module.exports = { createTray, popupFloatingContextMenu, setDndState };
+function popupCompactContextMenu(window, options = {}) {
+  if (!window || window.isDestroyed()) return;
+  const onMinimize = typeof options.onMinimize === 'function' ? options.onMinimize : null;
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Minimize to Floating',
+      click: () => {
+        onMinimize?.();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: formatDndLabel(),
+      enabled: false,
+    },
+    ...buildDndMenuTemplate('compact'),
+  ]);
+
+  menu.popup({ window });
+}
+
+module.exports = { createTray, popupFloatingContextMenu, popupCompactContextMenu, setDndState };

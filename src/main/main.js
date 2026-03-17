@@ -2,8 +2,9 @@ const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage } = requi
 const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
-const { createTray, popupFloatingContextMenu, setDndState } = require('./tray');
+const { createTray, popupCompactContextMenu, popupFloatingContextMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
+const { createLicenseService } = require('./licenseService');
 const { createUpdaterService } = require('./updater');
 
 let mainWindow = null;
@@ -22,13 +23,21 @@ let floatingIconWindow = null;
 let isFloatingMinimized = false;
 let floatingPulseTimeout = null;
 let floatingPulseInterval = null;
+let floatingStateInterval = null;
 let floatingIconDragStart = null;
+let floatingWindowDisplayState = { mode: 'icon', timeText: '00:00' };
+let floatingTimedPulseThresholds = [];
+let floatingTimedPulseIndex = 0;
+let floatingTimedPulseInitialTime = 0;
+let floatingTimedPulseLastElapsedSeconds = 0;
 let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
+const licenseService = createLicenseService({ app, store });
 
-const isDev = !app.isPackaged && process.env.FOCANA_E2E !== '1';
+const isDev = (process.env.FOCANA_DEV === '1' || !app.isPackaged) && process.env.FOCANA_E2E !== '1';
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
-const shouldCreateTray = process.env.FOCANA_E2E !== '1' || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
+const isE2E = process.env.FOCANA_E2E === '1';
+const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
 const PILL_MIN_WIDTH = 100;
@@ -36,8 +45,11 @@ const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
 const PILL_EDGE_EPSILON = 2;
 const FLOATING_ICON_SIZE = 64;
+const FLOATING_TIMER_WIDTH = 116;
+const FLOATING_TIMER_HEIGHT = 48;
 const FLOATING_ICON_PULSE_INITIAL_MS = 10 * 60 * 1000;
 const FLOATING_ICON_PULSE_REPEAT_MS = 15 * 60 * 1000;
+const FLOATING_TIMED_PULSE_PERCENTS = [0.2, 0.4, 0.6, 0.8];
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
@@ -47,6 +59,7 @@ const DEFAULT_SHORTCUTS = {
 };
 let pendingProgrammaticMainBounds = null;
 let clearProgrammaticMainBoundsTimer = null;
+let awaitingInitialMainWindowShow = false;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -340,6 +353,8 @@ function sanitizeStoreValue(key, value) {
           initialTime: clampNumber(value.initialTime, 0, 24 * 60 * 60, 0),
           elapsedSeconds: clampNumber(value.elapsedSeconds, 0, 24 * 60 * 60, 0),
           sessionStartedAt: sanitizeOptionalIsoTimestamp(value.sessionStartedAt),
+          timedSegmentStartElapsed: clampNumber(value.timedSegmentStartElapsed, 0, 24 * 60 * 60, 0),
+          timedSegmentDuration: clampNumber(value.timedSegmentDuration, 0, 24 * 60 * 60, 0),
           checkInTimedIndex: timedIndex,
           checkInTimedPendingIndex: timedPendingIndex,
           compactPulseTimedIndex,
@@ -532,6 +547,26 @@ function setMainWindowBoundsClamped(bounds, { persist = false, areaType = 'workA
   }
 }
 
+function getSizedMainWindowBounds(minWidth = FULL_MIN_WIDTH, minHeight = FULL_MIN_HEIGHT) {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+
+  const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2400, FULL_MIN_WIDTH);
+  const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2400, FULL_MIN_HEIGHT);
+  const bounds = mainWindow.getBounds();
+  const displayBounds = screen.getDisplayMatching(bounds).bounds;
+  const rightEdge = displayBounds.x + displayBounds.width;
+  const bottomEdge = displayBounds.y + displayBounds.height;
+  const touchesRight = Math.abs((bounds.x + bounds.width) - rightEdge) <= PILL_EDGE_EPSILON;
+  const touchesBottom = Math.abs((bounds.y + bounds.height) - bottomEdge) <= PILL_EDGE_EPSILON;
+
+  return {
+    x: touchesRight ? Math.round(rightEdge - targetWidth) : bounds.x,
+    y: touchesBottom ? Math.round(bottomEdge - targetHeight) : bounds.y,
+    width: targetWidth,
+    height: targetHeight,
+  };
+}
+
 function sanitizeStoredWindowState(rawState) {
   const fallback = { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
   if (!rawState || typeof rawState !== 'object') return fallback;
@@ -565,14 +600,15 @@ function wireToggleFloatingShortcut(window) {
   });
 }
 
-function getFloatingBoundsNearMain(mainBounds) {
+function getFloatingBoundsNearMain(mainBounds, state = floatingWindowDisplayState) {
   const fallback = { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
   const source = mainBounds && typeof mainBounds === 'object' ? mainBounds : fallback;
+  const size = getFloatingSizeForState(state);
   const target = {
-    x: Math.round(source.x + source.width - FLOATING_ICON_SIZE - 8),
+    x: Math.round(source.x + source.width - size.width - 8),
     y: Math.round(source.y + 8),
-    width: FLOATING_ICON_SIZE,
-    height: FLOATING_ICON_SIZE,
+    width: size.width,
+    height: size.height,
   };
   return clampBounds(target, 'workArea');
 }
@@ -591,6 +627,94 @@ function setFloatingIconBoundsClamped(bounds) {
   }
 }
 
+function formatFloatingTime(seconds) {
+  const safeSeconds = Math.max(0, Number.isFinite(seconds) ? Math.floor(seconds) : 0);
+  const hours = Math.floor(safeSeconds / 3600);
+  if (hours > 0) {
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  }
+
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function buildTimedPulseThresholds(percents, totalSeconds) {
+  const safeTotal = Math.max(1, Number(totalSeconds) || 0);
+  const normalizedPercents = percents
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0 && value < 1)
+    .sort((a, b) => a - b);
+
+  return Array.from(new Set(
+    normalizedPercents
+      .map((value) => Math.round(safeTotal * value))
+      .filter((threshold) => threshold > 0 && threshold < safeTotal),
+  ));
+}
+
+function readFloatingTimerSnapshot() {
+  const timerState = store.get('timerState', {});
+  const isRunning = Boolean(timerState && typeof timerState === 'object' && timerState.isRunning);
+  const mode = timerState?.mode === 'timed' ? 'timed' : 'freeflow';
+  const initialTime = Math.max(0, Number(timerState?.initialTime) || 0);
+  const baseElapsedSeconds = Math.max(0, Number(timerState?.elapsedSeconds) || 0);
+  const timedSegmentStartElapsed = Math.max(0, Number(timerState?.timedSegmentStartElapsed) || 0);
+  const timedSegmentDuration = Math.max(0, Number(timerState?.timedSegmentDuration) || 0);
+  const sessionStartedAt = typeof timerState?.sessionStartedAt === 'string' ? timerState.sessionStartedAt : null;
+  let elapsedSeconds = baseElapsedSeconds;
+
+  if (isRunning && sessionStartedAt) {
+    const startedAtMs = new Date(sessionStartedAt).getTime();
+    if (Number.isFinite(startedAtMs)) {
+      elapsedSeconds += Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+    }
+  }
+
+  if (mode === 'timed' && initialTime > 0) {
+    elapsedSeconds = Math.min(elapsedSeconds, initialTime);
+  }
+
+  const segmentStartElapsed = mode === 'timed' ? timedSegmentStartElapsed : 0;
+  const segmentDuration = mode === 'timed'
+    ? Math.max(1, timedSegmentDuration || initialTime)
+    : 0;
+  const segmentElapsed = mode === 'timed'
+    ? Math.max(0, elapsedSeconds - segmentStartElapsed)
+    : elapsedSeconds;
+
+  return {
+    mode,
+    isRunning,
+    initialTime,
+    elapsedSeconds,
+    segmentStartElapsed,
+    segmentDuration,
+    segmentElapsed,
+  };
+}
+
+function getFloatingWindowState() {
+  const timerState = store.get('timerState', {});
+  const isRunning = Boolean(timerState && typeof timerState === 'object' && timerState.isRunning);
+  const totalSeconds = Number(timerState?.seconds) || 0;
+  const theme = store.get('settings.theme', 'light') === 'dark' ? 'dark' : 'light';
+  return {
+    mode: isRunning ? 'timer' : 'icon',
+    timeText: formatFloatingTime(totalSeconds),
+    theme,
+    running: isRunning,
+  };
+}
+
+function getFloatingSizeForState(state = floatingWindowDisplayState) {
+  if (state?.mode === 'timer') {
+    return { width: FLOATING_TIMER_WIDTH, height: FLOATING_TIMER_HEIGHT };
+  }
+  return { width: FLOATING_ICON_SIZE, height: FLOATING_ICON_SIZE };
+}
+
 function stopFloatingPulseSchedule() {
   if (floatingPulseTimeout) {
     clearTimeout(floatingPulseTimeout);
@@ -602,14 +726,155 @@ function stopFloatingPulseSchedule() {
   }
 }
 
+function clearFloatingTimedPulseState() {
+  floatingTimedPulseThresholds = [];
+  floatingTimedPulseIndex = 0;
+  floatingTimedPulseInitialTime = 0;
+  floatingTimedPulseLastElapsedSeconds = 0;
+}
+
+function resetFloatingTimedPulseState(snapshot = readFloatingTimerSnapshot()) {
+  if (snapshot.mode !== 'timed' || !snapshot.isRunning || snapshot.segmentDuration <= 0) {
+    clearFloatingTimedPulseState();
+    return;
+  }
+
+  const nextThresholds = buildTimedPulseThresholds(FLOATING_TIMED_PULSE_PERCENTS, snapshot.segmentDuration);
+  let nextIndex = 0;
+  while (nextIndex < nextThresholds.length && snapshot.segmentElapsed >= nextThresholds[nextIndex]) {
+    nextIndex += 1;
+  }
+
+  floatingTimedPulseThresholds = nextThresholds;
+  floatingTimedPulseIndex = nextIndex;
+  floatingTimedPulseInitialTime = snapshot.segmentDuration;
+  floatingTimedPulseLastElapsedSeconds = snapshot.segmentElapsed;
+}
+
+function syncFloatingTimedPulseState(snapshot) {
+  if (snapshot.mode !== 'timed' || !snapshot.isRunning || snapshot.segmentDuration <= 0) {
+    clearFloatingTimedPulseState();
+    return;
+  }
+
+  const thresholds = buildTimedPulseThresholds(FLOATING_TIMED_PULSE_PERCENTS, snapshot.segmentDuration);
+  const thresholdsChanged =
+    thresholds.length !== floatingTimedPulseThresholds.length
+    || thresholds.some((value, index) => value !== floatingTimedPulseThresholds[index]);
+  const elapsedReset = snapshot.segmentElapsed < Math.max(0, floatingTimedPulseLastElapsedSeconds - 1);
+
+  if (
+    thresholdsChanged
+    || floatingTimedPulseInitialTime !== snapshot.segmentDuration
+    || elapsedReset
+  ) {
+    resetFloatingTimedPulseState(snapshot);
+    return;
+  }
+
+  while (
+    floatingTimedPulseIndex < floatingTimedPulseThresholds.length
+    && snapshot.segmentElapsed >= floatingTimedPulseThresholds[floatingTimedPulseIndex]
+  ) {
+    sendFloatingPulse();
+    floatingTimedPulseIndex += 1;
+  }
+
+  floatingTimedPulseLastElapsedSeconds = snapshot.segmentElapsed;
+}
+
+function syncFloatingPulseMode(nextState, previousMode) {
+  const timerSnapshot = readFloatingTimerSnapshot();
+  const useTimedPulseThresholds =
+    nextState.mode === 'timer'
+    && timerSnapshot.mode === 'timed'
+    && timerSnapshot.isRunning
+    && timerSnapshot.segmentDuration > 0;
+
+  if (useTimedPulseThresholds) {
+    stopFloatingPulseSchedule();
+    if (previousMode !== nextState.mode) {
+      resetFloatingTimedPulseState(timerSnapshot);
+    } else {
+      syncFloatingTimedPulseState(timerSnapshot);
+    }
+    return;
+  }
+
+  clearFloatingTimedPulseState();
+
+  if (nextState.mode === 'timer' && timerSnapshot.mode === 'freeflow' && timerSnapshot.isRunning) {
+    if (previousMode !== nextState.mode) {
+      startFloatingPulseSchedule({ immediate: true });
+    }
+    return;
+  }
+
+  if (nextState.mode === 'icon') {
+    if (previousMode !== nextState.mode) {
+      startFloatingPulseSchedule({ immediate: true });
+    }
+    return;
+  }
+
+  stopFloatingPulseSchedule();
+}
+
+function stopFloatingStateSync() {
+  if (floatingStateInterval) {
+    clearInterval(floatingStateInterval);
+    floatingStateInterval = null;
+  }
+}
+
+function syncFloatingWindowState({ preservePosition = true } = {}) {
+  const previousMode = floatingWindowDisplayState?.mode;
+  const nextState = getFloatingWindowState();
+  floatingWindowDisplayState = nextState;
+
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return nextState;
+
+  const size = getFloatingSizeForState(nextState);
+  const nextBounds = preservePosition
+    ? clampBounds({
+      x: floatingIconWindow.getBounds().x,
+      y: floatingIconWindow.getBounds().y,
+      width: size.width,
+      height: size.height,
+    }, 'workArea')
+    : getFloatingBoundsNearMain(mainWindow?.getBounds(), nextState);
+
+  setFloatingIconBoundsClamped(nextBounds);
+  floatingIconWindow.webContents.send('floating-state', nextState);
+
+  if (isFloatingMinimized) {
+    syncFloatingPulseMode(nextState, previousMode);
+  }
+
+  return nextState;
+}
+
+function startFloatingStateSync() {
+  stopFloatingStateSync();
+  syncFloatingWindowState({ preservePosition: false });
+  floatingStateInterval = setInterval(() => {
+    syncFloatingWindowState({ preservePosition: true });
+  }, 1000);
+}
+
 function sendFloatingPulse() {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !floatingIconWindow.isVisible()) return;
   if (readStoredDndState().enabled) return;
   floatingIconWindow.webContents.send('floating-icon-pulse');
 }
 
-function startFloatingPulseSchedule() {
+function startFloatingPulseSchedule({ immediate = false } = {}) {
   stopFloatingPulseSchedule();
+  if (immediate) {
+    sendFloatingPulse();
+    floatingPulseInterval = setInterval(sendFloatingPulse, FLOATING_ICON_PULSE_REPEAT_MS);
+    return;
+  }
   floatingPulseTimeout = setTimeout(() => {
     sendFloatingPulse();
     floatingPulseInterval = setInterval(sendFloatingPulse, FLOATING_ICON_PULSE_REPEAT_MS);
@@ -622,7 +887,7 @@ function createFloatingIconWindow() {
   const mainBounds = mainWindow && !mainWindow.isDestroyed()
     ? mainWindow.getBounds()
     : { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
-  const initialBounds = getFloatingBoundsNearMain(mainBounds);
+  const initialBounds = getFloatingBoundsNearMain(mainBounds, floatingWindowDisplayState);
 
   floatingIconWindow = new BrowserWindow({
     x: initialBounds.x,
@@ -640,7 +905,7 @@ function createFloatingIconWindow() {
     fullscreenable: false,
     movable: true,
     skipTaskbar: true,
-    show: false,
+    show: isE2E,
     webPreferences: {
       preload: path.join(__dirname, 'floatingPreload.js'),
       contextIsolation: true,
@@ -650,11 +915,16 @@ function createFloatingIconWindow() {
 
   floatingIconWindow.loadFile(path.join(__dirname, 'floating-icon.html'));
   wireToggleFloatingShortcut(floatingIconWindow);
+  floatingIconWindow.webContents.on('did-finish-load', () => {
+    if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
+    floatingIconWindow.webContents.send('floating-state', floatingWindowDisplayState);
+  });
 
   floatingIconWindow.on('closed', () => {
     floatingIconWindow = null;
     floatingIconDragStart = null;
     stopFloatingPulseSchedule();
+    stopFloatingStateSync();
     isFloatingMinimized = false;
   });
 }
@@ -665,16 +935,18 @@ function enterFloatingIconMode() {
   createFloatingIconWindow();
   if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
 
-  setFloatingIconBoundsClamped(getFloatingBoundsNearMain(mainWindow.getBounds()));
+  syncFloatingWindowState({ preservePosition: false });
   mainWindow.hide();
   floatingIconWindow.show();
   floatingIconWindow.focus();
   isFloatingMinimized = true;
-  startFloatingPulseSchedule();
+  startFloatingStateSync();
 }
 
 function exitFloatingIconMode({ focusMain = true } = {}) {
   stopFloatingPulseSchedule();
+  stopFloatingStateSync();
+  clearFloatingTimedPulseState();
   floatingIconDragStart = null;
   isFloatingMinimized = false;
 
@@ -689,25 +961,9 @@ function exitFloatingIconMode({ focusMain = true } = {}) {
   }
 }
 
-function hasVisibleTimerState() {
-  const timerState = store.get('timerState', {});
-  if (!timerState || typeof timerState !== 'object') return false;
-
-  return Boolean(
-    timerState.isRunning
-    || (Number(timerState.seconds) || 0) > 0
-    || (Number(timerState.initialTime) || 0) > 0
-    || (Number(timerState.elapsedSeconds) || 0) > 0
-    || timerState.mode === 'timed'
-  );
-}
-
 function toggleFloatingMinimize() {
   if (isFloatingMinimized) {
     exitFloatingIconMode();
-    return;
-  }
-  if (hasVisibleTimerState()) {
     return;
   }
   enterFloatingIconMode();
@@ -733,7 +989,7 @@ function createWindow() {
     minWidth: FULL_MIN_WIDTH,
     minHeight: FULL_MIN_HEIGHT,
     skipTaskbar: isE2EBackground ? true : false,
-    show: isE2EBackground ? false : true,
+    show: false,
     /* titleBarStyle removed — frame:false already hides the title bar;
        'hidden' caused macOS to draw a native window border. */
     webPreferences: {
@@ -743,6 +999,7 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+  awaitingInitialMainWindowShow = !isE2EBackground && !isE2E;
   wireToggleFloatingShortcut(mainWindow);
 
   if (isDev) {
@@ -781,6 +1038,7 @@ function createWindow() {
       clearProgrammaticMainBoundsTimer = null;
     }
     pendingProgrammaticMainBounds = null;
+    awaitingInitialMainWindowShow = false;
     if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
       floatingIconWindow.close();
     }
@@ -825,8 +1083,8 @@ function createWindow() {
 // IPC Handlers
 
 // Window control
-ipcMain.on('close-window', () => {
-  if (mainWindow) mainWindow.close();
+ipcMain.on('quit-app', () => {
+  app.quit();
 });
 
 ipcMain.on('restart-app', () => {
@@ -844,6 +1102,26 @@ ipcMain.handle('updates:check', () => {
 
 ipcMain.handle('updates:install', () => {
   return updater.quitAndInstall();
+});
+
+ipcMain.handle('app:get-runtime-info', () => {
+  return licenseService.getRuntimeInfo();
+});
+
+ipcMain.handle('license:get-status', () => {
+  return licenseService.getStatus();
+});
+
+ipcMain.handle('license:activate', (_event, licenseKey) => {
+  return licenseService.activateLicense(licenseKey);
+});
+
+ipcMain.handle('license:validate', (_event, options) => {
+  return licenseService.validateLicense(options);
+});
+
+ipcMain.handle('license:deactivate', () => {
+  return licenseService.deactivateLicense();
 });
 
 ipcMain.on('minimize-to-tray', () => {
@@ -877,6 +1155,43 @@ ipcMain.on('toggle-floating-minimize', () => {
   toggleFloatingMinimize();
 });
 
+ipcMain.handle('get-floating-minimized', () => isFloatingMinimized);
+
+ipcMain.handle('restore-from-floating-for-time-up', () => {
+  const wasFloating = isFloatingMinimized;
+  if (wasFloating) {
+    exitFloatingIconMode();
+  }
+  return wasFloating;
+});
+
+ipcMain.handle('enter-floating-minimize', () => {
+  if (!isFloatingMinimized) {
+    enterFloatingIconMode();
+  }
+  return true;
+});
+
+ipcMain.handle('show-main-window-after-startup', (_, width = FULL_MIN_WIDTH, height = FULL_MIN_HEIGHT) => {
+  if (!mainWindow || mainWindow.isDestroyed() || isE2EBackground) return false;
+
+  if (awaitingInitialMainWindowShow && !mainWindow.isVisible() && !isPillMode && !isModalExpanded) {
+    const nextBounds = getSizedMainWindowBounds(width, height);
+    if (nextBounds && !boundsEqual(mainWindow.getBounds(), nextBounds)) {
+      mainWindow.setResizable(true);
+      mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+      setMainWindowBoundsClamped(nextBounds, { persist: true, areaType: 'display' });
+    }
+  }
+
+  awaitingInitialMainWindowShow = false;
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  mainWindow.focus();
+  return true;
+});
+
 ipcMain.on('expand-from-floating', () => {
   if (!isFloatingMinimized) return;
   exitFloatingIconMode();
@@ -889,6 +1204,21 @@ ipcMain.on('floating-context-menu', () => {
       exitFloatingIconMode();
     },
   });
+});
+
+ipcMain.on('compact-context-menu', () => {
+  if (!mainWindow || mainWindow.isDestroyed() || isFloatingMinimized) return;
+  popupCompactContextMenu(mainWindow, {
+    onMinimize: () => {
+      enterFloatingIconMode();
+    },
+  });
+});
+
+ipcMain.on('floating-timer-action', (_event, action) => {
+  if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
+  if (action !== 'startPause' && action !== 'stop') return;
+  mainWindow.webContents.send('floating-timer-action', action);
 });
 
 ipcMain.on('floating-icon-drag-start', () => {
@@ -1188,22 +1518,11 @@ ipcMain.handle('exit-pill-mode', () => {
 });
 
 ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeight = FULL_MIN_HEIGHT) => {
-  if (!mainWindow || isPillMode || isModalExpanded) return;
+  if (!mainWindow || isPillMode || isModalExpanded) return false;
 
-  const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2400, FULL_MIN_WIDTH);
-  const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2400, FULL_MIN_HEIGHT);
-  const bounds = mainWindow.getBounds();
-  const displayBounds = screen.getDisplayMatching(bounds).bounds;
-  const rightEdge = displayBounds.x + displayBounds.width;
-  const bottomEdge = displayBounds.y + displayBounds.height;
-  const touchesRight = Math.abs((bounds.x + bounds.width) - rightEdge) <= PILL_EDGE_EPSILON;
-  const touchesBottom = Math.abs((bounds.y + bounds.height) - bottomEdge) <= PILL_EDGE_EPSILON;
-  const nextBounds = {
-    x: touchesRight ? Math.round(rightEdge - targetWidth) : bounds.x,
-    y: touchesBottom ? Math.round(bottomEdge - targetHeight) : bounds.y,
-    width: targetWidth,
-    height: targetHeight,
-  };
+  const nextBounds = getSizedMainWindowBounds(minWidth, minHeight);
+  if (!nextBounds) return false;
+  if (boundsEqual(mainWindow.getBounds(), nextBounds)) return false;
 
   mainWindow.setResizable(true);
   mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
@@ -1211,6 +1530,7 @@ ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeig
     nextBounds,
     { persist: true, areaType: 'display' }
   );
+  return true;
 });
 
 // App lifecycle
@@ -1249,6 +1569,9 @@ app.on('activate', () => {
   }
   if (isFloatingMinimized) {
     exitFloatingIconMode();
+    return;
+  }
+  if (awaitingInitialMainWindowShow) {
     return;
   }
   if (!mainWindow.isVisible()) {

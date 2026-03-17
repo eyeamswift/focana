@@ -19,11 +19,33 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        --timer-pill-bg: rgba(74, 51, 41, 0.96);
+        --timer-pill-border: rgba(255, 249, 230, 0.2);
+        --timer-pill-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+        --timer-pill-text: #fff9e6;
+        --timer-pill-pulse-bar: rgba(245, 158, 11, 0.34);
+        --timer-pill-pulse-glow: rgba(245, 158, 11, 0.32);
+      }
+
+      body[data-theme='light'] {
+        --timer-pill-bg: rgba(250, 244, 226, 0.98);
+        --timer-pill-border: rgba(191, 96, 13, 0.28);
+        --timer-pill-shadow: 0 12px 28px rgba(117, 74, 34, 0.18);
+        --timer-pill-text: #7c2d12;
+        --timer-pill-pulse-bar: rgba(245, 158, 11, 0.22);
+        --timer-pill-pulse-glow: rgba(245, 158, 11, 0.22);
+      }
+
+      body[data-theme='dark'] {
+        --timer-pill-bg: rgba(74, 51, 41, 0.96);
+        --timer-pill-border: rgba(255, 249, 230, 0.2);
+        --timer-pill-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+        --timer-pill-text: #fff9e6;
       }
 
       #icon-button {
-        width: 64px;
-        height: 64px;
+        width: 100%;
+        height: 100%;
         border-radius: 9999px;
         border: 0;
         padding: 0;
@@ -38,11 +60,18 @@
         align-items: center;
         justify-content: center;
         -webkit-tap-highlight-color: transparent;
+        overflow: hidden;
+        transition: transform 0.18s ease, filter 0.18s ease;
       }
 
       #icon-button:focus-visible {
         outline: 2px solid rgba(255, 255, 255, 0.85);
         outline-offset: 2px;
+      }
+
+      #icon-button:hover {
+        transform: translateY(-1px);
+        filter: drop-shadow(0 8px 18px rgba(117, 74, 34, 0.16));
       }
 
       #icon-image {
@@ -56,8 +85,119 @@
         object-fit: cover;
       }
 
+      #timer-pill {
+        display: none;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: var(--timer-pill-bg);
+        border: 1px solid var(--timer-pill-border);
+        box-shadow: var(--timer-pill-shadow);
+        color: var(--timer-pill-text);
+        font-family: ui-monospace, monospace;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        user-select: none;
+        overflow: hidden;
+        transition: box-shadow 0.18s ease, border-color 0.18s ease;
+      }
+
+      #timer-label {
+        position: relative;
+        z-index: 1;
+      }
+
+      #timer-controls {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.16s ease;
+        background: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.04) 12%, rgba(0, 0, 0, 0.04) 88%, transparent 100%);
+      }
+
+      #timer-pill.controls-visible #timer-label {
+        opacity: 0;
+      }
+
+      #timer-pill.controls-visible #timer-controls {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .timer-control-btn {
+        width: 28px;
+        height: 28px;
+        border: 0;
+        border-radius: 9999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: inherit;
+        background: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+      }
+
+      body[data-theme='light'] .timer-control-btn {
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .timer-control-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .timer-control-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      #timer-pill::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        bottom: 3px;
+        left: -20px;
+        width: 18px;
+        border-radius: 9999px;
+        background: var(--timer-pill-pulse-bar);
+        box-shadow: 0 0 14px var(--timer-pill-pulse-glow);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      body[data-mode='timer'] #icon-button {
+        border-radius: 9999px;
+      }
+
+      body[data-mode='timer'] #icon-image {
+        display: none;
+      }
+
+      body[data-mode='timer'] #timer-pill {
+        display: inline-flex;
+      }
+
+      body[data-mode='timer'] #icon-button:hover #timer-pill {
+        box-shadow: 0 14px 30px rgba(117, 74, 34, 0.24);
+        border-color: color-mix(in srgb, var(--timer-pill-border) 55%, rgba(245, 158, 11, 0.45));
+      }
+
       #icon-button.pulse {
         animation: floatingPulse 1.8s ease-in-out 3;
+      }
+
+      #timer-pill.pulse::after {
+        animation: timerPillSweep 1.5s ease-in-out 2;
       }
 
       @keyframes floatingPulse {
@@ -73,21 +213,69 @@
           filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.5));
         }
       }
+
+      @keyframes timerPillSweep {
+        0% {
+          transform: translateX(0) scaleX(0.85);
+          opacity: 0;
+        }
+        15% {
+          opacity: 1;
+        }
+        50% {
+          transform: translateX(70px) scaleX(1);
+          opacity: 0.92;
+        }
+        85% {
+          opacity: 0.9;
+        }
+        100% {
+          transform: translateX(140px) scaleX(0.9);
+          opacity: 0;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="icon-button" role="button" tabindex="0" aria-label="Expand Focana">
       <img id="icon-image" src="../assets/logo-floating-circle.svg" alt="Focana" draggable="false" />
+      <span id="timer-pill">
+        <span id="timer-label">00:00</span>
+        <span id="timer-controls" aria-hidden="true">
+          <button id="timer-toggle-btn" class="timer-control-btn" type="button" aria-label="Pause or resume timer" title="Pause or resume">
+            <svg id="timer-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 5v14" />
+              <path d="M16 5v14" />
+            </svg>
+          </button>
+          <button id="timer-stop-btn" class="timer-control-btn" type="button" aria-label="Stop timer" title="Stop and save">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <rect x="7" y="7" width="10" height="10" rx="1.5" />
+            </svg>
+          </button>
+        </span>
+      </span>
     </div>
 
     <script>
       const iconButton = document.getElementById('icon-button');
+      const timerPill = document.getElementById('timer-pill');
+      const timerLabel = document.getElementById('timer-label');
+      const timerControls = document.getElementById('timer-controls');
+      const timerToggleButton = document.getElementById('timer-toggle-btn');
+      const timerToggleIcon = document.getElementById('timer-toggle-icon');
+      const timerStopButton = document.getElementById('timer-stop-btn');
       const dragThresholdPx = 6;
+      const clickDelayMs = 220;
+      const controlsHideMs = 3000;
       let dragActive = false;
       let dragMoved = false;
       let dragStartScreenX = 0;
       let dragStartScreenY = 0;
-      let expandedOnMouseUp = false;
+      let clickTimer = null;
+      let controlsHideTimer = null;
+      let currentMode = 'icon';
+      let currentRunning = false;
 
       function getFloatingAPI() {
         return window.floatingAPI;
@@ -99,15 +287,74 @@
 
       function triggerPulse() {
         iconButton.classList.remove('pulse');
+        timerPill.classList.remove('pulse');
         // Restart CSS animation reliably on repeated reminders.
         void iconButton.offsetWidth;
         iconButton.classList.add('pulse');
+        void timerPill.offsetWidth;
+        timerPill.classList.add('pulse');
+      }
+
+      function clearPendingClick() {
+        if (!clickTimer) return;
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+
+      function clearControlsTimer() {
+        if (!controlsHideTimer) return;
+        clearTimeout(controlsHideTimer);
+        controlsHideTimer = null;
+      }
+
+      function hideTimerControls() {
+        clearControlsTimer();
+        timerPill.classList.remove('controls-visible');
+      }
+
+      function showTimerControls() {
+        if (currentMode !== 'timer') return;
+        clearControlsTimer();
+        timerPill.classList.add('controls-visible');
+        controlsHideTimer = setTimeout(() => {
+          timerPill.classList.remove('controls-visible');
+          controlsHideTimer = null;
+        }, controlsHideMs);
+      }
+
+      function queueExpand() {
+        clearPendingClick();
+        clickTimer = setTimeout(() => {
+          expandMainWindow();
+          clickTimer = null;
+        }, clickDelayMs);
+      }
+
+      function applyState(state) {
+        const nextMode = state && state.mode === 'timer' ? 'timer' : 'icon';
+        const nextTheme = state && state.theme === 'dark' ? 'dark' : 'light';
+        currentRunning = state?.running !== false;
+        currentMode = nextMode;
+        const nextTimeText = typeof state?.timeText === 'string' && state.timeText.trim()
+          ? state.timeText.trim()
+          : '00:00';
+        document.body.dataset.mode = nextMode;
+        document.body.dataset.theme = nextTheme;
+        timerLabel.textContent = nextTimeText;
+        timerToggleButton.setAttribute('aria-label', currentRunning ? 'Pause timer' : 'Resume timer');
+        timerToggleButton.setAttribute('title', currentRunning ? 'Pause timer' : 'Resume timer');
+        timerToggleIcon.innerHTML = currentRunning
+          ? '<path d="M8 5v14" /><path d="M16 5v14" />'
+          : '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />';
+        if (nextMode !== 'timer') {
+          hideTimerControls();
+        }
+        iconButton.setAttribute('aria-label', nextMode === 'timer' ? `Expand Focana timer ${nextTimeText}` : 'Expand Focana');
       }
 
       function beginDrag(screenX, screenY) {
         dragActive = true;
         dragMoved = false;
-        expandedOnMouseUp = false;
         dragStartScreenX = screenX;
         dragStartScreenY = screenY;
         getFloatingAPI()?.dragStart?.();
@@ -127,13 +374,6 @@
         if (!dragActive) return;
         dragActive = false;
         getFloatingAPI()?.dragEnd?.();
-
-        if (!dragMoved) {
-          expandMainWindow();
-          expandedOnMouseUp = true;
-          return;
-        }
-        expandedOnMouseUp = false;
       }
 
       iconButton.addEventListener('mousedown', (event) => {
@@ -163,11 +403,18 @@
           event.preventDefault();
           return;
         }
-        if (expandedOnMouseUp) {
-          expandedOnMouseUp = false;
+        if (currentMode === 'timer') {
           event.preventDefault();
+          showTimerControls();
           return;
         }
+        queueExpand();
+      });
+
+      iconButton.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        dragMoved = false;
+        clearPendingClick();
         expandMainWindow();
       });
 
@@ -175,7 +422,8 @@
         event.preventDefault();
         dragActive = false;
         dragMoved = false;
-        expandedOnMouseUp = false;
+        clearPendingClick();
+        hideTimerControls();
         getFloatingAPI()?.dragEnd?.();
         getFloatingAPI()?.openContextMenu?.();
       });
@@ -183,7 +431,12 @@
       iconButton.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          expandMainWindow();
+          clearPendingClick();
+          if (currentMode === 'timer') {
+            showTimerControls();
+          } else {
+            expandMainWindow();
+          }
           return;
         }
         if ((event.key === 'F10' && event.shiftKey) || event.key === 'ContextMenu') {
@@ -199,7 +452,27 @@
         }
       });
 
+      timerControls.addEventListener('click', (event) => {
+        event.stopPropagation();
+      });
+
+      timerToggleButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        showTimerControls();
+        getFloatingAPI()?.timerAction?.('startPause');
+      });
+
+      timerStopButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        hideTimerControls();
+        getFloatingAPI()?.timerAction?.('stop');
+      });
+
+      iconButton.setAttribute('title', 'Double-click for fullscreen. Right-click for Do Not Disturb.');
       getFloatingAPI()?.onPulse?.(triggerPulse);
+      getFloatingAPI()?.onState?.(applyState);
     </script>
   </body>
 </html>

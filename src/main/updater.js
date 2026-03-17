@@ -1,10 +1,8 @@
 const { EventEmitter } = require('events');
 
 function getUpdateChannel(version) {
-  const rawVersion = typeof version === 'string' ? version.trim() : '';
-  const prereleaseMatch = rawVersion.match(/-([0-9A-Za-z-]+)/);
-  if (!prereleaseMatch) return 'latest';
-  return prereleaseMatch[1].split('.')[0].toLowerCase() || 'latest';
+  void version;
+  return 'latest';
 }
 
 function normalizeReleaseNotes(input) {
@@ -50,7 +48,7 @@ function buildUpdateInfo(version) {
   return {
     version,
     releaseName: `Focana ${version}`,
-    releaseNotes: `Focana ${version} includes beta update improvements.`,
+    releaseNotes: `Focana ${version} includes the latest improvements.`,
     releaseDate: new Date().toISOString(),
   };
 }
@@ -103,7 +101,7 @@ function getUserFacingUpdateError(error) {
   const message = typeof error?.message === 'string' ? error.message : '';
   const code = typeof error?.code === 'string' ? error.code : '';
 
-  if (code === 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND' || message.includes('latest-mac.yml') || message.includes('beta-mac.yml')) {
+  if (code === 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND' || message.includes('latest-mac.yml')) {
     return 'Update metadata for this release was not found on GitHub. If you just published it, wait a minute and try again.';
   }
 
@@ -274,10 +272,7 @@ function createUpdaterService({ app, Notification }) {
   if (updater) {
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
-    updater.allowPrerelease = currentState.channel !== 'latest';
-    if (currentState.channel !== 'latest') {
-      updater.channel = currentState.channel;
-    }
+    updater.allowPrerelease = false;
 
     updater.on('checking-for-update', () => {
       setState({

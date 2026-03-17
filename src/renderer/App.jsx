@@ -3,7 +3,7 @@ import { Button } from './components/ui/Button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './components/ui/Dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
-  X, Play, Pause, Square, RotateCcw, Minimize2, Minus,
+  X, Play, Pause, Square, RotateCcw, Minimize2,
   Settings, ClipboardList, History, Sun, Moon, Check, Undo2, BellOff, Pin,
 } from 'lucide-react';
 import posthog from 'posthog-js';
@@ -99,7 +99,6 @@ const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60;
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
-const EMAIL_CAPTURE_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PINNED_CONTROLS_DEFAULT = {
   alwaysOnTop: true,
   dnd: true,
@@ -107,7 +106,7 @@ const PINNED_CONTROLS_DEFAULT = {
   parkingLot: true,
   history: true,
   restart: false,
-  close: true,
+  floatingMinimize: true,
 };
 const ENABLED_MAIN_CONTROLS_DEFAULT = {
   alwaysOnTop: true,
@@ -116,8 +115,31 @@ const ENABLED_MAIN_CONTROLS_DEFAULT = {
   parkingLot: true,
   history: true,
   restart: true,
-  close: true,
+  floatingMinimize: true,
 };
+
+function normalizeToolbarControlMap(rawControls, defaults) {
+  const source = rawControls && typeof rawControls === 'object' ? rawControls : {};
+  const normalized = { ...defaults, ...source };
+  if (typeof source.floatingMinimize !== 'boolean' && typeof source.close === 'boolean') {
+    normalized.floatingMinimize = source.close;
+  }
+  delete normalized.close;
+  return normalized;
+}
+
+function getLicenseGateCopy(status) {
+  switch (status) {
+    case 'config_error':
+      return 'This packaged build is missing Lemon licensing config. Add the Focana Lemon store, product, and variant IDs before shipping it.';
+    case 'invalid':
+      return 'This key is no longer valid for Focana. Use the key from your Lemon receipt email, or contact support if you need help.';
+    case 'error':
+      return 'We could not validate your key right now. Try again when you are online, or contact support if this keeps happening.';
+    default:
+      return 'Paste the license key from your Lemon receipt email or Lemon My Orders to unlock Focana.';
+  }
+}
 
 const buildTimedThresholds = (percents, totalSeconds) => {
   const safeTotal = Math.max(1, Number(totalSeconds) || 0);
@@ -228,9 +250,12 @@ export default function App() {
   const [postSessionParkingLotHiddenIds, setPostSessionParkingLotHiddenIds] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
-  const [startupGateState, setStartupGateState] = useState('checking'); // checking | prompt | ready
-  const [emailCaptureInput, setEmailCaptureInput] = useState('');
-  const [emailCaptureSubmitting, setEmailCaptureSubmitting] = useState(false);
+  const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | ready
+  const [startupRevealComplete, setStartupRevealComplete] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState(null);
+  const [licenseStatus, setLicenseStatus] = useState(null);
+  const [licenseKeyInput, setLicenseKeyInput] = useState('');
+  const [licenseSubmitting, setLicenseSubmitting] = useState(false);
   const [dndEnabled, setDndEnabled] = useState(false);
   const [checkInSettings, setCheckInSettings] = useState({
     enabled: true,
@@ -301,7 +326,10 @@ export default function App() {
   const checkInPromptCooldownUntilRef = useRef(0);
   const checkInStateRef = useRef('idle');
   const compactEnteredAtRef = useRef(null);
+  const historyResumeCarryoverSecondsRef = useRef(0);
   const timeUpReturnToCompactRef = useRef(false);
+  const timeUpReturnToFloatingRef = useRef(false);
+  const timeUpTriggerKeyRef = useRef('');
   const lastInteractionTimeRef = useRef(Date.now());
   const isRunningRef = useRef(false);
   const sessionCreatePromiseRef = useRef(null);
@@ -313,6 +341,8 @@ export default function App() {
   const handleClearRef = useRef(() => {});
   const suppressToolbarTooltipTimerRef = useRef(null);
   const pendingCompactExitHeightRef = useRef(null);
+  const didJustExitCompactRef = useRef(false);
+  const startupWindowShownRef = useRef(false);
   const compactRevealTimerRef = useRef(null);
   const pendingCompactRestoreRef = useRef(false);
   const compactPrevTimerVisibleRef = useRef(null);
@@ -322,6 +352,8 @@ export default function App() {
   const windowModeDesiredRef = useRef('full');
   const windowModeActualRef = useRef('full');
   const windowModeSyncingRef = useRef(false);
+  const backgroundLicenseValidationRef = useRef(null);
+  const taskInputResizeTimerRef = useRef(null);
 
   const pushModal = useCallback((modalName) => {
     modalStackRef.current.push(modalName);
@@ -376,29 +408,11 @@ export default function App() {
     focusSessionMinutesInput();
   }, [focusSessionMinutesInput]);
 
-  useEffect(() => {
-    // Normalize full-view size on launch so hidden oversized window bounds
-    // from prior modal flows don't make drag feel "sticky" near bottom edge.
-    const initialHeight = startupGateState === 'ready'
-      ? WINDOW_SIZES.idleHeight
-      : WINDOW_SIZES.onboardingHeight;
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, initialHeight);
-  }, [startupGateState]);
-
-  useEffect(() => {
-    if (startupGateState === 'ready') return undefined;
-
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.onboardingHeight);
-    const t = setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.onboardingHeight);
-    }, 100);
-    return () => clearTimeout(t);
-  }, [startupGateState]);
-
 
   // Analytics: app opened
   useEffect(() => {
     if (startupGateState !== 'ready') return undefined;
+    if (!startupRevealComplete) return undefined;
     if (hasTrackedAppOpenedRef.current) return undefined;
     hasTrackedAppOpenedRef.current = true;
 
@@ -424,7 +438,7 @@ export default function App() {
       window.removeEventListener('keydown', updateInteraction);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [startupGateState]);
+  }, [startupGateState, startupRevealComplete]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -566,18 +580,18 @@ export default function App() {
     track('dnd_toggled', { enabled: nextEnabled, source });
   }, []);
 
-  const identifyPosthogUser = useCallback((rawEmail) => {
-    const normalizedEmail = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-    if (!normalizedEmail) return;
+  const identifyPosthogInstall = useCallback((distinctId, extraProps = {}) => {
+    const normalizedId = typeof distinctId === 'string' ? distinctId.trim() : '';
+    if (!normalizedId) return;
     try {
       if (typeof posthog?.identify === 'function') {
-        posthog.identify(normalizedEmail);
+        posthog.identify(normalizedId);
       }
       if (typeof posthog?.people?.set === 'function') {
-        posthog.people.set({ email: normalizedEmail });
+        posthog.people.set(extraProps);
       }
     } catch (error) {
-      console.warn('PostHog identify failed:', error);
+      console.warn('PostHog install identify failed:', error);
     }
   }, []);
 
@@ -623,46 +637,206 @@ export default function App() {
 
   useEffect(() => {
     let isCancelled = false;
+    let nextRuntime = null;
 
     (async () => {
       try {
-        const storedEmailRaw = await window.electronAPI.storeGet('userEmail');
-        const storedEmail = typeof storedEmailRaw === 'string' ? storedEmailRaw.trim().toLowerCase() : '';
+        nextRuntime = await window.electronAPI.getRuntimeInfo?.();
+        if (isCancelled) return;
 
-        if (storedEmail) {
-          identifyPosthogUser(storedEmail);
-          if (!isCancelled) setStartupGateState('ready');
+        setRuntimeInfo(nextRuntime || null);
+
+        let nextLicenseStatus = await window.electronAPI.getLicenseStatus?.();
+        if (isCancelled) return;
+
+        if (nextRuntime?.licenseEnforced) {
+          if (nextLicenseStatus?.shouldValidateInForeground) {
+            nextLicenseStatus = await window.electronAPI.validateLicense?.({ force: true });
+            if (isCancelled) return;
+          }
+
+          setLicenseStatus(nextLicenseStatus || null);
+
+          if (nextLicenseStatus?.allowed) {
+            identifyPosthogInstall(
+              nextLicenseStatus.instanceId || nextLicenseStatus.installId,
+              {
+                channel: nextRuntime.channel,
+                license_status: nextLicenseStatus.status,
+              },
+            );
+            setStartupGateState('ready');
+          } else {
+            setStartupGateState('activation');
+          }
           return;
         }
 
-        if (!isCancelled) setStartupGateState('prompt');
+        setLicenseStatus(nextLicenseStatus || null);
+        identifyPosthogInstall(
+          nextLicenseStatus?.instanceId || nextLicenseStatus?.installId,
+          {
+            channel: nextRuntime?.channel || 'dev',
+            license_status: nextLicenseStatus?.status || 'not_required',
+          },
+        );
+        if (!isCancelled) setStartupGateState('ready');
       } catch (error) {
-        console.error('Failed to initialize email capture gate:', error);
-        if (!isCancelled) setStartupGateState('prompt');
+        console.error('Failed to initialize startup gate:', error);
+        if (!isCancelled) {
+          setLicenseStatus((prev) => ({
+            ...(prev || {}),
+            status: 'error',
+            lastError: 'Focana could not initialize its startup gate.',
+          }));
+          setStartupGateState(nextRuntime?.licenseEnforced ? 'activation' : 'ready');
+        }
       }
     })();
 
     return () => {
       isCancelled = true;
     };
-  }, [identifyPosthogUser]);
+  }, [identifyPosthogInstall]);
 
-  const handleEmailCaptureContinue = useCallback(async () => {
-    if (emailCaptureSubmitting) return;
-    const normalizedEmail = emailCaptureInput.trim().toLowerCase();
-    if (!EMAIL_CAPTURE_REGEX.test(normalizedEmail)) return;
+  const refreshLicenseStatus = useCallback(async () => {
+    const nextStatus = await window.electronAPI.getLicenseStatus?.();
+    if (!nextStatus) return null;
 
-    setEmailCaptureSubmitting(true);
-    try {
-      await window.electronAPI.storeSet('userEmail', normalizedEmail);
-      identifyPosthogUser(normalizedEmail);
+    setLicenseStatus(nextStatus);
+    if (nextStatus.allowed) {
+      identifyPosthogInstall(
+        nextStatus.instanceId || nextStatus.installId,
+        {
+          channel: runtimeInfo?.channel || 'latest',
+          license_status: nextStatus.status,
+        },
+      );
       setStartupGateState('ready');
-    } catch (error) {
-      console.error('Failed to persist email capture:', error);
-    } finally {
-      setEmailCaptureSubmitting(false);
+    } else if (runtimeInfo?.licenseEnforced) {
+      setStartupGateState('activation');
     }
-  }, [emailCaptureSubmitting, emailCaptureInput, identifyPosthogUser]);
+    return nextStatus;
+  }, [identifyPosthogInstall, runtimeInfo?.channel, runtimeInfo?.licenseEnforced]);
+
+  const handleLicenseActivation = useCallback(async () => {
+    if (licenseSubmitting) return;
+
+    const normalizedKey = licenseKeyInput.trim();
+    if (!normalizedKey) return;
+
+    setLicenseSubmitting(true);
+    try {
+      const nextStatus = await window.electronAPI.activateLicense?.(normalizedKey);
+      if (!nextStatus) return;
+
+      setLicenseStatus(nextStatus);
+      if (nextStatus.allowed) {
+        identifyPosthogInstall(
+          nextStatus.instanceId || nextStatus.installId,
+          {
+            channel: runtimeInfo?.channel || 'latest',
+            license_status: nextStatus.status,
+          },
+        );
+        setLicenseKeyInput('');
+        setStartupGateState('ready');
+        showToast('success', 'License activated for this Mac');
+      } else {
+        showToast('warning', nextStatus.lastError || getLicenseGateCopy(nextStatus.status));
+      }
+    } catch (error) {
+      console.error('Failed to activate license:', error);
+      showToast('warning', 'Could not reach Lemon to activate this key.');
+      setLicenseStatus((prev) => ({
+        ...(prev || {}),
+        status: 'error',
+        lastError: 'Could not reach Lemon to activate this key.',
+      }));
+    } finally {
+      setLicenseSubmitting(false);
+    }
+  }, [identifyPosthogInstall, licenseKeyInput, licenseSubmitting, runtimeInfo?.channel, showToast]);
+
+  const handleValidateLicenseNow = useCallback(async () => {
+    try {
+      const nextStatus = await window.electronAPI.validateLicense?.({ force: true });
+      if (!nextStatus) return null;
+
+      setLicenseStatus(nextStatus);
+      if (nextStatus.allowed) {
+        identifyPosthogInstall(
+          nextStatus.instanceId || nextStatus.installId,
+          {
+            channel: runtimeInfo?.channel || 'latest',
+            license_status: nextStatus.status,
+          },
+        );
+        showToast(nextStatus.status === 'offline_grace' ? 'warning' : 'success', nextStatus.status === 'offline_grace'
+          ? 'License check failed, but this Mac is still within offline grace.'
+          : 'License verified for this Mac.');
+      } else if (runtimeInfo?.licenseEnforced) {
+        setStartupGateState('activation');
+        showToast('warning', nextStatus.lastError || 'This Mac needs a valid Focana license.');
+      }
+
+      return nextStatus;
+    } catch (error) {
+      console.error('Failed to validate license:', error);
+      showToast('warning', 'Could not validate this license right now.');
+      return null;
+    }
+  }, [identifyPosthogInstall, runtimeInfo?.channel, runtimeInfo?.licenseEnforced, showToast]);
+
+  const handleDeactivateLicense = useCallback(async () => {
+    try {
+      const nextStatus = await window.electronAPI.deactivateLicense?.();
+      if (!nextStatus) return null;
+
+      setLicenseStatus(nextStatus);
+      if (runtimeInfo?.licenseEnforced) {
+        setShowSettings(false);
+        setStartupGateState('activation');
+        setLicenseKeyInput('');
+      }
+      showToast('info', 'License removed from this Mac.');
+      return nextStatus;
+    } catch (error) {
+      console.error('Failed to deactivate license:', error);
+      showToast('warning', 'Could not deactivate this Mac right now.');
+      return null;
+    }
+  }, [runtimeInfo?.licenseEnforced, showToast]);
+
+  useEffect(() => {
+    if (startupGateState !== 'ready') return undefined;
+    if (!runtimeInfo?.licenseEnforced) return undefined;
+    if (!licenseStatus?.keyPresent || !licenseStatus?.instanceId) return undefined;
+    if (backgroundLicenseValidationRef.current === licenseStatus.instanceId) return undefined;
+
+    backgroundLicenseValidationRef.current = licenseStatus.instanceId;
+    let cancelled = false;
+
+    window.setTimeout(() => {
+      void (async () => {
+        try {
+          const nextStatus = await window.electronAPI.validateLicense?.({ force: true });
+          if (cancelled || !nextStatus) return;
+
+          setLicenseStatus(nextStatus);
+          if (!nextStatus.allowed) {
+            setStartupGateState('activation');
+          }
+        } catch (error) {
+          console.warn('Background license validation failed:', error);
+        }
+      })();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [licenseStatus?.instanceId, licenseStatus?.keyPresent, runtimeInfo?.licenseEnforced, startupGateState]);
 
 
   // Snapshot timer-visibility when entering compact so exit restores the
@@ -1059,51 +1233,75 @@ export default function App() {
           ]);
           setShowTaskInCompactDefault(true);
         }
-        setPinnedControls({ ...PINNED_CONTROLS_DEFAULT, ...(settings.pinnedControls || {}) });
-        setEnabledMainControls({ ...ENABLED_MAIN_CONTROLS_DEFAULT, ...(settings.mainScreenControlsEnabled || {}) });
+        setPinnedControls(normalizeToolbarControlMap(settings.pinnedControls, PINNED_CONTROLS_DEFAULT));
+        setEnabledMainControls(normalizeToolbarControlMap(settings.mainScreenControlsEnabled, ENABLED_MAIN_CONTROLS_DEFAULT));
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
         setIsAlwaysOnTop(await window.electronAPI.getAlwaysOnTop());
         syncDoNotDisturb(settings.doNotDisturbEnabled ?? false);
-        elapsedBeforeRunRef.current = 0;
-        freeflowPulseNextRef.current = null;
-        checkInTimedIndexRef.current = 0;
-        checkInTimedPendingIndexRef.current = null;
-        timedCheckInLastElapsedRef.current = 0;
-        timedCheckInLastSegmentElapsedRef.current = 0;
-        compactPulseThresholdsRef.current = [];
-        compactPulseIndexRef.current = 0;
-        timedPulseLastElapsedRef.current = 0;
-        timedPulseLastSegmentElapsedRef.current = 0;
-        timedCueSegmentStartElapsedRef.current = 0;
-        timedCueSegmentDurationRef.current = 0;
-        setTask('');
-        setContextNotes('');
-        setTime(0);
-        setMode('freeflow');
-        setInitialTime(0);
-        setIsTimerVisible(false);
-        setIsRunning(false);
-        setCurrentSessionId(null);
-        setSessionStartTime(null);
 
-        await Promise.all([
-          window.electronAPI.storeSet('currentTask', {
-            text: '',
-            contextNote: '',
-            startedAt: null,
-          }),
-          window.electronAPI.storeSet('timerState', {
-            mode: 'freeflow',
-            seconds: 0,
-            isRunning: false,
-            initialTime: 0,
-            elapsedSeconds: 0,
-            sessionStartedAt: null,
-            checkInTimedIndex: 0,
-            checkInTimedPendingIndex: null,
-            compactPulseTimedIndex: 0,
-          }),
+        // Restore the persisted task/timer snapshot instead of wiping a live
+        // session on renderer mount or reload.
+        const [savedCurrentTask, savedTimerState] = await Promise.all([
+          window.electronAPI.storeGet('currentTask'),
+          window.electronAPI.storeGet('timerState'),
         ]);
+
+        const restoredTaskText = typeof savedCurrentTask?.text === 'string' ? savedCurrentTask.text : '';
+        const restoredContextNote = typeof savedCurrentTask?.contextNote === 'string' ? savedCurrentTask.contextNote : '';
+        const restoredMode = savedTimerState?.mode === 'timed' ? 'timed' : 'freeflow';
+        const restoredInitialTime = Math.max(0, Math.floor(Number(savedTimerState?.initialTime) || 0));
+        const storedElapsedSeconds = Math.max(0, Math.floor(Number(savedTimerState?.elapsedSeconds) || 0));
+        const restoredSegmentStartElapsed = Math.max(0, Math.floor(Number(savedTimerState?.timedSegmentStartElapsed) || 0));
+        const restoredSegmentDuration = Math.max(0, Math.floor(Number(savedTimerState?.timedSegmentDuration) || 0));
+        const restoredCheckInIndex = Math.max(0, Math.floor(Number(savedTimerState?.checkInTimedIndex) || 0));
+        const pendingCheckInIndex = savedTimerState?.checkInTimedPendingIndex;
+        const restoredPendingCheckInIndex = Number.isFinite(Number(pendingCheckInIndex))
+          ? Math.max(0, Math.floor(Number(pendingCheckInIndex)))
+          : null;
+        const restoredCompactPulseIndex = Math.max(0, Math.floor(Number(savedTimerState?.compactPulseTimedIndex) || 0));
+        const restoredStartedAtMs = typeof savedTimerState?.sessionStartedAt === 'string'
+          ? new Date(savedTimerState.sessionStartedAt).getTime()
+          : NaN;
+        const restoredRunning = Boolean(savedTimerState?.isRunning) && Number.isFinite(restoredStartedAtMs);
+        const liveElapsedSeconds = restoredRunning
+          ? storedElapsedSeconds + Math.max(0, Math.floor((Date.now() - restoredStartedAtMs) / 1000))
+          : storedElapsedSeconds;
+        const restoredElapsedSeconds = restoredMode === 'timed' && restoredInitialTime > 0
+          ? Math.min(liveElapsedSeconds, restoredInitialTime)
+          : liveElapsedSeconds;
+        const restoredDisplayTime = restoredMode === 'timed'
+          ? Math.max(0, restoredInitialTime - restoredElapsedSeconds)
+          : restoredElapsedSeconds;
+        const restoredTimerVisible = Boolean(restoredTaskText.trim()) && (
+          restoredRunning
+          || restoredInitialTime > 0
+          || restoredElapsedSeconds > 0
+        );
+        const restoredSegmentElapsed = restoredMode === 'timed'
+          ? Math.max(0, restoredElapsedSeconds - restoredSegmentStartElapsed)
+          : 0;
+
+        elapsedBeforeRunRef.current = restoredRunning ? storedElapsedSeconds : restoredElapsedSeconds;
+        freeflowPulseNextRef.current = null;
+        checkInTimedIndexRef.current = restoredCheckInIndex;
+        checkInTimedPendingIndexRef.current = restoredPendingCheckInIndex;
+        timedCheckInLastElapsedRef.current = restoredElapsedSeconds;
+        timedCheckInLastSegmentElapsedRef.current = restoredSegmentElapsed;
+        compactPulseThresholdsRef.current = [];
+        compactPulseIndexRef.current = restoredCompactPulseIndex;
+        timedPulseLastElapsedRef.current = restoredElapsedSeconds;
+        timedPulseLastSegmentElapsedRef.current = restoredSegmentElapsed;
+        timedCueSegmentStartElapsedRef.current = restoredSegmentStartElapsed;
+        timedCueSegmentDurationRef.current = restoredSegmentDuration;
+        setTask(restoredTaskText);
+        setContextNotes(restoredContextNote);
+        setTime(restoredDisplayTime);
+        setMode(restoredMode);
+        setInitialTime(restoredInitialTime);
+        setIsTimerVisible(restoredTimerVisible);
+        setIsRunning(restoredRunning);
+        setCurrentSessionId(null);
+        setSessionStartTime(restoredRunning ? restoredStartedAtMs : null);
       } finally {
         setShortcutsHydrated(true);
       }
@@ -1200,6 +1398,8 @@ export default function App() {
         initialTime,
         elapsedSeconds: elapsedBeforeRunRef.current,
         sessionStartedAt: null,
+        timedSegmentStartElapsed: timedCueSegmentStartElapsedRef.current,
+        timedSegmentDuration: timedCueSegmentDurationRef.current,
         checkInTimedIndex: checkInTimedIndexRef.current,
         checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
         compactPulseTimedIndex: compactPulseIndexRef.current,
@@ -1222,6 +1422,8 @@ export default function App() {
       initialTime,
       elapsedSeconds: elapsedBeforeRunRef.current,
       sessionStartedAt: sessionStartTime ? new Date(sessionStartTime).toISOString() : null,
+      timedSegmentStartElapsed: timedCueSegmentStartElapsedRef.current,
+      timedSegmentDuration: timedCueSegmentDurationRef.current,
       checkInTimedIndex: checkInTimedIndexRef.current,
       checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
       compactPulseTimedIndex: compactPulseIndexRef.current,
@@ -1409,6 +1611,7 @@ export default function App() {
 
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
+    historyResumeCarryoverSecondsRef.current = 0;
     sessionToSave.current = null;
     parkingLotReturnToCompactRef.current = false;
     historyReturnToCompactRef.current = false;
@@ -1864,11 +2067,40 @@ export default function App() {
   }, [isRunning, getElapsedSeconds, syncDisplayedTime]);
 
   // Handle timed session expiration — separated from setTime to avoid
-  // calling state setters inside another state setter callback
+  // calling state setters inside another state setter callback.
+  // Guard off 00:00 itself so timed sessions cannot get stranded in
+  // compact or floating shells without showing the full Time Up flow.
   useEffect(() => {
-    if (mode === 'timed' && time === 0 && isRunning) {
+    if (mode !== 'timed' || initialTime <= 0) {
+      timeUpTriggerKeyRef.current = '';
+      return undefined;
+    }
+    if (time !== 0) {
+      timeUpTriggerKeyRef.current = '';
+      return undefined;
+    }
+    if (showTimeUpModal || showNotesModal) return undefined;
+
+    const triggerKey = [
+      currentSessionId || 'no-session',
+      initialTime,
+      timedCueSegmentStartElapsedRef.current,
+      timedCueSegmentDurationRef.current,
+    ].join(':');
+
+    if (timeUpTriggerKeyRef.current === triggerKey) return undefined;
+    timeUpTriggerKeyRef.current = triggerKey;
+
+    let cancelled = false;
+    const wasCompact = isCompact;
+
+    const showTimeUpFlow = async () => {
+      const restoredFromFloating = await window.electronAPI.restoreFromFloatingForTimeUp?.() || false;
+      if (cancelled) return;
+
       elapsedBeforeRunRef.current = Math.max(0, initialTime);
-      timeUpReturnToCompactRef.current = isCompact;
+      timeUpReturnToFloatingRef.current = Boolean(restoredFromFloating);
+      timeUpReturnToCompactRef.current = restoredFromFloating ? false : wasCompact;
       setIsRunning(false);
       setIsCompact(false);
       setShowNotesModal(false);
@@ -1881,8 +2113,14 @@ export default function App() {
         completed: true,
       };
       setShowTimeUpModal(true);
-    }
-  }, [mode, time, isRunning, initialTime, clearCompactSessionCues, isCompact]);
+    };
+
+    void showTimeUpFlow();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, time, initialTime, clearCompactSessionCues, currentSessionId, isCompact, showNotesModal, showTimeUpModal]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -1909,13 +2147,12 @@ export default function App() {
     }
   }, []);
 
-  const handleCloseWindow = () => {
-    window.electronAPI.closeWindow();
+  const handleMinimizeToFloating = () => {
+    window.electronAPI.toggleFloatingMinimize?.();
   };
 
-  const handleMinimizeToFloating = () => {
-    if (isTimerVisible) return;
-    window.electronAPI.toggleFloatingMinimize?.();
+  const handleQuitApp = () => {
+    window.electronAPI.quitApp?.();
   };
 
   const handleCloseParkingLot = useCallback(() => {
@@ -1967,26 +2204,112 @@ export default function App() {
     return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
   }, [isStartModalOpen, startupGateState]);
 
+  const getStartupTargetHeight = useCallback(() => {
+    if (startupGateState !== 'ready') return WINDOW_SIZES.onboardingHeight;
+    if (isStartModalOpen) return WINDOW_SIZES.startChooserHeight;
+
+    const hasActiveStartupSurface = Boolean(contextNotes.trim())
+      || isRunning
+      || isTimerVisible
+      || checkInState !== 'idle'
+      || showCenteredFullWindowCheckInToast;
+
+    return hasActiveStartupSurface
+      ? getActiveScreenDefaultHeight()
+      : WINDOW_SIZES.idleHeight;
+  }, [
+    startupGateState,
+    isStartModalOpen,
+    contextNotes,
+    isRunning,
+    isTimerVisible,
+    checkInState,
+    showCenteredFullWindowCheckInToast,
+    getActiveScreenDefaultHeight,
+  ]);
+
   const resyncFullWindowSize = useCallback(() => {
+    if (!startupRevealComplete) return;
     if (isCompact) return;
     const minHeight = (isRunning || isTimerVisible)
       ? getActiveScreenDefaultHeight()
       : getIdleScreenDefaultHeight();
     resizeToMainCardContent(minHeight);
-  }, [isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
+  }, [startupRevealComplete, isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
 
   useEffect(() => {
+    if (startupGateState === 'checking') return undefined;
+    if (!shortcutsHydrated) return undefined;
+    if (startupWindowShownRef.current) return undefined;
+
+    const targetHeight = getStartupTargetHeight();
+    let cancelled = false;
+    const raf = window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      startupWindowShownRef.current = true;
+      Promise.resolve(
+        window.electronAPI.showMainWindowAfterStartup?.(WINDOW_SIZES.baseWidth, targetHeight)
+      ).finally(() => {
+        if (!cancelled) {
+          setStartupRevealComplete(true);
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+    };
+  }, [startupGateState, shortcutsHydrated, getStartupTargetHeight]);
+
+  const handleTaskInputHeightChange = useCallback(() => {
+    if (isCompact) return;
+    if (taskInputResizeTimerRef.current) {
+      clearTimeout(taskInputResizeTimerRef.current);
+    }
+    taskInputResizeTimerRef.current = setTimeout(() => {
+      resyncFullWindowSize();
+      taskInputResizeTimerRef.current = null;
+    }, 30);
+  }, [isCompact, resyncFullWindowSize]);
+
+  useEffect(() => () => {
+    if (taskInputResizeTimerRef.current) {
+      clearTimeout(taskInputResizeTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isCompact || compactTransitioning || !didJustExitCompactRef.current) return undefined;
+
+    const settleSoon = setTimeout(() => {
+      resyncFullWindowSize();
+    }, 50);
+    const settleLater = setTimeout(() => {
+      resyncFullWindowSize();
+      didJustExitCompactRef.current = false;
+    }, 180);
+
+    return () => {
+      clearTimeout(settleSoon);
+      clearTimeout(settleLater);
+    };
+  }, [isCompact, compactTransitioning, task, resyncFullWindowSize]);
+
+  useEffect(() => {
+    if (!startupRevealComplete) return undefined;
     if (isCompact) return undefined;
     if (isPulsing === 'gentle') return undefined;
     const t = setTimeout(() => {
       resyncFullWindowSize();
     }, 40);
     return () => clearTimeout(t);
-  }, [isCompact, isPulsing, resyncFullWindowSize]);
+  }, [startupRevealComplete, isCompact, isPulsing, resyncFullWindowSize]);
 
   // Hard guard: when truly idle, force the compact full-screen height target.
   // This prevents stale larger bounds after compact->full race conditions.
   useEffect(() => {
+    if (!startupRevealComplete) return;
     if (startupGateState !== 'ready') return;
     if (isCompact) return;
     if (isRunning) return;
@@ -1999,7 +2322,7 @@ export default function App() {
       window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
     }, 100);
     return () => clearTimeout(t);
-  }, [startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
+  }, [startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
 
   const handlePlay = useCallback(() => {
     const trimmedTask = task.trim();
@@ -2030,6 +2353,23 @@ export default function App() {
     setShowNotesModal(true);
   };
 
+  useEffect(() => {
+    const cleanup = window.electronAPI.onFloatingTimerAction?.((action) => {
+      if (action === 'startPause') {
+        if (isRunning) {
+          handlePause();
+        } else {
+          handlePlay();
+        }
+        return;
+      }
+      if (action === 'stop') {
+        handleStop();
+      }
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [handlePause, handlePlay, handleStop, isRunning]);
+
   const handleTaskSubmit = () => {
     if (!task.trim()) return;
 
@@ -2049,35 +2389,47 @@ export default function App() {
 
   const handleStartSession = async (selectedMode, minutes) => {
     let createdSessionId = null;
+    const resumeCarryoverSeconds = Math.max(0, Math.floor(Number(historyResumeCarryoverSecondsRef.current) || 0));
     try {
-      const created = await SessionStore.create({
-        task: task.trim(),
-        duration_minutes: 0,
-        mode: selectedMode,
-        completed: false,
-        notes: contextNotes || '',
-      });
-      createdSessionId = created?.id || null;
-      if (createdSessionId) {
-        setCurrentSessionId(createdSessionId);
+      if (currentSessionId) {
+        const updated = await SessionStore.update(currentSessionId, {
+          task: task.trim(),
+          mode: selectedMode,
+          completed: false,
+          notes: contextNotes || '',
+        });
+        createdSessionId = updated?.id || currentSessionId;
         await loadSessions();
+      } else {
+        const created = await SessionStore.create({
+          task: task.trim(),
+          duration_minutes: 0,
+          mode: selectedMode,
+          completed: false,
+          notes: contextNotes || '',
+        });
+        createdSessionId = created?.id || null;
+        if (createdSessionId) {
+          setCurrentSessionId(createdSessionId);
+          await loadSessions();
+        }
       }
     } catch (error) {
       console.error('Error creating session at start:', error);
     }
 
     setMode(selectedMode);
-    elapsedBeforeRunRef.current = 0;
+    elapsedBeforeRunRef.current = resumeCarryoverSeconds;
     let initialSeconds = 0;
     if (selectedMode === 'freeflow') {
-      setTime(0);
+      setTime(resumeCarryoverSeconds);
       setInitialTime(0);
     } else {
       const safeMinutes = Number.isFinite(minutes) ? Math.min(Math.max(Math.floor(minutes), 1), 240) : 25;
       const seconds = safeMinutes * 60;
       initialSeconds = seconds;
       setTime(seconds);
-      setInitialTime(seconds);
+      setInitialTime(resumeCarryoverSeconds + seconds);
     }
     setIsTimerVisible(true);
     setIsRunning(true);
@@ -2091,10 +2443,11 @@ export default function App() {
 
     clearCompactSessionCues();
     if (selectedMode === 'timed') {
-      setTimedCueSegment(0, initialSeconds);
+      setTimedCueSegment(resumeCarryoverSeconds, initialSeconds);
     }
-    resetCheckInSchedule(selectedMode, initialSeconds, 0, { restartTimedSegment: selectedMode === 'timed' });
-    resetCompactPulseSchedule(selectedMode, initialSeconds, 0, { restartTimedSegment: selectedMode === 'timed' });
+    resetCheckInSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
+    resetCompactPulseSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
+    historyResumeCarryoverSecondsRef.current = 0;
     setIsStartModalOpen(false);
     setTimeout(() => setIsCompact(true), 100);
   };
@@ -2221,6 +2574,7 @@ export default function App() {
     track('post_session_choice', { choice: 'end_session' });
     setShowTimeUpModal(false);
     timeUpReturnToCompactRef.current = false;
+    timeUpReturnToFloatingRef.current = false;
     setSessionStartTime(null);
 
     clearCompactSessionCues();
@@ -2236,7 +2590,9 @@ export default function App() {
     const nextInitial = currentInitial + extraSeconds;
     const elapsedAtExtension = currentInitial;
     const shouldReturnToCompact = timeUpReturnToCompactRef.current;
+    const shouldReturnToFloating = timeUpReturnToFloatingRef.current;
     timeUpReturnToCompactRef.current = false;
+    timeUpReturnToFloatingRef.current = false;
 
     elapsedBeforeRunRef.current = currentInitial;
     setInitialTime((prev) => prev + extraSeconds);
@@ -2248,6 +2604,12 @@ export default function App() {
     setTimedCueSegment(elapsedAtExtension, extraSeconds);
     resetCheckInSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
     resetCompactPulseSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
+    if (shouldReturnToFloating) {
+      setTimeout(() => {
+        window.electronAPI.enterFloatingMinimize?.();
+      }, 120);
+      return;
+    }
     if (shouldReturnToCompact) {
       setTimeout(() => setIsCompact(true), 80);
     }
@@ -2258,6 +2620,7 @@ export default function App() {
     track('post_session_choice', { choice: 'resume_later' });
     setShowTimeUpModal(false);
     timeUpReturnToCompactRef.current = false;
+    timeUpReturnToFloatingRef.current = false;
     setSessionStartTime(null);
 
     clearCompactSessionCues();
@@ -2270,6 +2633,71 @@ export default function App() {
     setSessionNotesMode('resume-later');
     setShowNotesModal(true);
   };
+
+  const prepareTaskForStartChooser = useCallback(({
+    taskText,
+    notes = '',
+    sessionId = null,
+    carryoverSeconds = 0,
+    suppressHistoryPop = false,
+  }) => {
+    const nextTask = typeof taskText === 'string' ? taskText.trim() : '';
+    if (!nextTask) return false;
+    const nextNotes = typeof notes === 'string' ? notes : '';
+    const normalizedCarryoverSeconds = Math.max(0, Math.round(Number(carryoverSeconds) || 0));
+
+    // Prevent stale modal-stack reopen when explicit task-start actions
+    // are taking over the flow.
+    modalStackRef.current = [];
+    invalidatePendingSessionCreation();
+    suppressHistoryPopRef.current = suppressHistoryPop;
+    elapsedBeforeRunRef.current = 0;
+    historyResumeCarryoverSecondsRef.current = normalizedCarryoverSeconds;
+    timeUpReturnToFloatingRef.current = false;
+    clearCompactSessionCues();
+    clearCheckInUi();
+    setTask(nextTask);
+    setTime(0);
+    setInitialTime(0);
+    setIsRunning(false);
+    setIsCompact(false);
+    setContextNotes(nextNotes);
+    setCurrentSessionId(sessionId || null);
+    setShowNotesModal(false);
+    setShowTimeUpModal(false);
+    setSessionNotesMode('complete');
+    setShowSettings(false);
+    setDistractionJarOpen(false);
+    setShowQuickCapture(false);
+    setShowTaskPreview(false);
+    setShowHistoryModal(false);
+    historyReturnToCompactRef.current = false;
+    settingsReturnToCompactRef.current = false;
+    parkingLotReturnToCompactRef.current = false;
+    setIsStartModalOpen(true);
+    setIsTimerVisible(false);
+    setSessionStartTime(null);
+
+    window.electronAPI.storeSet('currentTask', {
+      text: nextTask,
+      contextNote: nextNotes,
+      startedAt: null,
+    });
+    window.electronAPI.storeSet('timerState', {
+      mode: 'freeflow',
+      seconds: 0,
+      isRunning: false,
+      initialTime: 0,
+      elapsedSeconds: 0,
+      sessionStartedAt: null,
+      timedSegmentStartElapsed: 0,
+      timedSegmentDuration: 0,
+      checkInTimedIndex: 0,
+      checkInTimedPendingIndex: null,
+      compactPulseTimedIndex: 0,
+    });
+    return true;
+  }, [clearCheckInUi, clearCompactSessionCues, invalidatePendingSessionCreation]);
 
   const handleUseTask = (session) => {
     if (!session || typeof session !== 'object') {
@@ -2286,51 +2714,18 @@ export default function App() {
       || (typeof session.contextNote === 'string' && session.contextNote)
       || ''
     );
+    const resumeCarryoverSeconds = Math.max(0, Math.round((Number(session.durationMinutes) || 0) * 60));
 
-    // Prevent stale modal-stack reopen when "Use task" already performs
-    // explicit modal closing.
-    modalStackRef.current = [];
-    invalidatePendingSessionCreation();
-    suppressHistoryPopRef.current = true;
-    elapsedBeforeRunRef.current = 0;
-    setTask(nextTask);
-    setTime(0);
-    setInitialTime(0);
-    setIsRunning(false);
-    setIsCompact(false);
-    setContextNotes(nextNotes);
-    setCurrentSessionId(null);
-    setShowNotesModal(false);
-    setShowTimeUpModal(false);
-    setSessionNotesMode('complete');
-    setShowSettings(false);
-    setDistractionJarOpen(false);
-    setShowQuickCapture(false);
-    setShowTaskPreview(false);
-    setShowHistoryModal(false);
-    historyReturnToCompactRef.current = false;
-    settingsReturnToCompactRef.current = false;
-    parkingLotReturnToCompactRef.current = false;
-    setIsStartModalOpen(false);
-    setIsTimerVisible(true);
-    setSessionStartTime(null);
-
-    window.electronAPI.storeSet('currentTask', {
-      text: nextTask,
-      contextNote: nextNotes,
-      startedAt: null,
-    });
-    window.electronAPI.storeSet('timerState', {
-      mode: 'freeflow',
-      seconds: 0,
-      isRunning: false,
-      initialTime: 0,
-      elapsedSeconds: 0,
-      sessionStartedAt: null,
-      checkInTimedIndex: 0,
-      checkInTimedPendingIndex: null,
-      compactPulseTimedIndex: 0,
-    });
+    if (!prepareTaskForStartChooser({
+      taskText: nextTask,
+      notes: nextNotes,
+      sessionId: session.id || null,
+      carryoverSeconds: resumeCarryoverSeconds,
+      suppressHistoryPop: true,
+    })) {
+      setShowHistoryModal(false);
+      return;
+    }
 
     try {
       track('session_history_reused', { was_completed: session.completed ?? false });
@@ -2499,14 +2894,22 @@ export default function App() {
       showToast('success', 'Saved to Parking Lot');
     })();
   }, [buildThoughtRecord, getActiveThoughtSessionId, showToast]);
-  const removeThought = (index) => setThoughts((prev) => prev.filter((_, i) => i !== index));
-  const updateThought = useCallback((index, text) => {
+  const removeThought = useCallback((thoughtId) => {
+    if (!thoughtId) return;
+    setThoughts((prev) => prev.filter((thought) => thought.id !== thoughtId));
+  }, []);
+  const removeThoughts = useCallback((thoughtIds) => {
+    if (!Array.isArray(thoughtIds) || thoughtIds.length === 0) return;
+    const ids = new Set(thoughtIds);
+    setThoughts((prev) => prev.filter((thought) => !ids.has(thought.id)));
+  }, []);
+  const updateThought = useCallback((thoughtId, text) => {
     const nextText = typeof text === 'string' ? text.trim() : '';
     if (!nextText) return;
-    setThoughts((prev) => prev.map((thought, i) => (i === index ? { ...thought, text: nextText } : thought)));
+    setThoughts((prev) => prev.map((thought) => (thought.id === thoughtId ? { ...thought, text: nextText } : thought)));
   }, []);
-  const toggleThought = useCallback((index) => {
-    setThoughts((prev) => prev.map((thought, i) => (i === index ? { ...thought, completed: !thought.completed } : thought)));
+  const toggleThought = useCallback((thoughtId) => {
+    setThoughts((prev) => prev.map((thought) => (thought.id === thoughtId ? { ...thought, completed: !thought.completed } : thought)));
   }, []);
   const clearCompletedThoughts = () => {
     const completedCount = thoughts.filter((t) => t.completed).length;
@@ -2571,9 +2974,19 @@ export default function App() {
     if (!thought?.text) return;
     setThoughts((prev) => prev.filter((entry) => entry.id !== thoughtId));
     closePostSessionParkingLot();
-    setTask(thought.text);
-    setTimeout(() => taskInputRef.current?.focus(), 140);
-  }, [thoughts, closePostSessionParkingLot]);
+    prepareTaskForStartChooser({
+      taskText: thought.text,
+      notes: '',
+      sessionId: null,
+      carryoverSeconds: 0,
+    });
+
+    try {
+      track('parking_lot_task_started');
+    } catch (error) {
+      console.error('Analytics tracking failed in startThoughtAsNextTask:', error);
+    }
+  }, [thoughts, closePostSessionParkingLot, prepareTaskForStartChooser]);
 
   const getPulseClassName = () => {
     if (isPulsing === 'gentle') return 'animate-pulse-gentle';
@@ -2733,6 +3146,7 @@ export default function App() {
           }
 
           setCompactTransitioning(true);
+          didJustExitCompactRef.current = true;
           await window.electronAPI.exitPillMode();
           windowModeActualRef.current = 'full';
 
@@ -2777,8 +3191,8 @@ export default function App() {
   }, [isCompact, isRunning, isStartModalOpen, contextNotes, task, isTimerVisible]);
 
   if (startupGateState !== 'ready') {
-    const normalizedEmailInput = emailCaptureInput.trim().toLowerCase();
-    const canSubmitEmail = EMAIL_CAPTURE_REGEX.test(normalizedEmailInput);
+    const normalizedLicenseKeyInput = licenseKeyInput.trim();
+    const canSubmitLicense = normalizedLicenseKeyInput.length > 0;
 
     if (startupGateState === 'checking') {
       return (
@@ -2812,56 +3226,84 @@ export default function App() {
       );
     }
 
-    return (
-      <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
-        <div
-          className="electron-no-drag"
-          style={{
-            width: '100%',
-            maxWidth: '28rem',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--brand-action)',
-            borderRadius: '0.9rem',
-            boxShadow: 'var(--shadow-minimal)',
-            padding: '1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.875rem',
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 700 }}>Welcome to Focana 🎯</h1>
-          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.45 }}>
-            Enter the email you signed up with so we can connect your feedback to your experience.
-          </p>
-
-          <input
-            type="email"
-            value={emailCaptureInput}
-            onChange={(event) => setEmailCaptureInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && canSubmitEmail) {
-                event.preventDefault();
-                void handleEmailCaptureContinue();
-              }
+    if (startupGateState === 'activation') {
+      const activationErrorMessage = licenseStatus?.lastError || '';
+      return (
+        <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
+          <div
+            className="electron-no-drag"
+            style={{
+              width: '100%',
+              maxWidth: '26rem',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--brand-action)',
+              borderRadius: '0.9rem',
+              boxShadow: 'var(--shadow-minimal)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.9rem',
             }}
-            placeholder="you@example.com"
-            autoFocus
-            className="input electron-no-drag"
-            style={{ width: '100%', fontSize: '0.95rem', padding: '0.7rem 0.8rem' }}
-          />
+          >
+            <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+              Activate Focana on this Mac
+            </h1>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <Button
-              onClick={() => { void handleEmailCaptureContinue(); }}
-              disabled={!canSubmitEmail || emailCaptureSubmitting}
-              style={{ minWidth: '7.25rem' }}
+            <form
+              className="electron-no-drag"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleLicenseActivation();
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}
             >
-              Continue
-            </Button>
+              <input
+                type="text"
+                value={licenseKeyInput}
+                onChange={(event) => setLicenseKeyInput(event.target.value)}
+                placeholder="Paste your Focana license key"
+                autoFocus
+                className="input electron-no-drag"
+                style={{ width: '100%', fontSize: '0.95rem', padding: '0.7rem 0.8rem' }}
+              />
+
+              <Button
+                type="submit"
+                disabled={!canSubmitLicense || licenseSubmitting}
+                className="electron-no-drag"
+                style={{ width: '100%', minHeight: '2.7rem' }}
+              >
+                {licenseSubmitting ? 'Submitting...' : 'Submit'}
+              </Button>
+            </form>
+
+            {activationErrorMessage && (
+              <div style={{
+                padding: '0.75rem 0.9rem',
+                borderRadius: '0.75rem',
+                border: '1px solid var(--error-surface-border)',
+                background: 'var(--error-surface-bg)',
+              }}>
+                <p style={{ margin: 0, color: 'var(--error-surface-text)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                  {activationErrorMessage}
+                </p>
+              </div>
+            )}
+
+            <div style={{
+              padding: '0.75rem 0.9rem',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-card)',
+            }}>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                Where is my key? Check your Lemon Squeezy receipt email or Lemon Squeezy My Orders. If this key is already active on another Mac, deactivate it there first or contact support at hello@focana.app.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
   // Compact mode render
@@ -3058,34 +3500,14 @@ export default function App() {
               </TooltipTrigger>
               <TooltipContent><p>Enter Compact Mode</p></TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  aria-label="Minimize to Floating Icon"
-                  onClick={handleMinimizeToFloating}
-                  disabled={isTimerVisible}
-                  size="icon"
-                  variant="ghost"
-                  style={{
-                    height: '2rem',
-                    width: '2rem',
-                    color: 'var(--text-secondary)',
-                    opacity: isTimerVisible ? 0.45 : 1,
-                  }}
-                >
-                  <Minus style={{ width: 16, height: 16 }} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>{isTimerVisible ? 'Unavailable while clock is active' : 'Minimize to Floating Icon'}</p></TooltipContent>
-            </Tooltip>
-            {enabledMainControls.close && pinnedControls.close && (
+            {enabledMainControls.floatingMinimize && pinnedControls.floatingMinimize && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button aria-label="Close Application" onClick={handleCloseWindow} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Minimize to Floating" onClick={handleMinimizeToFloating} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                     <X style={{ width: 16, height: 16 }} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p>Close Application</p></TooltipContent>
+                <TooltipContent><p>Minimize to Floating</p></TooltipContent>
               </Tooltip>
             )}
           </div>
@@ -3153,6 +3575,7 @@ export default function App() {
             onBlur={() => setIsNoteFocused(false)}
             onTaskSubmit={handleTaskSubmit}
             onLockedInteraction={handleLockedTaskInputInteraction}
+            onHeightChange={handleTaskInputHeightChange}
           />
 
           {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || (checkInState === 'resolved' && !showCenteredFullWindowCheckInToast)) && (
@@ -3347,12 +3770,13 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: '100%', marginTop: isShortFullWindow ? '0.5rem' : '1rem' }}>
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isShortFullWindow ? '0.5rem' : '0.75rem' }}>
                 <div style={{
-                  fontSize: isShortFullWindow ? '2rem' : '2.75rem',
-                  fontWeight: 700,
+                  fontSize: isShortFullWindow ? '1.7rem' : '2.15rem',
+                  fontWeight: 600,
                   transition: 'color 0.3s',
                   color: isRunning ? 'var(--timer-running)' : 'var(--text-secondary)',
                   fontVariantNumeric: 'tabular-nums',
                   lineHeight: 1,
+                  letterSpacing: '-0.03em',
                 }}>
                   {formatTime(time)}
                 </div>
@@ -3419,8 +3843,10 @@ export default function App() {
         onAddThought={addThought}
         onUpdateThought={updateThought}
         onRemoveThought={removeThought}
+        onRemoveThoughts={removeThoughts}
         onToggleThought={toggleThought}
         onClearCompleted={clearCompletedThoughts}
+        onStartThoughtAsNextTask={startThoughtAsNextTask}
       />
       <PostSessionParkingLotModal
         isOpen={Boolean(postSessionParkingLotSessionId)}
@@ -3489,7 +3915,7 @@ export default function App() {
         onCloseApp={() => {
           setShowSettings(false);
           settingsReturnToCompactRef.current = false;
-          handleCloseWindow();
+          handleQuitApp();
         }}
         shortcuts={shortcuts}
         onShortcutsChange={(nextShortcuts) => setShortcuts(mergeShortcutsWithDefaults(nextShortcuts))}
@@ -3518,6 +3944,10 @@ export default function App() {
         updateState={updateState}
         onCheckForUpdates={handleCheckForUpdates}
         onInstallUpdate={handleInstallUpdate}
+        runtimeInfo={runtimeInfo}
+        licenseStatus={licenseStatus}
+        onValidateLicense={handleValidateLicenseNow}
+        onDeactivateLicense={handleDeactivateLicense}
       />
       <Dialog open={showTimerValidationModal} onOpenChange={(open) => { if (!open) closeTimerValidationModal(); }}>
         <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '22rem' }}>

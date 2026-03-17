@@ -1,13 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-function getUpdateChannel(version) {
-  const rawVersion = typeof version === 'string' ? version.trim() : '';
-  const prereleaseMatch = rawVersion.match(/-([0-9A-Za-z-]+)/);
-  if (!prereleaseMatch) return 'latest';
-  return prereleaseMatch[1].split('.')[0].toLowerCase() || 'latest';
-}
-
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')
 );
@@ -28,7 +21,7 @@ module.exports = {
     provider: 'github',
     owner: 'eyeamswift',
     repo: 'focana',
-    channel: getUpdateChannel(packageJson.version),
+    channel: 'latest',
     vPrefixedTagName: true,
   },
   files: [

@@ -16,6 +16,7 @@ const TaskInput = forwardRef(({
   onBlur,
   onTaskSubmit,
   onLockedInteraction,
+  onHeightChange,
 }, ref) => {
   const textareaRef = useRef(null);
   const wasPastedRef = useRef(false);
@@ -30,7 +31,8 @@ const TaskInput = forwardRef(({
     const nextHeight = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, el.scrollHeight));
     el.style.height = `${nextHeight}px`;
     el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
-  }, []);
+    onHeightChange?.(nextHeight);
+  }, [onHeightChange]);
 
   useEffect(() => {
     resizeTextarea();
@@ -105,8 +107,9 @@ const TaskInput = forwardRef(({
         style={{
           width: '100%',
           textAlign: 'left',
-          fontSize: task.trim() ? '1.125rem' : '1rem',
-          padding: showSubmitButton ? '0.75rem 3.5rem 0.75rem 1rem' : '0.75rem 1rem',
+          fontSize: task.trim() ? '1.375rem' : '1.0625rem',
+          fontWeight: task.trim() ? 600 : 500,
+          padding: showSubmitButton ? '0.8rem 3.5rem 0.8rem 1rem' : '0.8rem 1rem',
           minHeight: '3rem',
           borderWidth: 2,
           borderStyle: 'solid',
@@ -125,7 +128,7 @@ const TaskInput = forwardRef(({
               : (isActive ? '0 0 0 2px var(--focus-ring)' : 'none')),
           resize: 'none',
           overflow: 'hidden',
-          lineHeight: 1.35,
+          lineHeight: 1.4,
           whiteSpace: 'pre-wrap',
           overflowWrap: 'anywhere',
         }}

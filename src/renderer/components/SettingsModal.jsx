@@ -96,7 +96,7 @@ const PINNED_CONTROLS_DEFAULT = {
   parkingLot: true,
   history: true,
   restart: false,
-  close: true,
+  floatingMinimize: true,
 };
 const ENABLED_CONTROLS_DEFAULT = {
   alwaysOnTop: true,
@@ -105,7 +105,7 @@ const ENABLED_CONTROLS_DEFAULT = {
   parkingLot: true,
   history: true,
   restart: true,
-  close: true,
+  floatingMinimize: true,
 };
 
 const MAIN_SCREEN_CONTROLS = [
@@ -115,8 +115,18 @@ const MAIN_SCREEN_CONTROLS = [
   { key: 'parkingLot', label: 'View Parking Lot', icon: ClipboardList },
   { key: 'history', label: 'View Session History', icon: History },
   { key: 'restart', label: 'Restart', icon: RotateCcw },
-  { key: 'close', label: 'Close', icon: X },
+  { key: 'floatingMinimize', label: 'Minimize to Floating', icon: X },
 ];
+
+function normalizeToolbarControlMap(rawControls, defaults) {
+  const source = rawControls && typeof rawControls === 'object' ? rawControls : {};
+  const normalized = { ...defaults, ...source };
+  if (typeof source.floatingMinimize !== 'boolean' && typeof source.close === 'boolean') {
+    normalized.floatingMinimize = source.close;
+  }
+  delete normalized.close;
+  return normalized;
+}
 
 function formatUpdateTimestamp(value) {
   if (!value) return null;
@@ -159,6 +169,37 @@ function getUpdateStatusSummary(updateState) {
   }
 }
 
+function formatLicenseTimestamp(value) {
+  if (!value) return 'Not yet';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not yet';
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getLicenseStatusLabel(status) {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'offline_grace':
+      return 'Offline Grace';
+    case 'invalid':
+      return 'Invalid';
+    case 'config_error':
+      return 'Config Error';
+    case 'not_required':
+      return 'Not Required';
+    case 'error':
+      return 'Needs Attention';
+    default:
+      return 'Not Activated';
+  }
+}
+
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -187,6 +228,10 @@ export default function SettingsModal({
   updateState,
   onCheckForUpdates,
   onInstallUpdate,
+  runtimeInfo,
+  licenseStatus,
+  onValidateLicense,
+  onDeactivateLicense,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(mergeShortcutsWithDefaults(shortcuts));
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
@@ -194,13 +239,14 @@ export default function SettingsModal({
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
-  const [pinnedControls, setPinnedControls] = useState({ ...PINNED_CONTROLS_DEFAULT, ...(pinnedControlsDefault || {}) });
-  const [enabledControls, setEnabledControls] = useState({ ...ENABLED_CONTROLS_DEFAULT, ...(enabledControlsDefault || {}) });
+  const [pinnedControls, setPinnedControls] = useState(normalizeToolbarControlMap(pinnedControlsDefault, PINNED_CONTROLS_DEFAULT));
+  const [enabledControls, setEnabledControls] = useState(normalizeToolbarControlMap(enabledControlsDefault, ENABLED_CONTROLS_DEFAULT));
   const [doNotDisturb, setDoNotDisturb] = useState(dndEnabled ?? false);
   const [checkInEnabled, setCheckInEnabled] = useState(checkInSettings?.enabled ?? true);
   const [checkInIntervalFreeflow, setCheckInIntervalFreeflow] = useState(checkInSettings?.intervalFreeflow ?? 15);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
+  const [licenseAction, setLicenseAction] = useState('');
   const recordingCleanupRef = useRef(null);
 
   useEffect(() => {
@@ -217,6 +263,7 @@ export default function SettingsModal({
       recordingCleanupRef.current();
     }
     setRecordingKey(null);
+    setLicenseAction('');
   }, [isOpen]);
 
   useEffect(() => {
@@ -237,8 +284,8 @@ export default function SettingsModal({
             ? (settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? true)
             : true
         );
-        setPinnedControls({ ...PINNED_CONTROLS_DEFAULT, ...(pinnedControlsDefault || {}), ...(settings.pinnedControls || {}) });
-        setEnabledControls({ ...ENABLED_CONTROLS_DEFAULT, ...(enabledControlsDefault || {}), ...(settings.mainScreenControlsEnabled || {}) });
+        setPinnedControls(normalizeToolbarControlMap({ ...(pinnedControlsDefault || {}), ...(settings.pinnedControls || {}) }, PINNED_CONTROLS_DEFAULT));
+        setEnabledControls(normalizeToolbarControlMap({ ...(enabledControlsDefault || {}), ...(settings.mainScreenControlsEnabled || {}) }, ENABLED_CONTROLS_DEFAULT));
         setDoNotDisturb(settings.doNotDisturbEnabled ?? dndEnabled ?? false);
         setCheckInEnabled(settings.checkInEnabled ?? checkInSettings?.enabled ?? true);
         setCheckInIntervalFreeflow(
@@ -317,6 +364,26 @@ export default function SettingsModal({
     setCheckInEnabled(true);
     setCheckInIntervalFreeflow(15);
     setConflicts({});
+  };
+
+  const handleValidateLicense = async () => {
+    if (!onValidateLicense || licenseAction) return;
+    setLicenseAction('validate');
+    try {
+      await onValidateLicense();
+    } finally {
+      setLicenseAction('');
+    }
+  };
+
+  const handleDeactivateLicense = async () => {
+    if (!onDeactivateLicense || licenseAction) return;
+    setLicenseAction('deactivate');
+    try {
+      await onDeactivateLicense();
+    } finally {
+      setLicenseAction('');
+    }
   };
 
   const handleShortcutRecord = (key) => {
@@ -417,10 +484,19 @@ export default function SettingsModal({
   const updateStatusSummary = getUpdateStatusSummary(updateState);
   const currentVersionLabel = updateState?.currentVersion || 'Unknown';
   const updateChannelLabel = updateState?.channel && updateState.channel !== 'latest'
-    ? `${updateState.channel} channel`
-    : 'stable channel';
+    ? `${updateState.channel} release`
+    : 'latest release';
   const lastCheckedLabel = formatUpdateTimestamp(updateState?.lastCheckedAt);
   const updateActionDisabled = !updateState?.supported || ['checking', 'downloading', 'downloaded', 'installing'].includes(updateState?.status);
+  const licenseEnabled = runtimeInfo?.licenseEnforced === true;
+  const licenseStatusLabel = getLicenseStatusLabel(licenseStatus?.status);
+  const licenseTone = licenseStatus?.status === 'active'
+    ? '#166534'
+    : licenseStatus?.status === 'offline_grace'
+      ? '#92400E'
+      : licenseStatus?.status === 'config_error' || licenseStatus?.status === 'invalid' || licenseStatus?.status === 'error'
+        ? '#B91C1C'
+        : 'var(--text-secondary)';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -515,6 +591,68 @@ export default function SettingsModal({
                   </div>
                 ) : null}
               </div>
+
+              {licenseEnabled ? (
+                <div style={{
+                  padding: '0.75rem',
+                  background: 'var(--bg-card)',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--border-subtle)',
+                }} className="space-y-3">
+                  <div>
+                    <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>License</h4>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, marginTop: '0.125rem' }}>
+                      Focana uses Lemon license keys. Your key lives in the Lemon receipt email and Lemon My Orders.
+                    </p>
+                  </div>
+                  <div style={{
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-surface)',
+                    padding: '0.75rem',
+                    display: 'grid',
+                    gap: '0.4rem',
+                  }}>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                      <strong>Status:</strong> <span style={{ color: licenseTone }}>{licenseStatusLabel}</span>
+                    </p>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      <strong>Key:</strong> {licenseStatus?.maskedKey || 'Not activated'}
+                    </p>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      <strong>Last successful check:</strong> {formatLicenseTimestamp(licenseStatus?.lastValidatedAt)}
+                    </p>
+                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      <strong>Offline grace until:</strong> {formatLicenseTimestamp(licenseStatus?.offlineGraceUntil)}
+                    </p>
+                    {licenseStatus?.lastError ? (
+                      <p style={{ margin: 0, fontSize: '0.8125rem', color: '#B91C1C', lineHeight: 1.45 }}>
+                        {licenseStatus.lastError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleValidateLicense}
+                      disabled={licenseAction !== ''}
+                      style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                    >
+                      {licenseAction === 'validate' ? 'Checking...' : 'Validate Now'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDeactivateLicense}
+                      disabled={licenseAction !== '' || !licenseStatus?.keyPresent}
+                      style={{ borderColor: '#FCA5A5', color: '#B91C1C' }}
+                    >
+                      {licenseAction === 'deactivate' ? 'Deactivating...' : 'Deactivate this Mac'}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               <div style={{
                 padding: '0.75rem',

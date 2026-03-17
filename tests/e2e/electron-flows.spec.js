@@ -323,18 +323,18 @@ test('settings surfaces mocked update availability and install action', async ()
   const { page, cleanup } = await launchApp({
     extraEnv: {
       FOCANA_E2E_UPDATER_SCENARIO: 'available',
-      FOCANA_E2E_UPDATER_VERSION: '1.2.0-beta.2',
+      FOCANA_E2E_UPDATER_VERSION: '1.2.1',
     },
   });
 
   try {
     await expect(page.getByText('Update Ready')).toBeVisible();
-    await expect(page.getByText('Focana 1.2.0-beta.2 is downloaded and ready.')).toBeVisible();
+    await expect(page.getByText('Focana 1.2.1 is downloaded and ready.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Open Settings' }).click();
 
-    await expect(page.getByText(`Current version ${APP_VERSION} on the beta channel.`)).toBeVisible();
-    await expect(page.getByText('Focana 1.2.0-beta.2 is ready to install.')).toBeVisible();
+    await expect(page.getByText(`Current version ${APP_VERSION} on the latest release.`)).toBeVisible();
+    await expect(page.getByText('Focana 1.2.1 is ready to install.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Restart to Update' }).last().click();
 
@@ -431,7 +431,7 @@ test('quick capture thought persists after parking lot interactions', async () =
   }
 });
 
-test('floating minimize shortcut is blocked while a timer is active', async () => {
+test('floating minimize shows a timer pill while a timer is active', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -443,14 +443,47 @@ test('floating minimize shortcut is blocked while a timer is active', async () =
       window.electronAPI.toggleFloatingMinimize();
     });
 
-    await page.waitForTimeout(500);
-    const hasFloatingWindow = await electronApp.evaluate(({ BrowserWindow }) => {
-      return BrowserWindow.getAllWindows().some((win) => (
-        win.webContents.getURL().includes('floating-icon.html') && win.isVisible()
-      ));
-    });
+    await expect.poll(() => {
+      const windows = electronApp.windows();
+      return windows.some((win) => win.url().includes('floating-icon.html'));
+    }, { timeout: 7000 }).toBe(true);
 
-    expect(hasFloatingWindow).toBe(false);
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    await expect.poll(async () => floatingWindow.evaluate(() => ({
+      mode: document.body.dataset.mode,
+      timeText: document.getElementById('timer-pill')?.textContent?.trim() || '',
+    })), { timeout: 7000 }).toMatchObject({
+      mode: 'timer',
+      timeText: expect.stringMatching(/^\d{2}:\d{2}$/),
+    });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating minimize stays available when timer is visible but not running', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'paused-floating');
+    await exitCompactMode(page);
+    await triggerShortcutAction(electronApp, 'startPause');
+
+    const minimizeFloatingButton = page.locator('button[aria-label="Minimize to Floating Icon"]');
+    await expect(minimizeFloatingButton).toBeEnabled();
+    await minimizeFloatingButton.click();
+
+    await expect.poll(() => {
+      const windows = electronApp.windows();
+      return windows.some((win) => win.url().includes('floating-icon.html'));
+    }, { timeout: 7000 }).toBe(true);
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    await expect.poll(async () => floatingWindow.evaluate(() => document.body.dataset.mode), { timeout: 7000 }).toBe('icon');
   } finally {
     await cleanup();
   }
@@ -1081,6 +1114,32 @@ test('minimize to floating icon restores idle task text', async () => {
     });
     expect(restoredTask).toBe('floating-state-test');
     await expect(mainPage.locator(TASK_INPUT_SELECTOR)).toHaveValue('floating-state-test');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('exiting compact mode preserves full-window height for multi-line tasks', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('First line\nSecond line that keeps the textarea tall');
+
+    const getMainHeight = async () => electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => (
+        !win.webContents.getURL().includes('floating-icon.html')
+      ));
+      return main ? main.getBounds().height : null;
+    });
+
+    const initialHeight = await getMainHeight();
+    expect(initialHeight).toBeGreaterThan(120);
+
+    await page.locator('button[aria-label="Enter Compact Mode"]').click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+    await exitCompactMode(page);
+
+    await expect.poll(getMainHeight, { timeout: 7000 }).toBeGreaterThanOrEqual(initialHeight);
   } finally {
     await cleanup();
   }

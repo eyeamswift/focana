@@ -11,15 +11,11 @@ const PILL_BASE_H = 72;
 const PILL_MAX_H = 260;
 const TIMER_W    = 56;  // "MM:SS" in ui-monospace bold ~56px (conservative)
 const INFO_W     = 24;  // info icon + spacing
-const TASK_TEXT_PAD_X = 8;
-const TASK_TEXT_PAD_Y = 3;
 const TASK_TIMER_GAP = 8;
 const CTRL_W     = 90;  // 8px pad + 3×26px btns + 2×2px gaps = 90px
 
 const TASK_MIN_W = 120;
 const TASK_MAX_W = 260; // max task width before wrapping
-const TASK_LINE_H = 15;
-const TASK_V_PAD  = 26;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
 const COMPACT_PULSE_CYCLE_MS = 4500;
@@ -52,6 +48,8 @@ export default function CompactMode({
   const clickTimerRef    = useRef(null);
   const controlsHideRef  = useRef(null);
   const pulseResetTimeoutRef = useRef(null);
+  const taskMeasureInlineRef = useRef(null);
+  const taskMeasureBlockRef = useRef(null);
   const dragMoveHandlerRef = useRef(null);
   const dragUpHandlerRef = useRef(null);
   const dragBlurHandlerRef = useRef(null);
@@ -64,27 +62,29 @@ export default function CompactMode({
 
   useEffect(() => {
     const label = (taskLabel || '').trim();
-    if (!isTaskVisible || !label) {
+    const inlineMeasure = taskMeasureInlineRef.current;
+    const blockMeasure = taskMeasureBlockRef.current;
+    if (!isTaskVisible || !label || !inlineMeasure || !blockMeasure) {
       setTaskMetrics({ width: TASK_MIN_W, height: PILL_BASE_H });
       return;
     }
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const bodyFont = window.getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
-    const font = `500 13px ${bodyFont}`;
-    let measuredTextWidth = TASK_MIN_W;
-    if (ctx) {
-      ctx.font = font;
-      measuredTextWidth = Math.ceil(ctx.measureText(label).width);
-    }
+    inlineMeasure.textContent = label;
+    blockMeasure.textContent = label;
 
-    const paddedTextWidth = measuredTextWidth + (TASK_TEXT_PAD_X * 2);
-    const taskWidth = clamp(paddedTextWidth, TASK_MIN_W, TASK_MAX_W);
-    const availableTextWidth = Math.max(1, taskWidth - (TASK_TEXT_PAD_X * 2));
-    const lines = Math.max(1, Math.ceil(measuredTextWidth / availableTextWidth));
-    const neededHeight = Math.ceil(lines * TASK_LINE_H + TASK_V_PAD + (TASK_TEXT_PAD_Y * 2));
-    const taskHeight = clamp(Math.max(PILL_BASE_H, neededHeight), PILL_BASE_H, PILL_MAX_H);
+    const measuredWidth = Math.ceil(
+      inlineMeasure.scrollWidth || inlineMeasure.getBoundingClientRect().width || TASK_MIN_W,
+    );
+    const taskWidth = clamp(Math.max(measuredWidth, TASK_MIN_W), TASK_MIN_W, TASK_MAX_W);
+    blockMeasure.style.width = `${taskWidth}px`;
+    const taskHeight = clamp(
+      Math.max(
+        PILL_BASE_H,
+        Math.ceil(blockMeasure.scrollHeight || blockMeasure.getBoundingClientRect().height || PILL_BASE_H),
+      ),
+      PILL_BASE_H,
+      PILL_MAX_H,
+    );
 
     setTaskMetrics({ width: taskWidth, height: taskHeight });
   }, [isTaskVisible, taskLabel]);
@@ -264,6 +264,12 @@ export default function CompactMode({
     setIsHovered(false);
   };
 
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.electronAPI?.openCompactContextMenu?.();
+  };
+
   // Single click — debounced 220ms to avoid collision with double-click
   const handlePillClick = (e) => {
     if (isDraggingRef.current) return; // suppress click that follows a drag
@@ -309,6 +315,7 @@ export default function CompactMode({
       onMouseLeave={handleMouseLeave}
       onClick={handlePillClick}
       onDoubleClick={handlePillDoubleClick}
+      onContextMenu={handleContextMenu}
     >
       <span className="pill-pulse-border" aria-hidden="true" />
       <span className="pill-pulse-wash" aria-hidden="true" />
@@ -401,6 +408,11 @@ export default function CompactMode({
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="pill-task-measure" aria-hidden="true">
+        <span ref={taskMeasureInlineRef} className="pill-task-text pill-task-text--measure-inline" />
+        <span ref={taskMeasureBlockRef} className="pill-task-text pill-task-text--measure-block" />
       </div>
 
     </div>

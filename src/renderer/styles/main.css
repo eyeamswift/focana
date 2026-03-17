@@ -62,6 +62,9 @@
 
   --success: #10B981;
   --error: #DC2626;
+  --error-surface-bg: rgba(254, 242, 242, 0.92);
+  --error-surface-border: rgba(220, 38, 38, 0.28);
+  --error-surface-text: #991B1B;
   --info-bg: #EFF6FF;
   --info-border: #BFDBFE;
   --info-text: #1E40AF;
@@ -139,6 +142,9 @@
   --info-bg: rgba(245, 158, 11, 0.14);
   --info-border: rgba(245, 158, 11, 0.35);
   --info-text: #FFF0C2;
+  --error-surface-bg: rgba(127, 29, 29, 0.34);
+  --error-surface-border: rgba(248, 113, 113, 0.36);
+  --error-surface-text: #FECACA;
 
   --overlay: rgba(0, 0, 0, 0.42);
   --shadow-minimal: 0 1px 2px rgba(0, 0, 0, 0.28);
@@ -931,15 +937,14 @@ html[data-window-mode='pill'] #root {
 }
 
 .pill-task--visible {
-  max-width: 220px;
   margin-right: 8px;
   opacity: 1;
 }
 
 .pill-task-text {
   display: block;
-  font-size: 0.8125rem;
-  font-weight: 500;
+  font-size: 0.875rem;
+  font-weight: 600;
   color: var(--compact-text);
   padding: 3px 8px;
   border-radius: 0;
@@ -948,6 +953,30 @@ html[data-window-mode='pill'] #root {
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.15;
+}
+
+.pill-task-measure {
+  position: absolute;
+  inset: auto;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: normal;
+}
+
+.pill-task-text--measure-inline {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: max-content;
+  max-width: none;
+}
+
+.pill-task-text--measure-block {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  max-width: none;
+  width: 120px;
 }
 
 /* Brain icon + timer */
@@ -963,9 +992,9 @@ html[data-window-mode='pill'] #root {
 }
 
 .pill-timer {
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   font-family: ui-monospace, monospace;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   transition: color 0.2s;
 }
