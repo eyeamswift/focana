@@ -381,6 +381,183 @@ function WaitlistModal({ open, onClose }) {
   );
 }
 
+function WaitlistSignupModal({ open, onClose, location }) {
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | loading | success | error
+  const [errorMsg, setErrorMsg] = useState("");
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+      setTimeout(() => {
+        const input = modalRef.current?.querySelector("input");
+        if (input) input.focus();
+      }, 0);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setEmail("");
+      setPhone("");
+      setStatus("idle");
+      setErrorMsg("");
+      return;
+    }
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setStatus("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/beta-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone: phone || undefined }),
+      });
+      const data = await res.json();
+      if (res.status === 409) {
+        setStatus("success");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+      setStatus("success");
+      phCapture("waitlist_signup", { location });
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(err.message || "Something went wrong. Please try again.");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        ref={modalRef}
+        className="modal-inner"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="signup-modal-title"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "white", borderRadius: "20px", padding: "40px",
+          maxWidth: "440px", width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        {status === "success" ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🎉</div>
+            <h3 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "22px",
+              fontWeight: 700, color: COLORS.warmBrown, marginBottom: "12px",
+            }}>You're on the list!</h3>
+            <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.6 }}>
+              We'll notify you when we launch.
+            </p>
+            <button onClick={onClose} className="cta-btn" style={{ padding: "12px 32px", fontSize: "15px" }}>
+              Got it
+            </button>
+          </div>
+        ) : (
+          <>
+            <h3 id="signup-modal-title" style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "22px",
+              fontWeight: 700, color: COLORS.warmBrown, marginBottom: "8px",
+            }}>
+              Join the Waitlist
+            </h3>
+            <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "24px", lineHeight: 1.5 }}>
+              Drop your email and we'll let you know the moment Focana is ready.
+            </p>
+            <form onSubmit={handleSubmit}>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="form-input"
+                style={{
+                  width: "100%", padding: "14px 16px", fontSize: "16px",
+                  border: `1.5px solid ${COLORS.beigeBorder}`, borderRadius: "10px",
+                  fontFamily: "'DM Sans', sans-serif", color: COLORS.warmBrown,
+                  marginBottom: "12px",
+                }}
+              />
+              <input
+                type="tel"
+                placeholder="Phone (optional)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="form-input"
+                style={{
+                  width: "100%", padding: "14px 16px", fontSize: "16px",
+                  border: `1.5px solid ${COLORS.beigeBorder}`, borderRadius: "10px",
+                  fontFamily: "'DM Sans', sans-serif", color: COLORS.warmBrown,
+                  marginBottom: "20px",
+                }}
+              />
+              {status === "error" && (
+                <p style={{ color: COLORS.error || "#DC2626", fontSize: "14px", marginBottom: "12px" }}>
+                  {errorMsg}
+                </p>
+              )}
+              <button
+                type="submit"
+                className="cta-btn"
+                disabled={status === "loading"}
+                style={{ width: "100%", justifyContent: "center", padding: "14px", fontSize: "16px" }}
+              >
+                {status === "loading" ? "Joining..." : "Join the Waitlist"}
+              </button>
+            </form>
+            <button
+              onClick={onClose}
+              style={{
+                display: "block", margin: "16px auto 0", background: "none",
+                border: "none", color: COLORS.coffeeBrown, fontSize: "14px",
+                cursor: "pointer", padding: "4px",
+              }}
+            >
+              Maybe later
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function getIsAppleSilicon() {
   try {
     if (!/Mac/.test(navigator.userAgent)) return null;
@@ -406,6 +583,8 @@ export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [signupModalOpen, setSignupModalOpen] = useState(false);
+  const [signupLocation, setSignupLocation] = useState("hero");
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const headlines = ["What was it?", "It didn't get done.", "You did 3 other things.", "Where did the time go?"];
 
@@ -727,7 +906,7 @@ export default function FocanaLanding() {
             <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "nav" })} className="lemonsqueezy-button cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none", textDecoration: "none" }}>Try Risk Free</a>
+            <button onClick={() => { setSignupModalOpen(true); setSignupLocation("nav"); phCapture("cta_clicked", { location: "nav" }); }} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Join Waitlist</button>
           </div>
           <button
             className="hamburger-btn"
@@ -772,7 +951,7 @@ export default function FocanaLanding() {
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <a href={CHECKOUT_URL} onClick={() => { setMobileMenuOpen(false); phCapture("cta_clicked", { location: "mobile_nav" }); }} className="lemonsqueezy-button cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center", textDecoration: "none" }}>Try Risk Free</a>
+          <button onClick={() => { setMobileMenuOpen(false); setSignupModalOpen(true); setSignupLocation("mobile_nav"); phCapture("cta_clicked", { location: "mobile_nav" }); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Join Waitlist</button>
         </div>
       )}
 
@@ -841,10 +1020,9 @@ export default function FocanaLanding() {
             </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "hero" })} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
-                Try Risk Free
-                <span style={{ fontSize: "22px" }}>→</span>
-              </a>
+              <button onClick={() => { setSignupModalOpen(true); setSignupLocation("hero"); phCapture("cta_clicked", { location: "hero" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                Get Notified <span style={{ fontSize: "22px" }}>→</span>
+              </button>
               <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                 See How It Works
               </a>
@@ -1027,7 +1205,7 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* FOUNDING MEMBER PRICING */}
+      {/* PRICING */}
       <section id="pricing" style={{ padding: "100px 0", background: "white" }}>
         <div className="section" style={{ maxWidth: "720px" }}>
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
@@ -1035,12 +1213,11 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
               fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15, marginBottom: "20px",
             }}>
-              Own it forever. $29.
+              One payment. Lifetime access.
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              Focana is in open beta — which means two things:<br />
-              you get to help shape what gets built,<br />
-              and you get the best price it will ever be.
+              Buy Focana once, download it instantly,<br />
+              and keep every update we ship next.
             </p>
           </div>
 
@@ -1055,7 +1232,7 @@ export default function FocanaLanding() {
             <span style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
               color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>Founding Member</span>
+            }}>Lifetime Access</span>
             <div style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 56px)",
               fontWeight: 800, color: COLORS.warmBrown, margin: "12px 0",
@@ -1067,12 +1244,12 @@ export default function FocanaLanding() {
               Every feature, now and everything we ship next.
             </p>
             <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "28px", opacity: 0.8 }}>
-              When beta ends, Focana moves to $49 lifetime or $8/month.<br />
-              This price goes away when that happens.
+              7-day money-back guarantee.<br />
+              If it doesn't stick, we'll refund you.
             </p>
-            <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "pricing" })} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
-              Lock in Founding Member Pricing
-            </a>
+            <button onClick={() => { setSignupModalOpen(true); setSignupLocation("pricing"); phCapture("cta_clicked", { location: "pricing" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Join Waitlist
+            </button>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
               One-time payment. macOS. Instant download.<br />
               No subscription. Ever.
@@ -1087,14 +1264,12 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
               color: COLORS.warmBrown, marginBottom: "12px",
             }}>
-              Why a lifetime deal during beta?
+              Why lifetime access?
             </h3>
             <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              Most apps charge full price to test an unfinished product.
-              We'd rather reward the people willing to bet on us early.
-              You get the lowest price it will ever be.
-              We get real users, real feedback, and the resources to build faster.
-              Fair trade.
+              We want pricing to feel as calm as the product: simple, upfront, and easy to trust.
+              Buy it once, keep it, and get the updates we ship as Focana grows.
+              No subscription math. No renewal anxiety. Just a tool that stays with you.
             </p>
           </div>
         </div>
@@ -1142,11 +1317,11 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="What does it cost?"
-            answer="$29 one-time. That's lifetime access — no subscription, no renewals. You also get a 7-day money-back guarantee: if it doesn't stick, we'll refund you, no questions asked. After beta, the price moves to $49 lifetime or $8/month. This is the lowest it will ever be."
+            answer="$29 one-time. That's lifetime access — no subscription, no renewals. You also get a 7-day money-back guarantee: if it doesn't stick, we'll refund you, no questions asked."
           />
           <FAQItem
             question="Will the $29 price go up?"
-            answer="Yes. When open beta ends, Focana moves to $49 lifetime or $8/month. The founding member price is only available during beta and goes away when that window closes."
+            answer="Pricing may change later. If you buy at $29, that purchase stays lifetime access with no subscription or renewals."
           />
         </div>
       </section>
@@ -1171,9 +1346,9 @@ export default function FocanaLanding() {
             $29 once. Yours forever. 7-day guarantee.
           </p>
 
-          <a href={CHECKOUT_URL} onClick={() => phCapture("cta_clicked", { location: "final_cta" })} className="lemonsqueezy-button cta-btn" style={{ fontSize: "18px", padding: "18px 40px", textDecoration: "none" }}>
-            Try Risk Free <span style={{ fontSize: "22px" }}>→</span>
-          </a>
+          <button onClick={() => { setSignupModalOpen(true); setSignupLocation("final_cta"); phCapture("cta_clicked", { location: "final_cta" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Get Notified <span style={{ fontSize: "22px" }}>→</span>
+          </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
             Focana — the desktop focus buddy for busy brains.
@@ -1193,6 +1368,7 @@ export default function FocanaLanding() {
       </section>
 
       <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
+      <WaitlistSignupModal open={signupModalOpen} onClose={() => setSignupModalOpen(false)} location={signupLocation} />
 
       {/* FOOTER */}
       <footer style={{ padding: "48px 0", background: COLORS.softBlack, borderTop: `1px solid ${COLORS.warmBrown}22` }}>
