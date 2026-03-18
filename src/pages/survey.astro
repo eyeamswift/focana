@@ -2,8 +2,6 @@
 const title = "Focana — Quick Survey";
 const description = "Tell us a little about how you found Focana and what you want it to solve.";
 const canonicalURL = "https://focana.app/survey";
-const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
-const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 ---
 
 <html lang="en">
@@ -50,97 +48,34 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         flex-direction: column;
         gap: 18px;
       }
-      .card, .survey-card {
+      .intro-copy {
+        color: #8B6F47;
+        font-size: 18px;
+        line-height: 1.6;
+        text-align: left;
+      }
+      .survey-card {
         background: white;
         border-radius: 24px;
         box-shadow: 0 24px 80px rgba(92, 64, 51, 0.12);
       }
-      .card {
-        padding: 34px 32px;
-      }
       .survey-card {
         padding: 36px 32px;
       }
-      .eyebrow {
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #D97706;
-        margin-bottom: 10px;
-      }
-      h1, h2 {
+      h2 {
         font-family: 'Outfit', sans-serif;
         color: #5C4033;
-      }
-      h1 {
-        font-size: 28px;
-        font-weight: 800;
-        margin-bottom: 8px;
       }
       h2 {
         font-size: 22px;
         font-weight: 700;
         margin-bottom: 8px;
       }
-      .subtitle, .helper-text {
+      .helper-text {
         color: #8B6F47;
         line-height: 1.6;
       }
-      .subtitle {
-        font-size: 15px;
-      }
-      .helper-box {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 14px;
-        padding: 15px 16px;
-        margin-top: 16px;
-      }
-      .helper-box strong {
-        display: block;
-        color: #334155;
-        margin-bottom: 5px;
-      }
-      .helper-box p {
-        color: #475569;
-        font-size: 14px;
-        line-height: 1.55;
-      }
-      .status-card {
-        border-radius: 14px;
-        padding: 14px 16px;
-        margin-bottom: 20px;
-        background: #F0FDF4;
-        border: 1px solid #86EFAC;
-      }
-      .status-card[data-tone="error"] {
-        background: #FEF2F2;
-        border-color: #FCA5A5;
-      }
-      .status-card strong {
-        display: block;
-        color: #14532D;
-        margin-bottom: 4px;
-      }
-      .status-card[data-tone="error"] strong {
-        color: #991B1B;
-      }
-      .status-card p {
-        font-size: 14px;
-        line-height: 1.5;
-        color: #166534;
-      }
-      .status-card[data-tone="error"] p {
-        color: #7F1D1D;
-      }
-      .action-row {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 18px;
-      }
-      .action-btn, .skip-link {
+      .skip-link {
         border-radius: 12px;
         font-size: 15px;
         font-weight: 700;
@@ -148,16 +83,14 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
       }
       .action-btn {
         border: none;
+        border-radius: 12px;
         padding: 14px 20px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
         background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
         color: white;
         box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
-      }
-      .action-btn.secondary {
-        background: #FEF3C7;
-        color: #5C4033;
-        border: 2px solid #E5D4B1;
-        box-shadow: none;
       }
       .action-btn:disabled {
         opacity: 0.5;
@@ -223,34 +156,14 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         flex-shrink: 0;
       }
       @media (max-width: 520px) {
-        .card, .survey-card { padding: 28px 20px; }
+        .survey-card { padding: 28px 20px; }
         .survey-header { flex-direction: column; }
-        .action-row { flex-direction: column; }
       }
     </style>
   </head>
   <body>
     <div class="page-wrapper">
-      <div class="card">
-        <p class="eyebrow">Step 2 of 3</p>
-        <h1>Your download should be starting</h1>
-        <p class="subtitle">This survey is optional. If we can match this visit to your purchase, we’ll attach your answers automatically.</p>
-
-        <div class="status-card" id="status-card" data-tone="ready">
-          <strong id="status-title">Tell us what brought you here</strong>
-          <p id="status-message">If the download did not start, use the buttons below. Skip or submit and we’ll take you to the final setup steps.</p>
-        </div>
-
-        <div class="helper-box">
-          <strong>Where is my key?</strong>
-          <p>We do not display license keys on this page. Look for your Lemon receipt email, or open Lemon My Orders to copy the key when you launch Focana.</p>
-        </div>
-
-        <div class="action-row">
-          <button type="button" class="action-btn secondary" id="arm-download-btn" data-download-url={arm64DownloadUrl}>Download Apple Silicon Again</button>
-          <button type="button" class="action-btn secondary" id="intel-download-btn" data-download-url={x64DownloadUrl}>Download Intel Again</button>
-        </div>
-      </div>
+      <p class="intro-copy">Your download is in progress. While you wait, take 60 seconds to help us make Focana better.</p>
 
       <div class="survey-card">
         <div class="survey-header">
@@ -317,23 +230,12 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         var selectedChip = urlParams.get('chip') || '';
         var redirectScheduled = false;
 
-        var statusCard = document.getElementById('status-card');
-        var statusTitle = document.getElementById('status-title');
-        var statusMessage = document.getElementById('status-message');
         var surveyForm = document.getElementById('survey-form');
         var surveySkip = document.getElementById('survey-skip');
         var surveySubmit = document.getElementById('survey-submit');
-        var armDownloadBtn = document.getElementById('arm-download-btn');
-        var intelDownloadBtn = document.getElementById('intel-download-btn');
 
         function phCapture(event, props) {
           if (window.posthog) window.posthog.capture(event, props);
-        }
-
-        function setStatus(tone, title, message) {
-          statusCard.setAttribute('data-tone', tone);
-          statusTitle.textContent = title;
-          statusMessage.textContent = message;
         }
 
         function readStoredContext() {
@@ -365,22 +267,11 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
           }
         }
 
-        function startDownload(downloadUrl) {
-          var anchor = document.createElement('a');
-          anchor.href = downloadUrl;
-          anchor.rel = 'noopener';
-          anchor.style.display = 'none';
-          document.body.appendChild(anchor);
-          anchor.click();
-          document.body.removeChild(anchor);
-        }
-
         function redirectToNextSteps() {
           if (redirectScheduled) return;
           redirectScheduled = true;
 
           persistContext(selectedChip);
-          setStatus('ready', 'Almost done', 'Taking you to the final setup steps now.');
 
           var params = new URLSearchParams();
           if (customerEmail) params.set('email', customerEmail);
@@ -414,50 +305,13 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
           });
         }
 
-        function handleDownloadAgain(event, chip, button) {
-          event.preventDefault();
-          var downloadUrl = button.dataset.downloadUrl || '';
-          if (!downloadUrl) {
-            setStatus('error', 'Download links are not configured', 'Set the public GitHub DMG URLs for this deployment to enable re-downloads.');
-            return;
-          }
-
-          selectedChip = chip;
-          persistContext(selectedChip);
-          startDownload(downloadUrl);
-
-          phCapture('download_again_clicked', {
-            email: customerEmail,
-            order_id: orderId,
-            chip: selectedChip
-          });
-
-          setStatus('ready', 'Downloading again...', 'The installer should start again in a moment. You can still skip or finish the survey.');
-        }
-
         readStoredContext();
         persistContext(selectedChip);
-
-        if (selectedChip === 'apple_silicon') {
-          armDownloadBtn.classList.remove('secondary');
-          armDownloadBtn.classList.add('action-btn');
-        } else if (selectedChip === 'intel') {
-          intelDownloadBtn.classList.remove('secondary');
-          intelDownloadBtn.classList.add('action-btn');
-        }
 
         phCapture('survey_page_viewed', {
           email: customerEmail,
           order_id: orderId,
           chip: selectedChip || 'unknown'
-        });
-
-        armDownloadBtn.addEventListener('click', function(event) {
-          handleDownloadAgain(event, 'apple_silicon', armDownloadBtn);
-        });
-
-        intelDownloadBtn.addEventListener('click', function(event) {
-          handleDownloadAgain(event, 'intel', intelDownloadBtn);
         });
 
         surveySkip.addEventListener('click', function() {

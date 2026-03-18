@@ -4,7 +4,6 @@ const description = "Choose the right Focana build for your Mac.";
 const canonicalURL = "https://focana.app/download";
 const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
 const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
-const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
 ---
 
 <html lang="en">
@@ -66,54 +65,6 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
         font-weight: 800;
         color: #5C4033;
         margin-bottom: 10px;
-      }
-      .subtitle {
-        color: #8B6F47;
-        font-size: 16px;
-        line-height: 1.6;
-        margin-bottom: 24px;
-      }
-      .status-card {
-        padding: 16px 18px;
-        border-radius: 14px;
-        margin-bottom: 20px;
-        background: #F0FDF4;
-        border: 1px solid #86EFAC;
-      }
-      .status-card strong {
-        display: block;
-        color: #166534;
-        margin-bottom: 4px;
-      }
-      .status-card p {
-        color: #166534;
-        font-size: 14px;
-        line-height: 1.5;
-      }
-      .status-card[data-tone="error"] {
-        background: #FEF2F2;
-        border-color: #FCA5A5;
-      }
-      .status-card[data-tone="error"] strong,
-      .status-card[data-tone="error"] p {
-        color: #991B1B;
-      }
-      .help-box {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 14px;
-        padding: 16px 18px;
-        margin-bottom: 20px;
-      }
-      .help-box strong {
-        display: block;
-        color: #334155;
-        margin-bottom: 6px;
-      }
-      .help-box p {
-        color: #475569;
-        font-size: 14px;
-        line-height: 1.55;
       }
       .download-buttons {
         display: flex;
@@ -252,16 +203,7 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
   </head>
   <body>
     <div class="card">
-      <p class="eyebrow">Step 1 of 3</p>
       <h1>Download your copy of Focana</h1>
-      <p class="subtitle">
-        Pick the version for your Mac. Your license key lives in your Lemon receipt email and in Lemon My Orders.
-      </p>
-
-      <div class="status-card" id="status-card" data-tone={downloadsConfigured ? "ready" : "error"}>
-        <strong id="status-title">{downloadsConfigured ? "Your download is ready" : "Downloads are not configured yet"}</strong>
-        <p id="status-message">{downloadsConfigured ? "Choose Apple Silicon or Intel. After the download starts, we’ll take you to one optional question page." : "Set the public GitHub DMG URLs for this deployment before sharing the page."}</p>
-      </div>
 
       <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
       <div class="download-buttons">
@@ -273,11 +215,6 @@ const downloadsConfigured = Boolean(arm64DownloadUrl && x64DownloadUrl);
         <strong>Apple Silicon (M1-M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
         <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
       </p>
-
-      <div class="help-box">
-        <strong>Where is my key?</strong>
-        <p>We do not show license keys on this page. Your key is in your Lemon receipt email and in your Lemon My Orders page. You’ll paste that key into the app when you launch Focana.</p>
-      </div>
 
       <div class="not-sure-box">
         <span class="info-tooltip">
