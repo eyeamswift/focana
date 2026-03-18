@@ -362,6 +362,9 @@ function sanitizeStoreValue(key, value) {
           checkInTimedIndex: timedIndex,
           checkInTimedPendingIndex: timedPendingIndex,
           compactPulseTimedIndex,
+          currentSessionId: typeof value.currentSessionId === 'string' && value.currentSessionId.trim()
+            ? value.currentSessionId.trim()
+            : null,
         };
       }
     case 'thoughts':
@@ -698,6 +701,68 @@ function readFloatingTimerSnapshot() {
     segmentDuration,
     segmentElapsed,
   };
+}
+
+function checkpointActiveSessionInStore() {
+  const timerState = store.get('timerState', {});
+  const currentTask = store.get('currentTask', {});
+  const activeSessionId = typeof timerState?.currentSessionId === 'string' && timerState.currentSessionId.trim()
+    ? timerState.currentSessionId.trim()
+    : null;
+  const taskText = typeof currentTask?.text === 'string' ? currentTask.text.trim() : '';
+
+  if (!activeSessionId || !taskText) {
+    return false;
+  }
+
+  const sessions = store.get('sessions', []);
+  if (!Array.isArray(sessions)) {
+    return false;
+  }
+
+  const sessionIndex = sessions.findIndex((session) => session?.id === activeSessionId);
+  if (sessionIndex === -1) {
+    return false;
+  }
+
+  const mode = timerState?.mode === 'timed' ? 'timed' : 'freeflow';
+  const initialTime = Math.max(0, Number(timerState?.initialTime) || 0);
+  const baseElapsedSeconds = Math.max(0, Number(timerState?.elapsedSeconds) || 0);
+  const sessionStartedAt = typeof timerState?.sessionStartedAt === 'string' ? timerState.sessionStartedAt : null;
+  const hasRecoverableTimer = Boolean(timerState?.timerVisible)
+    || Boolean(timerState?.isRunning)
+    || baseElapsedSeconds > 0
+    || initialTime > 0;
+
+  if (!hasRecoverableTimer) {
+    return false;
+  }
+
+  let elapsedSeconds = baseElapsedSeconds;
+
+  if (Boolean(timerState?.isRunning) && sessionStartedAt) {
+    const startedAtMs = new Date(sessionStartedAt).getTime();
+    if (Number.isFinite(startedAtMs)) {
+      elapsedSeconds += Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+    }
+  }
+
+  if (mode === 'timed' && initialTime > 0) {
+    elapsedSeconds = Math.min(elapsedSeconds, initialTime);
+  }
+
+  const durationMinutes = Number((elapsedSeconds / 60).toFixed(2));
+  const nextSessions = [...sessions];
+  nextSessions[sessionIndex] = {
+    ...nextSessions[sessionIndex],
+    task: taskText,
+    durationMinutes,
+    mode,
+    completed: false,
+    notes: typeof currentTask?.contextNote === 'string' ? currentTask.contextNote : '',
+  };
+  store.set('sessions', nextSessions);
+  return true;
 }
 
 function getFloatingWindowState() {
@@ -1099,6 +1164,7 @@ ipcMain.on('quit-app', () => {
 });
 
 ipcMain.on('restart-app', () => {
+  checkpointActiveSessionInStore();
   app.relaunch();
   app.exit(0);
 });
@@ -1576,6 +1642,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  checkpointActiveSessionInStore();
   updater.stop();
   feedbackSyncService.stop();
   stopFloatingPulseSchedule();

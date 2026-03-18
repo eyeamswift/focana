@@ -207,6 +207,7 @@ export default function App() {
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState('25');
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
+  const [sessionStateHydrated, setSessionStateHydrated] = useState(false);
   const [showTimerValidationModal, setShowTimerValidationModal] = useState(false);
   const [timerValidationMessage, setTimerValidationMessage] = useState('');
   const [windowHeight, setWindowHeight] = useState(
@@ -880,6 +881,16 @@ export default function App() {
     setSessions(data);
   }, []);
 
+  const patchSessionInLocalState = useCallback((sessionId, patch) => {
+    if (!sessionId || !patch || typeof patch !== 'object') return;
+    setSessions((prev) => prev.map((session) => (
+      session?.id === sessionId ? { ...session, ...patch } : session
+    )));
+    setPreviewSession((prev) => (
+      prev?.id === sessionId ? { ...prev, ...patch } : prev
+    ));
+  }, []);
+
   const invalidatePendingSessionCreation = useCallback(() => {
     sessionCreateEpochRef.current += 1;
     sessionCreatePromiseRef.current = null;
@@ -979,6 +990,33 @@ export default function App() {
     setCurrentSessionId(null);
     return savedSessionId;
   }, [task, mode, loadSessions, currentSessionId]);
+
+  const checkpointActiveSession = useCallback(async (source = 'unknown') => {
+    const trimmedTask = task.trim();
+    if (!trimmedTask) return null;
+
+    const sessionId = currentSessionId || await ensureCurrentSessionId(`checkpoint:${source}`);
+    if (!sessionId) return null;
+
+    const durationMinutes = Number((getElapsedSeconds() / 60).toFixed(2));
+    const patch = {
+      task: trimmedTask,
+      durationMinutes,
+      mode,
+      completed: false,
+      notes: contextNotes || '',
+    };
+
+    try {
+      const updated = await SessionStore.update(sessionId, patch);
+      if (!updated) return null;
+      patchSessionInLocalState(sessionId, patch);
+      return updated;
+    } catch (error) {
+      console.error(`Failed to checkpoint active session (${source}):`, error);
+      return null;
+    }
+  }, [currentSessionId, task, mode, contextNotes, getElapsedSeconds, ensureCurrentSessionId, patchSessionInLocalState]);
 
   const beginSessionFeedbackFlow = useCallback(() => {
     sessionFeedbackPendingActionRef.current = null;
@@ -1370,6 +1408,9 @@ export default function App() {
           ? Math.max(0, Math.floor(Number(pendingCheckInIndex)))
           : null;
         const restoredCompactPulseIndex = Math.max(0, Math.floor(Number(savedTimerState?.compactPulseTimedIndex) || 0));
+        const restoredCurrentSessionId = typeof savedTimerState?.currentSessionId === 'string' && savedTimerState.currentSessionId.trim()
+          ? savedTimerState.currentSessionId.trim()
+          : null;
         const restoredStartedAtMs = typeof savedTimerState?.sessionStartedAt === 'string'
           ? new Date(savedTimerState.sessionStartedAt).getTime()
           : NaN;
@@ -1413,9 +1454,10 @@ export default function App() {
         setInitialTime(restoredInitialTime);
         setIsTimerVisible(restoredTimerVisible);
         setIsRunning(restoredRunning);
-        setCurrentSessionId(null);
+        setCurrentSessionId(restoredCurrentSessionId);
         setSessionStartTime(restoredRunning ? restoredStartedAtMs : null);
       } finally {
+        setSessionStateHydrated(true);
         setShortcutsHydrated(true);
       }
     })();
@@ -1498,6 +1540,7 @@ export default function App() {
   }, [thoughts]);
 
   useEffect(() => {
+    if (!sessionStateHydrated) return;
     if (!isRunning) {
       window.electronAPI.storeSet('currentTask', {
         text: task,
@@ -1517,11 +1560,13 @@ export default function App() {
         checkInTimedIndex: checkInTimedIndexRef.current,
         checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
         compactPulseTimedIndex: compactPulseIndexRef.current,
+        currentSessionId,
       });
     }
-  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible]);
+  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, sessionStateHydrated]);
 
   useEffect(() => {
+    if (!sessionStateHydrated) return;
     if (!isRunning) return;
 
     window.electronAPI.storeSet('currentTask', {
@@ -1542,8 +1587,20 @@ export default function App() {
       checkInTimedIndex: checkInTimedIndexRef.current,
       checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
       compactPulseTimedIndex: compactPulseIndexRef.current,
+      currentSessionId,
     });
-  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, sessionStartTime, time]);
+  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, sessionStartTime, time, currentSessionId, sessionStateHydrated]);
+
+  useEffect(() => {
+    if (!sessionStateHydrated) return undefined;
+    if (!isRunning) return undefined;
+
+    const checkpointTimer = setInterval(() => {
+      void checkpointActiveSession('interval');
+    }, 60 * 1000);
+
+    return () => clearInterval(checkpointTimer);
+  }, [isRunning, checkpointActiveSession, sessionStateHydrated]);
 
   const getStandardCheckInIntervalSeconds = useCallback((nextMode = mode, nextInitialTimeSec = initialTime) => {
     if (nextMode === 'freeflow') {
@@ -2856,6 +2913,7 @@ export default function App() {
       checkInTimedIndex: 0,
       checkInTimedPendingIndex: null,
       compactPulseTimedIndex: 0,
+      currentSessionId: sessionId || null,
     });
     return true;
   }, [clearCheckInUi, clearCompactSessionCues, invalidatePendingSessionCreation, resetSessionFeedbackFlow]);
