@@ -9,6 +9,14 @@ exports.default = async function notarizeApp(context) {
     return;
   }
 
+  // electron-builder v25+ notarizes automatically during signing when it detects
+  // APPLE_API_KEY + APPLE_API_KEY_ID + APPLE_API_ISSUER in env. Skip our custom
+  // afterSign notarization to avoid notarizing twice.
+  if (process.env.APPLE_API_KEY && process.env.APPLE_API_KEY_ID && process.env.APPLE_API_ISSUER) {
+    console.log('[notarize] Skipping afterSign notarization — electron-builder already notarized');
+    return;
+  }
+
   const appName = packager.appInfo.productFilename;
   const appPath = path.join(appOutDir, `${appName}.app`);
 
