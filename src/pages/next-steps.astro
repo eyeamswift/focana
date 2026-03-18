@@ -1,4 +1,6 @@
 ---
+import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
+
 const title = "Focana — Next Steps";
 const description = "Open Focana, paste your license key, and start your first session.";
 const canonicalURL = "https://focana.app/next-steps";
@@ -160,6 +162,7 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
   </head>
   <body>
     <div class="card">
+      <CheckoutBrandHeader subtitle="Set up your download and start your first session." />
       <h1>Get ready to focus!</h1>
       <p class="subtitle">Your download should be complete. Check your Downloads folder for a .dmg file.</p>
 
