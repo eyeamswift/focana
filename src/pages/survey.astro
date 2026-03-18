@@ -167,7 +167,10 @@ const canonicalURL = "https://focana.app/survey";
           <button class="skip-link" id="survey-skip" type="button">Skip</button>
         </div>
 
-        <form id="survey-form">
+        <form id="survey-form" method="POST" action="/api/survey-submit">
+          <input type="hidden" name="email" id="survey-email" value="" />
+          <input type="hidden" name="order_id" id="survey-order-id" value="" />
+          <input type="hidden" name="chip" id="survey-chip" value="" />
           <div class="survey-question">
             <label class="question-label">1. How'd you find Focana?</label>
             <div class="survey-options">
@@ -222,11 +225,13 @@ const canonicalURL = "https://focana.app/survey";
         var orderId = urlParams.get('order_id') || '';
         var selectedChip = urlParams.get('chip') || '';
         var redirectScheduled = false;
-        var pendingSurveyKey = 'focana_pending_survey';
 
         var surveyForm = document.getElementById('survey-form');
         var surveySkip = document.getElementById('survey-skip');
         var surveySubmit = document.getElementById('survey-submit');
+        var surveyEmailInput = document.getElementById('survey-email');
+        var surveyOrderIdInput = document.getElementById('survey-order-id');
+        var surveyChipInput = document.getElementById('survey-chip');
 
         function phCapture(event, props) {
           if (window.posthog) window.posthog.capture(event, props);
@@ -274,58 +279,10 @@ const canonicalURL = "https://focana.app/survey";
           }
         }
 
-        function readPendingSurvey() {
-          try {
-            var stored = window.sessionStorage.getItem(pendingSurveyKey);
-            return stored ? JSON.parse(stored) : null;
-          } catch (err) {
-            console.error('Failed to read pending survey:', err);
-            return null;
-          }
-        }
-
-        function writePendingSurvey(payload) {
-          try {
-            window.sessionStorage.setItem(pendingSurveyKey, JSON.stringify(payload));
-          } catch (err) {
-            console.error('Failed to store pending survey:', err);
-          }
-        }
-
-        function clearPendingSurvey() {
-          try {
-            window.sessionStorage.removeItem(pendingSurveyKey);
-          } catch (err) {
-            console.error('Failed to clear pending survey:', err);
-          }
-        }
-
-        function buildPendingSurveyPayload(overrides) {
-          var pending = readPendingSurvey() || {};
-          var nextPayload = {
-            email: customerEmail || pending.email || '',
-            order_id: orderId || pending.order_id || '',
-            how_found: pending.how_found || null,
-            focus_struggles: Array.isArray(pending.focus_struggles) ? pending.focus_struggles : [],
-            tools_tried: Array.isArray(pending.tools_tried) ? pending.tools_tried : [],
-            chip: selectedChip || pending.chip || ''
-          };
-
-          if (overrides) {
-            if (Object.prototype.hasOwnProperty.call(overrides, 'email')) nextPayload.email = overrides.email || nextPayload.email;
-            if (Object.prototype.hasOwnProperty.call(overrides, 'order_id')) nextPayload.order_id = overrides.order_id || nextPayload.order_id;
-            if (Object.prototype.hasOwnProperty.call(overrides, 'how_found')) nextPayload.how_found = overrides.how_found;
-            if (Object.prototype.hasOwnProperty.call(overrides, 'focus_struggles')) nextPayload.focus_struggles = overrides.focus_struggles || [];
-            if (Object.prototype.hasOwnProperty.call(overrides, 'tools_tried')) nextPayload.tools_tried = overrides.tools_tried || [];
-            if (Object.prototype.hasOwnProperty.call(overrides, 'chip')) nextPayload.chip = overrides.chip || nextPayload.chip;
-          }
-
-          nextPayload.email = nextPayload.email ? String(nextPayload.email).trim() : '';
-          nextPayload.order_id = nextPayload.order_id ? String(nextPayload.order_id).trim() : '';
-          nextPayload.focus_struggles = Array.isArray(nextPayload.focus_struggles) ? nextPayload.focus_struggles : [];
-          nextPayload.tools_tried = Array.isArray(nextPayload.tools_tried) ? nextPayload.tools_tried : [];
-
-          return nextPayload;
+        function syncHiddenFields() {
+          surveyEmailInput.value = customerEmail;
+          surveyOrderIdInput.value = orderId;
+          surveyChipInput.value = selectedChip;
         }
 
         function redirectToNextSteps() {
@@ -344,94 +301,10 @@ const canonicalURL = "https://focana.app/survey";
           }, 180);
         }
 
-        function sendSurveyAndWait(payload) {
-          var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-          var timeoutId = window.setTimeout(function() {
-            if (controller) controller.abort();
-          }, 7000);
-
-          return fetch('/api/survey', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-            signal: controller ? controller.signal : undefined,
-            keepalive: true,
-            credentials: 'same-origin'
-          }).then(function(response) {
-            window.clearTimeout(timeoutId);
-
-            if (!response.ok) {
-              return response.text().then(function(text) {
-                throw new Error(text || ('Request failed with status ' + response.status));
-              });
-            }
-
-            return true;
-          }).catch(function(error) {
-            window.clearTimeout(timeoutId);
-            console.error('Survey submit failed:', error);
-            phCapture('survey_save_failed', {
-              email: customerEmail,
-              order_id: orderId,
-              chip: selectedChip || 'unknown'
-            });
-            return false;
-          });
-        }
-
-        function flushPendingSurvey(options) {
-          var pendingPayload = buildPendingSurveyPayload();
-
-          if (!pendingPayload.how_found && !pendingPayload.focus_struggles.length && !pendingPayload.tools_tried.length) {
-            return Promise.resolve(true);
-          }
-
-          if (!pendingPayload.email && !pendingPayload.order_id) {
-            console.warn('Survey answers are pending, but purchase context is still missing.');
-            phCapture('survey_missing_purchase_context', {
-              chip: pendingPayload.chip || selectedChip || 'unknown'
-            });
-            return Promise.resolve(false);
-          }
-
-          writePendingSurvey(pendingPayload);
-
-          return sendSurveyAndWait({
-            email: pendingPayload.email,
-            order_id: pendingPayload.order_id,
-            how_found: pendingPayload.how_found,
-            focus_struggles: pendingPayload.focus_struggles,
-            tools_tried: pendingPayload.tools_tried
-          }).then(function(saved) {
-            if (saved) {
-              clearPendingSurvey();
-              return true;
-            }
-
-            if (options && options.background) {
-              return false;
-            }
-
-            return false;
-          });
-        }
-
-        function schedulePendingSurveyRetry(attempt) {
-          if (attempt >= 4) return;
-
-          window.setTimeout(function() {
-            flushPendingSurvey({ background: true }).then(function(saved) {
-              if (!saved) schedulePendingSurveyRetry(attempt + 1);
-            });
-          }, attempt * 2500);
-        }
-
         readStoredContext();
         readReferrerContext();
         persistContext(selectedChip);
-        flushPendingSurvey({ background: true }).then(function(saved) {
-          if (!saved) schedulePendingSurveyRetry(1);
-        });
+        syncHiddenFields();
 
         phCapture('survey_page_viewed', {
           email: customerEmail,
@@ -448,8 +321,7 @@ const canonicalURL = "https://focana.app/survey";
           redirectToNextSteps();
         });
 
-        surveyForm.addEventListener('submit', async function(event) {
-          event.preventDefault();
+        surveyForm.addEventListener('submit', function() {
           surveySubmit.disabled = true;
           surveySubmit.textContent = 'Saving...';
 
@@ -474,20 +346,7 @@ const canonicalURL = "https://focana.app/survey";
             focus_struggles: focusStruggles,
             tools_tried: toolsTried
           });
-
-          writePendingSurvey(buildPendingSurveyPayload({
-            email: customerEmail,
-            order_id: orderId,
-            how_found: howFound,
-            focus_struggles: focusStruggles,
-            tools_tried: toolsTried,
-            chip: selectedChip
-          }));
-
-          await flushPendingSurvey();
-
-          surveySubmit.textContent = 'Continuing...';
-          redirectToNextSteps();
+          syncHiddenFields();
         });
       })();
     </script>
