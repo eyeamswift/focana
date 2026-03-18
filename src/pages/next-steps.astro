@@ -182,6 +182,7 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         var customerEmail = urlParams.get('email') || '';
         var orderId = urlParams.get('order_id') || '';
         var selectedChip = urlParams.get('chip') || '';
+        var pendingSurveyKey = 'focana_pending_survey';
 
         var armBtn = document.getElementById('arm-btn');
         var intelBtn = document.getElementById('intel-btn');
@@ -203,6 +204,19 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
           }
         }
 
+        function readReferrerContext() {
+          try {
+            if (!document.referrer) return;
+            var referrerUrl = new URL(document.referrer);
+            if (referrerUrl.origin !== window.location.origin) return;
+            if (!customerEmail) customerEmail = referrerUrl.searchParams.get('email') || '';
+            if (!orderId) orderId = referrerUrl.searchParams.get('order_id') || '';
+            if (!selectedChip) selectedChip = referrerUrl.searchParams.get('chip') || '';
+          } catch (err) {
+            console.error('Failed to read referrer purchase context:', err);
+          }
+        }
+
         function persistContext(chip) {
           try {
             var existing = window.sessionStorage.getItem('focana_purchase_context');
@@ -217,6 +231,71 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
           } catch (err) {
             console.error('Failed to store purchase context:', err);
           }
+        }
+
+        function readPendingSurvey() {
+          try {
+            var stored = window.sessionStorage.getItem(pendingSurveyKey);
+            return stored ? JSON.parse(stored) : null;
+          } catch (err) {
+            console.error('Failed to read pending survey:', err);
+            return null;
+          }
+        }
+
+        function clearPendingSurvey() {
+          try {
+            window.sessionStorage.removeItem(pendingSurveyKey);
+          } catch (err) {
+            console.error('Failed to clear pending survey:', err);
+          }
+        }
+
+        function sendPendingSurvey(payload) {
+          return fetch('/api/survey', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+            credentials: 'same-origin'
+          }).then(function(response) {
+            if (!response.ok) {
+              return response.text().then(function(text) {
+                throw new Error(text || ('Request failed with status ' + response.status));
+              });
+            }
+
+            clearPendingSurvey();
+            return true;
+          }).catch(function(error) {
+            console.error('Pending survey retry failed:', error);
+            return false;
+          });
+        }
+
+        function retryPendingSurvey(attempt) {
+          var pendingSurvey = readPendingSurvey();
+          if (!pendingSurvey) return;
+
+          var payload = {
+            email: customerEmail || pendingSurvey.email || '',
+            order_id: orderId || pendingSurvey.order_id || '',
+            how_found: pendingSurvey.how_found || null,
+            focus_struggles: Array.isArray(pendingSurvey.focus_struggles) ? pendingSurvey.focus_struggles : [],
+            tools_tried: Array.isArray(pendingSurvey.tools_tried) ? pendingSurvey.tools_tried : []
+          };
+
+          if ((!payload.email && !payload.order_id) || (!payload.how_found && !payload.focus_struggles.length && !payload.tools_tried.length)) {
+            return;
+          }
+
+          sendPendingSurvey(payload).then(function(saved) {
+            if (!saved && attempt < 4) {
+              window.setTimeout(function() {
+                retryPendingSurvey(attempt + 1);
+              }, attempt * 2500);
+            }
+          });
         }
 
         function getIsAppleSilicon() {
@@ -245,7 +324,9 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         }
 
         readStoredContext();
+        readReferrerContext();
         persistContext(selectedChip);
+        retryPendingSurvey(1);
 
         phCapture('next_steps_page_viewed', {
           email: customerEmail,
