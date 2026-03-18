@@ -284,8 +284,8 @@ const fallbackSiteOrigin = SITE_ORIGIN;
           return fallbackSiteOrigin;
         }
 
-        function redirectToSurvey(chip) {
-          var nextUrl = new URL('/survey', resolveFlowOrigin());
+        function redirectToNextSteps(chip) {
+          var nextUrl = new URL('/next-steps', resolveFlowOrigin());
           if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
           if (orderId) nextUrl.searchParams.set('order_id', orderId);
           if (chip) nextUrl.searchParams.set('chip', chip);
@@ -310,7 +310,7 @@ const fallbackSiteOrigin = SITE_ORIGIN;
             order_id: orderId
           });
 
-          redirectToSurvey(chip);
+          redirectToNextSteps(chip);
         }
 
         readStoredContext();
