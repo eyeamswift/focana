@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { buildSiteUrl } from "../lib/siteOrigin";
 
 const COLORS = {
   sunshineYellow: "#F59E0B",
@@ -662,11 +663,10 @@ export default function FocanaLanding() {
                   JSON.stringify({ email, orderId })
                 );
               } catch {}
-              const params = new URLSearchParams();
-              if (email) params.set("email", email);
-              if (orderId) params.set("order_id", orderId);
-              const qs = params.toString();
-              window.location.href = "/download" + (qs ? "?" + qs : "");
+              window.location.href = buildSiteUrl("/download", {
+                email,
+                order_id: orderId,
+              }).toString();
             }
             if (event.event === "Checkout.Open") {
               phCapture("checkout_opened");

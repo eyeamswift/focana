@@ -1,7 +1,11 @@
 ---
+import { buildSiteUrl } from '../lib/siteOrigin';
+
 const title = "Focana — Quick Survey";
 const description = "Tell us a little about how you found Focana and what you want it to solve.";
 const canonicalURL = "https://focana.app/survey";
+const nextStepsBaseUrl = buildSiteUrl('/next-steps').toString();
+const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
 ---
 
 <html lang="en">
@@ -167,7 +171,7 @@ const canonicalURL = "https://focana.app/survey";
           <button class="skip-link" id="survey-skip" type="button">Skip</button>
         </div>
 
-        <form id="survey-form" method="POST" action="/api/survey-submit">
+        <form id="survey-form" method="POST" action={surveySubmitUrl}>
           <input type="hidden" name="email" id="survey-email" value="" />
           <input type="hidden" name="order_id" id="survey-order-id" value="" />
           <input type="hidden" name="chip" id="survey-chip" value="" />
@@ -218,7 +222,7 @@ const canonicalURL = "https://focana.app/survey";
       </div>
     </div>
 
-    <script>
+    <script define:vars={{ nextStepsBaseUrl }}>
       (function() {
         var urlParams = new URLSearchParams(window.location.search);
         var customerEmail = urlParams.get('email') || '';
@@ -291,13 +295,13 @@ const canonicalURL = "https://focana.app/survey";
 
           persistContext(selectedChip);
 
-          var params = new URLSearchParams();
-          if (customerEmail) params.set('email', customerEmail);
-          if (orderId) params.set('order_id', orderId);
-          if (selectedChip) params.set('chip', selectedChip);
+          var nextUrl = new URL(nextStepsBaseUrl);
+          if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
+          if (orderId) nextUrl.searchParams.set('order_id', orderId);
+          if (selectedChip) nextUrl.searchParams.set('chip', selectedChip);
 
           window.setTimeout(function() {
-            window.location.href = '/next-steps' + (params.toString() ? '?' + params.toString() : '');
+            window.location.href = nextUrl.toString();
           }, 180);
         }
 

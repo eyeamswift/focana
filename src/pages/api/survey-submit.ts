@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { buildSiteUrl } from '../../lib/siteOrigin';
 import { saveSurveyToSupabase } from '../../lib/saveSurvey';
 
 export const prerender = false;
@@ -14,16 +15,16 @@ function getStringArray(values: FormDataEntryValue[]) {
     .filter(Boolean);
 }
 
-function buildRedirectUrl(url: URL, email: string, orderId: string, chip: string, status: string) {
-  const redirectUrl = new URL('/next-steps', url);
-  if (email) redirectUrl.searchParams.set('email', email);
-  if (orderId) redirectUrl.searchParams.set('order_id', orderId);
-  if (chip) redirectUrl.searchParams.set('chip', chip);
-  redirectUrl.searchParams.set('survey', status);
-  return redirectUrl;
+function buildRedirectUrl(email: string, orderId: string, chip: string, status: string) {
+  return buildSiteUrl('/next-steps', {
+    email,
+    order_id: orderId,
+    chip,
+    survey: status,
+  });
 }
 
-export const POST: APIRoute = async ({ request, url }) => {
+export const POST: APIRoute = async ({ request }) => {
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -35,7 +36,7 @@ export const POST: APIRoute = async ({ request, url }) => {
   const focusStruggles = getStringArray(formData.getAll('focus_struggles'));
   const toolsTried = getStringArray(formData.getAll('tools_tried'));
 
-  const redirectUrl = buildRedirectUrl(url, email, orderId, chip, 'saved');
+  const redirectUrl = buildRedirectUrl(email, orderId, chip, 'saved');
 
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error('[survey-submit] Server misconfigured');

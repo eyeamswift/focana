@@ -1,9 +1,12 @@
 ---
+import { buildSiteUrl } from '../lib/siteOrigin';
+
 const title = "Download Focana";
 const description = "Choose the right Focana build for your Mac.";
 const canonicalURL = "https://focana.app/download";
 const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
 const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
+const surveyBaseUrl = buildSiteUrl('/survey').toString();
 ---
 
 <html lang="en">
@@ -194,8 +197,11 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
   </head>
   <body>
     <div class="card">
+      <p style="font-size: 22px; font-weight: 700; color: #5C4033; margin-bottom: 20px;">Almost there...</p>
+
       <div class="download-buttons">
         <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Download Focana</a>
+        <div style="height: 20px;"></div>
         <a href={x64DownloadUrl || "#"} class="intel-link" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">(download Focana for Intel processor)</a>
       </div>
 
@@ -204,6 +210,7 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
       </p>
 
+      <div style="height: 36px;"></div>
       <div class="not-sure-box">
         <span class="info-tooltip">
           Not sure which to pick? Click the icon in the top left of your screen and select "About This Mac."
@@ -217,7 +224,7 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
       </p>
     </div>
 
-    <script>
+    <script define:vars={{ surveyBaseUrl }}>
       (function() {
         var urlParams = new URLSearchParams(window.location.search);
         var customerEmail = urlParams.get('email') || '';
@@ -267,13 +274,13 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         }
 
         function redirectToSurvey(chip) {
-          var params = new URLSearchParams();
-          if (customerEmail) params.set('email', customerEmail);
-          if (orderId) params.set('order_id', orderId);
-          if (chip) params.set('chip', chip);
+          var nextUrl = new URL(surveyBaseUrl);
+          if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
+          if (orderId) nextUrl.searchParams.set('order_id', orderId);
+          if (chip) nextUrl.searchParams.set('chip', chip);
 
           window.setTimeout(function() {
-            window.location.href = '/survey' + (params.toString() ? '?' + params.toString() : '');
+            window.location.href = nextUrl.toString();
           }, 180);
         }
 
