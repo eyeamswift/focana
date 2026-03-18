@@ -81,13 +81,13 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
       }
       .download-buttons {
         display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
         margin-bottom: 18px;
       }
       .download-btn {
-        flex: 1;
-        min-width: 200px;
+        width: 100%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -110,26 +110,33 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         color: white;
         box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
       }
-      .download-btn.secondary {
-        background: #FEF3C7;
-        color: #5C4033;
-        border: 2px solid #E5D4B1;
-      }
       .download-btn[aria-disabled="true"] {
         opacity: 0.45;
         pointer-events: none;
         transform: none;
         box-shadow: none;
       }
-      .recommended-label {
-        display: none;
-        font-size: 13px;
+      .retry-label {
+        font-family: 'Outfit', sans-serif;
+        font-size: 18px;
         font-weight: 600;
         color: #5C4033;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
       }
-      .recommended-label.visible {
-        display: block;
+      .intel-link {
+        color: #8B6F47;
+        font-size: 13px;
+        line-height: 1.5;
+        text-decoration: none;
+      }
+      .intel-link:hover {
+        color: #D97706;
+        text-decoration: underline;
+      }
+      .intel-link[aria-disabled="true"] {
+        opacity: 0.45;
+        pointer-events: none;
+        text-decoration: none;
       }
       .support-note {
         color: #8B6F47;
@@ -147,8 +154,7 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
       @media (max-width: 520px) {
         .card { padding: 34px 22px; }
         h1 { font-size: 25px; }
-        .download-buttons { flex-direction: column; }
-        .download-btn { min-width: unset; }
+        .download-btn { width: 100%; }
       }
     </style>
   </head>
@@ -157,16 +163,16 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
       <h1>Get ready to focus!</h1>
       <p class="subtitle">Your download should be complete. Check your Downloads folder for a .dmg file.</p>
 
-      <p class="help-heading">Need help?</p>
+      <p class="help-heading">Download didn't work?</p>
+      <p class="retry-label">Retry</p>
 
-      <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
       <div class="download-buttons">
-        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Apple Silicon (M1-M4)</a>
-        <a href={x64DownloadUrl || "#"} class="download-btn secondary" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Intel Mac</a>
+        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Download Focana</a>
+        <a href={x64DownloadUrl || "#"} class="intel-link" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">(download Focana for Intel processor)</a>
       </div>
 
       <p class="support-note">
-        Need help? Email <a href="mailto:hello@focana.app">hello@focana.app</a> and include your purchase email or order id if you have it.
+        Need more assistance? Email <a href="mailto:hello@focana.app">hello@focana.app</a> and include your purchase email or order id if you have it.
       </p>
     </div>
 
@@ -179,7 +185,6 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 
         var armBtn = document.getElementById('arm-btn');
         var intelBtn = document.getElementById('intel-btn');
-        var label = document.getElementById('recommended-label');
 
         function phCapture(event, props) {
           if (window.posthog) window.posthog.capture(event, props);
@@ -241,21 +246,6 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 
         readStoredContext();
         persistContext(selectedChip);
-
-        var isArm = getIsAppleSilicon();
-        if (selectedChip === 'apple_silicon' || isArm === true) {
-          label.classList.add('visible');
-          intelBtn.classList.remove('primary');
-          intelBtn.classList.add('secondary');
-          armBtn.classList.remove('secondary');
-          armBtn.classList.add('primary');
-        } else if (selectedChip === 'intel' || isArm === false) {
-          label.classList.add('visible');
-          armBtn.classList.remove('primary');
-          armBtn.classList.add('secondary');
-          intelBtn.classList.remove('secondary');
-          intelBtn.classList.add('primary');
-        }
 
         phCapture('next_steps_page_viewed', {
           email: customerEmail,

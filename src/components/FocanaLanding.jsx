@@ -586,6 +586,9 @@ export default function FocanaLanding() {
   const [signupModalOpen, setSignupModalOpen] = useState(false);
   const [signupLocation, setSignupLocation] = useState("hero");
   const [headlineIndex, setHeadlineIndex] = useState(0);
+  const [checkoutError, setCheckoutError] = useState("");
+  const checkoutReadyPromiseRef = useRef(null);
+  const checkoutErrorTimeoutRef = useRef(null);
   const headlines = ["What was it?", "It didn't get done.", "You did 3 other things.", "Where did the time go?"];
 
   useEffect(() => {
@@ -610,6 +613,14 @@ export default function FocanaLanding() {
       setHeadlineIndex((prev) => (prev + 1) % 4);
     }, 2500);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (checkoutErrorTimeoutRef.current) {
+        window.clearTimeout(checkoutErrorTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Lemon Squeezy checkout success → redirect to download page
@@ -735,15 +746,79 @@ export default function FocanaLanding() {
 
   const navOpacity = Math.min(scrollY / 200, 1);
 
-  const openCheckout = (location) => {
-    phCapture("cta_clicked", { location });
-
-    if (window.LemonSqueezy?.Url?.Open) {
-      window.LemonSqueezy.Url.Open(CHECKOUT_URL);
-      return;
+  const showCheckoutError = (message) => {
+    if (checkoutErrorTimeoutRef.current) {
+      window.clearTimeout(checkoutErrorTimeoutRef.current);
     }
 
-    window.location.assign(CHECKOUT_URL);
+    setCheckoutError(message);
+    checkoutErrorTimeoutRef.current = window.setTimeout(() => {
+      setCheckoutError("");
+      checkoutErrorTimeoutRef.current = null;
+    }, 5000);
+  };
+
+  const waitForCheckoutOverlay = () => {
+    if (window.LemonSqueezy?.Url?.Open) {
+      return Promise.resolve(window.LemonSqueezy);
+    }
+
+    if (checkoutReadyPromiseRef.current) {
+      return checkoutReadyPromiseRef.current;
+    }
+
+    checkoutReadyPromiseRef.current = new Promise((resolve, reject) => {
+      let pollId = null;
+      let timeoutId = null;
+
+      const cleanup = () => {
+        window.removeEventListener("lemon:ready", handleReady);
+        if (pollId) window.clearInterval(pollId);
+        if (timeoutId) window.clearTimeout(timeoutId);
+        checkoutReadyPromiseRef.current = null;
+      };
+
+      const finish = (callback) => {
+        cleanup();
+        callback();
+      };
+
+      const tryResolve = () => {
+        if (!window.LemonSqueezy?.Url?.Open) return false;
+        finish(() => resolve(window.LemonSqueezy));
+        return true;
+      };
+
+      const handleReady = () => {
+        tryResolve();
+      };
+
+      window.addEventListener("lemon:ready", handleReady);
+      pollId = window.setInterval(() => {
+        tryResolve();
+      }, 100);
+      timeoutId = window.setTimeout(() => {
+        finish(() => reject(new Error("Lemon checkout overlay did not become available in time.")));
+      }, 4000);
+
+      tryResolve();
+    });
+
+    return checkoutReadyPromiseRef.current;
+  };
+
+  const openCheckout = async (location) => {
+    phCapture("cta_clicked", { location });
+    setCheckoutError("");
+
+    try {
+      const lemon = await waitForCheckoutOverlay();
+      lemon.Url.Open(CHECKOUT_URL);
+    } catch (error) {
+      console.error("Failed to open Lemon overlay:", error);
+      phCapture("checkout_open_failed", { location });
+      showCheckoutError("Checkout is still loading. Please try again.");
+    }
   };
 
   return (
@@ -891,6 +966,31 @@ export default function FocanaLanding() {
           html { scroll-behavior: auto; }
         }
       `}</style>
+
+      {checkoutError ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            top: "88px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 120,
+            maxWidth: "min(90vw, 420px)",
+            background: COLORS.warmBrown,
+            color: "#FFFFFF",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            boxShadow: "0 16px 40px rgba(31, 31, 31, 0.18)",
+            textAlign: "center",
+            fontSize: "14px",
+            lineHeight: 1.5,
+          }}
+        >
+          {checkoutError}
+        </div>
+      ) : null}
 
       {/* NAV */}
       <nav style={{

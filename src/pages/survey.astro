@@ -48,14 +48,6 @@ const canonicalURL = "https://focana.app/survey";
         flex-direction: column;
         gap: 18px;
       }
-      .intro-copy {
-        color: #5C4033;
-        font-family: 'Outfit', sans-serif;
-        font-size: 32px;
-        font-weight: 800;
-        line-height: 1.6;
-        text-align: left;
-      }
       .survey-card {
         background: white;
         border-radius: 24px;
@@ -75,6 +67,7 @@ const canonicalURL = "https://focana.app/survey";
       }
       .helper-text {
         color: #8B6F47;
+        font-size: 16px;
         line-height: 1.6;
       }
       .skip-link {
@@ -103,7 +96,7 @@ const canonicalURL = "https://focana.app/survey";
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        gap: 14px;
+        gap: 16px;
         margin-bottom: 24px;
       }
       .skip-link {
@@ -165,13 +158,11 @@ const canonicalURL = "https://focana.app/survey";
   </head>
   <body>
     <div class="page-wrapper">
-      <p class="intro-copy">Help us make Focana better. Your download should take about 60 seconds. While you wait, answer three quick questions to help us improve the Focana experience.</p>
-
       <div class="survey-card">
         <div class="survey-header">
           <div>
-            <h2>Help us make Focana stick</h2>
-            <p class="helper-text">This helps us understand what brought you here and what you’ve already tried.</p>
+            <h2>Help us Make Focana Better</h2>
+            <p class="helper-text">Your download is in progress. While you wait, answer three quick questions to help us improve the Focana experience.</p>
           </div>
           <button class="skip-link" id="survey-skip" type="button">Skip</button>
         </div>
@@ -285,19 +276,27 @@ const canonicalURL = "https://focana.app/survey";
           }, 180);
         }
 
-        function sendSurveyBestEffort(payload) {
-          fetch('/api/survey', {
+        function sendSurveyAndWait(payload) {
+          var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          var timeoutId = window.setTimeout(function() {
+            if (controller) controller.abort();
+          }, 7000);
+
+          return fetch('/api/survey', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            keepalive: true
+            signal: controller ? controller.signal : undefined
           }).then(function(response) {
+            window.clearTimeout(timeoutId);
+
             if (!response.ok) {
               return response.text().then(function(text) {
                 throw new Error(text || ('Request failed with status ' + response.status));
               });
             }
           }).catch(function(error) {
+            window.clearTimeout(timeoutId);
             console.error('Survey submit failed:', error);
             phCapture('survey_save_failed', {
               email: customerEmail,
@@ -325,10 +324,10 @@ const canonicalURL = "https://focana.app/survey";
           redirectToNextSteps();
         });
 
-        surveyForm.addEventListener('submit', function(event) {
+        surveyForm.addEventListener('submit', async function(event) {
           event.preventDefault();
           surveySubmit.disabled = true;
-          surveySubmit.textContent = 'Continuing...';
+          surveySubmit.textContent = 'Saving...';
 
           var howFoundEl = surveyForm.querySelector('input[name="how_found"]:checked');
           var howFound = howFoundEl ? howFoundEl.value : null;
@@ -353,7 +352,7 @@ const canonicalURL = "https://focana.app/survey";
           });
 
           if (customerEmail || orderId) {
-            sendSurveyBestEffort({
+            await sendSurveyAndWait({
               email: customerEmail,
               order_id: orderId,
               how_found: howFound,
@@ -362,6 +361,7 @@ const canonicalURL = "https://focana.app/survey";
             });
           }
 
+          surveySubmit.textContent = 'Continuing...';
           redirectToNextSteps();
         });
       })();
