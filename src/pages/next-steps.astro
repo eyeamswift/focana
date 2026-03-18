@@ -72,51 +72,12 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         line-height: 1.6;
         margin-bottom: 24px;
       }
-      .status-card {
-        padding: 16px 18px;
-        border-radius: 14px;
-        margin-bottom: 20px;
-        background: #F0FDF4;
-        border: 1px solid #86EFAC;
-      }
-      .status-card strong {
-        display: block;
-        color: #166534;
-        margin-bottom: 4px;
-      }
-      .status-card p {
-        color: #166534;
-        font-size: 14px;
-        line-height: 1.5;
-      }
-      .steps {
-        margin: 0 0 22px;
-        padding-left: 22px;
+      .help-heading {
+        font-family: 'Outfit', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
         color: #5C4033;
-      }
-      .steps li {
         margin-bottom: 12px;
-        line-height: 1.55;
-      }
-      .steps strong {
-        color: #5C4033;
-      }
-      .help-box {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 14px;
-        padding: 16px 18px;
-        margin-bottom: 20px;
-      }
-      .help-box strong {
-        display: block;
-        color: #334155;
-        margin-bottom: 6px;
-      }
-      .help-box p {
-        color: #475569;
-        font-size: 14px;
-        line-height: 1.55;
       }
       .download-buttons {
         display: flex;
@@ -193,33 +154,15 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
   </head>
   <body>
     <div class="card">
-      <p class="eyebrow">Step 3 of 3</p>
-      <h1>Your app should be ready to go now</h1>
-      <p class="subtitle">
-        When you launch Focana for the first time, paste the license key from your email from Lemon Squeezy or from Lemon My Orders.
-      </p>
+      <h1>Get ready to focus!</h1>
+      <p class="subtitle">Your download should be complete. Check your Downloads folder for a .dmg file.</p>
 
-      <div class="status-card">
-        <strong>Next up: install and activate</strong>
-        <p>Open the installer, move Focana to Applications if prompted, then launch the app and enter your license key.</p>
-      </div>
-
-      <ol class="steps">
-        <li><strong>Open the DMG</strong> that just downloaded.</li>
-        <li><strong>Move Focana to Applications</strong> if macOS shows that step.</li>
-        <li><strong>Launch Focana</strong> and paste the license key from your Lemon receipt email.</li>
-        <li><strong>Start your first session</strong> once the app activates successfully.</li>
-      </ol>
-
-      <div class="help-box">
-        <strong>Need the installer again?</strong>
-        <p>Use the buttons below if the download did not finish or you want the other Mac build.</p>
-      </div>
+      <p class="help-heading">Need help?</p>
 
       <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
       <div class="download-buttons">
-        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"}>Apple Silicon (M1-M4)</a>
-        <a href={x64DownloadUrl || "#"} class="download-btn secondary" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"}>Intel Mac</a>
+        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Apple Silicon (M1-M4)</a>
+        <a href={x64DownloadUrl || "#"} class="download-btn secondary" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Intel Mac</a>
       </div>
 
       <p class="support-note">
@@ -280,23 +223,14 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
           return null;
         }
 
-        function startDownload(downloadUrl) {
-          var anchor = document.createElement('a');
-          anchor.href = downloadUrl;
-          anchor.rel = 'noopener';
-          anchor.style.display = 'none';
-          document.body.appendChild(anchor);
-          anchor.click();
-          document.body.removeChild(anchor);
-        }
-
         function handleDownloadClick(event, chip, button) {
           var downloadUrl = button.dataset.downloadUrl || '';
-          if (!downloadUrl) return;
+          if (!downloadUrl) {
+            event.preventDefault();
+            return;
+          }
 
-          event.preventDefault();
           persistContext(chip);
-          startDownload(downloadUrl);
 
           phCapture('next_steps_download_clicked', {
             email: customerEmail,

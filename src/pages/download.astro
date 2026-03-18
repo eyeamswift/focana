@@ -207,8 +207,8 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 
       <p class="recommended-label" id="recommended-label">Recommended for your Mac</p>
       <div class="download-buttons">
-        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"}>Apple Silicon (M1-M4)</a>
-        <a href={x64DownloadUrl || "#"} class="download-btn secondary" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"}>Intel Mac</a>
+        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Apple Silicon (M1-M4)</a>
+        <a href={x64DownloadUrl || "#"} class="download-btn secondary" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Intel Mac</a>
       </div>
 
       <p class="chip-help">
@@ -279,16 +279,6 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
           return null;
         }
 
-        function startDownload(downloadUrl) {
-          var anchor = document.createElement('a');
-          anchor.href = downloadUrl;
-          anchor.rel = 'noopener';
-          anchor.style.display = 'none';
-          document.body.appendChild(anchor);
-          anchor.click();
-          document.body.removeChild(anchor);
-        }
-
         function redirectToSurvey(chip) {
           var params = new URLSearchParams();
           if (customerEmail) params.set('email', customerEmail);
@@ -302,9 +292,11 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 
         function handleChipClick(event, chip, button) {
           var downloadUrl = button.dataset.downloadUrl || '';
-          if (!downloadUrl) return;
+          if (!downloadUrl) {
+            event.preventDefault();
+            return;
+          }
 
-          event.preventDefault();
           persistContext(chip);
 
           phCapture('dmg_downloaded', {
@@ -313,7 +305,6 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
             order_id: orderId
           });
 
-          startDownload(downloadUrl);
           redirectToSurvey(chip);
         }
 
