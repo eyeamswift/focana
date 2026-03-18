@@ -9,6 +9,9 @@ import sitemap from '@astrojs/sitemap';
 export default defineConfig({
   site: 'https://focana.app',
   output: 'static',
+  security: {
+    checkOrigin: false,
+  },
   integrations: [react(), sitemap()],
   adapter: vercel(),
 });
