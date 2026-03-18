@@ -666,7 +666,7 @@ export default function FocanaLanding() {
               window.location.href = buildSiteUrl("/download", {
                 email,
                 order_id: orderId,
-              }).toString();
+              }, window.location.origin).toString();
             }
             if (event.event === "Checkout.Open") {
               phCapture("checkout_opened");

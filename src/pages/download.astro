@@ -1,12 +1,12 @@
 ---
-import { buildSiteUrl } from '../lib/siteOrigin';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
 
 const title = "Download Focana";
 const description = "Choose the right Focana build for your Mac.";
 const canonicalURL = "https://focana.app/download";
 const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
 const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
-const surveyBaseUrl = buildSiteUrl('/survey').toString();
+const fallbackSiteOrigin = SITE_ORIGIN;
 ---
 
 <html lang="en">
@@ -224,7 +224,7 @@ const surveyBaseUrl = buildSiteUrl('/survey').toString();
       </p>
     </div>
 
-    <script define:vars={{ surveyBaseUrl }}>
+    <script define:vars={{ fallbackSiteOrigin }}>
       (function() {
         var urlParams = new URLSearchParams(window.location.search);
         var customerEmail = urlParams.get('email') || '';
@@ -273,8 +273,19 @@ const surveyBaseUrl = buildSiteUrl('/survey').toString();
           return null;
         }
 
+        function resolveFlowOrigin() {
+          try {
+            var currentUrl = new URL(window.location.origin);
+            if (!['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(currentUrl.hostname)) {
+              return currentUrl.origin;
+            }
+          } catch (err) {}
+
+          return fallbackSiteOrigin;
+        }
+
         function redirectToSurvey(chip) {
-          var nextUrl = new URL(surveyBaseUrl);
+          var nextUrl = new URL('/survey', resolveFlowOrigin());
           if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
           if (orderId) nextUrl.searchParams.set('order_id', orderId);
           if (chip) nextUrl.searchParams.set('chip', chip);

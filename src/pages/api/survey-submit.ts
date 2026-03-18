@@ -15,16 +15,7 @@ function getStringArray(values: FormDataEntryValue[]) {
     .filter(Boolean);
 }
 
-function buildRedirectUrl(email: string, orderId: string, chip: string, status: string) {
-  return buildSiteUrl('/next-steps', {
-    email,
-    order_id: orderId,
-    chip,
-    survey: status,
-  });
-}
-
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, url }) => {
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -36,7 +27,12 @@ export const POST: APIRoute = async ({ request }) => {
   const focusStruggles = getStringArray(formData.getAll('focus_struggles'));
   const toolsTried = getStringArray(formData.getAll('tools_tried'));
 
-  const redirectUrl = buildRedirectUrl(email, orderId, chip, 'saved');
+  const redirectUrl = buildSiteUrl('/next-steps', {
+    email,
+    order_id: orderId,
+    chip,
+    survey: 'saved',
+  }, url.origin);
 
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error('[survey-submit] Server misconfigured');

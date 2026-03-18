@@ -1,11 +1,10 @@
 ---
-import { buildSiteUrl } from '../lib/siteOrigin';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
 
 const title = "Focana — Quick Survey";
 const description = "Tell us a little about how you found Focana and what you want it to solve.";
 const canonicalURL = "https://focana.app/survey";
-const nextStepsBaseUrl = buildSiteUrl('/next-steps').toString();
-const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
+const fallbackSiteOrigin = SITE_ORIGIN;
 ---
 
 <html lang="en">
@@ -171,7 +170,7 @@ const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
           <button class="skip-link" id="survey-skip" type="button">Skip</button>
         </div>
 
-        <form id="survey-form" method="POST" action={surveySubmitUrl}>
+        <form id="survey-form" method="POST" action="/api/survey-submit">
           <input type="hidden" name="email" id="survey-email" value="" />
           <input type="hidden" name="order_id" id="survey-order-id" value="" />
           <input type="hidden" name="chip" id="survey-chip" value="" />
@@ -222,7 +221,7 @@ const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
       </div>
     </div>
 
-    <script define:vars={{ nextStepsBaseUrl }}>
+    <script define:vars={{ fallbackSiteOrigin }}>
       (function() {
         var urlParams = new URLSearchParams(window.location.search);
         var customerEmail = urlParams.get('email') || '';
@@ -239,6 +238,17 @@ const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
 
         function phCapture(event, props) {
           if (window.posthog) window.posthog.capture(event, props);
+        }
+
+        function resolveFlowOrigin() {
+          try {
+            var currentUrl = new URL(window.location.origin);
+            if (!['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(currentUrl.hostname)) {
+              return currentUrl.origin;
+            }
+          } catch (err) {}
+
+          return fallbackSiteOrigin;
         }
 
         function readStoredContext() {
@@ -295,7 +305,7 @@ const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
 
           persistContext(selectedChip);
 
-          var nextUrl = new URL(nextStepsBaseUrl);
+          var nextUrl = new URL('/next-steps', resolveFlowOrigin());
           if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
           if (orderId) nextUrl.searchParams.set('order_id', orderId);
           if (selectedChip) nextUrl.searchParams.set('chip', selectedChip);
@@ -308,6 +318,7 @@ const surveySubmitUrl = buildSiteUrl('/api/survey-submit').toString();
         readStoredContext();
         readReferrerContext();
         persistContext(selectedChip);
+        surveyForm.action = new URL('/api/survey-submit', resolveFlowOrigin()).toString();
         syncHiddenFields();
 
         phCapture('survey_page_viewed', {
