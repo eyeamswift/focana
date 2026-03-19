@@ -1078,9 +1078,18 @@ export default function App() {
     };
 
     try {
-      const existingQueue = await window.electronAPI.storeGet('feedbackQueue');
-      const nextQueue = Array.isArray(existingQueue) ? [...existingQueue, queueItem] : [queueItem];
-      await window.electronAPI.storeSet('feedbackQueue', nextQueue);
+      const enqueuePromise = window.electronAPI.enqueueFeedback?.(queueItem);
+      if (enqueuePromise) {
+        void Promise.resolve(enqueuePromise)
+          .then((enqueueResult) => {
+            if (enqueueResult?.ok === false) {
+              console.warn('Failed to queue session feedback:', enqueueResult.error || 'Unknown feedback queue error.');
+            }
+          })
+          .catch((error) => {
+            console.error('Failed to queue session feedback:', error);
+          });
+      }
       if (sessionId) {
         await SessionStore.update(sessionId, { sessionFeedback: feedback });
       }
@@ -1092,7 +1101,6 @@ export default function App() {
         completionType: prompt.completionType,
         surface: prompt.surface,
       });
-      void window.electronAPI.syncFeedbackQueue?.();
     } catch (error) {
       console.error('Failed to capture session feedback:', error);
     }
@@ -2788,13 +2796,8 @@ export default function App() {
   }, [finalizeIncompleteStop, maybePromptSessionFeedback]);
 
   const handleTimeUpEndSession = useCallback(() => {
-    maybePromptSessionFeedback({
-      modal: 'time-up',
-      surface: 'time_up_end_session',
-      completionType: 'ended',
-      onContinue: finalizeTimeUpEndSession,
-    });
-  }, [finalizeTimeUpEndSession, maybePromptSessionFeedback]);
+    finalizeTimeUpEndSession();
+  }, [finalizeTimeUpEndSession]);
 
   const handleTimeUpKeepGoing = (extraMinutes) => {
     track('post_session_choice', { choice: 'keep_going', extra_minutes: Math.min(Math.max(extraMinutes || 5, 1), 240) });
@@ -3591,14 +3594,6 @@ export default function App() {
           onEndSession={handleTimeUpEndSession}
           onKeepGoing={handleTimeUpKeepGoing}
           onResumeLater={handleTimeUpResumeLater}
-          feedbackPrompt={sessionFeedbackPrompt?.modal === 'time-up' ? {
-            isOpen: true,
-            onSelect: captureSessionFeedback,
-            onContinue: continueSessionFeedbackFlow,
-            onDismiss: continueSessionFeedbackFlow,
-            autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
-            continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
-          } : null}
         />
         <TaskPreviewModal
           isOpen={showTaskPreview}
@@ -4125,14 +4120,6 @@ export default function App() {
         onEndSession={handleTimeUpEndSession}
         onKeepGoing={handleTimeUpKeepGoing}
         onResumeLater={handleTimeUpResumeLater}
-        feedbackPrompt={sessionFeedbackPrompt?.modal === 'time-up' ? {
-          isOpen: true,
-          onSelect: captureSessionFeedback,
-          onContinue: continueSessionFeedbackFlow,
-          onDismiss: continueSessionFeedbackFlow,
-          autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
-          continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
-        } : null}
       />
       <TaskPreviewModal
         isOpen={showTaskPreview}

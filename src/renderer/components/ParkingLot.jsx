@@ -4,7 +4,7 @@ import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Checkbox } from './ui/Checkbox';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Plus, Trash2, Edit3, Save, NotebookPen, Copy, X, CheckSquare, Square, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, NotebookPen, Copy, X, CheckSquare, Square, ArrowRight, ChevronsRight } from 'lucide-react';
 import { track } from '../utils/analytics';
 
 export default function ParkingLot({
@@ -112,11 +112,30 @@ export default function ParkingLot({
     }
   };
 
+  const handleDeleteThoughtById = (thoughtId) => {
+    if (!thoughtId) return;
+    onRemoveThought(thoughtId);
+    track('parking_lot_item_deleted');
+    if (expandedThought === thoughtId) {
+      setExpandedThought(null);
+      setEditingText('');
+    }
+  };
+
   const handleStartThought = () => {
     if (expandedThought === null || typeof onStartThoughtAsNextTask !== 'function') return;
     const thoughtId = expandedThought;
     setExpandedThought(null);
     setEditingText('');
+    onStartThoughtAsNextTask(thoughtId);
+  };
+
+  const handleStartThoughtById = (thoughtId) => {
+    if (!thoughtId || typeof onStartThoughtAsNextTask !== 'function') return;
+    if (expandedThought === thoughtId) {
+      setExpandedThought(null);
+      setEditingText('');
+    }
     onStartThoughtAsNextTask(thoughtId);
   };
 
@@ -304,6 +323,7 @@ export default function ParkingLot({
                   <div
                     style={{
                       flex: 1,
+                      minWidth: 0,
                       fontSize: '0.875rem',
                       cursor: 'pointer',
                       color: thought.completed ? 'var(--text-secondary)' : 'var(--text-primary)',
@@ -316,6 +336,63 @@ export default function ParkingLot({
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Click to expand...</p>
                     )}
                   </div>
+                  {!selectionMode && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.125rem', marginLeft: '0.25rem', flexShrink: 0 }}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label="Edit Note"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleThoughtClick(thought.id, thought.text);
+                            }}
+                            size="icon"
+                            variant="ghost"
+                            style={{ color: 'var(--text-secondary)', borderRadius: '9999px' }}
+                          >
+                            <Edit3 style={{ width: 16, height: 16 }} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Edit note</p></TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label="Start This Task"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartThoughtById(thought.id);
+                            }}
+                            size="icon"
+                            variant="ghost"
+                            style={{ color: 'var(--brand-primary)', borderRadius: '9999px' }}
+                          >
+                            <ChevronsRight style={{ width: 18, height: 18 }} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Start this task</p></TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label="Delete Note"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteThoughtById(thought.id);
+                            }}
+                            size="icon"
+                            variant="ghost"
+                            style={{ color: 'var(--error)', borderRadius: '9999px' }}
+                          >
+                            <Trash2 style={{ width: 16, height: 16 }} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Delete note</p></TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
                 </div>
               ))}
               {thoughts.length === 0 && (
@@ -364,7 +441,7 @@ export default function ParkingLot({
 
       {/* Expanded Note Modal */}
       <Dialog open={expandedThought !== null} onOpenChange={(open) => !open && handleCloseExpanded()}>
-        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '36rem' }}>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Edit3 style={{ width: 20, height: 20, color: 'var(--brand-primary)' }} />

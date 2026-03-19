@@ -1201,6 +1201,10 @@ ipcMain.handle('license:deactivate', () => {
   return licenseService.deactivateLicense();
 });
 
+ipcMain.handle('feedback:enqueue', (_event, item) => {
+  return feedbackSyncService.enqueueFeedback(item, 'renderer-enqueue');
+});
+
 ipcMain.handle('feedback:sync', () => {
   return feedbackSyncService.syncNow({ reason: 'renderer-request' });
 });

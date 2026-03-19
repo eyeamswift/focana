@@ -5,6 +5,10 @@
 - Keep Apple notarization credentials in `/Users/swift/focana/.env.release`.
 - Keep the GitHub release token in `/Users/swift/focana/.env.release.local` as:
   `GH_TOKEN=...`
+- Keep the Lemon licensing IDs in `/Users/swift/focana/.env.release.local` (or `.env.release`) for packaged activation:
+  - `FOCANA_LEMON_STORE_ID=...`
+  - `FOCANA_LEMON_PRODUCT_ID=...`
+  - `FOCANA_LEMON_VARIANT_IDS=...`
 - Standard releases must use a new non-prerelease semver such as `1.2.0`.
 
 ## Standard Mac Release Flow
@@ -15,6 +19,7 @@
    ```bash
    npm run build:mac:release
    ```
+   This embeds the configured Lemon store/product/variant IDs into the packaged app so Finder-launched builds can validate keys.
 4. Create and push the git tag for that version:
    ```bash
    git tag v1.2.0

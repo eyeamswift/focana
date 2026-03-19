@@ -3,6 +3,7 @@ const MAX_BATCH_SIZE = 25
 const BASE_RETRY_MS = 30 * 1000
 const MAX_RETRY_MS = 15 * 60 * 1000
 const PERIODIC_SYNC_MS = 5 * 60 * 1000
+const REQUEST_TIMEOUT_MS = 15 * 1000
 
 function clampText(value, maxLength = 500) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
@@ -58,14 +59,30 @@ function normalizeFeedbackQueue(rawQueue) {
 }
 
 async function postFeedbackBatch(endpointUrl, items) {
-  const response = await fetch(endpointUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({ items }),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort()
+  }, REQUEST_TIMEOUT_MS)
+
+  let response
+  try {
+    response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ items }),
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Feedback sync timed out.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 
   const text = await response.text()
   let payload = null
@@ -91,10 +108,13 @@ async function postFeedbackBatch(endpointUrl, items) {
 
 function createFeedbackSyncService({ store, endpointUrl = process.env.FOCANA_FEEDBACK_API_URL || DEFAULT_FEEDBACK_API_URL } = {}) {
   let syncInFlight = null
+  let syncInFlightReason = null
   let retryTimeout = null
   let periodicInterval = null
   let retryDelayMs = BASE_RETRY_MS
   let nextAllowedSyncAt = 0
+  let followUpSyncRequested = false
+  let followUpSyncReason = 'queued-follow-up'
 
   function clearRetryTimeout() {
     if (retryTimeout) {
@@ -121,91 +141,162 @@ function createFeedbackSyncService({ store, endpointUrl = process.env.FOCANA_FEE
   }
 
   function requestSync(reason = 'manual') {
-    void syncNow({ reason })
+    if (syncInFlight) {
+      followUpSyncRequested = true
+      followUpSyncReason = reason
+      return syncInFlight
+    }
+    return startSyncCycle({ reason })
   }
 
-  async function syncNow({ reason = 'manual' } = {}) {
+  async function enqueueFeedback(rawItem, reason = 'manual-enqueue') {
+    const nextItem = normalizeFeedbackItem(rawItem)
+    if (!nextItem) {
+      return { ok: false, error: 'Invalid feedback item.' }
+    }
+
+    const queue = readQueue()
+    writeQueue([
+      ...queue.filter((item) => item.id !== nextItem.id),
+      nextItem,
+    ])
+
+    let sync = null
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (syncInFlight) {
+        followUpSyncRequested = true
+        followUpSyncReason = reason
+        try {
+          await syncInFlight
+        } catch (_) {
+          // The dedicated immediate sync below handles the queued item.
+        }
+      }
+
+      const queuedBeforeSync = readQueue().find((item) => item.id === nextItem.id)
+      if (!queuedBeforeSync || queuedBeforeSync.attemptCount > 0 || queuedBeforeSync.syncStatus !== 'pending') {
+        break
+      }
+
+      sync = await startSyncCycle({ reason, ignoreBackoff: true })
+
+      const queuedItem = readQueue().find((item) => item.id === nextItem.id)
+      if (!queuedItem || queuedItem.attemptCount > 0 || queuedItem.syncStatus !== 'pending') {
+        break
+      }
+
+      await Promise.resolve()
+    }
+
+    return { ok: true, item: nextItem, sync }
+  }
+
+  async function syncNow({ reason = 'manual', ignoreBackoff = false } = {}) {
     if (!endpointUrl) {
       return { ok: false, skipped: true, reason: 'missing-endpoint' }
     }
 
-    if (syncInFlight) return syncInFlight
-
-    if (Date.now() < nextAllowedSyncAt) {
-      return { ok: false, skipped: true, reason: 'backoff' }
+    if (syncInFlight) {
+      followUpSyncRequested = true
+      followUpSyncReason = reason
+      return syncInFlight
     }
 
+    return startSyncCycle({ reason, ignoreBackoff })
+  }
+
+  function startSyncCycle({ reason = 'manual', ignoreBackoff = false } = {}) {
+    if (!endpointUrl) {
+      return Promise.resolve({ ok: false, skipped: true, reason: 'missing-endpoint' })
+    }
+
+    if (!ignoreBackoff && Date.now() < nextAllowedSyncAt) {
+      return Promise.resolve({ ok: false, skipped: true, reason: 'backoff' })
+    }
+
+    syncInFlightReason = reason
     syncInFlight = (async () => {
-      const queue = readQueue()
-      const pendingItems = queue.filter((item) => item.syncStatus !== 'synced').slice(0, MAX_BATCH_SIZE)
-      if (pendingItems.length === 0) {
-        retryDelayMs = BASE_RETRY_MS
-        nextAllowedSyncAt = 0
-        clearRetryTimeout()
-        return { ok: true, synced: 0, reason }
-      }
-
-      const attemptedIds = new Set(pendingItems.map((item) => item.id))
-      const attemptTimestamp = new Date().toISOString()
-
-      writeQueue(queue.map((item) => (
-        attemptedIds.has(item.id)
-          ? {
-            ...item,
-            attemptCount: (item.attemptCount || 0) + 1,
-            lastAttemptAt: attemptTimestamp,
-            lastError: null,
-            syncStatus: item.syncStatus === 'synced' ? 'synced' : 'pending',
-          }
-          : item
-      )))
-
       try {
-        const { acceptedIds } = await postFeedbackBatch(endpointUrl, pendingItems)
-        const acceptedIdSet = new Set(acceptedIds)
-        const syncedAt = new Date().toISOString()
-        const syncedQueue = readQueue().map((item) => {
-          if (!attemptedIds.has(item.id) || item.syncStatus === 'synced') {
-            return item
-          }
-          if (acceptedIdSet.has(item.id)) {
-            return {
-              ...item,
-              syncStatus: 'synced',
-              syncedAt,
-              lastError: null,
-            }
-          }
-          return {
-            ...item,
-            syncStatus: 'failed',
-            lastError: 'Feedback sync was not acknowledged by the server.',
-          }
-        })
+        const queue = readQueue()
+        const pendingItems = queue.filter((item) => item.syncStatus !== 'synced').slice(0, MAX_BATCH_SIZE)
+        if (pendingItems.length === 0) {
+          retryDelayMs = BASE_RETRY_MS
+          nextAllowedSyncAt = 0
+          clearRetryTimeout()
+          return { ok: true, synced: 0, reason }
+        }
 
-        writeQueue(syncedQueue)
-        retryDelayMs = BASE_RETRY_MS
-        nextAllowedSyncAt = 0
-        clearRetryTimeout()
-        return { ok: true, synced: acceptedIds.length, attempted: pendingItems.length, reason }
-      } catch (error) {
-        const message = clampText(error?.message, 400) || 'Could not sync feedback right now.'
-        const failedQueue = readQueue().map((item) => (
-          attemptedIds.has(item.id) && item.syncStatus !== 'synced'
+        const attemptedIds = new Set(pendingItems.map((item) => item.id))
+        const attemptTimestamp = new Date().toISOString()
+
+        writeQueue(queue.map((item) => (
+          attemptedIds.has(item.id)
             ? {
               ...item,
-              syncStatus: 'failed',
-              lastError: message,
+              attemptCount: (item.attemptCount || 0) + 1,
+              lastAttemptAt: attemptTimestamp,
+              lastError: null,
+              syncStatus: item.syncStatus === 'synced' ? 'synced' : 'pending',
             }
             : item
-        ))
-        writeQueue(failedQueue)
-        nextAllowedSyncAt = Date.now() + retryDelayMs
-        scheduleRetry(retryDelayMs)
-        retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_MS)
-        return { ok: false, error: message, attempted: pendingItems.length, reason }
+        )))
+
+        try {
+          const { acceptedIds } = await postFeedbackBatch(endpointUrl, pendingItems)
+          const acceptedIdSet = new Set(acceptedIds)
+          const syncedAt = new Date().toISOString()
+          const syncedQueue = readQueue().map((item) => {
+            if (!attemptedIds.has(item.id) || item.syncStatus === 'synced') {
+              return item
+            }
+            if (acceptedIdSet.has(item.id)) {
+              return {
+                ...item,
+                syncStatus: 'synced',
+                syncedAt,
+                lastError: null,
+              }
+            }
+            return {
+              ...item,
+              syncStatus: 'failed',
+              lastError: 'Feedback sync was not acknowledged by the server.',
+            }
+          })
+
+          writeQueue(syncedQueue)
+          retryDelayMs = BASE_RETRY_MS
+          nextAllowedSyncAt = 0
+          clearRetryTimeout()
+          return { ok: true, synced: acceptedIds.length, attempted: pendingItems.length, reason }
+        } catch (error) {
+          const message = clampText(error?.message, 400) || 'Could not sync feedback right now.'
+          const failedQueue = readQueue().map((item) => (
+            attemptedIds.has(item.id) && item.syncStatus !== 'synced'
+              ? {
+                ...item,
+                syncStatus: 'failed',
+                lastError: message,
+              }
+              : item
+          ))
+          writeQueue(failedQueue)
+          nextAllowedSyncAt = Date.now() + retryDelayMs
+          scheduleRetry(retryDelayMs)
+          retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_MS)
+          return { ok: false, error: message, attempted: pendingItems.length, reason }
+        }
       } finally {
         syncInFlight = null
+        syncInFlightReason = null
+        if (followUpSyncRequested) {
+          const nextReason = followUpSyncReason
+          followUpSyncRequested = false
+          followUpSyncReason = 'queued-follow-up'
+          queueMicrotask(() => {
+            void syncNow({ reason: nextReason })
+          })
+        }
       }
     })()
 
@@ -232,6 +323,7 @@ function createFeedbackSyncService({ store, endpointUrl = process.env.FOCANA_FEE
   }
 
   return {
+    enqueueFeedback,
     requestSync,
     start,
     stop,

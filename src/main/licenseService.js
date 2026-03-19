@@ -209,6 +209,31 @@ function isDevTestLicenseAllowed(app) {
   return isDevRuntime(app)
 }
 
+function isStoredDevTestLicense(stored) {
+  const key = typeof stored?.key === 'string' ? stored.key.trim() : ''
+  const instanceId = typeof stored?.instanceId === 'string' ? stored.instanceId.trim() : ''
+  return key === DEV_TEST_LICENSE_KEY || instanceId.startsWith('dev-test-')
+}
+
+function isRecoverableValidationError(error) {
+  const message = typeof error?.message === 'string' ? error.message : ''
+  const lower = message.toLowerCase()
+
+  if (!lower) return true
+
+  const nonRecoverableFragments = [
+    'invalid',
+    'not found',
+    'disabled',
+    'inactive',
+    'expired',
+    'not recognized',
+    'no longer valid',
+  ]
+
+  return !nonRecoverableFragments.some((fragment) => lower.includes(fragment))
+}
+
 function createLicenseService({ app, store }) {
   let devLicenseStateReset = false
 
@@ -289,9 +314,12 @@ function createLicenseService({ app, store }) {
     const usingDevTestLicense = usingForcedDevFlow && instanceId.startsWith('dev-test-')
     const configured = runtime.licenseConfigured || usingForcedDevFlow || usingDevTestLicense
     let status = stored.status || 'unlicensed'
+    const packagedDevTestLicense = runtime.licenseEnforced && !isDevRuntime(app) && isStoredDevTestLicense(stored)
 
     if (!runtime.licenseEnforced) {
       status = 'not_required'
+    } else if (packagedDevTestLicense) {
+      status = 'unlicensed'
     } else if (!configured) {
       status = 'config_error'
     } else if (!keyPresent || !instanceId) {
@@ -301,7 +329,12 @@ function createLicenseService({ app, store }) {
     }
 
     const allowed = !runtime.licenseEnforced || status === 'active' || (status === 'offline_grace' && withinGrace)
-    const shouldValidateInForeground = runtime.licenseEnforced && configured && keyPresent && Boolean(instanceId) && validationDue
+    const shouldValidateInForeground = runtime.licenseEnforced
+      && configured
+      && keyPresent
+      && Boolean(instanceId)
+      && validationDue
+      && !packagedDevTestLicense
 
     return {
       version: runtime.version,
@@ -313,9 +346,9 @@ function createLicenseService({ app, store }) {
       installId,
       status,
       allowed,
-      keyPresent,
-      maskedKey: maskLicenseKey(stored.key),
-      instanceId: instanceId || null,
+      keyPresent: packagedDevTestLicense ? false : keyPresent,
+      maskedKey: packagedDevTestLicense ? '' : maskLicenseKey(stored.key),
+      instanceId: packagedDevTestLicense ? null : instanceId || null,
       activatedAt: safeIsoDate(stored.activatedAt),
       lastValidatedAt,
       offlineGraceUntil,
@@ -323,9 +356,9 @@ function createLicenseService({ app, store }) {
       validationDue,
       withinGrace,
       shouldValidateInForeground,
-      lastError: stored.lastError,
-      productId: stored.productId || null,
-      variantId: stored.variantId || null,
+      lastError: packagedDevTestLicense ? null : stored.lastError,
+      productId: packagedDevTestLicense ? null : stored.productId || null,
+      variantId: packagedDevTestLicense ? null : stored.variantId || null,
     }
   }
 
@@ -460,6 +493,10 @@ function createLicenseService({ app, store }) {
     }
 
     const stored = getStoredLicense()
+    if (runtime.licenseEnforced && !isDevRuntime(app) && isStoredDevTestLicense(stored)) {
+      return clearStoredLicense(null, 'unlicensed')
+    }
+
     if (!stored.key || !stored.instanceId) {
       return buildStatus({ status: 'unlicensed' })
     }
@@ -500,6 +537,10 @@ function createLicenseService({ app, store }) {
       return buildStatus()
     } catch (error) {
       const existing = getStoredLicense()
+      if (!isRecoverableValidationError(error)) {
+        return clearStoredLicense(mapValidationError(error), 'invalid')
+      }
+
       if (currentStatus.withinGrace) {
         setStoredLicense({
           ...existing,

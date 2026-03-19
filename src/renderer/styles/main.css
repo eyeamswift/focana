@@ -950,8 +950,8 @@ html[data-window-mode='pill'] #root {
   border-radius: 0;
   background: var(--compact-task-cloud);
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: normal;
+  word-break: normal;
   line-height: 1.15;
 }
 

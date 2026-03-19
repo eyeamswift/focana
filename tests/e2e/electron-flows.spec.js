@@ -130,6 +130,13 @@ function isMainAppWindow(win) {
   return url.includes('localhost:5173') || (url.includes('/index.html') && !url.includes('floating-icon.html'));
 }
 
+async function readMainWindowBounds(electronApp) {
+  return electronApp.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    return main ? main.getBounds() : null;
+  });
+}
+
 async function installTimeOffsetControl(page) {
   await page.evaluate(() => {
     if (!window.__focanaE2ETimeControlInstalled) {
@@ -408,7 +415,7 @@ test('timed time-up flows keep going and resume later without losing task state'
   }
 });
 
-test('session feedback prompt stays visible for three seconds before continuing the time-up flow', async () => {
+test('time-up end session opens the completion decision before showing the feedback prompt', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -420,17 +427,22 @@ test('session feedback prompt stays visible for three seconds before continuing 
 
     await page.getByRole('button', { name: 'End Session' }).click();
 
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await expect(page.getByText('How was Focana this session?')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Yes, Complete' }).click();
+
     const feedbackPrompt = page.getByText('How was Focana this session?');
     await expect(feedbackPrompt).toBeVisible();
     await expect(page.getByRole('button', { name: 'Close feedback prompt' })).toBeVisible();
 
     await page.waitForTimeout(2200);
     await expect(feedbackPrompt).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
 
     await page.waitForTimeout(1400);
     await expect(feedbackPrompt).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -447,6 +459,8 @@ test('selecting session feedback saves it and continues after the short post-cli
     await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
 
     await page.getByRole('button', { name: 'End Session' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Yes, Complete' }).click();
 
     const feedbackPrompt = page.getByText('How was Focana this session?');
     await expect(feedbackPrompt).toBeVisible();
@@ -460,8 +474,8 @@ test('selecting session feedback saves it and continues after the short post-cli
 
     const queue = await page.evaluate(() => window.electronAPI.storeGet('feedbackQueue'));
     expect(queue[0].feedback).toBe('up');
-    expect(queue[0].surface).toBe('time_up_end_session');
-    expect(queue[0].completionType).toBe('ended');
+    expect(queue[0].surface).toBe('stop_yes_complete');
+    expect(queue[0].completionType).toBe('completed');
 
     await expect.poll(async () => {
       const sessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
@@ -472,7 +486,100 @@ test('selecting session feedback saves it and continues after the short post-cli
     await expect(feedbackPrompt).toBeVisible();
 
     await expect(feedbackPrompt).toHaveCount(0, { timeout: 1500 });
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('selecting session feedback records an immediate sync attempt', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_FEEDBACK_API_URL: 'http://127.0.0.1:9/app-feedback',
+    },
+  });
+
+  try {
+    await startFreeflowSession(page, 'feedback-sync-attempt');
+    await page.waitForTimeout(1200);
+    await page.locator('.pill').click();
+    await page.locator('button[title="Stop & Save"]').click();
+
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'No, Keep Task' }).click();
+
+    const feedbackPrompt = page.getByText('How was Focana this session?');
+    await expect(feedbackPrompt).toBeVisible();
+    await page.getByRole('button', { name: 'Thumbs down' }).click();
+
+    await expect.poll(async () => {
+      const queue = await page.evaluate(() => window.electronAPI.storeGet('feedbackQueue'));
+      const item = Array.isArray(queue) ? queue[0] : null;
+      return item
+        ? JSON.stringify({
+            attemptCount: item.attemptCount,
+            hasLastAttemptAt: Boolean(item.lastAttemptAt),
+            syncStatus: item.syncStatus,
+            hasLastError: Boolean(item.lastError),
+          })
+        : null;
+    }).toBe(JSON.stringify({
+      attemptCount: 1,
+      hasLastAttemptAt: true,
+      syncStatus: 'failed',
+      hasLastError: true,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('direct feedback enqueue records an immediate sync attempt', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_FEEDBACK_API_URL: 'http://127.0.0.1:9/app-feedback',
+    },
+  });
+
+  try {
+    const enqueueResult = await page.evaluate(() => window.electronAPI.enqueueFeedback({
+      id: 'direct-feedback-diag',
+      sessionId: 'direct-feedback-session',
+      feedback: 'up',
+      surface: 'diag',
+      completionType: 'completed',
+      sessionMode: 'freeflow',
+      sessionDurationMinutes: 12,
+      clientCreatedAt: new Date().toISOString(),
+      appVersion: '1.0.0-test',
+      osVersion: 'diag-os',
+      channel: 'latest',
+      installId: 'diag-install',
+      licenseInstanceId: 'diag-license',
+      syncStatus: 'pending',
+      attemptCount: 0,
+      lastAttemptAt: null,
+      syncedAt: null,
+      lastError: null,
+    }));
+
+    await expect.poll(async () => {
+      const queue = await page.evaluate(() => window.electronAPI.storeGet('feedbackQueue'));
+      const item = Array.isArray(queue) ? queue.find((entry) => entry.id === 'direct-feedback-diag') : null;
+      return item
+        ? JSON.stringify({
+            attemptCount: item.attemptCount,
+            hasLastAttemptAt: Boolean(item.lastAttemptAt),
+            syncStatus: item.syncStatus,
+            hasLastError: Boolean(item.lastError),
+          })
+        : null;
+    }).toBe(JSON.stringify({
+      attemptCount: 1,
+      hasLastAttemptAt: true,
+      syncStatus: 'failed',
+      hasLastError: true,
+    }));
   } finally {
     await cleanup();
   }
@@ -590,6 +697,72 @@ test('stopping from the floating timer restores the main window and shows the st
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact controls auto-hide restore the pill width and drag anchor', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-control-restore');
+
+    const baseBounds = await readMainWindowBounds(electronApp);
+    expect(baseBounds).toBeTruthy();
+
+    const stopButton = page.locator('button[title="Stop & Save"]');
+    await page.locator('.pill').click();
+    await expect(stopButton).toBeVisible();
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return nextBounds?.width || 0;
+    }).toBeGreaterThan(baseBounds.width);
+
+    await page.waitForTimeout(3400);
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return nextBounds?.width || 0;
+    }).toBe(baseBounds.width);
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        width: nextBounds?.width || 0,
+      });
+    }).toBe(JSON.stringify({
+      x: baseBounds.x,
+      width: baseBounds.width,
+    }));
+
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(-160, 0);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return nextBounds?.x || 0;
+    }).toBeLessThan(baseBounds.x);
+
+    const movedLeftBounds = await readMainWindowBounds(electronApp);
+    expect(movedLeftBounds).toBeTruthy();
+    expect(movedLeftBounds.x).toBeLessThan(baseBounds.x);
+
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(80, 0);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return nextBounds?.x || 0;
+    }).toBeGreaterThan(movedLeftBounds.x);
   } finally {
     await cleanup();
   }
@@ -1201,7 +1374,11 @@ test('editing a parking lot note preserves completion state', async () => {
     await page.locator('.checkbox').first().click();
     await expect(page.getByRole('button', { name: 'Copy Selected' })).toBeVisible();
 
-    await page.getByText('stateful thought').click();
+    await expect(page.getByRole('button', { name: 'Edit Note' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start This Task' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Delete Note' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit Note' }).click();
     await expect(page.getByRole('heading', { name: 'Edit Note' })).toBeVisible();
     await page.getByPlaceholder('Edit your note...').fill('updated thought');
     await page.getByRole('button', { name: 'Save' }).click();

@@ -5,10 +5,19 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')
 );
 
+const embeddedLicenseConfig = {
+  storeId: process.env.FOCANA_LEMON_STORE_ID || null,
+  productId: process.env.FOCANA_LEMON_PRODUCT_ID || null,
+  variantIds: process.env.FOCANA_LEMON_VARIANT_IDS || null,
+};
+
 module.exports = {
   appId: 'app.focana.desktop',
   productName: 'Focana',
   artifactName: '${productName}-${version}-${os}-${arch}.${ext}',
+  extraMetadata: {
+    focanaLicenseConfig: embeddedLicenseConfig,
+  },
   directories: {
     output: 'release',
     buildResources: 'build',

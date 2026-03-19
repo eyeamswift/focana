@@ -131,6 +131,24 @@ export default function CompactMode({
     return undefined;
   }, [checkInPromptActive]);
 
+  useEffect(() => {
+    return () => {
+      window.electronAPI?.endCompactTransient?.('compact-controls', 0);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI?.beginCompactTransient || !window.electronAPI?.endCompactTransient) return undefined;
+
+    if (showControls) {
+      window.electronAPI.beginCompactTransient('compact-controls');
+      return undefined;
+    }
+
+    window.electronAPI.endCompactTransient('compact-controls', 210);
+    return undefined;
+  }, [showControls]);
+
   // ---------------------------------------------------------------------------
   // Sync window size with pill state via IPC
   //   Expanding: resize window first, then CSS transition fills it in (~200ms)
