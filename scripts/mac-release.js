@@ -279,6 +279,37 @@ function validateNotarizedApps() {
   }
 }
 
+function notarizeDmgs(version) {
+  const dmgPaths = findBuiltDmgs(version);
+
+  if (dmgPaths.length === 0) {
+    console.error('[release] No DMG artifacts were found to notarize.');
+    process.exit(1);
+  }
+
+  const apiKey = process.env.APPLE_API_KEY;
+  const apiKeyId = process.env.APPLE_API_KEY_ID;
+  const apiIssuer = process.env.APPLE_API_ISSUER;
+
+  if (!apiKey || !apiKeyId || !apiIssuer) {
+    console.error('[release] Missing Apple notarization env vars for DMG notarization.');
+    process.exit(1);
+  }
+
+  for (const dmgPath of dmgPaths) {
+    console.log(`[release] Submitting DMG for notarization: ${path.relative(projectRoot, dmgPath)}`);
+    runCommand('xcrun', [
+      'notarytool', 'submit', dmgPath,
+      '--key', apiKey,
+      '--key-id', apiKeyId,
+      '--issuer', apiIssuer,
+      '--wait',
+    ]);
+  }
+
+  return dmgPaths;
+}
+
 function stapleAndValidateDmgs(version) {
   const dmgPaths = findBuiltDmgs(version);
 
@@ -473,6 +504,7 @@ const manifestPath = verifyMacUpdateManifest(version);
 validateNotarizedApps();
 
 if (mode === 'full') {
+  notarizeDmgs(version);
   const dmgPaths = stapleAndValidateDmgs(version);
   refreshUpdaterManifest(manifestPath, dmgPaths);
   removeStaleDmgBlockmaps(version);
