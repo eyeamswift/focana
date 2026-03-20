@@ -1255,6 +1255,82 @@ test('freeflow check-in restores from floating minimize and returns there after 
   }
 });
 
+test('freeflow check-in restores from floating minimize and returns there after confirming focus', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'floating-checkin-focused-return');
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    const baseFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(baseFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragStart();
+      window.floatingAPI.dragMove(-140, 100);
+      window.floatingAPI.dragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseFloatingBounds.x,
+      y: baseFloatingBounds.y,
+    }));
+
+    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(movedFloatingBounds).toBeTruthy();
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('floating-checkin-focused-return?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedFloatingBounds.x,
+      y: movedFloatingBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('freeflow check-ins stay suppressed during DND and appear after DND is turned off', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
