@@ -1588,7 +1588,7 @@ ipcMain.on('pill-drag-end', () => {
   }
 });
 
-ipcMain.handle('exit-pill-mode', () => {
+ipcMain.handle('exit-pill-mode', (_event, options = {}) => {
   if (mainWindow) {
     clearCompactTransientState();
     isPillMode = false;
@@ -1606,8 +1606,10 @@ ipcMain.handle('exit-pill-mode', () => {
       restoreBounds = { width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
     }
 
-    const restoreWidth = Math.max(restoreBounds.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH);
-    const restoreHeight = Math.max(restoreBounds.height || FULL_MIN_HEIGHT, FULL_MIN_HEIGHT);
+    const requestedWidth = Number.isFinite(options?.width) ? options.width : restoreBounds.width;
+    const requestedHeight = Number.isFinite(options?.height) ? options.height : restoreBounds.height;
+    const restoreWidth = Math.max(Math.round(requestedWidth || FULL_MIN_WIDTH), FULL_MIN_WIDTH);
+    const restoreHeight = Math.max(Math.round(requestedHeight || FULL_MIN_HEIGHT), FULL_MIN_HEIGHT);
     const current = mainWindow.getBounds();
     setMainWindowBoundsClamped(
       {

@@ -1233,6 +1233,11 @@ export default function App() {
   }, []);
 
   const handleExitCompact = useCallback(() => {
+    if (isCompact) {
+      window.electronAPI.capturePillRestoreBounds?.();
+      pendingCompactRestoreRef.current = false;
+    }
+
     setCompactTransitioning(true);
     setIsCompact(false);
 
@@ -1275,7 +1280,7 @@ export default function App() {
 
     // Store desired full-view size and apply right after exit-pill-mode resolves.
     pendingCompactExitHeightRef.current = exitTargetHeight;
-  }, [isRunning, task, contextNotes, isTimerVisible, checkInState, isStartModalOpen]);
+  }, [checkInState, contextNotes, isCompact, isRunning, isStartModalOpen, isTimerVisible, task]);
 
   const captureCompactReturnBounds = useCallback(() => {
     window.electronAPI.capturePillRestoreBounds?.();
@@ -1359,12 +1364,12 @@ export default function App() {
   const handleShortcutToggleCompact = useCallback(() => {
     const newCompact = !isCompact;
     if (newCompact) {
-      setIsCompact(true);
+      requestCompactEntry();
     } else {
       handleExitCompact();
     }
     showToast('info', newCompact ? 'Compact Mode On' : 'Compact Mode Off');
-  }, [isCompact, handleExitCompact, showToast]);
+  }, [handleExitCompact, isCompact, requestCompactEntry, showToast]);
 
   const handleShortcutCompleteTask = useCallback(async () => {
     if (task.trim()) {
@@ -1896,6 +1901,17 @@ export default function App() {
     clearTimedCueSegment();
   }, [clearCheckInRuntime, clearCompactPulseRuntime, clearTimedCueSegment]);
 
+  const requestCompactEntry = useCallback(({ restorePreviousBounds = true, delayMs = 0 } = {}) => {
+    pendingCompactRestoreRef.current = restorePreviousBounds === true;
+    if (delayMs > 0) {
+      setTimeout(() => {
+        setIsCompact(true);
+      }, delayMs);
+      return;
+    }
+    setIsCompact(true);
+  }, []);
+
   const restoreDisplayMode = useCallback(({ returnToCompact = false, returnToFloating = false } = {}) => {
     if (returnToFloating) {
       pendingCompactRestoreRef.current = false;
@@ -1906,15 +1922,12 @@ export default function App() {
     }
 
     if (returnToCompact) {
-      pendingCompactRestoreRef.current = true;
-      setTimeout(() => {
-        setIsCompact(true);
-      }, 80);
+      requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
       return;
     }
 
     pendingCompactRestoreRef.current = false;
-  }, []);
+  }, [requestCompactEntry]);
 
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
@@ -2878,7 +2891,7 @@ export default function App() {
     resetCompactPulseSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
     historyResumeCarryoverSecondsRef.current = 0;
     setIsStartModalOpen(false);
-    setTimeout(() => setIsCompact(true), 100);
+    requestCompactEntry({ delayMs: 100 });
   };
 
   const handleSaveSessionNotes = async (notes) => {
@@ -3269,9 +3282,7 @@ export default function App() {
     const reopenedPrevModal = popAndOpenPrevModal();
     if (historyReturnToCompactRef.current && !reopenedPrevModal) {
       historyReturnToCompactRef.current = false;
-      setTimeout(() => {
-        setIsCompact(true);
-      }, 80);
+      requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
       return;
     }
     historyReturnToCompactRef.current = false;
@@ -3282,13 +3293,11 @@ export default function App() {
     const reopenedPrevModal = popAndOpenPrevModal();
     if (settingsReturnToCompactRef.current && !reopenedPrevModal) {
       settingsReturnToCompactRef.current = false;
-      setTimeout(() => {
-        setIsCompact(true);
-      }, 80);
+      requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
       return;
     }
     settingsReturnToCompactRef.current = false;
-  }, [popAndOpenPrevModal]);
+  }, [popAndOpenPrevModal, requestCompactEntry]);
 
   const handleUpdateTaskNotes = async (sessionId, newNotes) => {
     try {
@@ -3642,19 +3651,27 @@ export default function App() {
 
           setCompactTransitioning(true);
           didJustExitCompactRef.current = true;
-          await window.electronAPI.exitPillMode();
+          const pendingHeight = pendingCompactExitHeightRef.current;
+          pendingCompactExitHeightRef.current = null;
+          await window.electronAPI.exitPillMode({
+            width: WINDOW_SIZES.baseWidth,
+            height: Number.isFinite(pendingHeight) ? pendingHeight : undefined,
+          });
           windowModeActualRef.current = 'full';
 
-          const pendingHeight = pendingCompactExitHeightRef.current;
           if (Number.isFinite(pendingHeight)) {
             window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
-            pendingCompactExitHeightRef.current = null;
           }
           if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
           compactRevealTimerRef.current = setTimeout(() => {
             if (Number.isFinite(pendingHeight)) {
               window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
             }
+            setTimeout(() => {
+              if (Number.isFinite(pendingHeight)) {
+                window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
+              }
+            }, 150);
             setCompactTransitioning(false);
             compactRevealTimerRef.current = null;
           }, 90);
@@ -4079,7 +4096,7 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="Enter Compact Mode" onClick={() => setIsCompact(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                <Button aria-label="Enter Compact Mode" onClick={() => requestCompactEntry()} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
                   <Minimize2 style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>

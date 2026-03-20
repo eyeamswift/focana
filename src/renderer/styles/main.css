@@ -1251,6 +1251,122 @@ html[data-window-mode='pill'] #root {
   transform: none;
 }
 
+/* === Time-Up Modal === */
+.time-up-modal {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+}
+
+.time-up-icon {
+  margin: 0 auto 0.625rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  background: var(--bg-card);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+}
+
+.time-up-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0.25rem;
+}
+
+.time-up-section + .time-up-section {
+  border-top: 1px solid var(--border-default);
+  margin-top: 0.375rem;
+}
+
+.time-up-section-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.time-up-add-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.time-up-add-row .tooltip-wrapper {
+  flex: 1;
+}
+
+.time-up-btn-primary {
+  width: 100%;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.time-up-btn-primary:hover {
+  background: var(--brand-hover);
+}
+
+.time-up-minutes-input {
+  width: 3.5rem;
+  flex-shrink: 0;
+  text-align: center;
+  border-color: var(--border-default);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.time-up-btn-freeflow {
+  width: 100%;
+  border-color: var(--border-default);
+  color: var(--text-primary);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.time-up-btn-freeflow:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.time-up-stop-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.time-up-stop-row .tooltip-wrapper {
+  flex: 1;
+}
+
+.time-up-btn-secondary {
+  width: 100%;
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.time-up-btn-secondary:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
 /* === Check-in Prompt Popup === */
 .checkin-popup-overlay {
   position: fixed;

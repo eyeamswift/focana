@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Pill mode resize
   enterPillMode: (options) => ipcRenderer.invoke('enter-pill-mode', options),
-  exitPillMode: () => ipcRenderer.invoke('exit-pill-mode'),
+  exitPillMode: (options) => ipcRenderer.invoke('exit-pill-mode', options),
   setPillWidth: (width) => ipcRenderer.invoke('set-pill-width', width),
   setPillSize: (size) => ipcRenderer.invoke('set-pill-size', size),
   capturePillRestoreBounds: () => ipcRenderer.invoke('capture-pill-restore-bounds'),

@@ -1106,6 +1106,24 @@ test('manual re-entry into compact restores the previous compact position', asyn
   }
 });
 
+test('manual exit from compact restores a usable full window shell', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-full-shell');
+    await exitCompactMode(page);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.width || 0, { timeout: 7000 })
+      .toBeGreaterThanOrEqual(500);
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeGreaterThanOrEqual(120);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('open parking lot shortcut exits compact mode before showing quick capture', async () => {
   const { electronApp, page, cleanup } = await launchApp();
   try {

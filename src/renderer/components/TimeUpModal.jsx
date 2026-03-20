@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { AlarmClock, Plus, Pause, X } from 'lucide-react';
+import { AlarmClock, Plus, Play, Pause, X } from 'lucide-react';
 
 export default function TimeUpModal({
   isOpen,
@@ -26,8 +26,8 @@ export default function TimeUpModal({
 
   const handleAddTime = () => {
     const parsed = parseInt(extraMinutes, 10);
-    const safeMinutes = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 240) : 5;
-    onAddTime(safeMinutes);
+    const safe = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 240) : 5;
+    onAddTime(safe);
   };
 
   return (
@@ -35,39 +35,37 @@ export default function TimeUpModal({
       if (open) return;
       onEndSession();
     }}>
-      <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '30rem' }}>
+      <DialogContent className="time-up-modal" style={{ maxWidth: '22rem' }}>
         <button className="dialog-close-btn" onClick={onEndSession} aria-label="Close">
           <X style={{ width: 16, height: 16 }} />
         </button>
 
-        <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.5rem' }}>
-          <div style={{
-            margin: '0 auto',
-            width: '3rem',
-            height: '3rem',
-            background: 'var(--bg-card)',
-            borderRadius: '9999px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '0.75rem',
-            border: '1px solid var(--border-default)',
-          }}>
+        <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.25rem' }}>
+          <div className="time-up-icon">
             <AlarmClock style={{ width: 20, height: 20, color: 'var(--brand-action)' }} />
           </div>
-          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Time is up
+          <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            Time's up
           </DialogTitle>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            "{taskName || 'Untitled task'}"
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', marginTop: '0.125rem' }}>
+            {taskName || 'Untitled task'}
           </p>
         </DialogHeader>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
-          <p style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-            Continue for {safeMinutes} {minuteLabel}, or switch to Freeflow.
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {/* ── Keep going ── */}
+        <div className="time-up-section">
+          <span className="time-up-section-label">Keep going</span>
+
+          <div className="time-up-add-row">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleAddTime} className="time-up-btn-primary">
+                  <Plus style={{ width: 14, height: 14 }} />
+                  Add {safeMinutes} {minuteLabel}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Continue this session for {safeMinutes} more {minuteLabel}</p></TooltipContent>
+            </Tooltip>
             <Input
               type="number"
               min="1"
@@ -80,71 +78,60 @@ export default function TimeUpModal({
                   handleAddTime();
                 }
               }}
-              style={{
-                width: '6rem',
-                textAlign: 'center',
-                borderColor: 'var(--border-strong)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
+              className="time-up-minutes-input"
             />
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>minutes</span>
           </div>
-        </div>
-
-        <DialogFooter>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={onEndSession}
-                variant="outline"
-                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-              >
-                End Session
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Save this session and close the timer</p></TooltipContent>
-          </Tooltip>
-
-          {onResumeLater && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={onResumeLater}
-                  variant="outline"
-                  style={{ borderColor: 'var(--brand-action)', color: 'var(--text-primary)' }}
-                >
-                  <Pause style={{ width: 14, height: 14, marginRight: '0.35rem' }} />
-                  Resume Later
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Take a break — your task stays ready</p></TooltipContent>
-            </Tooltip>
-          )}
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleAddTime} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                <Plus style={{ width: 14, height: 14, marginRight: '0.35rem' }} />
-                Continue Timed
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Continue this session for {safeMinutes} more {minuteLabel}</p></TooltipContent>
-          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 onClick={onSwitchToFreeflow}
                 variant="outline"
-                style={{ borderColor: 'var(--brand-primary)', color: 'var(--text-primary)' }}
+                className="time-up-btn-freeflow"
               >
+                <Play style={{ width: 13, height: 13 }} />
                 Switch to Freeflow
               </Button>
             </TooltipTrigger>
-            <TooltipContent><p>Continue without a timer and restart freeflow check-ins</p></TooltipContent>
+            <TooltipContent><p>Continue without a timer</p></TooltipContent>
           </Tooltip>
-        </DialogFooter>
+        </div>
+
+        {/* ── Or stop ── */}
+        <div className="time-up-section">
+          <span className="time-up-section-label">Or stop</span>
+
+          <div className="time-up-stop-row">
+            {onResumeLater && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={onResumeLater}
+                    variant="outline"
+                    className="time-up-btn-secondary"
+                  >
+                    <Pause style={{ width: 13, height: 13 }} />
+                    Resume Later
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Take a break — your task stays ready</p></TooltipContent>
+              </Tooltip>
+            )}
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={onEndSession}
+                  variant="outline"
+                  className="time-up-btn-secondary"
+                >
+                  End Session
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Save and close this session</p></TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
