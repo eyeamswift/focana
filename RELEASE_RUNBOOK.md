@@ -10,6 +10,7 @@
   - `FOCANA_LEMON_PRODUCT_ID=...`
   - `FOCANA_LEMON_VARIANT_IDS=...`
 - Standard releases must use a new non-prerelease semver such as `1.2.0`.
+- Do not ship artifacts from `npm run build` or `npm run build:mac`. Those commands can still generate local builds that are not safe for release.
 
 ## Standard Mac Release Flow
 
@@ -19,7 +20,7 @@
    ```bash
    npm run build:mac:release
    ```
-   This embeds the configured Lemon store/product/variant IDs into the packaged app so Finder-launched builds can validate keys.
+   This now fails closed if Apple notarization or Lemon licensing env vars are missing. It also validates the notarized `.app` bundles, staples the final DMGs, refreshes `release/latest-mac.yml`, and removes stale `.dmg.blockmap` files that no longer match the stapled DMGs.
 4. Create and push the git tag for that version:
    ```bash
    git tag v1.2.0
@@ -29,11 +30,9 @@
    ```bash
    gh release create v1.2.0 \
      release/Focana-1.2.0-mac-arm64.dmg \
-     release/Focana-1.2.0-mac-arm64.dmg.blockmap \
      release/Focana-1.2.0-mac-arm64.zip \
      release/Focana-1.2.0-mac-arm64.zip.blockmap \
      release/Focana-1.2.0-mac-x64.dmg \
-     release/Focana-1.2.0-mac-x64.dmg.blockmap \
      release/Focana-1.2.0-mac-x64.zip \
      release/Focana-1.2.0-mac-x64.zip.blockmap \
      release/latest-mac.yml \
@@ -50,7 +49,9 @@ The `v1.2.0` release must contain:
 - `Focana-1.2.0-mac-x64.zip`
 - `Focana-1.2.0-mac-arm64.dmg`
 - `Focana-1.2.0-mac-x64.dmg`
-- all four blockmap files
+- both ZIP blockmap files
+
+Do not upload DMG blockmaps. DMG stapling changes the DMG bytes, so the build script removes those stale blockmaps automatically.
 
 Verify the updater manifest URL resolves:
 
@@ -82,13 +83,12 @@ Do not rebuild first.
 
 The published `latest-mac.yml` is stale relative to the uploaded binaries.
 
-1. Recalculate local artifact hashes.
-2. Update `release/latest-mac.yml` to match the uploaded `.zip` and `.dmg` files.
-3. Re-upload only the manifest:
+1. Re-run `npm run build:mac:release` so the script can restaple the DMGs and refresh `release/latest-mac.yml`.
+2. Re-upload only the corrected manifest:
    ```bash
    gh release upload v1.2.0 release/latest-mac.yml --repo eyeamswift/focana --clobber
    ```
-4. Verify the live manifest contents:
+3. Verify the live manifest contents:
    ```bash
    curl -L https://github.com/eyeamswift/focana/releases/download/v1.2.0/latest-mac.yml
    ```

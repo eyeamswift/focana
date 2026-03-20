@@ -137,6 +137,18 @@ async function readMainWindowBounds(electronApp) {
   });
 }
 
+async function readWindowVisibilityState(electronApp) {
+  return electronApp.evaluate(({ BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows();
+    const main = windows.find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    const floating = windows.find((win) => win.webContents.getURL().includes('floating-icon.html'));
+    return {
+      mainVisible: Boolean(main && main.isVisible()),
+      floatingVisible: Boolean(floating && floating.isVisible()),
+    };
+  });
+}
+
 async function installTimeOffsetControl(page) {
   await page.evaluate(() => {
     if (!window.__focanaE2ETimeControlInstalled) {
@@ -835,6 +847,78 @@ test('freeflow check-in appears at the configured interval', async () => {
 
     await expect(page.getByText('Still focused on')).toBeVisible();
     await expect(page.getByText('checkin-interval?')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow check-in exits compact mode and returns to compact after responding', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'compact-checkin-return');
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('compact-checkin-return?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow check-in restores from floating minimize and returns there after detour dismiss', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'floating-checkin-return');
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('floating-checkin-return?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'No', exact: true }).click();
+    await expect(page.getByText('What happened?')).toBeVisible();
+    await page.getByRole('button', { name: 'Took a detour' }).click();
+    await expect(page.getByRole('button', { name: 'Jot it down' })).toBeVisible();
+    await page.locator('button[title="Dismiss"]').click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
   } finally {
     await cleanup();
   }

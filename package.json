@@ -14,7 +14,7 @@
     "build:mac": "npm run build:renderer && electron-builder --config electron-builder.config.js --mac",
     "build:win": "npm run build:renderer && electron-builder --config electron-builder.config.js --win",
     "build:all": "npm run build:renderer && electron-builder --config electron-builder.config.js -mwl",
-    "build:mac:release": "npm run build:renderer && node scripts/mac-release.js full",
+    "build:mac:release": "npm run build:renderer && node scripts/mac-release.js full --require-notarization",
     "build:mac:publish": "npm run build:renderer && node scripts/mac-release.js full --publish always --require-notarization",
     "build:mac:notarize": "npm run build:renderer && node scripts/mac-release.js zip --require-notarization",
     "build:mac:notarize:full": "npm run build:renderer && node scripts/mac-release.js full --require-notarization",

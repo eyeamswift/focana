@@ -314,10 +314,12 @@ export default function App() {
   const timeRef = useRef(0);
   const elapsedBeforeRunRef = useRef(0);
   const parkingLotReturnToCompactRef = useRef(false);
+  const parkingLotReturnToFloatingRef = useRef(false);
   const historyReturnToCompactRef = useRef(false);
   const settingsReturnToCompactRef = useRef(false);
   const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
   const checkInReturnToCompactRef = useRef(false);
+  const checkInReturnToFloatingRef = useRef(false);
   const checkInResolveTimeoutRef = useRef(null);
   const checkInFreeflowNextRef = useRef(null);
   const checkInTimedThresholdsRef = useRef([]);
@@ -338,6 +340,8 @@ export default function App() {
   const checkInStateRef = useRef('idle');
   const compactEnteredAtRef = useRef(null);
   const historyResumeCarryoverSecondsRef = useRef(0);
+  const postSessionParkingLotReturnToCompactRef = useRef(false);
+  const postSessionParkingLotReturnToFloatingRef = useRef(false);
   const timeUpReturnToCompactRef = useRef(false);
   const timeUpReturnToFloatingRef = useRef(false);
   const timeUpTriggerKeyRef = useRef('');
@@ -1219,11 +1223,13 @@ export default function App() {
     track('parking_lot_opened', { source: 'manual' });
     if (isCompact) {
       parkingLotReturnToCompactRef.current = true;
+      parkingLotReturnToFloatingRef.current = false;
       handleExitCompact();
       setTimeout(() => setDistractionJarOpen(true), 140);
       return;
     }
     parkingLotReturnToCompactRef.current = false;
+    parkingLotReturnToFloatingRef.current = false;
     setDistractionJarOpen(true);
   }, [isCompact, handleExitCompact]);
 
@@ -1672,6 +1678,7 @@ export default function App() {
     checkInShortIntervalRef.current = false;
     checkInPromptCooldownUntilRef.current = 0;
     checkInReturnToCompactRef.current = false;
+    checkInReturnToFloatingRef.current = false;
     clearCheckInUi();
   }, [clearCheckInUi]);
 
@@ -1789,13 +1796,38 @@ export default function App() {
     clearTimedCueSegment();
   }, [clearCheckInRuntime, clearCompactPulseRuntime, clearTimedCueSegment]);
 
+  const restoreDisplayMode = useCallback(({ returnToCompact = false, returnToFloating = false } = {}) => {
+    if (returnToFloating) {
+      pendingCompactRestoreRef.current = false;
+      setTimeout(() => {
+        void window.electronAPI.enterFloatingMinimize?.();
+      }, 120);
+      return;
+    }
+
+    if (returnToCompact) {
+      pendingCompactRestoreRef.current = true;
+      setTimeout(() => {
+        setIsCompact(true);
+      }, 80);
+      return;
+    }
+
+    pendingCompactRestoreRef.current = false;
+  }, []);
+
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = 0;
     sessionToSave.current = null;
     parkingLotReturnToCompactRef.current = false;
+    parkingLotReturnToFloatingRef.current = false;
     historyReturnToCompactRef.current = false;
     settingsReturnToCompactRef.current = false;
+    postSessionParkingLotReturnToCompactRef.current = false;
+    postSessionParkingLotReturnToFloatingRef.current = false;
+    timeUpReturnToCompactRef.current = false;
+    timeUpReturnToFloatingRef.current = false;
     setIsRunning(false);
     setTime(0);
     setTask('');
@@ -1832,17 +1864,29 @@ export default function App() {
     setPostSessionParkingLotSessionId(sessionId);
   }, []);
 
-  const finalizeCompletedSessionUi = useCallback((completedSessionId, { focusTaskInput = false } = {}) => {
+  const finalizeCompletedSessionUi = useCallback((completedSessionId, {
+    focusTaskInput = false,
+    returnToCompact = false,
+    returnToFloating = false,
+  } = {}) => {
     const shouldShowParkingLot = hasPostSessionParkingLotItems(completedSessionId);
     handleClear();
     if (shouldShowParkingLot && completedSessionId) {
+      postSessionParkingLotReturnToCompactRef.current = returnToCompact;
+      postSessionParkingLotReturnToFloatingRef.current = returnToFloating;
       openPostSessionParkingLot(completedSessionId);
+      return;
+    }
+    postSessionParkingLotReturnToCompactRef.current = false;
+    postSessionParkingLotReturnToFloatingRef.current = false;
+    if (returnToCompact || returnToFloating) {
+      restoreDisplayMode({ returnToCompact, returnToFloating });
       return;
     }
     if (focusTaskInput) {
       setTimeout(() => taskInputRef.current?.focus(), 140);
     }
-  }, [handleClear, hasPostSessionParkingLotItems, openPostSessionParkingLot]);
+  }, [handleClear, hasPostSessionParkingLotItems, openPostSessionParkingLot, restoreDisplayMode]);
 
   useEffect(() => {
     getElapsedSecondsRef.current = getElapsedSeconds;
@@ -1925,6 +1969,8 @@ export default function App() {
   const resolveCheckIn = useCallback(async (status) => {
     if (checkInStateRef.current !== 'prompting') return;
     if (status !== 'focused') return;
+    const shouldReturnToCompact = checkInReturnToCompactRef.current;
+    const shouldReturnToFloating = checkInReturnToFloatingRef.current;
     const elapsedSec = getElapsedSeconds();
     await logCheckIn(status, elapsedSec);
 
@@ -1958,6 +2004,7 @@ export default function App() {
 
     if (isCompact) {
       clearCheckInUi();
+      restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
       return;
     }
 
@@ -1965,6 +2012,7 @@ export default function App() {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInResolveTimeoutRef.current = setTimeout(() => {
       clearCheckInUi();
+      restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
     }, 2000);
   }, [
     advanceCheckInScheduleAfterResult,
@@ -1975,6 +2023,7 @@ export default function App() {
     mode,
     initialTime,
     isCompact,
+    restoreDisplayMode,
     showToast,
     triggerConfetti,
   ]);
@@ -1990,8 +2039,10 @@ export default function App() {
 
     if (isCompact) {
       window.electronAPI.capturePillRestoreBounds?.();
-      pendingCompactRestoreRef.current = true;
-      checkInReturnToCompactRef.current = true;
+      pendingCompactRestoreRef.current = false;
+      if (!checkInReturnToCompactRef.current && !checkInReturnToFloatingRef.current) {
+        checkInReturnToCompactRef.current = true;
+      }
       handleExitCompact();
       setTimeout(() => {
         applyDetourChoiceState();
@@ -1999,16 +2050,17 @@ export default function App() {
       return;
     }
 
-    pendingCompactRestoreRef.current = false;
-    checkInReturnToCompactRef.current = false;
     applyDetourChoiceState();
   }, [isCompact, handleExitCompact]);
 
   const handleCheckInFinished = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+    const shouldReturnToCompact = checkInReturnToCompactRef.current;
+    const shouldReturnToFloating = checkInReturnToFloatingRef.current;
     pendingCompactRestoreRef.current = false;
-    checkInReturnToCompactRef.current = false; // session ending — no return to compact
+    checkInReturnToCompactRef.current = false;
+    checkInReturnToFloatingRef.current = false;
 
     const elapsedSec = getElapsedSeconds();
     await logCheckIn('completed', elapsedSec);
@@ -2023,7 +2075,11 @@ export default function App() {
 
     checkInResolveTimeoutRef.current = setTimeout(async () => {
       const completedSessionId = await completeSessionFromCheckIn(elapsedSec);
-      finalizeCompletedSessionUi(completedSessionId, { focusTaskInput: true });
+      finalizeCompletedSessionUi(completedSessionId, {
+        focusTaskInput: !shouldReturnToCompact && !shouldReturnToFloating,
+        returnToCompact: shouldReturnToCompact,
+        returnToFloating: shouldReturnToFloating,
+      });
     }, 2000);
   }, [getElapsedSeconds, logCheckIn, triggerConfetti, completeSessionFromCheckIn, finalizeCompletedSessionUi]);
 
@@ -2053,20 +2109,17 @@ export default function App() {
   const handleCheckInDetourDismiss = useCallback(() => {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     const shouldReturnToCompact = checkInReturnToCompactRef.current;
+    const shouldReturnToFloating = checkInReturnToFloatingRef.current;
     checkInReturnToCompactRef.current = false;
+    checkInReturnToFloatingRef.current = false;
     triggerPulse('celebration', 1);
     setCheckInCelebrating(true);
     setCheckInCelebrationType('focused');
     checkInResolveTimeoutRef.current = setTimeout(() => {
       clearCheckInUi();
-      if (shouldReturnToCompact) {
-        pendingCompactRestoreRef.current = true;
-        setTimeout(() => setIsCompact(true), 80);
-      } else {
-        pendingCompactRestoreRef.current = false;
-      }
+      restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
     }, 700);
-  }, [clearCheckInUi, triggerPulse]);
+  }, [clearCheckInUi, restoreDisplayMode, triggerPulse]);
 
   const hasBlockingWindowOpen =
     showSettings ||
@@ -2078,7 +2131,7 @@ export default function App() {
     showNotesModal ||
     showQuickCapture;
 
-  const triggerCheckInPrompt = useCallback(({ skipCooldown = false } = {}) => {
+  const triggerCheckInPrompt = useCallback(async ({ skipCooldown = false } = {}) => {
     if (!checkInSettings.enabled) return false;
     if (dndEnabled) return false;
     if (hasBlockingWindowOpen) return false;
@@ -2092,20 +2145,93 @@ export default function App() {
     if (checkInStateRef.current !== 'idle') return false;
 
     track('checkin_triggered', { mode, elapsed_minutes: Math.round(getElapsedSeconds() / 6) / 10 });
-    setCheckInState('prompting');
-    setCheckInMessage('');
-    setCheckInCelebrating(false);
-    setCheckInCelebrationType('none');
     if (!skipCooldown) {
       checkInPromptCooldownUntilRef.current = Date.now() + CHECKIN_PROMPT_COOLDOWN_MS;
     }
+
+    const openPrompt = () => {
+      if (checkInStateRef.current !== 'idle' || !isRunningRef.current) return;
+      setCheckInState('prompting');
+      setCheckInMessage('');
+      setCheckInCelebrating(false);
+      setCheckInCelebrationType('none');
+      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
+    };
+
+    const restoredFromFloating = await window.electronAPI.getFloatingMinimized?.() || false;
+    const shouldReturnToCompact = !restoredFromFloating && isCompact;
+
+    checkInReturnToFloatingRef.current = Boolean(restoredFromFloating);
+    checkInReturnToCompactRef.current = shouldReturnToCompact;
+
+    if (restoredFromFloating) {
+      pendingCompactRestoreRef.current = false;
+      window.electronAPI.bringToFront?.();
+      setTimeout(() => {
+        openPrompt();
+      }, 160);
+      return true;
+    }
+
+    if (shouldReturnToCompact) {
+      window.electronAPI.capturePillRestoreBounds?.();
+      pendingCompactRestoreRef.current = false;
+      handleExitCompact();
+      setTimeout(() => {
+        openPrompt();
+      }, 140);
+      return true;
+    }
+
+    openPrompt();
     // Keep the prompt open until the user explicitly responds.
     return true;
-  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, resolveCheckIn, mode, getElapsedSeconds]);
+  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, mode, getElapsedSeconds, isCompact, handleExitCompact]);
 
   useEffect(() => {
     checkInStateRef.current = checkInState;
   }, [checkInState]);
+
+  useEffect(() => {
+    if (checkInState !== 'prompting') return undefined;
+
+    let cancelled = false;
+
+    const revealPromptInMainWindow = async () => {
+      const restoredFromFloating = await window.electronAPI.getFloatingMinimized?.() || false;
+      if (cancelled) return;
+
+      if (restoredFromFloating) {
+        if (!checkInReturnToFloatingRef.current && !checkInReturnToCompactRef.current) {
+          checkInReturnToFloatingRef.current = true;
+        }
+        pendingCompactRestoreRef.current = false;
+        window.electronAPI.bringToFront?.();
+        setTimeout(() => {
+          window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
+        }, 160);
+        return;
+      }
+
+      if (!isCompact) return;
+
+      if (!checkInReturnToCompactRef.current && !checkInReturnToFloatingRef.current) {
+        checkInReturnToCompactRef.current = true;
+      }
+      window.electronAPI.capturePillRestoreBounds?.();
+      pendingCompactRestoreRef.current = false;
+      handleExitCompact();
+      setTimeout(() => {
+        window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
+      }, 140);
+    };
+
+    void revealPromptInMainWindow();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkInState, isCompact, handleExitCompact]);
 
   // When check-ins are disabled mid-session, clean up runtime state
   useEffect(() => {
@@ -2340,26 +2466,28 @@ export default function App() {
 
   const handleCloseParkingLot = useCallback(() => {
     setDistractionJarOpen(false);
+    const shouldReturnToCompact = parkingLotReturnToCompactRef.current;
+    const shouldReturnToFloating = parkingLotReturnToFloatingRef.current;
     const reopenedPrevModal = popAndOpenPrevModal();
-    if (parkingLotReturnToCompactRef.current && !reopenedPrevModal) {
-      parkingLotReturnToCompactRef.current = false;
-      pendingCompactRestoreRef.current = true;
-      setTimeout(() => {
-        setIsCompact(true);
-      }, 80);
+    parkingLotReturnToCompactRef.current = false;
+    parkingLotReturnToFloatingRef.current = false;
+    if (!reopenedPrevModal && (shouldReturnToCompact || shouldReturnToFloating)) {
+      restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
       return;
     }
-    parkingLotReturnToCompactRef.current = false;
-  }, [popAndOpenPrevModal]);
+  }, [popAndOpenPrevModal, restoreDisplayMode]);
 
   const handleCheckInParkIt = useCallback(() => {
     track('detour_parked');
     const shouldReturnToCompact = checkInReturnToCompactRef.current;
+    const shouldReturnToFloating = checkInReturnToFloatingRef.current;
     checkInReturnToCompactRef.current = false;
+    checkInReturnToFloatingRef.current = false;
     clearCheckInUi();
     // We're already in full view (exited compact for detour UI).
-    // Pass the return-to-compact intent to the parking lot flow.
+    // Pass the return intent to the parking lot flow.
     parkingLotReturnToCompactRef.current = shouldReturnToCompact;
+    parkingLotReturnToFloatingRef.current = shouldReturnToFloating;
     setDistractionJarOpen(true);
   }, [clearCheckInUi]);
 
@@ -2872,6 +3000,10 @@ export default function App() {
     suppressHistoryPopRef.current = suppressHistoryPop;
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = normalizedCarryoverSeconds;
+    parkingLotReturnToFloatingRef.current = false;
+    postSessionParkingLotReturnToCompactRef.current = false;
+    postSessionParkingLotReturnToFloatingRef.current = false;
+    timeUpReturnToCompactRef.current = false;
     timeUpReturnToFloatingRef.current = false;
     resetSessionFeedbackFlow();
     clearCompactSessionCues();
@@ -3151,10 +3283,17 @@ export default function App() {
       return bCreatedAt - aCreatedAt;
     });
 
-  const closePostSessionParkingLot = useCallback(() => {
+  const closePostSessionParkingLot = useCallback(({ restorePreviousDisplayMode = true } = {}) => {
+    const shouldReturnToCompact = postSessionParkingLotReturnToCompactRef.current;
+    const shouldReturnToFloating = postSessionParkingLotReturnToFloatingRef.current;
+    postSessionParkingLotReturnToCompactRef.current = false;
+    postSessionParkingLotReturnToFloatingRef.current = false;
     setPostSessionParkingLotSessionId(null);
     setPostSessionParkingLotHiddenIds([]);
-  }, []);
+    if (restorePreviousDisplayMode) {
+      restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
+    }
+  }, [restoreDisplayMode]);
 
   useEffect(() => {
     if (!postSessionParkingLotSessionId) return;
@@ -3195,7 +3334,7 @@ export default function App() {
     const thought = thoughts.find((entry) => entry.id === thoughtId);
     if (!thought?.text) return;
     setThoughts((prev) => prev.filter((entry) => entry.id !== thoughtId));
-    closePostSessionParkingLot();
+    closePostSessionParkingLot({ restorePreviousDisplayMode: false });
     prepareTaskForStartChooser({
       taskText: thought.text,
       notes: '',
@@ -4147,6 +4286,7 @@ export default function App() {
         onOpenParkingLot={() => {
           setShowSettings(false);
           parkingLotReturnToCompactRef.current = false;
+          parkingLotReturnToFloatingRef.current = false;
           pushModal('settings');
           setDistractionJarOpen(true);
         }}

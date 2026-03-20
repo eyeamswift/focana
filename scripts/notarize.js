@@ -30,7 +30,8 @@ exports.default = async function notarizeApp(context) {
     if (requireNotarization) {
       throw new Error(`[notarize] ${message}`);
     }
-    console.log(`[notarize] Skipping notarization: ${message}`);
+    console.warn(`[notarize] Skipping notarization: ${message}`);
+    console.warn('[notarize] These artifacts are not safe to ship. Use npm run build:mac:release or npm run build:mac:publish instead.');
     return;
   }
 
