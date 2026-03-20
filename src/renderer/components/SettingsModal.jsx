@@ -169,6 +169,10 @@ function getUpdateStatusSummary(updateState) {
   }
 }
 
+function normalizePreferredName(value) {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 80) : '';
+}
+
 function formatLicenseTimestamp(value) {
   if (!value) return 'Not yet';
   const date = new Date(value);
@@ -220,6 +224,8 @@ export default function SettingsModal({
   onPinnedControlsChange,
   enabledControlsDefault,
   onEnabledControlsChange,
+  preferredName,
+  onPreferredNameChange,
   onShowTaskInCompactDefaultChange,
   dndEnabled,
   onDndChange,
@@ -238,6 +244,8 @@ export default function SettingsModal({
   const [alwaysOnTop, setAlwaysOnTop] = useState(alwaysOnTopDefault ?? true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
+  const [tempPreferredName, setTempPreferredName] = useState(normalizePreferredName(preferredName));
+  const [preferredNameError, setPreferredNameError] = useState('');
   const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
   const [pinnedControls, setPinnedControls] = useState(normalizeToolbarControlMap(pinnedControlsDefault, PINNED_CONTROLS_DEFAULT));
   const [enabledControls, setEnabledControls] = useState(normalizeToolbarControlMap(enabledControlsDefault, ENABLED_CONTROLS_DEFAULT));
@@ -264,6 +272,7 @@ export default function SettingsModal({
     }
     setRecordingKey(null);
     setLicenseAction('');
+    setPreferredNameError('');
   }, [isOpen]);
 
   useEffect(() => {
@@ -278,6 +287,7 @@ export default function SettingsModal({
         setAlwaysOnTop(settings.alwaysOnTop ?? alwaysOnTopDefault ?? true);
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
+        setTempPreferredName(normalizePreferredName(await window.electronAPI.storeGet('preferredName')) || normalizePreferredName(preferredName));
         const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
         setShowTaskInCompact(
           hasExplicitCompactSetting
@@ -293,13 +303,21 @@ export default function SettingsModal({
         );
       })();
     }
-  }, [isOpen, shortcuts, showTaskInCompactDefault, shortcutsEnabledDefault, alwaysOnTopDefault, pinnedControlsDefault, enabledControlsDefault, dndEnabled, checkInSettings]);
+  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, isOpen, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault, showTaskInCompactDefault]);
 
   const handleSave = async () => {
+    const normalizedPreferredName = normalizePreferredName(tempPreferredName);
+    if (!normalizedPreferredName) {
+      setPreferredNameError('Enter the name you want Focana to use.');
+      return;
+    }
+
     const normalizedShortcuts = mergeShortcutsWithDefaults(tempShortcuts);
     onShortcutsChange(normalizedShortcuts);
 
     const oldSettings = await window.electronAPI.storeGet('settings') || {};
+    await window.electronAPI.savePreferredName?.(normalizedPreferredName);
+    onPreferredNameChange?.(normalizedPreferredName);
 
     await Promise.all([
       window.electronAPI.storeSet('settings.shortcutsEnabled', shortcutsEnabled),
@@ -321,6 +339,7 @@ export default function SettingsModal({
       shortcutsEnabled, alwaysOnTop, bringToFront, keepTextAfterCompletion,
       showTaskInCompact, pinnedControls, enabledControls, doNotDisturb,
       checkInEnabled, checkInIntervalFreeflow,
+      preferredName: normalizedPreferredName,
     };
     const oldMap = {
       shortcutsEnabled: oldSettings.shortcutsEnabled,
@@ -333,6 +352,7 @@ export default function SettingsModal({
       doNotDisturb: oldSettings.doNotDisturbEnabled,
       checkInEnabled: oldSettings.checkInEnabled,
       checkInIntervalFreeflow: oldSettings.checkInIntervalFreeflow,
+      preferredName: normalizePreferredName(preferredName),
     };
     for (const [k, v] of Object.entries(trackable)) {
       if (v !== oldMap[k]) diffs[k] = v;
@@ -357,6 +377,8 @@ export default function SettingsModal({
     setAlwaysOnTop(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
+    setTempPreferredName(normalizePreferredName(preferredName));
+    setPreferredNameError('');
     setShowTaskInCompact(true);
     setPinnedControls(PINNED_CONTROLS_DEFAULT);
     setEnabledControls(ENABLED_CONTROLS_DEFAULT);
@@ -653,6 +675,42 @@ export default function SettingsModal({
                   </div>
                 </div>
               ) : null}
+
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }} className="space-y-3">
+                <div>
+                  <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Profile</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, marginTop: '0.125rem' }}>
+                    This name is used in encouragement inside Focana and synced for personalized emails.
+                  </p>
+                </div>
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                  <label htmlFor="settings-preferred-name" style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    What should Focana call you?
+                  </label>
+                  <input
+                    id="settings-preferred-name"
+                    type="text"
+                    value={tempPreferredName}
+                    onChange={(event) => {
+                      setTempPreferredName(event.target.value);
+                      if (preferredNameError) setPreferredNameError('');
+                    }}
+                    placeholder="Your name"
+                    className="input"
+                    style={{ width: '100%' }}
+                  />
+                  {preferredNameError ? (
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#B91C1C' }}>
+                      {preferredNameError}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
 
               <div style={{
                 padding: '0.75rem',

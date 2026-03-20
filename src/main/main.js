@@ -69,6 +69,7 @@ const ALLOWED_STORE_KEYS = new Set([
   'sessions',
   'feedbackQueue',
   'userEmail',
+  'preferredName',
   'emailPromptSkipped',
   'settings',
   'settings.theme',
@@ -330,6 +331,13 @@ function sanitizeBooleanMap(value) {
   return normalized;
 }
 
+function sanitizePreferredName(value) {
+  if (typeof value !== 'string') {
+    throw new Error('preferredName must be a string');
+  }
+  return value.trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
 function sanitizeStoreValue(key, value) {
   switch (key) {
     case 'currentTask':
@@ -375,6 +383,8 @@ function sanitizeStoreValue(key, value) {
     case 'userEmail':
       if (typeof value !== 'string') throw new Error('userEmail must be a string');
       return value.trim().slice(0, 320);
+    case 'preferredName':
+      return sanitizePreferredName(value);
     case 'emailPromptSkipped':
     case 'settings.themeManual':
     case 'settings.shortcutsEnabled':
@@ -925,9 +935,9 @@ function syncFloatingWindowState({ preservePosition = true } = {}) {
   return nextState;
 }
 
-function startFloatingStateSync() {
+function startFloatingStateSync({ preservePosition = false } = {}) {
   stopFloatingStateSync();
-  syncFloatingWindowState({ preservePosition: false });
+  syncFloatingWindowState({ preservePosition });
   floatingStateInterval = setInterval(() => {
     syncFloatingWindowState({ preservePosition: true });
   }, 1000);
@@ -1003,15 +1013,15 @@ function createFloatingIconWindow() {
 function enterFloatingIconMode() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
+  const hasExistingFloatingWindow = Boolean(floatingIconWindow && !floatingIconWindow.isDestroyed());
   createFloatingIconWindow();
   if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
 
-  syncFloatingWindowState({ preservePosition: false });
+  startFloatingStateSync({ preservePosition: hasExistingFloatingWindow });
   mainWindow.hide();
   floatingIconWindow.show();
   floatingIconWindow.focus();
   isFloatingMinimized = true;
-  startFloatingStateSync();
 }
 
 function exitFloatingIconMode({ focusMain = true } = {}) {
@@ -1199,6 +1209,10 @@ ipcMain.handle('license:validate', (_event, options) => {
 
 ipcMain.handle('license:deactivate', () => {
   return licenseService.deactivateLicense();
+});
+
+ipcMain.handle('profile:save-preferred-name', (_event, preferredName) => {
+  return licenseService.savePreferredName(preferredName);
 });
 
 ipcMain.handle('feedback:enqueue', (_event, item) => {
@@ -1452,9 +1466,12 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
     // Initial default size for compact mode before renderer computes exact width.
     const targetWidth = 182;
     const targetHeight = PILL_MIN_HEIGHT;
+    const rememberedCompactBounds = lastStablePillBounds
+      ? clampBounds(lastStablePillBounds, 'display')
+      : null;
     const nextBounds = restorePreviousBounds && pendingPillRestoreBounds
       ? clampBounds(pendingPillRestoreBounds, 'display')
-      : buildBottomRightBounds(displayBounds, targetWidth, targetHeight);
+      : (rememberedCompactBounds || buildBottomRightBounds(displayBounds, targetWidth, targetHeight));
     pendingPillRestoreBounds = null;
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
     rememberStablePillBounds(clampBounds(nextBounds, 'display'));
@@ -1574,7 +1591,6 @@ ipcMain.on('pill-drag-end', () => {
 ipcMain.handle('exit-pill-mode', () => {
   if (mainWindow) {
     clearCompactTransientState();
-    lastStablePillBounds = null;
     isPillMode = false;
     mainWindow.setResizable(true);
     mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);

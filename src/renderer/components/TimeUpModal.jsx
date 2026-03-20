@@ -8,11 +8,15 @@ import { AlarmClock, Plus, Pause, X } from 'lucide-react';
 export default function TimeUpModal({
   isOpen,
   taskName,
-  onKeepGoing,
+  onAddTime,
+  onSwitchToFreeflow,
   onEndSession,
   onResumeLater,
 }) {
   const [extraMinutes, setExtraMinutes] = useState('5');
+  const parsedMinutes = parseInt(extraMinutes, 10);
+  const safeMinutes = Number.isFinite(parsedMinutes) ? Math.min(Math.max(parsedMinutes, 1), 240) : 5;
+  const minuteLabel = safeMinutes === 1 ? 'minute' : 'minutes';
 
   useEffect(() => {
     if (isOpen) {
@@ -20,10 +24,10 @@ export default function TimeUpModal({
     }
   }, [isOpen]);
 
-  const handleKeepGoing = () => {
+  const handleAddTime = () => {
     const parsed = parseInt(extraMinutes, 10);
     const safeMinutes = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 240) : 5;
-    onKeepGoing(safeMinutes);
+    onAddTime(safeMinutes);
   };
 
   return (
@@ -61,7 +65,7 @@ export default function TimeUpModal({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
           <p style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-            Keep going? How much more time do you want?
+            Continue for {safeMinutes} {minuteLabel}, or switch to Freeflow.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Input
@@ -73,7 +77,7 @@ export default function TimeUpModal({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  handleKeepGoing();
+                  handleAddTime();
                 }
               }}
               style={{
@@ -120,12 +124,25 @@ export default function TimeUpModal({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleKeepGoing} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+              <Button onClick={handleAddTime} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
                 <Plus style={{ width: 14, height: 14, marginRight: '0.35rem' }} />
-                Keep Going
+                Continue Timed
               </Button>
             </TooltipTrigger>
-            <TooltipContent><p>Add more time and continue this session</p></TooltipContent>
+            <TooltipContent><p>Continue this session for {safeMinutes} more {minuteLabel}</p></TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={onSwitchToFreeflow}
+                variant="outline"
+                style={{ borderColor: 'var(--brand-primary)', color: 'var(--text-primary)' }}
+              >
+                Switch to Freeflow
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Continue without a timer and restart freeflow check-ins</p></TooltipContent>
           </Tooltip>
         </DialogFooter>
       </DialogContent>

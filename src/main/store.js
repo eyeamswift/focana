@@ -82,6 +82,10 @@ const schema = {
     type: 'string',
     default: '',
   },
+  preferredName: {
+    type: 'string',
+    default: '',
+  },
   installId: {
     type: 'string',
     default: '',
@@ -102,6 +106,10 @@ const schema = {
       lastError: { type: ['string', 'null'], default: null },
       productId: { type: ['number', 'null'], default: null },
       variantId: { type: ['number', 'null'], default: null },
+      orderId: { type: ['string', 'null'], default: null },
+      customerIdLs: { type: ['string', 'null'], default: null },
+      customerEmail: { type: ['string', 'null'], default: null },
+      customerName: { type: ['string', 'null'], default: null },
     },
     default: {},
   },

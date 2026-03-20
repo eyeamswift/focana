@@ -53,6 +53,10 @@ function clampText(value, maxLength = 500) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 }
 
+function normalizePreferredName(value) {
+  return clampText(value, 80).replace(/\s+/g, ' ')
+}
+
 function buildInstanceName(app, installId) {
   const hostname = String(os.hostname() || 'Mac').trim() || 'Mac'
   return `${app.getName()} on ${hostname} (${installId.slice(0, 8)})`
@@ -70,6 +74,10 @@ function normalizeStoredLicense(raw) {
       lastError: null,
       productId: null,
       variantId: null,
+      orderId: null,
+      customerIdLs: null,
+      customerEmail: null,
+      customerName: null,
     }
   }
 
@@ -83,6 +91,10 @@ function normalizeStoredLicense(raw) {
     lastError: typeof raw.lastError === 'string' && raw.lastError.trim() ? raw.lastError : null,
     productId: Number.isFinite(Number(raw.productId)) ? Number(raw.productId) : null,
     variantId: Number.isFinite(Number(raw.variantId)) ? Number(raw.variantId) : null,
+    orderId: typeof raw.orderId === 'string' && raw.orderId.trim() ? raw.orderId.trim() : null,
+    customerIdLs: typeof raw.customerIdLs === 'string' && raw.customerIdLs.trim() ? raw.customerIdLs.trim() : null,
+    customerEmail: clampText(raw.customerEmail, 320).toLowerCase() || null,
+    customerName: clampText(raw.customerName, 160) || null,
   }
 }
 
@@ -302,7 +314,11 @@ function isRecoverableValidationError(error) {
 function createLicenseService({ app, store }) {
   let devLicenseStateReset = false
 
-  async function syncLicenseIdentity(meta, { installId, eventAt }) {
+  function getStoredPreferredName() {
+    return normalizePreferredName(store.get('preferredName', ''))
+  }
+
+  async function syncLicenseIdentity(meta, { installId, eventAt, preferredName = getStoredPreferredName() }) {
     const endpointUrl = process.env.FOCANA_LICENSE_SYNC_API_URL || DEFAULT_LICENSE_SYNC_API_URL
     if (!endpointUrl || !meta?.instanceId) {
       return
@@ -318,6 +334,7 @@ function createLicenseService({ app, store }) {
         orderId: meta.orderId,
         customerIdLs: meta.customerId,
         customerEmail: meta.customerEmail,
+        preferredName,
         eventAt,
         installId,
         appVersion: app.getVersion(),
@@ -502,11 +519,15 @@ function createLicenseService({ app, store }) {
         lastValidatedAt: now,
         offlineGraceUntil: nextGrace,
         lastError: null,
-        productId: licenseConfig.productId,
-        variantId: licenseConfig.variantIds[0] || null,
-      })
-      return buildStatus()
-    }
+      productId: licenseConfig.productId,
+      variantId: licenseConfig.variantIds[0] || null,
+      orderId: null,
+      customerIdLs: null,
+      customerEmail: null,
+      customerName: null,
+    })
+    return buildStatus()
+  }
 
     if (isForcedDevLicenseFlow(app)) {
       if (!key) {
@@ -562,6 +583,10 @@ function createLicenseService({ app, store }) {
         lastError: null,
         productId: meta.productId,
         variantId: meta.variantId,
+        orderId: meta.orderId,
+        customerIdLs: meta.customerId,
+        customerEmail: meta.customerEmail,
+        customerName: meta.customerName,
       })
 
       await syncLicenseIdentity(meta, {
@@ -630,6 +655,10 @@ function createLicenseService({ app, store }) {
         lastError: null,
         productId: meta.productId,
         variantId: meta.variantId,
+        orderId: meta.orderId || stored.orderId || null,
+        customerIdLs: meta.customerId || stored.customerIdLs || null,
+        customerEmail: meta.customerEmail || stored.customerEmail || null,
+        customerName: meta.customerName || stored.customerName || null,
       })
 
       await syncLicenseIdentity(meta, {
@@ -682,6 +711,54 @@ function createLicenseService({ app, store }) {
     }
   }
 
+  async function savePreferredName(rawPreferredName) {
+    const preferredName = normalizePreferredName(rawPreferredName)
+    if (!preferredName) {
+      throw new Error('Enter the name you want Focana to use.')
+    }
+
+    store.set('preferredName', preferredName)
+
+    const stored = getStoredLicense()
+    const installId = ensureInstallId()
+    const canSyncIdentity = Boolean(
+      stored.instanceId
+      && (stored.orderId || stored.customerIdLs || stored.customerEmail)
+    )
+
+    if (!canSyncIdentity) {
+      return {
+        preferredName,
+        synced: false,
+      }
+    }
+
+    try {
+      await syncLicenseIdentity({
+        instanceId: stored.instanceId,
+        orderId: stored.orderId,
+        customerId: stored.customerIdLs,
+        customerEmail: stored.customerEmail,
+      }, {
+        installId,
+        eventAt: new Date().toISOString(),
+        preferredName,
+      })
+
+      return {
+        preferredName,
+        synced: true,
+      }
+    } catch (error) {
+      const reason = typeof error?.message === 'string' ? error.message : String(error)
+      console.warn(`[license-sync] Failed to sync preferred name for ${stored.instanceId || 'unknown-instance'}: ${reason}`)
+      return {
+        preferredName,
+        synced: false,
+      }
+    }
+  }
+
   return {
     activateLicense,
     deactivateLicense,
@@ -689,6 +766,7 @@ function createLicenseService({ app, store }) {
     getStatus() {
       return buildStatus()
     },
+    savePreferredName,
     validateLicense,
   }
 }

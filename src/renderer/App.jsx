@@ -130,6 +130,32 @@ function normalizeToolbarControlMap(rawControls, defaults) {
   return normalized;
 }
 
+function normalizePreferredName(value) {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 80) : '';
+}
+
+function getFocusedCheckInMessages(preferredName) {
+  const safeName = normalizePreferredName(preferredName);
+  if (!safeName) return CHECKIN_MESSAGES;
+  return [
+    `Nice, keep going, ${safeName}`,
+    `${safeName}, you're locked in`,
+    `${safeName}, you got this`,
+    `You're doing good, ${safeName}`,
+    `Crushing it, ${safeName}`,
+  ];
+}
+
+function getCompletedCheckInMessages(preferredName) {
+  const safeName = normalizePreferredName(preferredName);
+  if (!safeName) return CHECKIN_COMPLETED_MESSAGES;
+  return [
+    `Done, ${safeName}. What a win`,
+    `Checked off, nice work, ${safeName}`,
+    `That's a wrap, ${safeName}`,
+  ];
+}
+
 function getLicenseGateCopy(status) {
   switch (status) {
     case 'config_error':
@@ -261,12 +287,16 @@ export default function App() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
   const [sessionFeedbackPrompt, setSessionFeedbackPrompt] = useState(null);
-  const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | ready
+  const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | name | ready
   const [startupRevealComplete, setStartupRevealComplete] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState(null);
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [licenseSubmitting, setLicenseSubmitting] = useState(false);
+  const [preferredName, setPreferredName] = useState('');
+  const [preferredNameInput, setPreferredNameInput] = useState('');
+  const [preferredNameSubmitting, setPreferredNameSubmitting] = useState(false);
+  const [preferredNameError, setPreferredNameError] = useState('');
   const [dndEnabled, setDndEnabled] = useState(false);
   const [checkInSettings, setCheckInSettings] = useState({
     enabled: true,
@@ -652,6 +682,17 @@ export default function App() {
     resetCompactPulseScheduleRef.current(mode, initialTime, elapsedBeforeRunRef.current);
   }, [currentSessionId, mode, initialTime]);
 
+  const resolveStartupReadyState = useCallback(async () => {
+    const storedPreferredName = normalizePreferredName(
+      await window.electronAPI.storeGet('preferredName')
+    );
+    setPreferredName(storedPreferredName);
+    setPreferredNameInput((prev) => prev || storedPreferredName);
+    setPreferredNameError('');
+    setStartupGateState(storedPreferredName ? 'ready' : 'name');
+    return storedPreferredName;
+  }, []);
+
   useEffect(() => {
     let isCancelled = false;
     let nextRuntime = null;
@@ -682,7 +723,13 @@ export default function App() {
                 license_status: nextLicenseStatus.status,
               },
             );
-            setStartupGateState('ready');
+            const storedPreferredName = normalizePreferredName(
+              await window.electronAPI.storeGet('preferredName')
+            );
+            if (isCancelled) return;
+            setPreferredName(storedPreferredName);
+            setPreferredNameInput(storedPreferredName);
+            setStartupGateState(storedPreferredName ? 'ready' : 'name');
           } else {
             setStartupGateState('activation');
           }
@@ -697,7 +744,14 @@ export default function App() {
             license_status: nextLicenseStatus?.status || 'not_required',
           },
         );
-        if (!isCancelled) setStartupGateState('ready');
+        const storedPreferredName = normalizePreferredName(
+          await window.electronAPI.storeGet('preferredName')
+        );
+        if (!isCancelled) {
+          setPreferredName(storedPreferredName);
+          setPreferredNameInput(storedPreferredName);
+          setStartupGateState(storedPreferredName ? 'ready' : 'name');
+        }
       } catch (error) {
         console.error('Failed to initialize startup gate:', error);
         if (!isCancelled) {
@@ -729,12 +783,12 @@ export default function App() {
           license_status: nextStatus.status,
         },
       );
-      setStartupGateState('ready');
+      await resolveStartupReadyState();
     } else if (runtimeInfo?.licenseEnforced) {
       setStartupGateState('activation');
     }
     return nextStatus;
-  }, [identifyPosthogInstall, runtimeInfo?.channel, runtimeInfo?.licenseEnforced]);
+  }, [identifyPosthogInstall, resolveStartupReadyState, runtimeInfo?.channel, runtimeInfo?.licenseEnforced]);
 
   const handleLicenseActivation = useCallback(async () => {
     if (licenseSubmitting) return;
@@ -757,7 +811,7 @@ export default function App() {
           },
         );
         setLicenseKeyInput('');
-        setStartupGateState('ready');
+        await resolveStartupReadyState();
         showToast('success', 'License activated for this Mac');
       } else {
         showToast('warning', nextStatus.lastError || getLicenseGateCopy(nextStatus.status));
@@ -773,7 +827,7 @@ export default function App() {
     } finally {
       setLicenseSubmitting(false);
     }
-  }, [identifyPosthogInstall, licenseKeyInput, licenseSubmitting, runtimeInfo?.channel, showToast]);
+  }, [identifyPosthogInstall, licenseKeyInput, licenseSubmitting, resolveStartupReadyState, runtimeInfo?.channel, showToast]);
 
   const handleValidateLicenseNow = useCallback(async () => {
     try {
@@ -792,6 +846,9 @@ export default function App() {
         showToast(nextStatus.status === 'offline_grace' ? 'warning' : 'success', nextStatus.status === 'offline_grace'
           ? 'License check failed, but this Mac is still within offline grace.'
           : 'License verified for this Mac.');
+        if (startupGateState === 'name') {
+          setPreferredNameInput((prev) => prev || preferredName);
+        }
       } else if (runtimeInfo?.licenseEnforced) {
         setStartupGateState('activation');
         showToast('warning', nextStatus.lastError || 'This Mac needs a valid Focana license.');
@@ -803,7 +860,7 @@ export default function App() {
       showToast('warning', 'Could not validate this license right now.');
       return null;
     }
-  }, [identifyPosthogInstall, runtimeInfo?.channel, runtimeInfo?.licenseEnforced, showToast]);
+  }, [identifyPosthogInstall, preferredName, runtimeInfo?.channel, runtimeInfo?.licenseEnforced, showToast, startupGateState]);
 
   const handleDeactivateLicense = useCallback(async () => {
     try {
@@ -824,6 +881,33 @@ export default function App() {
       return null;
     }
   }, [runtimeInfo?.licenseEnforced, showToast]);
+
+  const handlePreferredNameSubmit = useCallback(async () => {
+    if (preferredNameSubmitting) return;
+
+    const normalizedPreferredName = normalizePreferredName(preferredNameInput);
+    if (!normalizedPreferredName) {
+      setPreferredNameError('Enter the name you want Focana to use.');
+      return;
+    }
+
+    setPreferredNameSubmitting(true);
+    setPreferredNameError('');
+
+    try {
+      const result = await window.electronAPI.savePreferredName?.(normalizedPreferredName);
+      const savedPreferredName = normalizePreferredName(result?.preferredName || normalizedPreferredName);
+      setPreferredName(savedPreferredName);
+      setPreferredNameInput(savedPreferredName);
+      setStartupGateState('ready');
+      showToast('success', `Nice to meet you, ${savedPreferredName}.`);
+    } catch (error) {
+      console.error('Failed to save preferred name:', error);
+      setPreferredNameError('Could not save your name right now. Please try again.');
+    } finally {
+      setPreferredNameSubmitting(false);
+    }
+  }, [preferredNameInput, preferredNameSubmitting, showToast]);
 
   useEffect(() => {
     if (startupGateState !== 'ready') return undefined;
@@ -1193,45 +1277,59 @@ export default function App() {
     pendingCompactExitHeightRef.current = exitTargetHeight;
   }, [isRunning, task, contextNotes, isTimerVisible, checkInState, isStartModalOpen]);
 
+  const captureCompactReturnBounds = useCallback(() => {
+    window.electronAPI.capturePillRestoreBounds?.();
+    pendingCompactRestoreRef.current = false;
+  }, []);
+
+  const exitCompactForReturnDetour = useCallback((afterExit, delayMs = 120) => {
+    if (!isCompact) return false;
+    captureCompactReturnBounds();
+    handleExitCompact();
+    if (typeof afterExit === 'function') {
+      setTimeout(() => {
+        afterExit();
+      }, delayMs);
+    }
+    return true;
+  }, [captureCompactReturnBounds, handleExitCompact, isCompact]);
+
   const openHistoryModal = useCallback(() => {
     if (isCompact) {
       historyReturnToCompactRef.current = true;
-      handleExitCompact();
-      setTimeout(() => {
+      exitCompactForReturnDetour(() => {
         setShowHistoryModal(true);
       }, 120);
       return;
     }
     historyReturnToCompactRef.current = false;
     setShowHistoryModal(true);
-  }, [isCompact, handleExitCompact]);
+  }, [exitCompactForReturnDetour, isCompact]);
 
   const openSettingsModal = useCallback(() => {
     if (isCompact) {
       settingsReturnToCompactRef.current = true;
-      handleExitCompact();
-      setTimeout(() => {
+      exitCompactForReturnDetour(() => {
         setShowSettings(true);
       }, 120);
       return;
     }
     settingsReturnToCompactRef.current = false;
     setShowSettings(true);
-  }, [isCompact, handleExitCompact]);
+  }, [exitCompactForReturnDetour, isCompact]);
 
   const handleOpenParkingLot = useCallback(() => {
     track('parking_lot_opened', { source: 'manual' });
     if (isCompact) {
       parkingLotReturnToCompactRef.current = true;
       parkingLotReturnToFloatingRef.current = false;
-      handleExitCompact();
-      setTimeout(() => setDistractionJarOpen(true), 140);
+      exitCompactForReturnDetour(() => setDistractionJarOpen(true), 140);
       return;
     }
     parkingLotReturnToCompactRef.current = false;
     parkingLotReturnToFloatingRef.current = false;
     setDistractionJarOpen(true);
-  }, [isCompact, handleExitCompact]);
+  }, [exitCompactForReturnDetour, isCompact]);
 
   // Shortcut handlers
   const handleShortcutStartPause = useCallback(() => {
@@ -1696,6 +1794,7 @@ export default function App() {
     const previousTimedIndex = checkInTimedIndexRef.current;
     const normalizedElapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
     const restartTimedSegment = options?.restartTimedSegment === true;
+    const restartFreeflowPhase = options?.restartFreeflowPhase === true;
 
     checkInFreeflowNextRef.current = null;
     checkInTimedThresholdsRef.current = [];
@@ -1711,7 +1810,7 @@ export default function App() {
     if (nextMode === 'freeflow') {
       const intervalSeconds = getStandardCheckInIntervalSeconds(nextMode, nextInitialTimeSec);
       const nextTarget = normalizedElapsed + intervalSeconds;
-      if (Number.isFinite(previousFreeflowNext) && previousFreeflowNext > normalizedElapsed) {
+      if (!restartFreeflowPhase && Number.isFinite(previousFreeflowNext) && previousFreeflowNext > normalizedElapsed) {
         checkInFreeflowNextRef.current = Math.min(previousFreeflowNext, nextTarget);
       } else {
         checkInFreeflowNextRef.current = nextTarget;
@@ -1748,6 +1847,7 @@ export default function App() {
     const previousIndex = compactPulseIndexRef.current;
     const normalizedElapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
     const restartTimedSegment = options?.restartTimedSegment === true;
+    const restartFreeflowPhase = options?.restartFreeflowPhase === true;
 
     freeflowPulseNextRef.current = null;
     compactPulseThresholdsRef.current = [];
@@ -1756,8 +1856,8 @@ export default function App() {
     timedPulseLastSegmentElapsedRef.current = getTimedCueSegmentElapsed(normalizedElapsed);
 
     if (nextMode === 'freeflow') {
-      const nextTarget = getNextFreeflowPulseTarget(normalizedElapsed);
-      if (Number.isFinite(previousFreeflowPulseNext) && previousFreeflowPulseNext > normalizedElapsed) {
+      const nextTarget = normalizedElapsed + FREEFLOW_PULSE_INTERVAL_SECONDS;
+      if (!restartFreeflowPhase && Number.isFinite(previousFreeflowPulseNext) && previousFreeflowPulseNext > normalizedElapsed) {
         freeflowPulseNextRef.current = Math.min(previousFreeflowPulseNext, nextTarget);
       } else {
         freeflowPulseNextRef.current = nextTarget;
@@ -1982,7 +2082,8 @@ export default function App() {
     } else {
       advanceCheckInScheduleAfterResult(elapsedSec);
     }
-    const randomMessage = CHECKIN_MESSAGES[Math.floor(Math.random() * CHECKIN_MESSAGES.length)];
+    const focusedMessages = getFocusedCheckInMessages(preferredName);
+    const randomMessage = focusedMessages[Math.floor(Math.random() * focusedMessages.length)];
     showToast('success', randomMessage, 2000, {
       showIcon: false,
       showCloseButton: false,
@@ -2019,10 +2120,11 @@ export default function App() {
     clearCheckInUi,
     getElapsedSeconds,
     logCheckIn,
-    resetCheckInSchedule,
-    mode,
     initialTime,
     isCompact,
+    mode,
+    preferredName,
+    resetCheckInSchedule,
     restoreDisplayMode,
     showToast,
     triggerConfetti,
@@ -2038,20 +2140,17 @@ export default function App() {
     };
 
     if (isCompact) {
-      window.electronAPI.capturePillRestoreBounds?.();
-      pendingCompactRestoreRef.current = false;
       if (!checkInReturnToCompactRef.current && !checkInReturnToFloatingRef.current) {
         checkInReturnToCompactRef.current = true;
       }
-      handleExitCompact();
-      setTimeout(() => {
+      exitCompactForReturnDetour(() => {
         applyDetourChoiceState();
       }, 120);
       return;
     }
 
     applyDetourChoiceState();
-  }, [isCompact, handleExitCompact]);
+  }, [exitCompactForReturnDetour, isCompact]);
 
   const handleCheckInFinished = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
@@ -2067,8 +2166,9 @@ export default function App() {
     track('checkin_responded', { response: 'completed' });
 
     setIsRunning(false);
+    const completedMessages = getCompletedCheckInMessages(preferredName);
     setCheckInState('resolved');
-    setCheckInMessage(CHECKIN_COMPLETED_MESSAGES[Math.floor(Math.random() * CHECKIN_COMPLETED_MESSAGES.length)]);
+    setCheckInMessage(completedMessages[Math.floor(Math.random() * completedMessages.length)]);
     setCheckInCelebrating(true);
     setCheckInCelebrationType('completed');
     triggerConfetti(2200);
@@ -2081,7 +2181,7 @@ export default function App() {
         returnToFloating: shouldReturnToFloating,
       });
     }, 2000);
-  }, [getElapsedSeconds, logCheckIn, triggerConfetti, completeSessionFromCheckIn, finalizeCompletedSessionUi]);
+  }, [completeSessionFromCheckIn, finalizeCompletedSessionUi, getElapsedSeconds, logCheckIn, preferredName, triggerConfetti]);
 
   const handleCheckInDetour = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
@@ -2218,10 +2318,7 @@ export default function App() {
       if (!checkInReturnToCompactRef.current && !checkInReturnToFloatingRef.current) {
         checkInReturnToCompactRef.current = true;
       }
-      window.electronAPI.capturePillRestoreBounds?.();
-      pendingCompactRestoreRef.current = false;
-      handleExitCompact();
-      setTimeout(() => {
+      exitCompactForReturnDetour(() => {
         window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
       }, 140);
     };
@@ -2231,7 +2328,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [checkInState, isCompact, handleExitCompact]);
+  }, [checkInState, exitCompactForReturnDetour, isCompact]);
 
   // When check-ins are disabled mid-session, clean up runtime state
   useEffect(() => {
@@ -2405,6 +2502,10 @@ export default function App() {
       const restoredFromFloating = await window.electronAPI.restoreFromFloatingForTimeUp?.() || false;
       if (cancelled) return;
 
+      if (wasCompact) {
+        captureCompactReturnBounds();
+      }
+
       elapsedBeforeRunRef.current = Math.max(0, initialTime);
       timeUpReturnToFloatingRef.current = Boolean(restoredFromFloating);
       timeUpReturnToCompactRef.current = restoredFromFloating ? false : wasCompact;
@@ -2429,7 +2530,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [mode, time, initialTime, beginSessionFeedbackFlow, clearCompactSessionCues, currentSessionId, isCompact, showNotesModal, showTimeUpModal]);
+  }, [mode, time, initialTime, beginSessionFeedbackFlow, captureCompactReturnBounds, clearCompactSessionCues, currentSessionId, isCompact, showNotesModal, showTimeUpModal]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -2547,6 +2648,21 @@ export default function App() {
       : getIdleScreenDefaultHeight();
     resizeToMainCardContent(minHeight);
   }, [startupRevealComplete, isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
+
+  const restoreTimeUpWindowShell = useCallback(({ returnToCompact = false, returnToFloating = false } = {}) => {
+    if (returnToCompact || returnToFloating) {
+      restoreDisplayMode({ returnToCompact, returnToFloating });
+      return;
+    }
+
+    pendingCompactRestoreRef.current = false;
+    setTimeout(() => {
+      resyncFullWindowSize();
+    }, 60);
+    setTimeout(() => {
+      resyncFullWindowSize();
+    }, 200);
+  }, [resyncFullWindowSize, restoreDisplayMode]);
 
   useEffect(() => {
     if (startupGateState === 'checking') return undefined;
@@ -2927,8 +3043,8 @@ export default function App() {
     finalizeTimeUpEndSession();
   }, [finalizeTimeUpEndSession]);
 
-  const handleTimeUpKeepGoing = (extraMinutes) => {
-    track('post_session_choice', { choice: 'keep_going', extra_minutes: Math.min(Math.max(extraMinutes || 5, 1), 240) });
+  const handleTimeUpAddTime = (extraMinutes) => {
+    track('post_session_choice', { choice: 'keep_going_add_time', extra_minutes: Math.min(Math.max(extraMinutes || 5, 1), 240) });
     const safeMinutes = Math.min(Math.max(extraMinutes || 5, 1), 240);
     const extraSeconds = safeMinutes * 60;
     const currentInitial = Math.max(0, Number(initialTime) || 0);
@@ -2950,16 +3066,34 @@ export default function App() {
     resetCheckInSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
     resetCompactPulseSchedule('timed', nextInitial, elapsedAtExtension, { restartTimedSegment: true });
     resetSessionFeedbackFlow();
-    if (shouldReturnToFloating) {
-      setTimeout(() => {
-        window.electronAPI.enterFloatingMinimize?.();
-      }, 120);
-      return;
-    }
-    if (shouldReturnToCompact) {
-      setTimeout(() => setIsCompact(true), 80);
-    }
+    restoreTimeUpWindowShell({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
   };
+
+  const handleTimeUpSwitchToFreeflow = useCallback(() => {
+    track('post_session_choice', { choice: 'keep_going_freeflow' });
+
+    const elapsedAtHandoff = Math.max(0, Number(initialTime) || 0);
+    const shouldReturnToCompact = timeUpReturnToCompactRef.current;
+    const shouldReturnToFloating = timeUpReturnToFloatingRef.current;
+    timeUpReturnToCompactRef.current = false;
+    timeUpReturnToFloatingRef.current = false;
+
+    elapsedBeforeRunRef.current = elapsedAtHandoff;
+    setMode('freeflow');
+    setInitialTime(0);
+    setTime(elapsedAtHandoff);
+    setIsTimerVisible(true);
+    setIsRunning(true);
+    setSessionStartTime(Date.now());
+    setShowTimeUpModal(false);
+    clearCompactSessionCues();
+    resetCheckInSchedule('freeflow', 0, elapsedAtHandoff, { restartFreeflowPhase: true });
+    resetCompactPulseSchedule('freeflow', 0, elapsedAtHandoff, { restartFreeflowPhase: true });
+    resetSessionFeedbackFlow();
+
+    void checkpointActiveSession('time-up-freeflow-switch');
+    restoreTimeUpWindowShell({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
+  }, [checkpointActiveSession, clearCompactSessionCues, initialTime, resetCheckInSchedule, resetCompactPulseSchedule, resetSessionFeedbackFlow, restoreTimeUpWindowShell]);
 
   // Phase 3.5 — "Resume Later" from TimeUpModal
   const handleTimeUpResumeLater = () => {
@@ -3554,6 +3688,8 @@ export default function App() {
   if (startupGateState !== 'ready') {
     const normalizedLicenseKeyInput = licenseKeyInput.trim();
     const canSubmitLicense = normalizedLicenseKeyInput.length > 0;
+    const normalizedPreferredNameInput = normalizePreferredName(preferredNameInput);
+    const canSubmitPreferredName = normalizedPreferredNameInput.length > 0;
 
     if (startupGateState === 'checking') {
       return (
@@ -3665,6 +3801,79 @@ export default function App() {
         </div>
       );
     }
+
+    if (startupGateState === 'name') {
+      return (
+        <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
+          <div
+            className="electron-no-drag"
+            style={{
+              width: '100%',
+              maxWidth: '26rem',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--brand-action)',
+              borderRadius: '0.9rem',
+              boxShadow: 'var(--shadow-minimal)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.9rem',
+            }}
+          >
+            <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+              One more thing. What should we call you?
+            </h1>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.5 }}>
+              We’ll use this for in-app encouragement and to personalize follow-up emails. You can change it any time in Settings.
+            </p>
+
+            <form
+              className="electron-no-drag"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handlePreferredNameSubmit();
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}
+            >
+              <input
+                type="text"
+                value={preferredNameInput}
+                onChange={(event) => {
+                  setPreferredNameInput(event.target.value);
+                  if (preferredNameError) setPreferredNameError('');
+                }}
+                placeholder="Your name"
+                autoFocus
+                className="input electron-no-drag"
+                style={{ width: '100%', fontSize: '0.95rem', padding: '0.7rem 0.8rem' }}
+              />
+
+              <Button
+                type="submit"
+                disabled={!canSubmitPreferredName || preferredNameSubmitting}
+                className="electron-no-drag"
+                style={{ width: '100%', minHeight: '2.7rem' }}
+              >
+                {preferredNameSubmitting ? 'Saving...' : 'Continue'}
+              </Button>
+            </form>
+
+            {preferredNameError ? (
+              <div style={{
+                padding: '0.75rem 0.9rem',
+                borderRadius: '0.75rem',
+                border: '1px solid var(--error-surface-border)',
+                background: 'var(--error-surface-bg)',
+              }}>
+                <p style={{ margin: 0, color: 'var(--error-surface-text)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                  {preferredNameError}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
   }
 
   // Compact mode render
@@ -3731,7 +3940,8 @@ export default function App() {
           isOpen={showTimeUpModal}
           taskName={task}
           onEndSession={handleTimeUpEndSession}
-          onKeepGoing={handleTimeUpKeepGoing}
+          onAddTime={handleTimeUpAddTime}
+          onSwitchToFreeflow={handleTimeUpSwitchToFreeflow}
           onResumeLater={handleTimeUpResumeLater}
         />
         <TaskPreviewModal
@@ -4257,7 +4467,8 @@ export default function App() {
         isOpen={showTimeUpModal}
         taskName={task}
         onEndSession={handleTimeUpEndSession}
-        onKeepGoing={handleTimeUpKeepGoing}
+        onAddTime={handleTimeUpAddTime}
+        onSwitchToFreeflow={handleTimeUpSwitchToFreeflow}
         onResumeLater={handleTimeUpResumeLater}
       />
       <TaskPreviewModal
@@ -4318,6 +4529,12 @@ export default function App() {
         onPinnedControlsChange={setPinnedControls}
         enabledControlsDefault={enabledMainControls}
         onEnabledControlsChange={setEnabledMainControls}
+        preferredName={preferredName}
+        onPreferredNameChange={(nextPreferredName) => {
+          const normalizedPreferredName = normalizePreferredName(nextPreferredName);
+          setPreferredName(normalizedPreferredName);
+          setPreferredNameInput(normalizedPreferredName);
+        }}
         dndEnabled={dndEnabled}
         onDndChange={(enabled) => {
           setDoNotDisturb(enabled, 'settings');

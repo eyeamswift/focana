@@ -8,10 +8,12 @@ const APP_VERSION = JSON.parse(
   fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')
 ).version;
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
+const NAME_GATE_HEADING = 'One more thing. What should we call you?';
 
 function buildSeedConfig(seedConfig = null) {
   return {
     userEmail: 'justin.franklin90@gmail.com',
+    preferredName: 'Justin',
     emailPromptSkipped: true,
     ...(seedConfig || {}),
   };
@@ -137,6 +139,13 @@ async function readMainWindowBounds(electronApp) {
   });
 }
 
+async function readFloatingWindowBounds(electronApp) {
+  return electronApp.evaluate(({ BrowserWindow }) => {
+    const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'));
+    return floating ? floating.getBounds() : null;
+  });
+}
+
 async function readWindowVisibilityState(electronApp) {
   return electronApp.evaluate(({ BrowserWindow }) => {
     const windows = BrowserWindow.getAllWindows();
@@ -194,76 +203,90 @@ async function exitCompactMode(page) {
   await expect.poll(() => readWindowMode(page)).toBe('full');
 }
 
-test('first launch shows one-time email capture gate before app UI', async () => {
+test('first launch shows one-time name capture gate before app UI', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
-      userEmail: '',
-      emailPromptSkipped: false,
+      preferredName: '',
     },
     waitForTaskInput: false,
   });
 
   try {
-    await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
+    await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
     await expect(page.locator('button[aria-label="Open Settings"]')).toHaveCount(0);
 
     const continueBtn = page.getByRole('button', { name: 'Continue' });
     await expect(continueBtn).toBeDisabled();
 
-    const emailInput = page.getByPlaceholder('you@example.com');
-    await emailInput.fill('not-an-email');
+    const nameInput = page.getByPlaceholder('Your name');
+    await nameInput.fill('   ');
     await expect(continueBtn).toBeDisabled();
 
-    await emailInput.fill('person@example.com');
+    await nameInput.fill('Ari');
     await expect(continueBtn).toBeEnabled();
-    await emailInput.press('Enter');
+    await nameInput.press('Enter');
 
-    await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
+    await expect(page.getByText(NAME_GATE_HEADING)).toHaveCount(0);
     await page.waitForSelector(TASK_INPUT_SELECTOR);
 
-    const savedEmail = await page.evaluate(() => window.electronAPI.storeGet('userEmail'));
-    const skipped = await page.evaluate(() => window.electronAPI.storeGet('emailPromptSkipped'));
-    expect(savedEmail).toBe('person@example.com');
-    expect(skipped).toBe(false);
+    const savedPreferredName = await page.evaluate(() => window.electronAPI.storeGet('preferredName'));
+    expect(savedPreferredName).toBe('Ari');
   } finally {
     await cleanup();
   }
 });
 
-test('email capture gate cannot be skipped and remains until email is provided', async () => {
+test('name capture gate cannot be skipped and remains until a name is provided', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
-      userEmail: '',
-      emailPromptSkipped: false,
+      preferredName: '',
     },
     waitForTaskInput: false,
   });
 
   try {
-    await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
+    await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Skip' })).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
 
     await page.reload();
-    await expect(page.getByText('Welcome to Focana 🎯')).toBeVisible();
+    await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
   } finally {
     await cleanup();
   }
 });
 
-test('saved user email bypasses capture gate on launch', async () => {
+test('saved preferred name bypasses capture gate on launch', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
-      userEmail: 'existing@example.com',
-      emailPromptSkipped: false,
+      preferredName: 'Existing User',
     },
   });
 
   try {
-    await expect(page.getByText('Welcome to Focana 🎯')).toHaveCount(0);
+    await expect(page.getByText(NAME_GATE_HEADING)).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('settings can update the preferred name and persist it', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      preferredName: 'Ari',
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    const nameInput = page.getByLabel('What should Focana call you?');
+    await nameInput.fill('Ari Franklin');
+    await page.getByRole('button', { name: 'Save Settings' }).first().click();
+
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('preferredName'))).toBe('Ari Franklin');
   } finally {
     await cleanup();
   }
@@ -384,7 +407,7 @@ test('manual update check reports when the app is already current', async () => 
   }
 });
 
-test('timed time-up flows keep going and resume later without losing task state', async () => {
+test('timed time-up flows add time and resume later without losing task state', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -394,7 +417,7 @@ test('timed time-up flows keep going and resume later without losing task state'
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Keep Going' }).click();
+    await page.getByRole('button', { name: 'Continue Timed' }).click();
 
     await expect.poll(() => readWindowMode(page)).toBe('pill');
     const keepGoingState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
@@ -403,7 +426,7 @@ test('timed time-up flows keep going and resume later without losing task state'
     expect(keepGoingState.seconds).toBeGreaterThanOrEqual(299);
     expect(keepGoingState.seconds).toBeLessThanOrEqual(300);
 
-    await setTimeOffset(page, 365000);
+    await setTimeOffset(page, 370000);
     await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Resume Later' }).click();
@@ -422,6 +445,124 @@ test('timed time-up flows keep going and resume later without losing task state'
     expect(savedSessions[0].durationMinutes).toBe(6);
     expect(savedSessions[0].completed).toBe(false);
     expect(savedSessions[0].notes).toBe('resume later note');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed time-up can switch into freeflow and restart freeflow check-ins from the handoff', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 1,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timeup-freeflow-handoff', 1);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Switch to Freeflow' }).click();
+
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    const freeflowState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(freeflowState.mode).toBe('freeflow');
+    expect(freeflowState.initialTime).toBe(0);
+    expect(freeflowState.isRunning).toBe(true);
+    expect(freeflowState.seconds).toBeGreaterThanOrEqual(60);
+    expect(freeflowState.seconds).toBeLessThanOrEqual(61);
+
+    await setTimeOffset(page, 126000);
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('timeup-freeflow-handoff?')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed time-up add time restores the full window when the session expired outside compact mode', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timeup-full-window', 1);
+    await exitCompactMode(page);
+
+    const boundsBeforeExpire = await readMainWindowBounds(electronApp);
+    expect(boundsBeforeExpire).toBeTruthy();
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Continue Timed' }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.height || 0;
+    }, { timeout: 7000 }).toBeGreaterThanOrEqual(Math.max((boundsBeforeExpire?.height || 0) - 20, 120));
+
+    const resumedState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(resumedState.isRunning).toBe(true);
+    expect(resumedState.initialTime).toBe(360);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed time-up freeflow handoff returns to floating minimize when the session expired from floating mode', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 1,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timeup-floating-freeflow', 1);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => {
+      const visibility = await readWindowVisibilityState(electronApp);
+      return visibility.floatingVisible;
+    }, { timeout: 7000 }).toBe(true);
+
+    await setTimeOffset(page, 65000);
+
+    await expect.poll(async () => {
+      const visibility = await readWindowVisibilityState(electronApp);
+      return visibility.mainVisible;
+    }, { timeout: 7000 }).toBe(true);
+    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Switch to Freeflow' }).click();
+
+    await expect.poll(async () => {
+      const visibility = await readWindowVisibilityState(electronApp);
+      return visibility.floatingVisible;
+    }, { timeout: 7000 }).toBe(true);
+    await expect.poll(async () => {
+      const visibility = await readWindowVisibilityState(electronApp);
+      return visibility.mainVisible;
+    }, { timeout: 7000 }).toBe(false);
+
+    const resumedState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(resumedState.mode).toBe('freeflow');
+    expect(resumedState.isRunning).toBe(true);
+    expect(resumedState.initialTime).toBe(0);
   } finally {
     await cleanup();
   }
@@ -811,6 +952,160 @@ test('always-on-top toggle persists and applies to floating icon mode', async ()
   }
 });
 
+test('settings opened from compact return to the previous compact position', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-settings-position');
+
+    const baseBounds = await readMainWindowBounds(electronApp);
+    expect(baseBounds).toBeTruthy();
+
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(-160, -120);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseBounds.x,
+      y: baseBounds.y,
+    }));
+
+    const movedBounds = await readMainWindowBounds(electronApp);
+    expect(movedBounds).toBeTruthy();
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      main?.webContents.send('tray-open-settings');
+    });
+
+    await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+    await page.locator('.dialog-content-lg .dialog-close-btn').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedBounds.x,
+      y: movedBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('parking lot opened from compact returns to the previous compact position', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-parking-position');
+
+    const baseBounds = await readMainWindowBounds(electronApp);
+    expect(baseBounds).toBeTruthy();
+
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(-180, -100);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseBounds.x,
+      y: baseBounds.y,
+    }));
+
+    const movedBounds = await readMainWindowBounds(electronApp);
+    expect(movedBounds).toBeTruthy();
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      main?.webContents.send('tray-open-parking-lot');
+    });
+
+    await expect(page.getByRole('heading', { name: 'Parking Lot' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close Parking Lot' }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedBounds.x,
+      y: movedBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('manual re-entry into compact restores the previous compact position', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-manual-return');
+
+    const baseBounds = await readMainWindowBounds(electronApp);
+    expect(baseBounds).toBeTruthy();
+
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(-170, -110);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseBounds.x,
+      y: baseBounds.y,
+    }));
+
+    const movedBounds = await readMainWindowBounds(electronApp);
+    expect(movedBounds).toBeTruthy();
+
+    await exitCompactMode(page);
+    await page.locator('button[aria-label="Enter Compact Mode"]').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedBounds.x,
+      y: movedBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('open parking lot shortcut exits compact mode before showing quick capture', async () => {
   const { electronApp, page, cleanup } = await launchApp();
   try {
@@ -903,6 +1198,32 @@ test('freeflow check-in restores from floating minimize and returns there after 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    const baseFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(baseFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragStart();
+      window.floatingAPI.dragMove(-150, 110);
+      window.floatingAPI.dragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseFloatingBounds.x,
+      y: baseFloatingBounds.y,
+    }));
+
+    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(movedFloatingBounds).toBeTruthy();
+
     await setTimeOffset(page, 301000);
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
@@ -919,6 +1240,16 @@ test('freeflow check-in restores from floating minimize and returns there after 
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedFloatingBounds.x,
+      y: movedFloatingBounds.y,
+    }));
   } finally {
     await cleanup();
   }
@@ -1520,6 +1851,74 @@ test('minimize to floating icon restores idle task text', async () => {
     });
     expect(restoredTask).toBe('floating-state-test');
     await expect(mainPage.locator(TASK_INPUT_SELECTOR)).toHaveValue('floating-state-test');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('manual re-entry into floating minimize restores the previous floating position', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'floating-manual-position');
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    const baseFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(baseFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragStart();
+      window.floatingAPI.dragMove(-170, 120);
+      window.floatingAPI.dragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseFloatingBounds.x,
+      y: baseFloatingBounds.y,
+    }));
+
+    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(movedFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => window.floatingAPI.expand());
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+
+    const mainPage = electronApp.windows().find((win) => isMainAppWindow(win));
+    expect(mainPage).toBeTruthy();
+
+    await mainPage.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedFloatingBounds.x,
+      y: movedFloatingBounds.y,
+    }));
   } finally {
     await cleanup();
   }
