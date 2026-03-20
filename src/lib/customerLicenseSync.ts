@@ -3,6 +3,7 @@ export type RawCustomerLicenseSyncPayload = {
   orderId?: unknown;
   customerIdLs?: unknown;
   customerEmail?: unknown;
+  preferredName?: unknown;
   eventAt?: unknown;
 };
 
@@ -11,12 +12,14 @@ export type CustomerLicenseSyncPayload = {
   order_id: string | null;
   customer_id_ls: string | null;
   customer_email: string | null;
+  preferred_name: string | null;
   event_at: string;
 };
 
 export type CustomerRow = {
   id: string;
   email: string | null;
+  name: string | null;
   order_id: string | null;
   customer_id_ls: string | null;
   created_at: string;
@@ -44,6 +47,7 @@ type CustomerLicenseCreateInput = {
 };
 
 type CustomerLicenseUpdateInput = Partial<CustomerLicenseCreateInput>;
+type CustomerUpdateInput = Partial<Pick<CustomerRow, 'name'>>;
 
 type FetchLike = typeof fetch;
 
@@ -58,10 +62,15 @@ export type CustomerLicenseStore = {
   findMappingByLicenseInstanceId: (licenseInstanceId: string) => Promise<CustomerLicenseInstanceRow | null>;
   createMapping: (input: CustomerLicenseCreateInput) => Promise<CustomerLicenseInstanceRow>;
   updateMapping: (id: string, patch: CustomerLicenseUpdateInput) => Promise<CustomerLicenseInstanceRow>;
+  updateCustomer: (id: string, patch: CustomerUpdateInput) => Promise<CustomerRow>;
 };
 
 function clampText(value: unknown, maxLength = 500) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function normalizePreferredName(value: unknown) {
+  return clampText(value, 80).replace(/\s+/g, ' ');
 }
 
 function safeIso(value: unknown) {
@@ -91,6 +100,7 @@ export function normalizeCustomerLicenseSyncPayload(
   const orderId = clampText(rawPayload.orderId, 160) || null;
   const customerIdLs = clampText(rawPayload.customerIdLs, 160) || null;
   const customerEmail = clampText(rawPayload.customerEmail, 320).toLowerCase() || null;
+  const preferredName = normalizePreferredName(rawPayload.preferredName) || null;
 
   if (!orderId && !customerIdLs && !customerEmail) {
     return null;
@@ -101,6 +111,7 @@ export function normalizeCustomerLicenseSyncPayload(
     order_id: orderId,
     customer_id_ls: customerIdLs,
     customer_email: customerEmail,
+    preferred_name: preferredName,
     event_at: safeIso(rawPayload.eventAt) || new Date().toISOString(),
   };
 }
@@ -125,6 +136,20 @@ async function resolveCustomer(
   }
 
   return null;
+}
+
+function buildCustomerPatch(
+  customer: CustomerRow,
+  payload: CustomerLicenseSyncPayload
+) {
+  const patch: CustomerUpdateInput = {};
+  const currentName = normalizePreferredName(customer.name);
+
+  if (payload.preferred_name && payload.preferred_name !== currentName) {
+    patch.name = payload.preferred_name;
+  }
+
+  return patch;
 }
 
 function buildMappingPatch(
@@ -180,10 +205,15 @@ export async function syncCustomerLicenseInstance(
     return { ok: false, status: 'customer_not_found' as const, payload };
   }
 
+  const customerPatch = buildCustomerPatch(customer, payload);
+  const resolvedCustomer = hasKeys(customerPatch)
+    ? await store.updateCustomer(customer.id, customerPatch)
+    : customer;
+
   const existing = await store.findMappingByLicenseInstanceId(payload.license_instance_id);
   if (!existing) {
     const mapping = await store.createMapping({
-      customer_id: customer.id,
+      customer_id: resolvedCustomer.id,
       license_instance_id: payload.license_instance_id,
       order_id: payload.order_id,
       customer_id_ls: payload.customer_id_ls,
@@ -195,18 +225,18 @@ export async function syncCustomerLicenseInstance(
       ok: true,
       status: 'created' as const,
       payload,
-      customer,
+      customer: resolvedCustomer,
       mapping,
     };
   }
 
-  if (existing.customer_id !== customer.id) {
+  if (existing.customer_id !== resolvedCustomer.id) {
     logger.warn?.(
-      `[license-sync] Reassigning license_instance_id=${payload.license_instance_id} from customer_id=${existing.customer_id} to customer_id=${customer.id}.`
+      `[license-sync] Reassigning license_instance_id=${payload.license_instance_id} from customer_id=${existing.customer_id} to customer_id=${resolvedCustomer.id}.`
     );
   }
 
-  const patch = buildMappingPatch(existing, payload, customer.id);
+  const patch = buildMappingPatch(existing, payload, resolvedCustomer.id);
   const mapping = hasKeys(patch)
     ? await store.updateMapping(existing.id, patch)
     : existing;
@@ -215,7 +245,7 @@ export async function syncCustomerLicenseInstance(
     ok: true,
     status: 'updated' as const,
     payload,
-    customer,
+    customer: resolvedCustomer,
     mapping,
   };
 }
@@ -237,7 +267,7 @@ async function readJsonResponse<T>(response: Response, context: string) {
   return (await response.json()) as T;
 }
 
-const CUSTOMER_SELECT = 'id,email,order_id,customer_id_ls,created_at';
+const CUSTOMER_SELECT = 'id,email,name,order_id,customer_id_ls,created_at';
 const MAPPING_SELECT =
   'id,customer_id,license_instance_id,order_id,customer_id_ls,first_seen_at,last_seen_at,created_at,updated_at';
 
@@ -359,6 +389,31 @@ export function createSupabaseCustomerLicenseStore({
 
       if (!rows[0]) {
         throw new Error(`License-instance update returned no rows for id=${id}`);
+      }
+
+      return rows[0];
+    },
+
+    async updateCustomer(id, patch) {
+      const url = new URL(`${supabaseUrl}/rest/v1/customers`);
+      url.searchParams.set('id', `eq.${id}`);
+
+      const response = await fetchImpl(url, {
+        method: 'PATCH',
+        headers: createHeaders(supabaseServiceKey, {
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        }),
+        body: JSON.stringify(patch),
+      });
+
+      const rows = await readJsonResponse<CustomerRow[]>(
+        response,
+        `Customer update failed for id=${id}`
+      );
+
+      if (!rows[0]) {
+        throw new Error(`Customer update returned no rows for id=${id}`);
       }
 
       return rows[0];

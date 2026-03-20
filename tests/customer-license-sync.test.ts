@@ -85,6 +85,26 @@ class MemoryCustomerLicenseStore implements CustomerLicenseStore {
     return this.clone(nextRow);
   }
 
+  async updateCustomer(
+    id: string,
+    patch: Partial<{
+      name: string | null;
+    }>
+  ) {
+    const index = this.customers.findIndex((row) => row.id === id);
+    if (index === -1) {
+      throw new Error(`Unknown customer ${id}`);
+    }
+
+    const nextRow = {
+      ...this.customers[index],
+      ...patch,
+    };
+
+    this.customers[index] = nextRow;
+    return this.clone(nextRow);
+  }
+
   private clone<T>(value: T) {
     return value === null ? null : structuredClone(value);
   }
@@ -94,6 +114,7 @@ function makeCustomer(
   id: string,
   overrides: Partial<{
     email: string | null;
+    name: string | null;
     order_id: string | null;
     customer_id_ls: string | null;
     created_at: string;
@@ -102,6 +123,7 @@ function makeCustomer(
   return {
     id,
     email: 'customer@example.com',
+    name: 'Original Name',
     order_id: 'order-1',
     customer_id_ls: 'customer-ls-1',
     created_at: '2026-03-20T10:00:00.000Z',
@@ -117,12 +139,14 @@ test('normalizeCustomerLicenseSyncPayload requires a license instance id and cus
     licenseInstanceId: ' instance-1 ',
     orderId: ' order-1 ',
     customerEmail: ' CUSTOMER@example.com ',
+    preferredName: '  Ari   Franklin  ',
   });
 
   assert.equal(normalized?.license_instance_id, 'instance-1');
   assert.equal(normalized?.order_id, 'order-1');
   assert.equal(normalized?.customer_id_ls, null);
   assert.equal(normalized?.customer_email, 'customer@example.com');
+  assert.equal(normalized?.preferred_name, 'Ari Franklin');
   assert.match(normalized?.event_at || '', /^\d{4}-\d{2}-\d{2}T/);
 });
 
@@ -199,4 +223,25 @@ test('syncCustomerLicenseInstance falls back to email when stronger ids are miss
   assert.equal(result.ok, true);
   assert.equal(result.customer?.id, 'customer-1');
   assert.equal(store.mappings[0].license_instance_id, 'instance-2');
+});
+
+test('syncCustomerLicenseInstance updates the customer name when a preferred name is provided', async () => {
+  const store = new MemoryCustomerLicenseStore();
+  store.customers.push(makeCustomer('customer-1', {
+    name: 'Original Name',
+  }));
+
+  const result = await syncCustomerLicenseInstance(
+    {
+      licenseInstanceId: 'instance-3',
+      orderId: 'order-1',
+      preferredName: '  Ari  ',
+      eventAt: '2026-03-20T17:00:00.000Z',
+    },
+    { store }
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.customer?.name, 'Ari');
+  assert.equal(store.customers[0].name, 'Ari');
 });
