@@ -4,6 +4,8 @@ const { licenseConfig, isLicenseConfigComplete } = require('./licenseConfig')
 const { getUpdateChannel } = require('./updater')
 
 const LICENSE_API_BASE_URL = 'https://api.lemonsqueezy.com/v1/licenses'
+const DEFAULT_LICENSE_SYNC_API_URL = 'https://focana.app/api/license-instance-sync'
+const LICENSE_SYNC_TIMEOUT_MS = 10 * 1000
 const DEV_TEST_LICENSE_KEY = 'password'
 
 function isDevRuntime(app) {
@@ -47,6 +49,10 @@ function maskLicenseKey(value) {
   return `${raw.slice(0, 4)}-${raw.slice(-4)}`
 }
 
+function clampText(value, maxLength = 500) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
+}
+
 function buildInstanceName(app, installId) {
   const hostname = String(os.hostname() || 'Mac').trim() || 'Mac'
   return `${app.getName()} on ${hostname} (${installId.slice(0, 8)})`
@@ -84,6 +90,12 @@ function extractLicenseMeta(payload) {
   const licenseKey = payload?.license_key || payload?.data?.attributes || payload?.data || {}
   const meta = payload?.meta || {}
   const instance = payload?.instance || payload?.activated_instance || meta.instance || {}
+  const licenseKeyId = Number(
+    licenseKey.id
+    ?? payload?.license_key_id
+    ?? payload?.data?.id
+    ?? 0
+  ) || null
 
   const storeId = Number(
     licenseKey.store_id
@@ -112,15 +124,42 @@ function extractLicenseMeta(payload) {
     ?? payload?.instance_id
     ?? ''
   ).trim()
+  const orderId = String(
+    meta.order_id
+    ?? payload?.order_id
+    ?? ''
+  ).trim() || null
+  const customerId = String(
+    meta.customer_id
+    ?? payload?.customer_id
+    ?? ''
+  ).trim() || null
+  const customerName = clampText(
+    meta.customer_name
+    ?? payload?.customer_name
+    ?? '',
+    160
+  ) || null
+  const customerEmail = clampText(
+    meta.customer_email
+    ?? payload?.customer_email
+    ?? '',
+    320
+  ).toLowerCase() || null
   const valid = payload?.valid ?? payload?.activated ?? meta.valid ?? meta.activated ?? null
   const disabled = payload?.disabled ?? licenseKey.disabled ?? meta.disabled ?? false
   const licenseStatus = String(licenseKey.status || payload?.status || '').trim().toLowerCase() || null
 
   return {
+    licenseKeyId,
     storeId,
     productId,
     variantId,
     instanceId,
+    orderId,
+    customerId,
+    customerName,
+    customerEmail,
     valid: typeof valid === 'boolean' ? valid : null,
     disabled: Boolean(disabled),
     licenseStatus,
@@ -168,6 +207,32 @@ async function postLicenseForm(endpoint, params) {
   }
 
   return payload || {}
+}
+
+async function postLicenseInstanceSync(endpointUrl, payload) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort()
+  }, LICENSE_SYNC_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    if (!response.ok && response.status !== 202) {
+      const text = await response.text()
+      throw new Error(text || `License sync failed with status ${response.status}`)
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function mapActivationError(error) {
@@ -236,6 +301,33 @@ function isRecoverableValidationError(error) {
 
 function createLicenseService({ app, store }) {
   let devLicenseStateReset = false
+
+  async function syncLicenseIdentity(meta, { installId, eventAt }) {
+    const endpointUrl = process.env.FOCANA_LICENSE_SYNC_API_URL || DEFAULT_LICENSE_SYNC_API_URL
+    if (!endpointUrl || !meta?.instanceId) {
+      return
+    }
+
+    if (!meta.orderId && !meta.customerId && !meta.customerEmail) {
+      return
+    }
+
+    try {
+      await postLicenseInstanceSync(endpointUrl, {
+        licenseInstanceId: meta.instanceId,
+        orderId: meta.orderId,
+        customerIdLs: meta.customerId,
+        customerEmail: meta.customerEmail,
+        eventAt,
+        installId,
+        appVersion: app.getVersion(),
+        channel: getUpdateChannel(app.getVersion()),
+      })
+    } catch (error) {
+      const reason = typeof error?.message === 'string' ? error.message : String(error)
+      console.warn(`[license-sync] Failed to sync license instance ${meta.instanceId}: ${reason}`)
+    }
+  }
 
   function getRuntimeInfo() {
     const version = app.getVersion()
@@ -472,6 +564,11 @@ function createLicenseService({ app, store }) {
         variantId: meta.variantId,
       })
 
+      await syncLicenseIdentity(meta, {
+        installId,
+        eventAt: now,
+      })
+
       return buildStatus()
     } catch (error) {
       return buildStatus({
@@ -534,6 +631,12 @@ function createLicenseService({ app, store }) {
         productId: meta.productId,
         variantId: meta.variantId,
       })
+
+      await syncLicenseIdentity(meta, {
+        installId: currentStatus.installId || ensureInstallId(),
+        eventAt: now,
+      })
+
       return buildStatus()
     } catch (error) {
       const existing = getStoredLicense()
