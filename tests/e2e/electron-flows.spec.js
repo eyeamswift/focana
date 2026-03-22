@@ -273,6 +273,43 @@ test('saved preferred name bypasses capture gate on launch', async () => {
   }
 });
 
+test('license activation flows into name capture and then into the app without bouncing back', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      preferredName: '',
+      license: {
+        key: '',
+        instanceId: '',
+        status: 'unlicensed',
+        activatedAt: null,
+        lastValidatedAt: null,
+        offlineGraceUntil: null,
+        lastError: null,
+      },
+    },
+    waitForTaskInput: false,
+    extraEnv: {
+      FOCANA_FORCE_LICENSE_GATE: '1',
+    },
+  });
+
+  try {
+    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
+    await page.getByPlaceholder('Paste your Focana license key').fill('password');
+    await page.getByRole('button', { name: 'Submit' }).click();
+
+    await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
+    await page.getByPlaceholder('Your name').fill('Ari');
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page.getByText(NAME_GATE_HEADING)).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toHaveCount(0);
+    await page.waitForSelector(TASK_INPUT_SELECTOR);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('settings can update the preferred name and persist it', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
@@ -1100,6 +1137,47 @@ test('manual re-entry into compact restores the previous compact position', asyn
     }, { timeout: 7000 }).toBe(JSON.stringify({
       x: movedBounds.x,
       y: movedBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('manual compact entry uses the current full-window position after the full window was moved', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-full-handoff');
+    await exitCompactMode(page);
+
+    const fullBounds = await readMainWindowBounds(electronApp);
+    expect(fullBounds).toBeTruthy();
+
+    const movedFullBounds = await electronApp.evaluate(({ BrowserWindow }, currentBounds) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return null;
+      main.setBounds({
+        x: Math.max(0, (currentBounds?.x || 0) - 140),
+        y: Math.max(0, (currentBounds?.y || 0) - 120),
+        width: currentBounds?.width || 500,
+        height: currentBounds?.height || 360,
+      });
+      return main.getBounds();
+    }, fullBounds);
+    expect(movedFullBounds).toBeTruthy();
+
+    await page.locator('button[aria-label="Enter Compact Mode"]').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedFullBounds.x,
+      y: movedFullBounds.y,
     }));
   } finally {
     await cleanup();
@@ -2005,6 +2083,65 @@ test('manual re-entry into floating minimize restores the previous floating posi
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
     await expect.poll(async () => {
       const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedFloatingBounds.x,
+      y: movedFloatingBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('expanding from a moved floating minimize restores the main window at the floating position', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'floating-expand-handoff');
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    const baseFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(baseFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragStart();
+      window.floatingAPI.dragMove(-160, 115);
+      window.floatingAPI.dragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseFloatingBounds.x,
+      y: baseFloatingBounds.y,
+    }));
+
+    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(movedFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => window.floatingAPI.expand());
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect.poll(async () => {
+      const nextBounds = await readMainWindowBounds(electronApp);
       return JSON.stringify({
         x: nextBounds?.x || 0,
         y: nextBounds?.y || 0,

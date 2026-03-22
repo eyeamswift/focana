@@ -42,6 +42,7 @@ const isE2E = process.env.FOCANA_E2E === '1';
 const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
+const STARTUP_SAFE_HEIGHT = 360;
 const PILL_MIN_WIDTH = 100;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
@@ -62,6 +63,7 @@ const DEFAULT_SHORTCUTS = {
 let pendingProgrammaticMainBounds = null;
 let clearProgrammaticMainBoundsTimer = null;
 let awaitingInitialMainWindowShow = false;
+let startupRevealFallbackTimer = null;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -1030,13 +1032,25 @@ function exitFloatingIconMode({ focusMain = true } = {}) {
   clearFloatingTimedPulseState();
   floatingIconDragStart = null;
   isFloatingMinimized = false;
+  const floatingBounds = floatingIconWindow && !floatingIconWindow.isDestroyed()
+    ? floatingIconWindow.getBounds()
+    : null;
 
   if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
     floatingIconWindow.hide();
   }
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
+    const currentMainBounds = mainWindow.getBounds();
+    const nextBounds = floatingBounds
+      ? clampBounds({
+        x: floatingBounds.x,
+        y: floatingBounds.y,
+        width: Math.max(currentMainBounds.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH),
+        height: Math.max(currentMainBounds.height || FULL_MIN_HEIGHT, FULL_MIN_HEIGHT),
+      }, 'display')
+      : currentMainBounds;
+    setMainWindowBoundsClamped(nextBounds, { persist: true, areaType: 'display' });
     mainWindow.show();
     if (focusMain) mainWindow.focus();
   }
@@ -1053,7 +1067,22 @@ function toggleFloatingMinimize() {
 function createWindow() {
   setDockIcon();
 
-  const initialBounds = clampBounds(getDefaultMainWindowBounds(), 'display');
+  const fallbackBounds = getDefaultMainWindowBounds();
+  const rawWindowState = store.get('windowState', fallbackBounds);
+  const storedWindowState = sanitizeStoredWindowState(
+    rawWindowState && typeof rawWindowState === 'object'
+      ? { ...fallbackBounds, ...rawWindowState }
+      : fallbackBounds
+  );
+  const initialBounds = clampBounds({
+    x: storedWindowState.x,
+    y: storedWindowState.y,
+    width: Math.max(storedWindowState.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH),
+    // Startup gates need more than the timer-height shell; keep the hidden
+    // launch window large enough to show onboarding/loading if it is revealed
+    // before the renderer finishes its explicit startup resize handshake.
+    height: Math.max(storedWindowState.height || STARTUP_SAFE_HEIGHT, STARTUP_SAFE_HEIGHT),
+  }, 'display');
 
   mainWindow = new BrowserWindow({
     x: initialBounds.x,
@@ -1088,6 +1117,55 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   }
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (
+      isDev
+      && awaitingInitialMainWindowShow
+      && mainWindow
+      && !mainWindow.isDestroyed()
+      && !mainWindow.isVisible()
+      && !isPillMode
+      && !isModalExpanded
+    ) {
+      const nextBounds = getSizedMainWindowBounds(FULL_MIN_WIDTH, STARTUP_SAFE_HEIGHT);
+      if (nextBounds && !boundsEqual(mainWindow.getBounds(), nextBounds)) {
+        mainWindow.setResizable(true);
+        mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+        setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+      }
+      awaitingInitialMainWindowShow = false;
+      mainWindow.show();
+      mainWindow.focus();
+      return;
+    }
+
+    if (startupRevealFallbackTimer) {
+      clearTimeout(startupRevealFallbackTimer);
+      startupRevealFallbackTimer = null;
+    }
+    startupRevealFallbackTimer = setTimeout(() => {
+      if (
+        !mainWindow
+        || mainWindow.isDestroyed()
+        || !awaitingInitialMainWindowShow
+        || mainWindow.isVisible()
+        || isPillMode
+        || isModalExpanded
+      ) {
+        return;
+      }
+
+      const nextBounds = getSizedMainWindowBounds(FULL_MIN_WIDTH, STARTUP_SAFE_HEIGHT);
+      if (nextBounds && !boundsEqual(mainWindow.getBounds(), nextBounds)) {
+        mainWindow.setResizable(true);
+        mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+        setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+      }
+      awaitingInitialMainWindowShow = false;
+      mainWindow.show();
+      mainWindow.focus();
+    }, 1200);
+  });
   updater.attachWindow(mainWindow);
 
   // Keep window fully on-screen after any user move/resize and persist full-mode bounds.
@@ -1110,10 +1188,11 @@ function createWindow() {
   mainWindow.on('moved', handleBoundsChange);
   mainWindow.on('resize', handleBoundsChange);
 
-  // Persist sanitized startup bounds.
-  store.set('windowState', initialBounds);
-
   mainWindow.on('closed', () => {
+    if (startupRevealFallbackTimer) {
+      clearTimeout(startupRevealFallbackTimer);
+      startupRevealFallbackTimer = null;
+    }
     if (clearProgrammaticMainBoundsTimer) {
       clearTimeout(clearProgrammaticMainBoundsTimer);
       clearProgrammaticMainBoundsTimer = null;
@@ -1273,6 +1352,11 @@ ipcMain.handle('enter-floating-minimize', () => {
 
 ipcMain.handle('show-main-window-after-startup', (_, width = FULL_MIN_WIDTH, height = FULL_MIN_HEIGHT) => {
   if (!mainWindow || mainWindow.isDestroyed() || isE2EBackground) return false;
+
+  if (startupRevealFallbackTimer) {
+    clearTimeout(startupRevealFallbackTimer);
+    startupRevealFallbackTimer = null;
+  }
 
   if (awaitingInitialMainWindowShow && !mainWindow.isVisible() && !isPillMode && !isModalExpanded) {
     const nextBounds = getSizedMainWindowBounds(width, height);
@@ -1452,7 +1536,6 @@ ipcMain.handle('modal-closed', () => {
 ipcMain.handle('enter-pill-mode', (_, options = {}) => {
   if (mainWindow) {
     const current = mainWindow.getBounds();
-    const displayBounds = screen.getDisplayMatching(current).bounds;
     const restorePreviousBounds = options?.restorePreviousBounds === true;
     lastFullBounds = current;
     clearCompactTransientState();
@@ -1469,9 +1552,15 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
     const rememberedCompactBounds = lastStablePillBounds
       ? clampBounds(lastStablePillBounds, 'display')
       : null;
+    const currentAnchoredCompactBounds = clampBounds({
+      x: current.x,
+      y: current.y,
+      width: rememberedCompactBounds?.width || targetWidth,
+      height: rememberedCompactBounds?.height || targetHeight,
+    }, 'display');
     const nextBounds = restorePreviousBounds && pendingPillRestoreBounds
       ? clampBounds(pendingPillRestoreBounds, 'display')
-      : (rememberedCompactBounds || buildBottomRightBounds(displayBounds, targetWidth, targetHeight));
+      : currentAnchoredCompactBounds;
     pendingPillRestoreBounds = null;
     setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
     rememberStablePillBounds(clampBounds(nextBounds, 'display'));

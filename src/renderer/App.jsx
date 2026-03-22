@@ -390,6 +390,7 @@ export default function App() {
   const pendingCompactExitHeightRef = useRef(null);
   const didJustExitCompactRef = useRef(false);
   const startupWindowShownRef = useRef(false);
+  const startupWindowShowPendingRef = useRef(false);
   const compactRevealTimerRef = useRef(null);
   const pendingCompactRestoreRef = useRef(false);
   const compactPrevTimerVisibleRef = useRef(null);
@@ -913,6 +914,7 @@ export default function App() {
     if (startupGateState !== 'ready') return undefined;
     if (!runtimeInfo?.licenseEnforced) return undefined;
     if (!licenseStatus?.keyPresent || !licenseStatus?.instanceId) return undefined;
+    if (!licenseStatus?.validationDue) return undefined;
     if (backgroundLicenseValidationRef.current === licenseStatus.instanceId) return undefined;
 
     backgroundLicenseValidationRef.current = licenseStatus.instanceId;
@@ -921,7 +923,7 @@ export default function App() {
     window.setTimeout(() => {
       void (async () => {
         try {
-          const nextStatus = await window.electronAPI.validateLicense?.({ force: true });
+          const nextStatus = await window.electronAPI.validateLicense?.();
           if (cancelled || !nextStatus) return;
 
           setLicenseStatus(nextStatus);
@@ -937,7 +939,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [licenseStatus?.instanceId, licenseStatus?.keyPresent, runtimeInfo?.licenseEnforced, startupGateState]);
+  }, [licenseStatus?.instanceId, licenseStatus?.keyPresent, licenseStatus?.validationDue, runtimeInfo?.licenseEnforced, startupGateState]);
 
 
   // Snapshot timer-visibility when entering compact so exit restores the
@@ -1360,6 +1362,17 @@ export default function App() {
       taskInputRef.current?.select();
     }, 100);
   }, [isCompact, handleExitCompact]);
+
+  const requestCompactEntry = useCallback(({ restorePreviousBounds = false, delayMs = 0 } = {}) => {
+    pendingCompactRestoreRef.current = restorePreviousBounds === true;
+    if (delayMs > 0) {
+      setTimeout(() => {
+        setIsCompact(true);
+      }, delayMs);
+      return;
+    }
+    setIsCompact(true);
+  }, []);
 
   const handleShortcutToggleCompact = useCallback(() => {
     const newCompact = !isCompact;
@@ -1900,17 +1913,6 @@ export default function App() {
     clearCompactPulseRuntime();
     clearTimedCueSegment();
   }, [clearCheckInRuntime, clearCompactPulseRuntime, clearTimedCueSegment]);
-
-  const requestCompactEntry = useCallback(({ restorePreviousBounds = true, delayMs = 0 } = {}) => {
-    pendingCompactRestoreRef.current = restorePreviousBounds === true;
-    if (delayMs > 0) {
-      setTimeout(() => {
-        setIsCompact(true);
-      }, delayMs);
-      return;
-    }
-    setIsCompact(true);
-  }, []);
 
   const restoreDisplayMode = useCallback(({ returnToCompact = false, returnToFloating = false } = {}) => {
     if (returnToFloating) {
@@ -2680,25 +2682,38 @@ export default function App() {
   useEffect(() => {
     if (startupGateState === 'checking') return undefined;
     if (!shortcutsHydrated) return undefined;
-    if (startupWindowShownRef.current) return undefined;
+    if (startupWindowShownRef.current || startupWindowShowPendingRef.current) return undefined;
 
     const targetHeight = getStartupTargetHeight();
     let cancelled = false;
-    const raf = window.requestAnimationFrame(() => {
-      if (cancelled) return;
-      startupWindowShownRef.current = true;
+    let settleTimer = 0;
+
+    startupWindowShowPendingRef.current = true;
+    // Use setTimeout instead of requestAnimationFrame — rAF never fires
+    // for a hidden BrowserWindow (show: false), creating a deadlock where
+    // the window waits for this call to show, but rAF waits for visibility.
+    console.log('[startup-reveal] scheduling showMainWindowAfterStartup, gate:', startupGateState, 'hydrated:', shortcutsHydrated);
+    settleTimer = window.setTimeout(() => {
+      if (cancelled) { console.log('[startup-reveal] cancelled before show'); return; }
       Promise.resolve(
         window.electronAPI.showMainWindowAfterStartup?.(WINDOW_SIZES.baseWidth, targetHeight)
-      ).finally(() => {
+      ).then((didShow) => {
+        if (cancelled) return;
+        if (didShow !== false) {
+          startupWindowShownRef.current = true;
+        }
+      }).finally(() => {
         if (!cancelled) {
+          startupWindowShowPendingRef.current = false;
           setStartupRevealComplete(true);
         }
       });
-    });
+    }, 32);
 
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(raf);
+      startupWindowShowPendingRef.current = false;
+      window.clearTimeout(settleTimer);
     };
   }, [startupGateState, shortcutsHydrated, getStartupTargetHeight]);
 
