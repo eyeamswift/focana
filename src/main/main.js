@@ -42,7 +42,7 @@ const isE2E = process.env.FOCANA_E2E === '1';
 const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
-const STARTUP_SAFE_HEIGHT = 360;
+const STARTUP_SAFE_HEIGHT = 520;
 const PILL_MIN_WIDTH = 100;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;

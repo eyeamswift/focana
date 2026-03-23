@@ -54,7 +54,9 @@ const THEME_STORAGE_KEY = 'focana-theme';
 const WINDOW_SIZES = {
   baseWidth: 500,
   idleHeight: 140,
-  onboardingHeight: 360,
+  startupCheckingHeight: 220,
+  startupNameHeight: 380,
+  startupActivationHeight: 460,
   startChooserHeight: 188,
   timerHeight: 120,
   timerCheckInPromptHeight: 304,
@@ -74,6 +76,7 @@ const WINDOW_SIZES = {
     quickCapture: [420, 340],
   },
 };
+const STARTUP_GATE_VERTICAL_PADDING = 32;
 const CHECKIN_MESSAGES = [
   'Nice, keep going',
   'Good Job! 🍊',
@@ -336,6 +339,7 @@ export default function App() {
   const taskInputRef = useRef(null);
   const sessionMinutesInputRef = useRef(null);
   const mainCardRef = useRef(null);
+  const startupGateCardRef = useRef(null);
   const thoughtsLoadedRef = useRef(false);
   const confettiTimerRef = useRef(null);
   const pulseIntervalRef = useRef(null);
@@ -2616,6 +2620,30 @@ export default function App() {
     window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
   }, []);
 
+  const getStartupGateFallbackHeight = useCallback(() => {
+    if (startupGateState === 'activation') return WINDOW_SIZES.startupActivationHeight;
+    if (startupGateState === 'name') return WINDOW_SIZES.startupNameHeight;
+    return WINDOW_SIZES.startupCheckingHeight;
+  }, [startupGateState]);
+
+  const measureStartupGateHeight = useCallback(() => {
+    const card = startupGateCardRef.current;
+    const measuredCardHeight = card
+      ? Math.ceil(card.scrollHeight || card.getBoundingClientRect().height || 0)
+      : 0;
+    return Math.max(
+      getStartupGateFallbackHeight(),
+      measuredCardHeight + STARTUP_GATE_VERTICAL_PADDING,
+    );
+  }, [getStartupGateFallbackHeight]);
+
+  const resizeToStartupGateContent = useCallback(() => {
+    if (!startupRevealComplete) return;
+    if (isCompact) return;
+    if (startupGateState === 'ready') return;
+    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, measureStartupGateHeight());
+  }, [isCompact, measureStartupGateHeight, startupGateState, startupRevealComplete]);
+
   const getActiveScreenDefaultHeight = useCallback(() => {
     if (contextNotes.trim()) return WINDOW_SIZES.contextHeight;
     if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
@@ -2627,12 +2655,12 @@ export default function App() {
   }, [contextNotes, checkInState, showCenteredFullWindowCheckInToast]);
 
   const getIdleScreenDefaultHeight = useCallback(() => {
-    if (startupGateState !== 'ready') return WINDOW_SIZES.onboardingHeight;
+    if (startupGateState !== 'ready') return getStartupGateFallbackHeight();
     return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
-  }, [isStartModalOpen, startupGateState]);
+  }, [getStartupGateFallbackHeight, isStartModalOpen, startupGateState]);
 
   const getStartupTargetHeight = useCallback(() => {
-    if (startupGateState !== 'ready') return WINDOW_SIZES.onboardingHeight;
+    if (startupGateState !== 'ready') return measureStartupGateHeight();
     if (isStartModalOpen) return WINDOW_SIZES.startChooserHeight;
 
     const hasActiveStartupSurface = Boolean(contextNotes.trim())
@@ -2653,6 +2681,7 @@ export default function App() {
     checkInState,
     showCenteredFullWindowCheckInToast,
     getActiveScreenDefaultHeight,
+    measureStartupGateHeight,
   ]);
 
   const resyncFullWindowSize = useCallback(() => {
@@ -2760,6 +2789,36 @@ export default function App() {
     }, 40);
     return () => clearTimeout(t);
   }, [startupRevealComplete, isCompact, isPulsing, resyncFullWindowSize]);
+
+  useLayoutEffect(() => {
+    if (!startupRevealComplete) return undefined;
+    if (isCompact) return undefined;
+    if (startupGateState === 'ready') return undefined;
+
+    let syncTimer = 0;
+    let settleTimer = 0;
+    let observer = null;
+
+    const syncGateSize = () => {
+      resizeToStartupGateContent();
+    };
+
+    syncTimer = window.setTimeout(syncGateSize, 0);
+    settleTimer = window.setTimeout(syncGateSize, 120);
+
+    if (typeof ResizeObserver !== 'undefined' && startupGateCardRef.current) {
+      observer = new ResizeObserver(() => {
+        syncGateSize();
+      });
+      observer.observe(startupGateCardRef.current);
+    }
+
+    return () => {
+      window.clearTimeout(syncTimer);
+      window.clearTimeout(settleTimer);
+      if (observer) observer.disconnect();
+    };
+  }, [isCompact, resizeToStartupGateContent, startupGateState, startupRevealComplete]);
 
   // Hard guard: when truly idle, force the compact full-screen height target.
   // This prevents stale larger bounds after compact->full race conditions.
@@ -3727,6 +3786,7 @@ export default function App() {
       return (
         <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
           <div
+            ref={startupGateCardRef}
             className="electron-no-drag"
             style={{
               width: '100%',
@@ -3760,6 +3820,7 @@ export default function App() {
       return (
         <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
           <div
+            ref={startupGateCardRef}
             className="electron-no-drag"
             style={{
               width: '100%',
@@ -3838,6 +3899,7 @@ export default function App() {
       return (
         <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
           <div
+            ref={startupGateCardRef}
             className="electron-no-drag"
             style={{
               width: '100%',

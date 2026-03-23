@@ -273,6 +273,36 @@ test('saved preferred name bypasses capture gate on launch', async () => {
   }
 });
 
+test('activation gate expands beyond the old 360px startup shell to fit its content', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    seedConfig: {
+      preferredName: '',
+      license: {
+        key: '',
+        instanceId: '',
+        status: 'unlicensed',
+        activatedAt: null,
+        lastValidatedAt: null,
+        offlineGraceUntil: null,
+        lastError: null,
+      },
+    },
+    waitForTaskInput: false,
+    extraEnv: {
+      FOCANA_FORCE_LICENSE_GATE: '1',
+    },
+  });
+
+  try {
+    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
+    await expect(page.getByText('Where is my key? Check your Lemon Squeezy receipt email or Lemon Squeezy My Orders. If this key is already active on another Mac, deactivate it there first or contact support at hello@focana.app.')).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeGreaterThan(360);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('license activation flows into name capture and then into the app without bouncing back', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
