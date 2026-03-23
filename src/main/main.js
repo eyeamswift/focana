@@ -50,6 +50,7 @@ const PILL_BASE_WIDTH = 124;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
 const PILL_EDGE_EPSILON = 2;
+const PILL_CLAMP_AREA = 'workArea';
 const DRAG_POLL_INTERVAL_MS = 16;
 const DRAG_OVERRIDE_TTL_MS = 120;
 const FLOATING_ICON_SIZE = 64;
@@ -292,7 +293,7 @@ function syncPillDragToPoint(point) {
     y: Math.round(pillDragStart.startBounds.y + deltaY),
     width: pillDragStart.startBounds.width,
     height: pillDragStart.startBounds.height,
-  }, 'display');
+  }, PILL_CLAMP_AREA);
 
   if (pillDragStart.transientStartBounds) {
     compactTransientBaseBounds = clampBounds({
@@ -300,13 +301,13 @@ function syncPillDragToPoint(point) {
       y: Math.round(pillDragStart.transientStartBounds.y + deltaY),
       width: pillDragStart.transientStartBounds.width,
       height: pillDragStart.transientStartBounds.height,
-    }, 'display');
+    }, PILL_CLAMP_AREA);
     rememberStablePillBounds(compactTransientBaseBounds);
   } else {
     rememberStablePillBounds(nextBounds);
   }
 
-  setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+  setMainWindowBoundsClamped(nextBounds, { areaType: PILL_CLAMP_AREA });
 }
 
 function startPillDragPolling() {
@@ -375,11 +376,11 @@ function restoreAndClearCompactTransient() {
     return;
   }
 
-  const restoreBounds = clampBounds(compactTransientBaseBounds, 'display');
+  const restoreBounds = clampBounds(compactTransientBaseBounds, PILL_CLAMP_AREA);
   if (mainWindow && isPillMode) {
     const currentBounds = mainWindow.getBounds();
     if (!boundsEqual(currentBounds, restoreBounds)) {
-      setMainWindowBoundsClamped(restoreBounds, { areaType: 'display' });
+      setMainWindowBoundsClamped(restoreBounds, { areaType: PILL_CLAMP_AREA });
     }
   }
   rememberStablePillBounds(restoreBounds);
@@ -391,7 +392,7 @@ function beginCompactTransient(source) {
   clearCompactTransientClearTimer();
   compactTransientClearing = false;
   if (!compactTransientBaseBounds) {
-    compactTransientBaseBounds = clampBounds(lastStablePillBounds || mainWindow.getBounds(), 'display');
+    compactTransientBaseBounds = clampBounds(lastStablePillBounds || mainWindow.getBounds(), PILL_CLAMP_AREA);
   }
   if (source) {
     compactTransientSources.add(String(source));
@@ -1690,7 +1691,7 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
     const targetWidth = PILL_BASE_WIDTH;
     const targetHeight = PILL_MIN_HEIGHT;
     const rememberedCompactBounds = lastStablePillBounds
-      ? clampBounds(lastStablePillBounds, 'display')
+      ? clampBounds(lastStablePillBounds, PILL_CLAMP_AREA)
       : null;
     const currentAnchoredCompactBounds = clampBounds(
       getAnchoredCompactBoundsFromFullBounds(
@@ -1698,14 +1699,14 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
         rememberedCompactBounds?.width || targetWidth,
         rememberedCompactBounds?.height || targetHeight,
       ),
-      'display',
+      PILL_CLAMP_AREA,
     );
     const nextBounds = restorePreviousBounds && pendingPillRestoreBounds
-      ? clampBounds(pendingPillRestoreBounds, 'display')
+      ? clampBounds(pendingPillRestoreBounds, PILL_CLAMP_AREA)
       : currentAnchoredCompactBounds;
     pendingPillRestoreBounds = null;
-    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
-    rememberStablePillBounds(clampBounds(nextBounds, 'display'));
+    setMainWindowBoundsClamped(nextBounds, { areaType: PILL_CLAMP_AREA });
+    rememberStablePillBounds(clampBounds(nextBounds, PILL_CLAMP_AREA));
     mainWindow.setResizable(false);
   }
 });
@@ -1714,7 +1715,7 @@ ipcMain.handle('capture-pill-restore-bounds', () => {
   if (!mainWindow || !isPillMode) return;
   pendingPillRestoreBounds = clampBounds(
     compactTransientBaseBounds || lastStablePillBounds || mainWindow.getBounds(),
-    'display',
+    PILL_CLAMP_AREA,
   );
 });
 
@@ -1734,9 +1735,9 @@ ipcMain.handle('set-pill-width', (_, width) => {
     const targetWidth = Math.round(clampNumber(width, PILL_MIN_WIDTH, 1200, PILL_MIN_WIDTH));
     const targetHeight = Math.max(PILL_MIN_HEIGHT, Math.min(PILL_MAX_HEIGHT, current.height || PILL_MIN_HEIGHT));
     const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, false);
-    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+    setMainWindowBoundsClamped(nextBounds, { areaType: PILL_CLAMP_AREA });
     if (!hasActiveCompactTransient()) {
-      rememberStablePillBounds(clampBounds(nextBounds, 'display'));
+      rememberStablePillBounds(clampBounds(nextBounds, PILL_CLAMP_AREA));
     }
   }
 });
@@ -1751,9 +1752,9 @@ ipcMain.handle('set-pill-size', (_, size) => {
     const targetWidth = Math.round(clampNumber(requestedWidth, PILL_MIN_WIDTH, 1200, current.width));
     const targetHeight = Math.round(clampNumber(requestedHeight, PILL_MIN_HEIGHT, PILL_MAX_HEIGHT, current.height));
     const nextBounds = getPillTargetBounds(current, targetWidth, targetHeight, pulseActive);
-    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+    setMainWindowBoundsClamped(nextBounds, { areaType: PILL_CLAMP_AREA });
     if (!hasActiveCompactTransient()) {
-      rememberStablePillBounds(clampBounds(nextBounds, 'display'));
+      rememberStablePillBounds(clampBounds(nextBounds, PILL_CLAMP_AREA));
     }
   }
 });
@@ -1776,7 +1777,7 @@ ipcMain.on('pill-drag-start', () => {
       startBounds: { ...bounds },
       startCursor: screen.getCursorScreenPoint(),
       transientStartBounds: compactTransientBaseBounds
-        ? clampBounds(compactTransientBaseBounds, 'display')
+        ? clampBounds(compactTransientBaseBounds, PILL_CLAMP_AREA)
         : null,
       overridePoint: null,
     };
@@ -1802,7 +1803,7 @@ ipcMain.on('pill-drag-end', () => {
   pillDragStart = null;
   clearPillDragPolling();
   if (mainWindow && isPillMode) {
-    rememberStablePillBounds(compactTransientBaseBounds || mainWindow.getBounds());
+    rememberStablePillBounds(clampBounds(compactTransientBaseBounds || mainWindow.getBounds(), PILL_CLAMP_AREA));
   }
 });
 

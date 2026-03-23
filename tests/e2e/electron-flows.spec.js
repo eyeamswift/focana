@@ -1359,6 +1359,29 @@ test('compact drag can clamp flush to the left work area edge', async () => {
   }
 });
 
+test('compact drag can clamp flush to the top work area edge', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-top-edge');
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(0, -4000);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow, screen }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return false;
+      const bounds = main.getBounds();
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      return Math.abs(bounds.y - workArea.y) <= 2;
+    }), { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('manual exit from compact restores a usable full window shell', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
