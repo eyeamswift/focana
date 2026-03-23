@@ -2721,9 +2721,8 @@ export default function App() {
     // Use setTimeout instead of requestAnimationFrame — rAF never fires
     // for a hidden BrowserWindow (show: false), creating a deadlock where
     // the window waits for this call to show, but rAF waits for visibility.
-    console.log('[startup-reveal] scheduling showMainWindowAfterStartup, gate:', startupGateState, 'hydrated:', shortcutsHydrated);
     settleTimer = window.setTimeout(() => {
-      if (cancelled) { console.log('[startup-reveal] cancelled before show'); return; }
+      if (cancelled) return;
       Promise.resolve(
         window.electronAPI.showMainWindowAfterStartup?.(WINDOW_SIZES.baseWidth, targetHeight)
       ).then((didShow) => {
