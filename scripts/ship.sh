@@ -215,17 +215,14 @@ else
   ok "GitHub release download URLs are live"
 fi
 
-info "Step 7/10: Update Vercel env vars"
+info "Step 7/10: Update Vercel env vars (preview only)"
 if [ "$DRY_RUN" = true ]; then
-  info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for production"
-  info "Would upsert the same vars for preview branch codex/landing-preview"
+  info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for preview branch codex/landing-preview"
 else
-  vercel env add PUBLIC_GITHUB_ARM64_DMG_URL production --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
-  vercel env add PUBLIC_GITHUB_X64_DMG_URL production --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
   vercel env add PUBLIC_GITHUB_ARM64_DMG_URL preview codex/landing-preview --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
   vercel env add PUBLIC_GITHUB_X64_DMG_URL preview codex/landing-preview --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
 
-  ok "Vercel env vars updated for production and codex/landing-preview"
+  ok "Vercel env vars updated for codex/landing-preview"
 fi
 
 info "Step 8/10: Update the local landing env file"
@@ -237,18 +234,17 @@ else
   ok "Local landing .env updated"
 fi
 
-info "Step 9/10: Redeploy Vercel"
+info "Step 9/10: Redeploy Vercel preview"
 if [ "$DRY_RUN" = true ]; then
-  info "Would trigger a production deploy and a preview deploy for $LANDING_ROOT"
+  info "Would trigger a preview deploy for $LANDING_ROOT"
 else
   LANDING_BRANCH="$(git -C "$LANDING_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')"
   if [ "$LANDING_BRANCH" != "codex/landing-preview" ]; then
     warn "Landing repo is on $LANDING_BRANCH, so the preview deploy will use that branch context."
   fi
 
-  vercel --prod --cwd "$LANDING_ROOT" --yes
   vercel --cwd "$LANDING_ROOT" --yes
-  ok "Vercel production and preview deploys triggered"
+  ok "Vercel preview deploy triggered"
 fi
 
 info "Step 10/10: Summary"
