@@ -352,11 +352,14 @@
         iconButton.setAttribute('aria-label', nextMode === 'timer' ? `Expand Focana timer ${nextTimeText}` : 'Expand Focana');
       }
 
-      function beginDrag(screenX, screenY) {
+      let activeDragPointerId = null;
+
+      function beginDrag(screenX, screenY, pointerId) {
         dragActive = true;
         dragMoved = false;
         dragStartScreenX = screenX;
         dragStartScreenY = screenY;
+        activeDragPointerId = pointerId ?? null;
         getFloatingAPI()?.dragStart?.();
       }
 
@@ -373,28 +376,39 @@
       function finishDrag() {
         if (!dragActive) return;
         dragActive = false;
+        if (activeDragPointerId != null) {
+          try { iconButton.releasePointerCapture(activeDragPointerId); } catch (_) {}
+        }
+        activeDragPointerId = null;
         getFloatingAPI()?.dragEnd?.();
       }
 
-      iconButton.addEventListener('mousedown', (event) => {
+      // Use pointerdown + setPointerCapture so the element keeps receiving
+      // pointer events even when the cursor leaves this tiny window during
+      // a fast drag.  This mirrors the document-level capture pattern used
+      // by CompactMode.jsx and fixes the inability to drag the floating
+      // icon toward certain screen edges (left, top).
+      iconButton.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
-        beginDrag(event.screenX, event.screenY);
+        try { iconButton.setPointerCapture(event.pointerId); } catch (_) {}
+        beginDrag(event.screenX, event.screenY, event.pointerId);
       });
 
-      window.addEventListener('mousemove', (event) => {
+      // Document-level listeners ensure we track the cursor even when it
+      // escapes the small BrowserWindow bounds.
+      document.addEventListener('pointermove', (event) => {
         if (!dragActive) return;
         moveDrag(event.screenX, event.screenY);
       });
 
-      window.addEventListener('mouseup', (event) => {
+      document.addEventListener('pointerup', (event) => {
         if (!dragActive || event.button !== 0) return;
         finishDrag();
       });
 
       window.addEventListener('blur', () => {
         if (!dragActive) return;
-        dragActive = false;
-        getFloatingAPI()?.dragEnd?.();
+        finishDrag();
       });
 
       iconButton.addEventListener('click', (event) => {
@@ -420,6 +434,10 @@
 
       iconButton.addEventListener('contextmenu', (event) => {
         event.preventDefault();
+        if (activeDragPointerId != null) {
+          try { iconButton.releasePointerCapture(activeDragPointerId); } catch (_) {}
+          activeDragPointerId = null;
+        }
         dragActive = false;
         dragMoved = false;
         clearPendingClick();
