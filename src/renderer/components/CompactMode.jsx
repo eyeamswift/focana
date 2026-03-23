@@ -209,8 +209,8 @@ export default function CompactMode({
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
     if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
     if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
-    if (dragMoveHandlerRef.current) document.removeEventListener('mousemove', dragMoveHandlerRef.current);
-    if (dragUpHandlerRef.current) document.removeEventListener('mouseup', dragUpHandlerRef.current);
+    if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
+    if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
     if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
   }, []);
 
@@ -224,20 +224,31 @@ export default function CompactMode({
   // JS drag — move window by tracking mouse delta and sending IPC
   // (CSS -webkit-app-region:drag blocks mouse events, so we do this in JS)
   // ---------------------------------------------------------------------------
-  const handleMouseDown = (e) => {
+  // Use pointerdown + setPointerCapture so the pill keeps receiving pointer
+  // events even when the cursor escapes this small window during a fast drag.
+  const handlePointerDown = (e) => {
     if (e.button !== 0) return;           // left button only
     if (e.target.closest('button')) return; // let button clicks through
 
-    if (dragMoveHandlerRef.current) document.removeEventListener('mousemove', dragMoveHandlerRef.current);
-    if (dragUpHandlerRef.current) document.removeEventListener('mouseup', dragUpHandlerRef.current);
+    if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
+    if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
     if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
     dragMoveHandlerRef.current = null;
     dragUpHandlerRef.current = null;
     dragBlurHandlerRef.current = null;
 
+    // Capture the pointer so we keep tracking even outside the small window
+    try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    const capturedPointerId = e.pointerId;
+    const captureTarget = e.target;
+
     const startX = e.screenX;
     const startY = e.screenY;
     let started = false;
+
+    const releaseCaptureIfNeeded = () => {
+      try { captureTarget.releasePointerCapture(capturedPointerId); } catch (_) {}
+    };
 
     const onMove = (ev) => {
       const dx = ev.screenX - startX;
@@ -260,9 +271,10 @@ export default function CompactMode({
     };
 
     const onUp = () => {
+      releaseCaptureIfNeeded();
       if (started) window.electronAPI.pillDragEnd();
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
       window.removeEventListener('blur', onUp);
       dragMoveHandlerRef.current = null;
       dragUpHandlerRef.current = null;
@@ -274,8 +286,8 @@ export default function CompactMode({
     dragMoveHandlerRef.current = onMove;
     dragUpHandlerRef.current = onUp;
     dragBlurHandlerRef.current = onUp;
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
     window.addEventListener('blur', onUp);
   };
 
@@ -335,7 +347,7 @@ export default function CompactMode({
     <div
       className={`pill pill--logo${isPulseAnimating ? ' animate-pulse-compact pill--pulse-active' : ''}`}
       style={pillStyle}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onDragStart={(e) => e.preventDefault()}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
