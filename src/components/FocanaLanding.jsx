@@ -176,39 +176,6 @@ function FAQItem({ question, answer }) {
   );
 }
 
-// Floating sticky note illustration
-function StickyNote({ text, rotation = 0, delay = 0, top, left, size = 120 }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), delay);
-    return () => clearTimeout(t);
-  }, [delay]);
-
-  return (
-    <div className="sticky-note" style={{
-      position: "absolute",
-      top, left,
-      width: `${size}px`,
-      height: `${size}px`,
-      background: COLORS.creamYellow,
-      borderRadius: "4px",
-      boxShadow: "0 4px 20px rgba(92, 64, 51, 0.15)",
-      transform: `rotate(${rotation}deg) scale(${visible ? 1 : 0.5})`,
-      opacity: visible ? 0.85 : 0,
-      transition: "all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)",
-      padding: "14px",
-      fontFamily: "'Caveat', cursive",
-      fontSize: "14px",
-      color: COLORS.warmBrown,
-      lineHeight: 1.3,
-      pointerEvents: "none",
-      zIndex: 1,
-    }}>
-      {text}
-    </div>
-  );
-}
-
 // Windows waitlist modal
 function WaitlistModal({ open, onClose }) {
   const [email, setEmail] = useState("");
@@ -590,7 +557,7 @@ export default function FocanaLanding() {
   const [checkoutError, setCheckoutError] = useState("");
   const checkoutReadyPromiseRef = useRef(null);
   const checkoutErrorTimeoutRef = useRef(null);
-  const headlines = ["What was it?", "It didn't get done.", "You did 3 other things.", "Where did the time go?"];
+  const headlines = ["It didn't get done.", "You did 3 other things.", "You forgot what it was.", "Where did the time go?"];
 
   useEffect(() => {
     let rafId = 0;
@@ -612,7 +579,7 @@ export default function FocanaLanding() {
   useEffect(() => {
     const timer = setInterval(() => {
       setHeadlineIndex((prev) => (prev + 1) % 4);
-    }, 2500);
+    }, 4000);
     return () => clearInterval(timer);
   }, []);
 
@@ -1068,13 +1035,9 @@ export default function FocanaLanding() {
 
       {/* HERO */}
       <section className="hero-section" style={{
-        paddingTop: "140px", paddingBottom: "100px", position: "relative", overflow: "hidden",
+        paddingTop: "140px", paddingBottom: 0, position: "relative", overflow: "hidden",
         background: `linear-gradient(160deg, ${COLORS.warmVanilla} 0%, ${COLORS.softCream} 50%, ${COLORS.creamYellow}22 100%)`,
       }}>
-        <StickyNote text="Finish the report" rotation={-6} delay={300} top="15%" left="3%" size={110} />
-        <StickyNote text="Stay focused!" rotation={4} delay={600} top="25%" left="88%" size={100} />
-        <StickyNote text="One thing at a time" rotation={-3} delay={900} top="65%" left="90%" size={115} />
-
         <div style={{
           position: "absolute", inset: 0, opacity: 0.03,
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
@@ -1101,7 +1064,7 @@ export default function FocanaLanding() {
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
                   display: "inline-block",
-                  animation: "headlineFade 2.5s ease both",
+                  animation: "headlineFade 4s ease both",
                 }}
               >{headlines[headlineIndex]}</span>
             </h1>
@@ -1160,6 +1123,20 @@ export default function FocanaLanding() {
               >join the waitlist</button>
             </p>
 
+          </div>
+
+          <div style={{
+            overflow: "hidden",
+            borderRadius: "12px 12px 0 0",
+            maxWidth: "900px",
+            margin: "0 auto",
+            marginTop: "48px",
+          }}>
+            <img
+              src="/hero-screenshot.png"
+              alt="Focana app screenshot"
+              style={{ width: "100%", display: "block" }}
+            />
           </div>
         </div>
       </section>
