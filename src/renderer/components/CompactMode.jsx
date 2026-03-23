@@ -58,7 +58,8 @@ export default function CompactMode({
   const lastPulseSignalRef = useRef(pulseSignal);
 
   const taskLabel = task || '';
-  const isTaskVisible = isHovered || showTaskByDefault;
+  const hasTaskLabel = taskLabel.trim().length > 0;
+  const isTaskVisible = hasTaskLabel && (isHovered || showTaskByDefault);
 
   useEffect(() => {
     const label = (taskLabel || '').trim();
@@ -99,12 +100,16 @@ export default function CompactMode({
     const baseWidth = basePillW + H_MARGIN;
     return checkInPromptActive ? Math.max(baseWidth, CHECKIN_POPUP_MIN_W) : baseWidth;
   }, [basePillW, checkInPromptActive]);
+  const visibleTaskWidth = useMemo(
+    () => (isTaskVisible ? taskMetrics.width + TASK_TIMER_GAP : 0),
+    [isTaskVisible, taskMetrics.width],
+  );
   const hoverWinW  = useMemo(
     () => {
-      const hoverWidth = basePillW + taskMetrics.width + TASK_TIMER_GAP + H_MARGIN;
+      const hoverWidth = basePillW + visibleTaskWidth + H_MARGIN;
       return checkInPromptActive ? Math.max(hoverWidth, CHECKIN_POPUP_MIN_W) : hoverWidth;
     },
-    [basePillW, taskMetrics.width, checkInPromptActive],
+    [basePillW, visibleTaskWidth, checkInPromptActive],
   );
   const ctrlWinW   = useMemo(() => hoverWinW + CTRL_W, [hoverWinW]);
   const pillH = useMemo(
@@ -169,7 +174,10 @@ export default function CompactMode({
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       pushPillSize(baseWinW, winH);
-      return;
+      const retryTimer = setTimeout(() => {
+        pushPillSize(baseWinW, winH);
+      }, 80);
+      return () => clearTimeout(retryTimer);
     }
 
     if (showControls) {

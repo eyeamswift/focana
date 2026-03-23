@@ -2274,7 +2274,7 @@ export default function App() {
       setCheckInMessage('');
       setCheckInCelebrating(false);
       setCheckInCelebrationType('none');
-      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
+      ensureWindowSizeForCurrentScreen(WINDOW_SIZES.timerCheckInPromptHeight);
     };
 
     const restoredFromFloating = await window.electronAPI.getFloatingMinimized?.() || false;
@@ -2305,7 +2305,7 @@ export default function App() {
     openPrompt();
     // Keep the prompt open until the user explicitly responds.
     return true;
-  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, mode, getElapsedSeconds, isCompact, handleExitCompact]);
+  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, startupGateState, task, currentSessionId, ensureCurrentSessionId, mode, getElapsedSeconds, isCompact, handleExitCompact]);
 
   useEffect(() => {
     checkInStateRef.current = checkInState;
@@ -2327,7 +2327,7 @@ export default function App() {
         pendingCompactRestoreRef.current = false;
         window.electronAPI.bringToFront?.();
         setTimeout(() => {
-          window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
+          ensureWindowSizeForCurrentScreen(WINDOW_SIZES.timerCheckInPromptHeight);
         }, 160);
         return;
       }
@@ -2338,7 +2338,7 @@ export default function App() {
         checkInReturnToCompactRef.current = true;
       }
       exitCompactForReturnDetour(() => {
-        window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timerCheckInPromptHeight);
+        ensureWindowSizeForCurrentScreen(WINDOW_SIZES.timerCheckInPromptHeight);
       }, 140);
     };
 
@@ -2347,7 +2347,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [checkInState, exitCompactForReturnDetour, isCompact]);
+  }, [checkInState, exitCompactForReturnDetour, isCompact, startupGateState]);
 
   // When check-ins are disabled mid-session, clean up runtime state
   useEffect(() => {
@@ -2555,10 +2555,10 @@ export default function App() {
     if (!showTimeUpModal) return undefined;
     // Ensure enough full-window space so timeout actions are immediately visible.
     const resizeTimer = setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.timeUpHeight);
+      ensureWindowSizeForCurrentScreen(WINDOW_SIZES.timeUpHeight);
     }, 80);
     return () => clearTimeout(resizeTimer);
-  }, [showTimeUpModal]);
+  }, [showTimeUpModal, startupGateState]);
 
   // Actions
   const handleToggleTheme = () => {
@@ -2611,15 +2611,6 @@ export default function App() {
     setDistractionJarOpen(true);
   }, [clearCheckInUi]);
 
-  const resizeToMainCardContent = useCallback((minHeight) => {
-    const card = mainCardRef.current;
-    const measuredHeight = card
-      ? Math.ceil(card.scrollHeight || card.getBoundingClientRect().height || 0)
-      : 0;
-    const targetHeight = Math.max(minHeight, measuredHeight);
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
-  }, []);
-
   const getStartupGateFallbackHeight = useCallback(() => {
     if (startupGateState === 'activation') return WINDOW_SIZES.startupActivationHeight;
     if (startupGateState === 'name') return WINDOW_SIZES.startupNameHeight;
@@ -2637,12 +2628,30 @@ export default function App() {
     );
   }, [getStartupGateFallbackHeight]);
 
+  const ensureWindowSizeForCurrentScreen = useCallback((height) => {
+    const requestedHeight = Math.max(0, Math.round(Number(height) || 0));
+    const targetHeight = startupGateState === 'ready'
+      ? requestedHeight
+      : Math.max(requestedHeight, measureStartupGateHeight());
+
+    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
+  }, [measureStartupGateHeight, startupGateState]);
+
+  const resizeToMainCardContent = useCallback((minHeight) => {
+    const card = mainCardRef.current;
+    const measuredHeight = card
+      ? Math.ceil(card.scrollHeight || card.getBoundingClientRect().height || 0)
+      : 0;
+    const targetHeight = Math.max(minHeight, measuredHeight);
+    ensureWindowSizeForCurrentScreen(targetHeight);
+  }, [ensureWindowSizeForCurrentScreen]);
+
   const resizeToStartupGateContent = useCallback(() => {
     if (!startupRevealComplete) return;
     if (isCompact) return;
     if (startupGateState === 'ready') return;
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, measureStartupGateHeight());
-  }, [isCompact, measureStartupGateHeight, startupGateState, startupRevealComplete]);
+    ensureWindowSizeForCurrentScreen(measureStartupGateHeight());
+  }, [ensureWindowSizeForCurrentScreen, isCompact, measureStartupGateHeight, startupGateState, startupRevealComplete]);
 
   const getActiveScreenDefaultHeight = useCallback(() => {
     if (contextNotes.trim()) return WINDOW_SIZES.contextHeight;
@@ -2687,11 +2696,25 @@ export default function App() {
   const resyncFullWindowSize = useCallback(() => {
     if (!startupRevealComplete) return;
     if (isCompact) return;
+    if (startupGateState !== 'ready') {
+      resizeToStartupGateContent();
+      return;
+    }
     const minHeight = (isRunning || isTimerVisible)
       ? getActiveScreenDefaultHeight()
       : getIdleScreenDefaultHeight();
     resizeToMainCardContent(minHeight);
-  }, [startupRevealComplete, isCompact, isRunning, isTimerVisible, resizeToMainCardContent, getActiveScreenDefaultHeight, getIdleScreenDefaultHeight]);
+  }, [
+    startupRevealComplete,
+    isCompact,
+    startupGateState,
+    isRunning,
+    isTimerVisible,
+    resizeToStartupGateContent,
+    resizeToMainCardContent,
+    getActiveScreenDefaultHeight,
+    getIdleScreenDefaultHeight,
+  ]);
 
   const restoreTimeUpWindowShell = useCallback(({ returnToCompact = false, returnToFloating = false } = {}) => {
     if (returnToCompact || returnToFloating) {
@@ -2830,12 +2853,12 @@ export default function App() {
     if (isStartModalOpen) return;
     if (contextNotes.trim()) return;
     if (task.trim()) return;
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
+    ensureWindowSizeForCurrentScreen(WINDOW_SIZES.idleHeight);
     const t = setTimeout(() => {
-      window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, WINDOW_SIZES.idleHeight);
+      ensureWindowSizeForCurrentScreen(WINDOW_SIZES.idleHeight);
     }, 100);
     return () => clearTimeout(t);
-  }, [startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
+  }, [ensureWindowSizeForCurrentScreen, startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
 
   const handlePlay = useCallback(() => {
     const trimmedTask = task.trim();
@@ -3733,16 +3756,16 @@ export default function App() {
           windowModeActualRef.current = 'full';
 
           if (Number.isFinite(pendingHeight)) {
-            window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
+            ensureWindowSizeForCurrentScreen(pendingHeight);
           }
           if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
           compactRevealTimerRef.current = setTimeout(() => {
             if (Number.isFinite(pendingHeight)) {
-              window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
+              ensureWindowSizeForCurrentScreen(pendingHeight);
             }
             setTimeout(() => {
               if (Number.isFinite(pendingHeight)) {
-                window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, pendingHeight);
+                ensureWindowSizeForCurrentScreen(pendingHeight);
               }
             }, 150);
             setCompactTransitioning(false);
@@ -3762,7 +3785,7 @@ export default function App() {
   useEffect(() => {
     windowModeDesiredRef.current = isCompact ? 'pill' : 'full';
     void syncWindowMode();
-  }, [isCompact, syncWindowMode]);
+  }, [ensureWindowSizeForCurrentScreen, isCompact, syncWindowMode]);
 
   // Safety net: if no active task/session in full mode, keep timer panel hidden.
   useEffect(() => {

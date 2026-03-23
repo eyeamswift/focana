@@ -273,6 +273,29 @@ test('saved preferred name bypasses capture gate on launch', async () => {
   }
 });
 
+test('fresh launch without persisted window state opens in the bottom-right work area', async () => {
+  const { electronApp, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      preferredName: 'Existing User',
+    },
+  });
+
+  try {
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow, screen }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return false;
+      const bounds = main.getBounds();
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      const rightDelta = Math.abs((bounds.x + bounds.width) - (workArea.x + workArea.width));
+      const bottomDelta = Math.abs((bounds.y + bounds.height) - (workArea.y + workArea.height));
+      return rightDelta <= 2 && bottomDelta <= 2;
+    }), { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('activation gate expands beyond the old 360px startup shell to fit its content', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     seedConfig: {
@@ -297,6 +320,54 @@ test('activation gate expands beyond the old 360px startup shell to fit its cont
     await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
     await expect(page.getByText('Where is my key? Check your Lemon Squeezy receipt email or Lemon Squeezy My Orders. If this key is already active on another Mac, deactivate it there first or contact support at hello@focana.app.')).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeGreaterThan(360);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('activation gate keeps its larger shell even when a running timer restores at startup', async () => {
+  const restoredSessionStartedAt = new Date(Date.now() - (2 * 60 * 1000)).toISOString();
+  const { electronApp, page, cleanup } = await launchApp({
+    seedConfig: {
+      preferredName: '',
+      currentTask: {
+        text: 'Restored startup task',
+        contextNote: '',
+      },
+      timerState: {
+        mode: 'freeflow',
+        initialTime: 0,
+        elapsedSeconds: 120,
+        isRunning: true,
+        timerVisible: true,
+        sessionStartedAt: restoredSessionStartedAt,
+        currentSessionId: 'restored-license-gate-session',
+      },
+      license: {
+        key: '',
+        instanceId: '',
+        status: 'unlicensed',
+        activatedAt: null,
+        lastValidatedAt: null,
+        offlineGraceUntil: null,
+        lastError: null,
+      },
+    },
+    waitForTaskInput: false,
+    extraEnv: {
+      FOCANA_FORCE_LICENSE_GATE: '1',
+    },
+  });
+
+  try {
+    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeGreaterThan(360);
+
+    await page.waitForTimeout(1200);
+
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 3000 })
       .toBeGreaterThan(360);
   } finally {
     await cleanup();
@@ -1214,6 +1285,80 @@ test('manual compact entry uses the current full-window position after the full 
   }
 });
 
+test('manual compact entry keeps the pill flush to the bottom-right work area', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-work-area-anchor');
+    await exitCompactMode(page);
+
+    await electronApp.evaluate(({ BrowserWindow, screen }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return;
+      const currentBounds = main.getBounds();
+      const workArea = screen.getDisplayMatching(currentBounds).workArea;
+      main.setBounds({
+        x: Math.round(workArea.x + workArea.width - currentBounds.width),
+        y: Math.round(workArea.y + workArea.height - currentBounds.height),
+        width: currentBounds.width,
+        height: currentBounds.height,
+      });
+    });
+
+    await page.locator('button[aria-label="Enter Compact Mode"]').click();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow, screen }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return false;
+      const bounds = main.getBounds();
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      const rightDelta = Math.abs((bounds.x + bounds.width) - (workArea.x + workArea.width));
+      const bottomDelta = Math.abs((bounds.y + bounds.height) - (workArea.y + workArea.height));
+      return rightDelta <= 2 && bottomDelta <= 2;
+    }), { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('idle compact mode without a task uses the timer-only pill width', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.locator('button[aria-label="Enter Compact Mode"]').click();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.width || 0;
+    }, { timeout: 7000 }).toBeLessThanOrEqual(130);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact drag can clamp flush to the left work area edge', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-left-edge');
+    await page.evaluate(() => {
+      window.electronAPI.pillDragStart();
+      window.electronAPI.pillDragMove(-4000, 0);
+      window.electronAPI.pillDragEnd();
+    });
+
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow, screen }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return false;
+      const bounds = main.getBounds();
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      return Math.abs(bounds.x - workArea.x) <= 2;
+    }), { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('manual exit from compact restores a usable full window shell', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
@@ -2121,6 +2266,41 @@ test('manual re-entry into floating minimize restores the previous floating posi
       x: movedFloatingBounds.x,
       y: movedFloatingBounds.y,
     }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating drag can clamp flush to the left work area edge', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'floating-left-edge');
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragStart();
+      window.floatingAPI.dragMove(-4000, 0);
+      window.floatingAPI.dragEnd();
+    });
+
+    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow, screen }) => {
+      const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'));
+      if (!floating) return false;
+      const bounds = floating.getBounds();
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      return Math.abs(bounds.x - workArea.x) <= 2;
+    }), { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }

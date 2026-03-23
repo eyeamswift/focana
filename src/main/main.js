@@ -14,6 +14,7 @@ let lastFullBounds = null;
 let isModalExpanded = false;
 let preModalBounds = null;
 let pillDragStart = null;
+let pillDragPollTimer = null;
 let compactTransientBaseBounds = null;
 let compactTransientClearing = false;
 let compactTransientSources = new Set();
@@ -26,6 +27,7 @@ let floatingPulseTimeout = null;
 let floatingPulseInterval = null;
 let floatingStateInterval = null;
 let floatingIconDragStart = null;
+let floatingIconDragPollTimer = null;
 let floatingWindowDisplayState = { mode: 'icon', timeText: '00:00' };
 let floatingTimedPulseThresholds = [];
 let floatingTimedPulseIndex = 0;
@@ -44,9 +46,12 @@ const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
 const STARTUP_SAFE_HEIGHT = 520;
 const PILL_MIN_WIDTH = 100;
+const PILL_BASE_WIDTH = 124;
 const PILL_MIN_HEIGHT = 72;
 const PILL_MAX_HEIGHT = 260;
 const PILL_EDGE_EPSILON = 2;
+const DRAG_POLL_INTERVAL_MS = 16;
+const DRAG_OVERRIDE_TTL_MS = 120;
 const FLOATING_ICON_SIZE = 64;
 const FLOATING_TIMER_WIDTH = 116;
 const FLOATING_TIMER_HEIGHT = 48;
@@ -59,6 +64,12 @@ const DEFAULT_SHORTCUTS = {
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
   openParkingLot: 'CommandOrControl+Shift+P',
+};
+const LEGACY_DEFAULT_WINDOW_STATE = {
+  x: 100,
+  y: 100,
+  width: 400,
+  height: 220,
 };
 let pendingProgrammaticMainBounds = null;
 let clearProgrammaticMainBoundsTimer = null;
@@ -152,6 +163,59 @@ function buildBottomRightBounds(area, width, height) {
   };
 }
 
+function getBoundsEdgeAnchors(bounds) {
+  const display = screen.getDisplayMatching(bounds);
+  const candidateAreas = [display.workArea, display.bounds];
+  const right = bounds.x + bounds.width;
+  const bottom = bounds.y + bounds.height;
+  const leftArea = candidateAreas.find((area) => Math.abs(bounds.x - area.x) <= PILL_EDGE_EPSILON);
+  const rightArea = candidateAreas.find((area) => Math.abs(right - (area.x + area.width)) <= PILL_EDGE_EPSILON);
+  const topArea = candidateAreas.find((area) => Math.abs(bounds.y - area.y) <= PILL_EDGE_EPSILON);
+  const bottomArea = candidateAreas.find((area) => Math.abs(bottom - (area.y + area.height)) <= PILL_EDGE_EPSILON);
+
+  return {
+    left: leftArea ? leftArea.x : null,
+    right: rightArea ? rightArea.x + rightArea.width : null,
+    top: topArea ? topArea.y : null,
+    bottom: bottomArea ? bottomArea.y + bottomArea.height : null,
+  };
+}
+
+function getAnchoredCompactBoundsFromFullBounds(bounds, width, height) {
+  const edgeAnchors = getBoundsEdgeAnchors(bounds);
+  return {
+    x: edgeAnchors.right !== null && edgeAnchors.left === null
+      ? Math.round(edgeAnchors.right - width)
+      : edgeAnchors.left !== null && edgeAnchors.right === null
+        ? Math.round(edgeAnchors.left)
+        : bounds.x,
+    y: edgeAnchors.bottom !== null && edgeAnchors.top === null
+      ? Math.round(edgeAnchors.bottom - height)
+      : edgeAnchors.top !== null && edgeAnchors.bottom === null
+        ? Math.round(edgeAnchors.top)
+        : bounds.y,
+    width,
+    height,
+  };
+}
+
+function isLegacyDefaultWindowState(bounds) {
+  if (!bounds || typeof bounds !== 'object') return false;
+  return (
+    Number(bounds.x) === LEGACY_DEFAULT_WINDOW_STATE.x
+    && Number(bounds.y) === LEGACY_DEFAULT_WINDOW_STATE.y
+    && Number(bounds.width) === LEGACY_DEFAULT_WINDOW_STATE.width
+    && Number(bounds.height) === LEGACY_DEFAULT_WINDOW_STATE.height
+  );
+}
+
+function getPersistedWindowState() {
+  const rawWindowState = store.get('windowState');
+  if (!rawWindowState || typeof rawWindowState !== 'object') return null;
+  if (isLegacyDefaultWindowState(rawWindowState)) return null;
+  return rawWindowState;
+}
+
 function getPillTargetBounds(currentBounds, targetWidth, targetHeight, pulseActive = false) {
   const transientBounds = (pulseActive || compactTransientSources.size > 0 || compactTransientClearing)
     ? compactTransientBaseBounds
@@ -166,29 +230,19 @@ function getPillTargetBounds(currentBounds, targetWidth, targetHeight, pulseActi
     };
   }
 
-  const display = screen.getDisplayMatching(stableBounds);
-  const area = display.bounds;
-  const rightEdge = area.x + area.width;
-  const bottomEdge = area.y + area.height;
-  const stableRight = stableBounds.x + stableBounds.width;
-  const stableBottom = stableBounds.y + stableBounds.height;
-  const touchesLeft = Math.abs(stableBounds.x - area.x) <= PILL_EDGE_EPSILON;
-  const touchesRight = Math.abs(stableRight - rightEdge) <= PILL_EDGE_EPSILON;
-  const touchesTop = Math.abs(stableBounds.y - area.y) <= PILL_EDGE_EPSILON;
-  const touchesBottom = Math.abs(stableBottom - bottomEdge) <= PILL_EDGE_EPSILON;
-
+  const edgeAnchors = getBoundsEdgeAnchors(stableBounds);
   const centeredBounds = buildCenteredBounds(getBoundsCenter(stableBounds), targetWidth, targetHeight);
 
   return {
-    x: touchesRight && !touchesLeft
-      ? Math.round(stableRight - targetWidth)
-      : touchesLeft && !touchesRight
-        ? Math.round(stableBounds.x)
+    x: edgeAnchors.right !== null && edgeAnchors.left === null
+      ? Math.round(edgeAnchors.right - targetWidth)
+      : edgeAnchors.left !== null && edgeAnchors.right === null
+        ? Math.round(edgeAnchors.left)
         : centeredBounds.x,
-    y: touchesBottom && !touchesTop
-      ? Math.round(stableBottom - targetHeight)
-      : touchesTop && !touchesBottom
-        ? Math.round(stableBounds.y)
+    y: edgeAnchors.bottom !== null && edgeAnchors.top === null
+      ? Math.round(edgeAnchors.bottom - targetHeight)
+      : edgeAnchors.top !== null && edgeAnchors.bottom === null
+        ? Math.round(edgeAnchors.top)
         : centeredBounds.y,
     width: targetWidth,
     height: targetHeight,
@@ -203,6 +257,98 @@ function rememberStablePillBounds(bounds) {
     width: Math.round(Number(bounds.width) || PILL_MIN_WIDTH),
     height: Math.round(Number(bounds.height) || PILL_MIN_HEIGHT),
   };
+}
+
+function getDragPoint(dragState) {
+  if (
+    dragState?.overridePoint
+    && Number.isFinite(dragState.overridePoint.x)
+    && Number.isFinite(dragState.overridePoint.y)
+    && (Date.now() - dragState.overridePoint.updatedAt) <= DRAG_OVERRIDE_TTL_MS
+  ) {
+    return {
+      x: dragState.overridePoint.x,
+      y: dragState.overridePoint.y,
+    };
+  }
+
+  return screen.getCursorScreenPoint();
+}
+
+function clearPillDragPolling() {
+  if (pillDragPollTimer) {
+    clearInterval(pillDragPollTimer);
+    pillDragPollTimer = null;
+  }
+}
+
+function syncPillDragToPoint(point) {
+  if (!mainWindow || mainWindow.isDestroyed() || !isPillMode || !pillDragStart || !point) return;
+
+  const deltaX = point.x - pillDragStart.startCursor.x;
+  const deltaY = point.y - pillDragStart.startCursor.y;
+  const nextBounds = clampBounds({
+    x: Math.round(pillDragStart.startBounds.x + deltaX),
+    y: Math.round(pillDragStart.startBounds.y + deltaY),
+    width: pillDragStart.startBounds.width,
+    height: pillDragStart.startBounds.height,
+  }, 'display');
+
+  if (pillDragStart.transientStartBounds) {
+    compactTransientBaseBounds = clampBounds({
+      x: Math.round(pillDragStart.transientStartBounds.x + deltaX),
+      y: Math.round(pillDragStart.transientStartBounds.y + deltaY),
+      width: pillDragStart.transientStartBounds.width,
+      height: pillDragStart.transientStartBounds.height,
+    }, 'display');
+    rememberStablePillBounds(compactTransientBaseBounds);
+  } else {
+    rememberStablePillBounds(nextBounds);
+  }
+
+  setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+}
+
+function startPillDragPolling() {
+  clearPillDragPolling();
+  pillDragPollTimer = setInterval(() => {
+    if (!pillDragStart) {
+      clearPillDragPolling();
+      return;
+    }
+    syncPillDragToPoint(getDragPoint(pillDragStart));
+  }, DRAG_POLL_INTERVAL_MS);
+}
+
+function clearFloatingIconDragPolling() {
+  if (floatingIconDragPollTimer) {
+    clearInterval(floatingIconDragPollTimer);
+    floatingIconDragPollTimer = null;
+  }
+}
+
+function syncFloatingIconDragToPoint(point) {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !floatingIconDragStart || !point) return;
+
+  const deltaX = point.x - floatingIconDragStart.startCursor.x;
+  const deltaY = point.y - floatingIconDragStart.startCursor.y;
+  setFloatingIconBoundsClamped({
+    x: Math.round(floatingIconDragStart.startBounds.x + deltaX),
+    y: Math.round(floatingIconDragStart.startBounds.y + deltaY),
+    width: floatingIconDragStart.startBounds.width,
+    height: floatingIconDragStart.startBounds.height,
+  });
+}
+
+function startFloatingIconDragPolling() {
+  clearFloatingIconDragPolling();
+  floatingIconDragPollTimer = setInterval(() => {
+    if (!floatingIconDragStart) {
+      clearFloatingIconDragPolling();
+      return;
+    }
+    syncFloatingIconDragToPoint(getDragPoint(floatingIconDragStart));
+  }, DRAG_POLL_INTERVAL_MS);
 }
 
 function clearCompactTransientClearTimer() {
@@ -573,15 +719,11 @@ function getSizedMainWindowBounds(minWidth = FULL_MIN_WIDTH, minHeight = FULL_MI
   const targetWidth = clampNumber(minWidth, FULL_MIN_WIDTH, 2400, FULL_MIN_WIDTH);
   const targetHeight = clampNumber(minHeight, FULL_MIN_HEIGHT, 2400, FULL_MIN_HEIGHT);
   const bounds = mainWindow.getBounds();
-  const displayBounds = screen.getDisplayMatching(bounds).bounds;
-  const rightEdge = displayBounds.x + displayBounds.width;
-  const bottomEdge = displayBounds.y + displayBounds.height;
-  const touchesRight = Math.abs((bounds.x + bounds.width) - rightEdge) <= PILL_EDGE_EPSILON;
-  const touchesBottom = Math.abs((bounds.y + bounds.height) - bottomEdge) <= PILL_EDGE_EPSILON;
+  const edgeAnchors = getBoundsEdgeAnchors(bounds);
 
   return {
-    x: touchesRight ? Math.round(rightEdge - targetWidth) : bounds.x,
-    y: touchesBottom ? Math.round(bottomEdge - targetHeight) : bounds.y,
+    x: edgeAnchors.right !== null ? Math.round(edgeAnchors.right - targetWidth) : bounds.x,
+    y: edgeAnchors.bottom !== null ? Math.round(edgeAnchors.bottom - targetHeight) : bounds.y,
     width: targetWidth,
     height: targetHeight,
   };
@@ -599,8 +741,8 @@ function sanitizeStoredWindowState(rawState) {
 }
 
 function getDefaultMainWindowBounds() {
-  const displayBounds = screen.getPrimaryDisplay().bounds;
-  return buildBottomRightBounds(displayBounds, FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+  const workArea = screen.getPrimaryDisplay().workArea;
+  return buildBottomRightBounds(workArea, FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
 }
 
 function isToggleFloatingShortcut(input) {
@@ -1006,6 +1148,7 @@ function createFloatingIconWindow() {
   floatingIconWindow.on('closed', () => {
     floatingIconWindow = null;
     floatingIconDragStart = null;
+    clearFloatingIconDragPolling();
     stopFloatingPulseSchedule();
     stopFloatingStateSync();
     isFloatingMinimized = false;
@@ -1031,6 +1174,7 @@ function exitFloatingIconMode({ focusMain = true } = {}) {
   stopFloatingStateSync();
   clearFloatingTimedPulseState();
   floatingIconDragStart = null;
+  clearFloatingIconDragPolling();
   isFloatingMinimized = false;
   const floatingBounds = floatingIconWindow && !floatingIconWindow.isDestroyed()
     ? floatingIconWindow.getBounds()
@@ -1068,7 +1212,7 @@ function createWindow() {
   setDockIcon();
 
   const fallbackBounds = getDefaultMainWindowBounds();
-  const rawWindowState = store.get('windowState', fallbackBounds);
+  const rawWindowState = getPersistedWindowState() || fallbackBounds;
   const storedWindowState = sanitizeStoredWindowState(
     rawWindowState && typeof rawWindowState === 'object'
       ? { ...fallbackBounds, ...rawWindowState }
@@ -1082,7 +1226,7 @@ function createWindow() {
     // launch window large enough to show onboarding/loading if it is revealed
     // before the renderer finishes its explicit startup resize handshake.
     height: Math.max(storedWindowState.height || STARTUP_SAFE_HEIGHT, STARTUP_SAFE_HEIGHT),
-  }, 'display');
+  }, 'workArea');
 
   mainWindow = new BrowserWindow({
     x: initialBounds.x,
@@ -1199,6 +1343,8 @@ function createWindow() {
     }
     pendingProgrammaticMainBounds = null;
     awaitingInitialMainWindowShow = false;
+    pillDragStart = null;
+    clearPillDragPolling();
     if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
       floatingIconWindow.close();
     }
@@ -1411,11 +1557,11 @@ ipcMain.on('floating-icon-drag-start', () => {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !isFloatingMinimized) return;
   const bounds = floatingIconWindow.getBounds();
   floatingIconDragStart = {
-    x: bounds.x,
-    y: bounds.y,
-    lastDx: 0,
-    lastDy: 0,
+    startBounds: { ...bounds },
+    startCursor: screen.getCursorScreenPoint(),
+    overridePoint: null,
   };
+  startFloatingIconDragPolling();
 });
 
 ipcMain.on('floating-icon-drag-move', (_, payload) => {
@@ -1423,24 +1569,18 @@ ipcMain.on('floating-icon-drag-move', (_, payload) => {
 
   const safeDx = Number.isFinite(payload?.dx) ? payload.dx : 0;
   const safeDy = Number.isFinite(payload?.dy) ? payload.dy : 0;
-  const stepX = safeDx - (floatingIconDragStart.lastDx || 0);
-  const stepY = safeDy - (floatingIconDragStart.lastDy || 0);
-  floatingIconDragStart.lastDx = safeDx;
-  floatingIconDragStart.lastDy = safeDy;
-
-  if (stepX === 0 && stepY === 0) return;
-
-  const current = floatingIconWindow.getBounds();
-  setFloatingIconBoundsClamped({
-    x: Math.round(current.x + stepX),
-    y: Math.round(current.y + stepY),
-    width: current.width,
-    height: current.height,
-  });
+  const point = {
+    x: floatingIconDragStart.startCursor.x + safeDx,
+    y: floatingIconDragStart.startCursor.y + safeDy,
+    updatedAt: Date.now(),
+  };
+  floatingIconDragStart.overridePoint = point;
+  syncFloatingIconDragToPoint(point);
 });
 
 ipcMain.on('floating-icon-drag-end', () => {
   floatingIconDragStart = null;
+  clearFloatingIconDragPolling();
 });
 
 // Shortcuts
@@ -1547,17 +1687,19 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
     mainWindow.setResizable(true);
     mainWindow.setMinimumSize(PILL_MIN_WIDTH, PILL_MIN_HEIGHT);
     // Initial default size for compact mode before renderer computes exact width.
-    const targetWidth = 182;
+    const targetWidth = PILL_BASE_WIDTH;
     const targetHeight = PILL_MIN_HEIGHT;
     const rememberedCompactBounds = lastStablePillBounds
       ? clampBounds(lastStablePillBounds, 'display')
       : null;
-    const currentAnchoredCompactBounds = clampBounds({
-      x: current.x,
-      y: current.y,
-      width: rememberedCompactBounds?.width || targetWidth,
-      height: rememberedCompactBounds?.height || targetHeight,
-    }, 'display');
+    const currentAnchoredCompactBounds = clampBounds(
+      getAnchoredCompactBoundsFromFullBounds(
+        current,
+        rememberedCompactBounds?.width || targetWidth,
+        rememberedCompactBounds?.height || targetHeight,
+      ),
+      'display',
+    );
     const nextBounds = restorePreviousBounds && pendingPillRestoreBounds
       ? clampBounds(pendingPillRestoreBounds, 'display')
       : currentAnchoredCompactBounds;
@@ -1629,8 +1771,16 @@ ipcMain.handle('end-pill-pulse-resize', () => {
 // JS-based pill drag — renderer tracks mouse delta, main moves the window
 ipcMain.on('pill-drag-start', () => {
   if (mainWindow && isPillMode) {
-    const pos = mainWindow.getPosition();
-    pillDragStart = { x: pos[0], y: pos[1], lastDx: 0, lastDy: 0 };
+    const bounds = mainWindow.getBounds();
+    pillDragStart = {
+      startBounds: { ...bounds },
+      startCursor: screen.getCursorScreenPoint(),
+      transientStartBounds: compactTransientBaseBounds
+        ? clampBounds(compactTransientBaseBounds, 'display')
+        : null,
+      overridePoint: null,
+    };
+    startPillDragPolling();
   }
 });
 
@@ -1638,40 +1788,19 @@ ipcMain.on('pill-drag-move', (_, payload) => {
   if (mainWindow && isPillMode && pillDragStart) {
     const safeDx = Number.isFinite(payload?.dx) ? payload.dx : 0;
     const safeDy = Number.isFinite(payload?.dy) ? payload.dy : 0;
-    const stepX = safeDx - (pillDragStart.lastDx || 0);
-    const stepY = safeDy - (pillDragStart.lastDy || 0);
-    pillDragStart.lastDx = safeDx;
-    pillDragStart.lastDy = safeDy;
-
-    const current = mainWindow.getBounds();
-    const nextBounds = clampBounds({
-      x: Math.round(current.x + stepX),
-      y: Math.round(current.y + stepY),
-      width: current.width,
-      height: current.height,
-    }, 'display');
-    const actualStepX = nextBounds.x - current.x;
-    const actualStepY = nextBounds.y - current.y;
-    if (actualStepX === 0 && actualStepY === 0) return;
-    if (compactTransientBaseBounds) {
-      compactTransientBaseBounds = clampBounds({
-        x: Math.round(compactTransientBaseBounds.x + actualStepX),
-        y: Math.round(compactTransientBaseBounds.y + actualStepY),
-        width: compactTransientBaseBounds.width,
-        height: compactTransientBaseBounds.height,
-      }, 'display');
-    }
-    if (compactTransientBaseBounds) {
-      rememberStablePillBounds(compactTransientBaseBounds);
-    } else {
-      rememberStablePillBounds(nextBounds);
-    }
-    setMainWindowBoundsClamped(nextBounds, { areaType: 'display' });
+    const point = {
+      x: pillDragStart.startCursor.x + safeDx,
+      y: pillDragStart.startCursor.y + safeDy,
+      updatedAt: Date.now(),
+    };
+    pillDragStart.overridePoint = point;
+    syncPillDragToPoint(point);
   }
 });
 
 ipcMain.on('pill-drag-end', () => {
   pillDragStart = null;
+  clearPillDragPolling();
   if (mainWindow && isPillMode) {
     rememberStablePillBounds(compactTransientBaseBounds || mainWindow.getBounds());
   }
@@ -1688,7 +1817,7 @@ ipcMain.handle('exit-pill-mode', (_event, options = {}) => {
       restoreBounds = lastFullBounds;
       lastFullBounds = null;
     } else {
-      restoreBounds = store.get('windowState', { width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT });
+      restoreBounds = getPersistedWindowState() || { width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
     }
 
     if (!restoreBounds || typeof restoreBounds !== 'object') {
