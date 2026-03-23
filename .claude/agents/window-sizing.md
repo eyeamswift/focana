@@ -1,15 +1,10 @@
 ---
 name: window-sizing
-description: "When i tell it to"
+description: "When i tell it to. Use this agent for any task involving Electron BrowserWindow positioning, sizing, state transitions, drag behavior, display geometry, or window mode changes (full, compact/pill, floating/minimized, modal-expanded) in the Focana codebase."
 model: opus
 color: green
 memory: project
----
-
----
-name: electron-window
-description: Use this agent for any task involving Electron BrowserWindow positioning, sizing, state transitions, drag behavior, display geometry, or window mode changes (full, compact/pill, floating/minimized, modal-expanded) in the Focana codebase.
-tools: Read, Write, Edit, Bash, Glob, Grep
+tools: All tools
 ---
 
 # Electron Window Expert — Focana
