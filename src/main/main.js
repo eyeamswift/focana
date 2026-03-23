@@ -121,16 +121,20 @@ function getEffectiveAlwaysOnTop() {
   return getStoredAlwaysOnTop();
 }
 
+function applyWindowAlwaysOnTop(win, enabled) {
+  if (!win || win.isDestroyed()) return;
+  win.setAlwaysOnTop(enabled);
+  if (process.platform === 'darwin') {
+    win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled });
+  }
+}
+
 function applyAlwaysOnTop(enabled, options = {}) {
   const persist = options.persist !== false;
   const next = Boolean(enabled);
 
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setAlwaysOnTop(next);
-  }
-  if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
-    floatingIconWindow.setAlwaysOnTop(next);
-  }
+  applyWindowAlwaysOnTop(mainWindow, next);
+  applyWindowAlwaysOnTop(floatingIconWindow, next);
   if (persist) {
     store.set('settings.alwaysOnTop', next);
   }
@@ -1138,6 +1142,7 @@ function createFloatingIconWindow() {
       nodeIntegration: false,
     },
   });
+  applyAlwaysOnTop(isE2EBackground ? false : getEffectiveAlwaysOnTop(), { persist: false });
 
   floatingIconWindow.loadFile(path.join(__dirname, 'floating-icon.html'));
   wireToggleFloatingShortcut(floatingIconWindow);
@@ -1254,6 +1259,7 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+  applyAlwaysOnTop(isE2EBackground ? false : getEffectiveAlwaysOnTop(), { persist: false });
   awaitingInitialMainWindowShow = !isE2EBackground && !isE2E;
   wireToggleFloatingShortcut(mainWindow);
 

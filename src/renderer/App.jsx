@@ -354,6 +354,8 @@ export default function App() {
   const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
   const checkInReturnToCompactRef = useRef(false);
   const checkInReturnToFloatingRef = useRef(false);
+  const checkInPromptSurfaceRef = useRef('full');
+  const pendingCompactCheckInPromptRef = useRef(false);
   const checkInResolveTimeoutRef = useRef(null);
   const checkInFreeflowNextRef = useRef(null);
   const checkInTimedThresholdsRef = useRef([]);
@@ -388,6 +390,7 @@ export default function App() {
   const getElapsedSecondsRef = useRef(() => 0);
   const resetCheckInScheduleRef = useRef(() => {});
   const resetCompactPulseScheduleRef = useRef(() => {});
+  const triggerCheckInPromptRef = useRef(async () => false);
   const ensureCurrentSessionIdRef = useRef(async () => null);
   const handleClearRef = useRef(() => {});
   const suppressToolbarTooltipTimerRef = useRef(null);
@@ -1781,6 +1784,8 @@ export default function App() {
   const clearCheckInUi = useCallback(() => {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInResolveTimeoutRef.current = null;
+    checkInPromptSurfaceRef.current = 'full';
+    pendingCompactCheckInPromptRef.current = false;
     setCheckInState('idle');
     setCheckInMessage('');
     setCheckInCelebrating(false);
@@ -1799,6 +1804,8 @@ export default function App() {
     checkInPromptCooldownUntilRef.current = 0;
     checkInReturnToCompactRef.current = false;
     checkInReturnToFloatingRef.current = false;
+    checkInPromptSurfaceRef.current = 'full';
+    pendingCompactCheckInPromptRef.current = false;
     clearCheckInUi();
   }, [clearCheckInUi]);
 
@@ -2038,6 +2045,17 @@ export default function App() {
     timedCheckInLastSegmentElapsedRef.current = segmentElapsed;
   }, [checkInSettings.enabled, mode, initialTime, getStandardCheckInIntervalSeconds, getTimedCueSegmentElapsed]);
 
+  const openCompactCheckInPrompt = useCallback(() => {
+    if (checkInStateRef.current !== 'idle' || !isRunningRef.current) return false;
+    checkInPromptSurfaceRef.current = 'compact';
+    pendingCompactCheckInPromptRef.current = false;
+    setCheckInState('prompting');
+    setCheckInMessage('');
+    setCheckInCelebrating(false);
+    setCheckInCelebrationType('none');
+    return true;
+  }, []);
+
   const logCheckIn = useCallback(async (status, elapsedSec) => {
     if (!task.trim()) return null;
     const sessionId = currentSessionId || await ensureCurrentSessionId('check-in log');
@@ -2124,7 +2142,11 @@ export default function App() {
 
     if (isCompact) {
       clearCheckInUi();
-      restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
+      if (shouldReturnToFloating) {
+        restoreDisplayMode({ returnToFloating: true });
+      } else {
+        pendingCompactRestoreRef.current = false;
+      }
       return;
     }
 
@@ -2151,6 +2173,7 @@ export default function App() {
 
   const openCheckInDetourChoice = useCallback(() => {
     if (checkInStateRef.current !== 'prompting') return;
+    checkInPromptSurfaceRef.current = 'full';
     const applyDetourChoiceState = () => {
       setCheckInState('detour-choice');
       setCheckInMessage('');
@@ -2255,7 +2278,6 @@ export default function App() {
     if (dndEnabled) return false;
     if (hasBlockingWindowOpen) return false;
     if (!isRunning) return false;
-    if (!isTimerVisible) return false;
     if (!task.trim()) return false;
     if (!skipCooldown && Date.now() < checkInPromptCooldownUntilRef.current) return false;
     if (!currentSessionId) {
@@ -2268,8 +2290,10 @@ export default function App() {
       checkInPromptCooldownUntilRef.current = Date.now() + CHECKIN_PROMPT_COOLDOWN_MS;
     }
 
-    const openPrompt = () => {
+    const openFullPrompt = () => {
       if (checkInStateRef.current !== 'idle' || !isRunningRef.current) return;
+      checkInPromptSurfaceRef.current = 'full';
+      pendingCompactCheckInPromptRef.current = false;
       setCheckInState('prompting');
       setCheckInMessage('');
       setCheckInCelebrating(false);
@@ -2278,41 +2302,51 @@ export default function App() {
     };
 
     const restoredFromFloating = await window.electronAPI.getFloatingMinimized?.() || false;
-    const shouldReturnToCompact = !restoredFromFloating && isCompact;
+    const compactPromptRequested = isCompact
+      || windowModeDesiredRef.current === 'pill'
+      || windowModeActualRef.current === 'pill';
+    const shouldReturnToCompact = !restoredFromFloating && compactPromptRequested;
+    const shouldUseCompactPrompt = compactPromptRequested || restoredFromFloating;
 
     checkInReturnToFloatingRef.current = Boolean(restoredFromFloating);
     checkInReturnToCompactRef.current = shouldReturnToCompact;
 
-    if (restoredFromFloating) {
+    if (shouldUseCompactPrompt && restoredFromFloating) {
       pendingCompactRestoreRef.current = false;
+      checkInPromptSurfaceRef.current = 'compact';
+      pendingCompactCheckInPromptRef.current = true;
       window.electronAPI.bringToFront?.();
-      setTimeout(() => {
-        openPrompt();
-      }, 160);
+      requestCompactEntry({ restorePreviousBounds: false, delayMs: 80 });
       return true;
     }
 
-    if (shouldReturnToCompact) {
-      window.electronAPI.capturePillRestoreBounds?.();
-      pendingCompactRestoreRef.current = false;
-      handleExitCompact();
-      setTimeout(() => {
-        openPrompt();
-      }, 140);
+    if (shouldUseCompactPrompt) {
+      openCompactCheckInPrompt();
       return true;
     }
 
-    openPrompt();
+    openFullPrompt();
     // Keep the prompt open until the user explicitly responds.
     return true;
-  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, startupGateState, task, currentSessionId, ensureCurrentSessionId, mode, getElapsedSeconds, isCompact, handleExitCompact]);
+  }, [checkInSettings.enabled, dndEnabled, hasBlockingWindowOpen, isRunning, isTimerVisible, task, currentSessionId, ensureCurrentSessionId, mode, getElapsedSeconds, isCompact, openCompactCheckInPrompt, requestCompactEntry]);
+
+  useEffect(() => {
+    triggerCheckInPromptRef.current = triggerCheckInPrompt;
+  }, [triggerCheckInPrompt]);
 
   useEffect(() => {
     checkInStateRef.current = checkInState;
   }, [checkInState]);
 
   useEffect(() => {
+    if (!isCompact) return;
+    if (!pendingCompactCheckInPromptRef.current) return;
+    openCompactCheckInPrompt();
+  }, [isCompact, openCompactCheckInPrompt]);
+
+  useEffect(() => {
     if (checkInState !== 'prompting') return undefined;
+    if (checkInPromptSurfaceRef.current !== 'full') return undefined;
 
     let cancelled = false;
 
@@ -2421,7 +2455,7 @@ export default function App() {
   }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
 
   useEffect(() => {
-    if (!isRunning || !isTimerVisible || !task.trim() || !checkInSettings.enabled) {
+    if (!isRunning || !task.trim() || !checkInSettings.enabled) {
       return;
     }
 
@@ -2432,7 +2466,7 @@ export default function App() {
 
       // Forced short-interval check-in (after detour/miss)
       if (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current) {
-        triggerCheckInPrompt();
+        triggerCheckInPromptRef.current();
         return;
       }
 
@@ -2442,7 +2476,7 @@ export default function App() {
         checkInFreeflowNextRef.current = elapsed + intervalSeconds;
       }
       if (elapsed >= checkInFreeflowNextRef.current) {
-        triggerCheckInPrompt();
+        triggerCheckInPromptRef.current();
       }
       return;
     }
@@ -2464,7 +2498,7 @@ export default function App() {
         // Timed sessions stay fixed at 40% and 80%. If the user is not
         // available right at the threshold, we skip that prompt instead of
         // surfacing it late.
-        triggerCheckInPrompt({ skipCooldown: true });
+        triggerCheckInPromptRef.current({ skipCooldown: true });
       }
     }
 

@@ -158,6 +158,18 @@ async function readWindowVisibilityState(electronApp) {
   });
 }
 
+async function readWorkspaceVisibilityState(electronApp) {
+  return electronApp.evaluate(({ BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows();
+    const main = windows.find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    const floating = windows.find((win) => win.webContents.getURL().includes('floating-icon.html'));
+    return {
+      mainVisibleOnAllWorkspaces: Boolean(main && main.isVisibleOnAllWorkspaces()),
+      floatingVisibleOnAllWorkspaces: Boolean(floating && floating.isVisibleOnAllWorkspaces()),
+    };
+  });
+}
+
 async function installTimeOffsetControl(page) {
   await page.evaluate(() => {
     if (!window.__focanaE2ETimeControlInstalled) {
@@ -1090,6 +1102,59 @@ test('always-on-top toggle persists and applies to floating icon mode', async ()
   }
 });
 
+test('macOS always-on-top also applies workspace visibility for main and floating windows', async () => {
+  test.skip(process.platform !== 'darwin', 'macOS-only workspace visibility behavior');
+
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await expect.poll(async () => {
+      const state = await readWorkspaceVisibilityState(electronApp);
+      return state.mainVisibleOnAllWorkspaces;
+    }).toBe(true);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => {
+      const state = await readWorkspaceVisibilityState(electronApp);
+      return state.floatingVisibleOnAllWorkspaces;
+    }, { timeout: 7000 }).toBe(true);
+
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+    await floatingWindow.evaluate(() => window.floatingAPI.expand());
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+
+    await page.getByRole('button', { name: 'Disable Always on Top' }).click();
+
+    await expect.poll(async () => {
+      const state = await readWorkspaceVisibilityState(electronApp);
+      return state.mainVisibleOnAllWorkspaces;
+    }).toBe(false);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => {
+      const state = await readWorkspaceVisibilityState(electronApp);
+      return state.floatingVisibleOnAllWorkspaces;
+    }, { timeout: 7000 }).toBe(false);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('settings opened from compact return to the previous compact position', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
@@ -1441,7 +1506,7 @@ test('freeflow check-in appears at the configured interval', async () => {
   }
 });
 
-test('freeflow check-in exits compact mode and returns to compact after responding', async () => {
+test('freeflow check-in stays on the compact prompt surface and returns to compact after responding', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
       settings: {
@@ -1457,13 +1522,40 @@ test('freeflow check-in exits compact mode and returns to compact after respondi
 
     await setTimeOffset(page, 301000);
 
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
     await expect(page.getByText('Still focused on')).toBeVisible();
     await expect(page.getByText('compact-checkin-return?')).toBeVisible();
 
     await page.getByRole('button', { name: 'Yes' }).click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow check-in still uses the full prompt surface when compact mode is not active', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'full-window-checkin');
+    await exitCompactMode(page);
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('full-window-checkin?')).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1492,6 +1584,8 @@ test('freeflow check-in restores from floating minimize and returns there after 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
+    await expect.poll(() => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length, { timeout: 7000 })
+      .toBeGreaterThan(0);
     const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
     expect(floatingWindow).toBeTruthy();
 
@@ -1520,13 +1614,15 @@ test('freeflow check-in restores from floating minimize and returns there after 
 
     await setTimeOffset(page, 301000);
 
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
     await expect(page.getByText('Still focused on')).toBeVisible();
     await expect(page.getByText('floating-checkin-return?')).toBeVisible();
 
     await page.getByRole('button', { name: 'No', exact: true }).click();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.getByText('What happened?')).toBeVisible();
     await page.getByRole('button', { name: 'Took a detour' }).click();
     await expect(page.getByRole('button', { name: 'Jot it down' })).toBeVisible();
@@ -1572,6 +1668,8 @@ test('freeflow check-in restores from floating minimize and returns there after 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
+    await expect.poll(() => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length, { timeout: 7000 })
+      .toBeGreaterThan(0);
     const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
     expect(floatingWindow).toBeTruthy();
 
@@ -1600,11 +1698,118 @@ test('freeflow check-in restores from floating minimize and returns there after 
 
     await setTimeOffset(page, 301000);
 
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
     await expect(page.getByText('Still focused on')).toBeVisible();
     await expect(page.getByText('floating-checkin-focused-return?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      x: movedFloatingBounds.x,
+      y: movedFloatingBounds.y,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed check-in stays on the compact prompt surface and returns to compact after responding', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timed-compact-checkin', 5);
+
+    await setTimeOffset(page, 121000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('timed-compact-checkin?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed check-in restores from floating minimize into the compact prompt and returns there after confirming focus', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timed-floating-checkin', 5);
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(() => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length, { timeout: 7000 })
+      .toBeGreaterThan(0);
+    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+    expect(floatingWindow).toBeTruthy();
+
+    const baseFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(baseFloatingBounds).toBeTruthy();
+
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragStart();
+      window.floatingAPI.dragMove(-135, 90);
+      window.floatingAPI.dragEnd();
+    });
+
+    await expect.poll(async () => {
+      const nextBounds = await readFloatingWindowBounds(electronApp);
+      return JSON.stringify({
+        x: nextBounds?.x || 0,
+        y: nextBounds?.y || 0,
+      });
+    }).not.toBe(JSON.stringify({
+      x: baseFloatingBounds.x,
+      y: baseFloatingBounds.y,
+    }));
+
+    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
+    expect(movedFloatingBounds).toBeTruthy();
+
+    await setTimeOffset(page, 121000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('timed-floating-checkin?')).toBeVisible();
 
     await page.getByRole('button', { name: 'Yes' }).click();
 
