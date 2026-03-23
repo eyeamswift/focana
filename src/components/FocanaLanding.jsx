@@ -1157,6 +1157,11 @@ export default function FocanaLanding() {
 
           {[
             {
+              video: "/videos/get-started.mp4",
+              headline: "It takes just a few seconds to get started.",
+              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No learning curve.</>,
+            },
+            {
               video: "/videos/always-on-top.mp4",
               headline: "Out of sight, out of mind.",
               body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana floats above every app, every tab, every window. Your task and timer stay visible no matter where your work takes you. If you can see it, you can do it.</>,
@@ -1175,11 +1180,6 @@ export default function FocanaLanding() {
               video: "/videos/pick-up-where-you-left-off.mp4",
               headline: "You finally made progress but tomorrow you'll open your laptop and have no idea where you left off.",
               body: <><strong>Pickup where you left off.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
-            },
-            {
-              video: "/videos/get-started.mp4",
-              headline: "It takes just a few seconds to get started.",
-              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No learning curve.</>,
             },
           ].map((row, i) => {
             const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
