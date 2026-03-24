@@ -116,7 +116,7 @@ function applyWindowAlwaysOnTop(win, enabled) {
   if (!win || win.isDestroyed()) return;
   win.setAlwaysOnTop(enabled, enabled && process.platform === 'darwin' ? 'screen-saver' : undefined);
   if (process.platform === 'darwin') {
-    win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled });
+    win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled, skipTransformProcessType: true });
   }
 }
 
@@ -932,11 +932,11 @@ function createFloatingIconWindow() {
     y: initialBounds.y,
     width: initialBounds.width,
     height: initialBounds.height,
+    type: 'panel',
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
     hasShadow: false,
-    alwaysOnTop: isE2EBackground ? false : getStoredAlwaysOnTop(),
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -957,6 +957,12 @@ function createFloatingIconWindow() {
   floatingIconWindow.webContents.on('did-finish-load', () => {
     if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
     floatingIconWindow.webContents.send('floating-state', floatingWindowDisplayState);
+  });
+
+  floatingIconWindow.on('show', () => {
+    if (getStoredAlwaysOnTop() && !isE2EBackground) {
+      applyWindowAlwaysOnTop(floatingIconWindow, true);
+    }
   });
 
   floatingIconWindow.on('closed', () => {
@@ -1044,12 +1050,13 @@ function createWindow() {
     y: initialBounds.y,
     width: initialBounds.width,
     height: initialBounds.height,
+    type: 'panel',
     frame: false,
     transparent: true,
     roundedCorners: false,
     hasShadow: false,
     backgroundColor: '#00000000',
-    alwaysOnTop: isE2EBackground ? false : getStoredAlwaysOnTop(),
+    fullscreenable: false,
     resizable: true,
     minWidth: FULL_MIN_WIDTH,
     minHeight: FULL_MIN_HEIGHT,
@@ -1164,6 +1171,9 @@ function createWindow() {
   });
 
   mainWindow.on('show', () => {
+    if (getStoredAlwaysOnTop() && !isE2EBackground) {
+      applyWindowAlwaysOnTop(mainWindow, true);
+    }
     if (isFloatingMinimized) {
       isFloatingMinimized = false;
       if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
