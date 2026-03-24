@@ -1535,6 +1535,43 @@ test('freeflow check-in stays on the compact prompt surface and returns to compa
   }
 });
 
+test('freeflow compact-origin check-in expands to the full detour flow after No and returns to compact on dismiss', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'compact-checkin-detour');
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('compact-checkin-detour?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'No', exact: true }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.getByText('What happened?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Took a detour' }).click();
+    await expect(page.getByRole('button', { name: 'Jot it down' })).toBeVisible();
+    await page.locator('button[title="Dismiss"]').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('freeflow check-in still uses the full prompt surface when compact mode is not active', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
