@@ -2315,8 +2315,12 @@ export default function App() {
       pendingCompactRestoreRef.current = false;
       checkInPromptSurfaceRef.current = 'compact';
       pendingCompactCheckInPromptRef.current = true;
-      window.electronAPI.bringToFront?.();
-      requestCompactEntry({ restorePreviousBounds: false, delayMs: 80 });
+      // Exit floating mode but keep mainWindow hidden — enterPillMode (triggered
+      // by setIsCompact) will reposition and reveal it at compact size, avoiding
+      // a visible flash of the full-size window.
+      window.electronAPI.exitFloatingForCompact?.().then(() => {
+        requestCompactEntry({ restorePreviousBounds: false, delayMs: 80 });
+      });
       return true;
     }
 
@@ -2404,12 +2408,13 @@ export default function App() {
         freeflowPulseNextRef.current += FREEFLOW_PULSE_INTERVAL_SECONDS;
         crossedThreshold = true;
       }
-      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen) {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen && checkInState === 'idle') {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
           triggerPulse('gentle', 2);
         }
+        window.electronAPI.triggerFloatingPulse?.();
       }
       return;
     }
@@ -2440,19 +2445,20 @@ export default function App() {
       timedPulseLastElapsedRef.current = elapsed;
       timedPulseLastSegmentElapsedRef.current = segmentElapsed;
 
-      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen) {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen && checkInState === 'idle') {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
           triggerPulse('gentle', 2);
         }
+        window.electronAPI.triggerFloatingPulse?.();
       }
       return;
     }
 
     timedPulseLastElapsedRef.current = elapsed;
     timedPulseLastSegmentElapsedRef.current = 0;
-  }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
+  }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse, checkInState]);
 
   useEffect(() => {
     if (!isRunning || !task.trim() || !checkInSettings.enabled) {
@@ -2485,6 +2491,7 @@ export default function App() {
     const thresholds = checkInTimedThresholdsRef.current;
     const segmentElapsed = getTimedCueSegmentElapsed(elapsed);
     const previousSegmentElapsed = timedCheckInLastSegmentElapsedRef.current;
+    let blockedAtThreshold = false;
 
     while (
       checkInTimedIndexRef.current < thresholds.length
@@ -2492,18 +2499,20 @@ export default function App() {
     ) {
       const threshold = thresholds[checkInTimedIndexRef.current];
       const crossedThisTick = previousSegmentElapsed < threshold;
-      checkInTimedIndexRef.current += 1;
 
-      if (crossedThisTick && checkInState === 'idle') {
-        // Timed sessions stay fixed at 40% and 80%. If the user is not
-        // available right at the threshold, we skip that prompt instead of
-        // surfacing it late.
-        triggerCheckInPromptRef.current({ skipCooldown: true });
+      if (crossedThisTick) {
+        if (checkInState !== 'idle') { blockedAtThreshold = true; break; }
+        const fired = triggerCheckInPromptRef.current({ skipCooldown: true });
+        if (!fired) { blockedAtThreshold = true; break; }
       }
+
+      checkInTimedIndexRef.current += 1;
     }
 
     timedCheckInLastElapsedRef.current = elapsed;
-    timedCheckInLastSegmentElapsedRef.current = segmentElapsed;
+    if (!blockedAtThreshold) {
+      timedCheckInLastSegmentElapsedRef.current = segmentElapsed;
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [time]);
 

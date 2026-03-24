@@ -390,6 +390,7 @@
       // icon toward certain screen edges (left, top).
       iconButton.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
+        if (timerControls.contains(event.target)) return;
         try { iconButton.setPointerCapture(event.pointerId); } catch (_) {}
         beginDrag(event.screenX, event.screenY, event.pointerId);
       });

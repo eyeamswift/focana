@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFloatingMinimized: () => ipcRenderer.invoke('get-floating-minimized'),
   restoreFromFloatingForTimeUp: () => ipcRenderer.invoke('restore-from-floating-for-time-up'),
   enterFloatingMinimize: () => ipcRenderer.invoke('enter-floating-minimize'),
+  exitFloatingForCompact: () => ipcRenderer.invoke('exit-floating-for-compact'),
   showMainWindowAfterStartup: (width, height) => ipcRenderer.invoke('show-main-window-after-startup', width, height),
   openCompactContextMenu: () => ipcRenderer.send('compact-context-menu'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
@@ -98,6 +99,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('updates:state-changed', handler);
   },
   setDnd: (enabled) => ipcRenderer.send('set-dnd', enabled),
+
+  // Floating pulse (renderer-driven timing)
+  triggerFloatingPulse: () => ipcRenderer.send('trigger-floating-pulse'),
 
   // Pill drag (JS-based — CSS drag regions block mouse events)
   pillDragStart: () => ipcRenderer.send('pill-drag-start'),

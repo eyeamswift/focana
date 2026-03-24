@@ -190,6 +190,70 @@ async function setTimeOffset(page, nextOffsetMs) {
   }, nextOffsetMs);
 }
 
+async function waitForFloatingWindow(electronApp) {
+  await expect.poll(() => {
+    const windows = electronApp.windows();
+    return windows.some((win) => win.url().includes('floating-icon.html'));
+  }, { timeout: 7000 }).toBe(true);
+
+  const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
+  expect(floatingWindow).toBeTruthy();
+  return floatingWindow;
+}
+
+async function installFloatingPulseCounter(electronApp) {
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    global.__focanaE2EFloatingPulseCount = 0;
+
+    const floatingWindow = BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().includes('floating-icon.html'));
+
+    if (!floatingWindow) {
+      throw new Error('Floating window not found');
+    }
+
+    const webContents = floatingWindow.webContents;
+    if (webContents.__focanaE2EPulsePatched) {
+      return;
+    }
+
+    const originalSend = webContents.send.bind(webContents);
+    webContents.send = (channel, ...args) => {
+      if (channel === 'floating-icon-pulse') {
+        global.__focanaE2EFloatingPulseCount = (global.__focanaE2EFloatingPulseCount || 0) + 1;
+      }
+      return originalSend(channel, ...args);
+    };
+    webContents.__focanaE2EPulsePatched = true;
+  });
+}
+
+async function readFloatingPulseCount(electronApp) {
+  return electronApp.evaluate(() => global.__focanaE2EFloatingPulseCount || 0);
+}
+
+async function readElapsedSecondsForSession(page, { mode, totalSeconds = null }) {
+  const displayedSeconds = await readDisplayedTimerSeconds(page);
+  if (!Number.isFinite(displayedSeconds)) {
+    return null;
+  }
+
+  if (mode === 'timed') {
+    return Math.max(0, (Number(totalSeconds) || 0) - displayedSeconds);
+  }
+
+  return displayedSeconds;
+}
+
+async function setElapsedSecondsForSession(page, targetElapsedSeconds, { mode, totalSeconds = null }) {
+  const currentElapsedSeconds = await readElapsedSecondsForSession(page, { mode, totalSeconds });
+  expect(currentElapsedSeconds).not.toBeNull();
+
+  const currentOffsetMs = await page.evaluate(() => Number(window.__focanaE2EOffsetMs) || 0);
+  const deltaSeconds = Number(targetElapsedSeconds) - Number(currentElapsedSeconds);
+  await setTimeOffset(page, currentOffsetMs + (deltaSeconds * 1000));
+}
+
 async function readWindowMode(page) {
   return page.evaluate(() => document.documentElement.getAttribute('data-window-mode'));
 }
@@ -972,6 +1036,66 @@ test('floating minimize keeps the timer pill visible when timer is visible but n
       timeText: expect.stringMatching(/^\d{2}:\d{2}$/),
       toggleLabel: 'Resume timer',
     });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow floating pulse mirrors compact cadence', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'floating-freeflow-pulse');
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await waitForFloatingWindow(electronApp);
+    await installFloatingPulseCounter(electronApp);
+
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 1500 }).toBe(0);
+
+    await setElapsedSecondsForSession(page, (5 * 60) - 5, { mode: 'freeflow' });
+    await page.waitForTimeout(1200);
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 1500 }).toBe(0);
+
+    await setElapsedSecondsForSession(page, (5 * 60) + 1, { mode: 'freeflow' });
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 4000 }).toBe(1);
+
+    await setElapsedSecondsForSession(page, (10 * 60) + 1, { mode: 'freeflow' });
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 4000 }).toBe(2);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed floating pulse mirrors compact thresholds', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'floating-timed-pulse', 5);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await waitForFloatingWindow(electronApp);
+    await installFloatingPulseCounter(electronApp);
+
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 1500 }).toBe(0);
+
+    await setElapsedSecondsForSession(page, 25, { mode: 'timed', totalSeconds: 5 * 60 });
+    await page.waitForTimeout(1200);
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 1500 }).toBe(0);
+
+    await setElapsedSecondsForSession(page, 31, { mode: 'timed', totalSeconds: 5 * 60 });
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 4000 }).toBe(1);
+
+    await setElapsedSecondsForSession(page, 61, { mode: 'timed', totalSeconds: 5 * 60 });
+    await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 4000 }).toBe(2);
   } finally {
     await cleanup();
   }

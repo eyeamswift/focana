@@ -23,16 +23,10 @@ let compactTransientClearTimer = null;
 let pendingPillRestoreBounds = null;
 let floatingIconWindow = null;
 let isFloatingMinimized = false;
-let floatingPulseTimeout = null;
-let floatingPulseInterval = null;
 let floatingStateInterval = null;
 let floatingIconDragStart = null;
 let floatingIconDragPollTimer = null;
 let floatingWindowDisplayState = { mode: 'icon', timeText: '00:00' };
-let floatingTimedPulseThresholds = [];
-let floatingTimedPulseIndex = 0;
-let floatingTimedPulseInitialTime = 0;
-let floatingTimedPulseLastElapsedSeconds = 0;
 let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
 const licenseService = createLicenseService({ app, store });
@@ -56,9 +50,6 @@ const DRAG_OVERRIDE_TTL_MS = 120;
 const FLOATING_ICON_SIZE = 64;
 const FLOATING_TIMER_WIDTH = 116;
 const FLOATING_TIMER_HEIGHT = 48;
-const FLOATING_ICON_PULSE_INITIAL_MS = 10 * 60 * 1000;
-const FLOATING_ICON_PULSE_REPEAT_MS = 15 * 60 * 1000;
-const FLOATING_TIMED_PULSE_PERCENTS = [0.2, 0.4, 0.6, 0.8];
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
@@ -123,7 +114,7 @@ function getEffectiveAlwaysOnTop() {
 
 function applyWindowAlwaysOnTop(win, enabled) {
   if (!win || win.isDestroyed()) return;
-  win.setAlwaysOnTop(enabled);
+  win.setAlwaysOnTop(enabled, enabled && process.platform === 'darwin' ? 'screen-saver' : undefined);
   if (process.platform === 'darwin') {
     win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled });
   }
@@ -635,13 +626,6 @@ function applyDndState(nextState) {
   store.set('settings.doNotDisturbUntil', normalized.until);
   setDndState(normalized);
   scheduleDndExpiry(normalized);
-  if (isFloatingMinimized) {
-    if (normalized.enabled) {
-      stopFloatingPulseSchedule();
-    } else {
-      startFloatingPulseSchedule();
-    }
-  }
   return normalized;
 }
 
@@ -807,60 +791,6 @@ function formatFloatingTime(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-function buildTimedPulseThresholds(percents, totalSeconds) {
-  const safeTotal = Math.max(1, Number(totalSeconds) || 0);
-  const normalizedPercents = percents
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value > 0 && value < 1)
-    .sort((a, b) => a - b);
-
-  return Array.from(new Set(
-    normalizedPercents
-      .map((value) => Math.round(safeTotal * value))
-      .filter((threshold) => threshold > 0 && threshold < safeTotal),
-  ));
-}
-
-function readFloatingTimerSnapshot() {
-  const timerState = store.get('timerState', {});
-  const isRunning = Boolean(timerState && typeof timerState === 'object' && timerState.isRunning);
-  const mode = timerState?.mode === 'timed' ? 'timed' : 'freeflow';
-  const initialTime = Math.max(0, Number(timerState?.initialTime) || 0);
-  const baseElapsedSeconds = Math.max(0, Number(timerState?.elapsedSeconds) || 0);
-  const timedSegmentStartElapsed = Math.max(0, Number(timerState?.timedSegmentStartElapsed) || 0);
-  const timedSegmentDuration = Math.max(0, Number(timerState?.timedSegmentDuration) || 0);
-  const sessionStartedAt = typeof timerState?.sessionStartedAt === 'string' ? timerState.sessionStartedAt : null;
-  let elapsedSeconds = baseElapsedSeconds;
-
-  if (isRunning && sessionStartedAt) {
-    const startedAtMs = new Date(sessionStartedAt).getTime();
-    if (Number.isFinite(startedAtMs)) {
-      elapsedSeconds += Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
-    }
-  }
-
-  if (mode === 'timed' && initialTime > 0) {
-    elapsedSeconds = Math.min(elapsedSeconds, initialTime);
-  }
-
-  const segmentStartElapsed = mode === 'timed' ? timedSegmentStartElapsed : 0;
-  const segmentDuration = mode === 'timed'
-    ? Math.max(1, timedSegmentDuration || initialTime)
-    : 0;
-  const segmentElapsed = mode === 'timed'
-    ? Math.max(0, elapsedSeconds - segmentStartElapsed)
-    : elapsedSeconds;
-
-  return {
-    mode,
-    isRunning,
-    initialTime,
-    elapsedSeconds,
-    segmentStartElapsed,
-    segmentDuration,
-    segmentElapsed,
-  };
-}
 
 function checkpointActiveSessionInStore() {
   const timerState = store.get('timerState', {});
@@ -945,111 +875,6 @@ function getFloatingSizeForState(state = floatingWindowDisplayState) {
   return { width: FLOATING_ICON_SIZE, height: FLOATING_ICON_SIZE };
 }
 
-function stopFloatingPulseSchedule() {
-  if (floatingPulseTimeout) {
-    clearTimeout(floatingPulseTimeout);
-    floatingPulseTimeout = null;
-  }
-  if (floatingPulseInterval) {
-    clearInterval(floatingPulseInterval);
-    floatingPulseInterval = null;
-  }
-}
-
-function clearFloatingTimedPulseState() {
-  floatingTimedPulseThresholds = [];
-  floatingTimedPulseIndex = 0;
-  floatingTimedPulseInitialTime = 0;
-  floatingTimedPulseLastElapsedSeconds = 0;
-}
-
-function resetFloatingTimedPulseState(snapshot = readFloatingTimerSnapshot()) {
-  if (snapshot.mode !== 'timed' || !snapshot.isRunning || snapshot.segmentDuration <= 0) {
-    clearFloatingTimedPulseState();
-    return;
-  }
-
-  const nextThresholds = buildTimedPulseThresholds(FLOATING_TIMED_PULSE_PERCENTS, snapshot.segmentDuration);
-  let nextIndex = 0;
-  while (nextIndex < nextThresholds.length && snapshot.segmentElapsed >= nextThresholds[nextIndex]) {
-    nextIndex += 1;
-  }
-
-  floatingTimedPulseThresholds = nextThresholds;
-  floatingTimedPulseIndex = nextIndex;
-  floatingTimedPulseInitialTime = snapshot.segmentDuration;
-  floatingTimedPulseLastElapsedSeconds = snapshot.segmentElapsed;
-}
-
-function syncFloatingTimedPulseState(snapshot) {
-  if (snapshot.mode !== 'timed' || !snapshot.isRunning || snapshot.segmentDuration <= 0) {
-    clearFloatingTimedPulseState();
-    return;
-  }
-
-  const thresholds = buildTimedPulseThresholds(FLOATING_TIMED_PULSE_PERCENTS, snapshot.segmentDuration);
-  const thresholdsChanged =
-    thresholds.length !== floatingTimedPulseThresholds.length
-    || thresholds.some((value, index) => value !== floatingTimedPulseThresholds[index]);
-  const elapsedReset = snapshot.segmentElapsed < Math.max(0, floatingTimedPulseLastElapsedSeconds - 1);
-
-  if (
-    thresholdsChanged
-    || floatingTimedPulseInitialTime !== snapshot.segmentDuration
-    || elapsedReset
-  ) {
-    resetFloatingTimedPulseState(snapshot);
-    return;
-  }
-
-  while (
-    floatingTimedPulseIndex < floatingTimedPulseThresholds.length
-    && snapshot.segmentElapsed >= floatingTimedPulseThresholds[floatingTimedPulseIndex]
-  ) {
-    sendFloatingPulse();
-    floatingTimedPulseIndex += 1;
-  }
-
-  floatingTimedPulseLastElapsedSeconds = snapshot.segmentElapsed;
-}
-
-function syncFloatingPulseMode(nextState, previousMode) {
-  const timerSnapshot = readFloatingTimerSnapshot();
-  const useTimedPulseThresholds =
-    nextState.mode === 'timer'
-    && timerSnapshot.mode === 'timed'
-    && timerSnapshot.isRunning
-    && timerSnapshot.segmentDuration > 0;
-
-  if (useTimedPulseThresholds) {
-    stopFloatingPulseSchedule();
-    if (previousMode !== nextState.mode) {
-      resetFloatingTimedPulseState(timerSnapshot);
-    } else {
-      syncFloatingTimedPulseState(timerSnapshot);
-    }
-    return;
-  }
-
-  clearFloatingTimedPulseState();
-
-  if (nextState.mode === 'timer' && timerSnapshot.mode === 'freeflow' && timerSnapshot.isRunning) {
-    if (previousMode !== nextState.mode) {
-      startFloatingPulseSchedule({ immediate: true });
-    }
-    return;
-  }
-
-  if (nextState.mode === 'icon') {
-    if (previousMode !== nextState.mode) {
-      startFloatingPulseSchedule({ immediate: true });
-    }
-    return;
-  }
-
-  stopFloatingPulseSchedule();
-}
-
 function stopFloatingStateSync() {
   if (floatingStateInterval) {
     clearInterval(floatingStateInterval);
@@ -1058,7 +883,6 @@ function stopFloatingStateSync() {
 }
 
 function syncFloatingWindowState({ preservePosition = true } = {}) {
-  const previousMode = floatingWindowDisplayState?.mode;
   const nextState = getFloatingWindowState();
   floatingWindowDisplayState = nextState;
 
@@ -1077,10 +901,6 @@ function syncFloatingWindowState({ preservePosition = true } = {}) {
   setFloatingIconBoundsClamped(nextBounds);
   floatingIconWindow.webContents.send('floating-state', nextState);
 
-  if (isFloatingMinimized) {
-    syncFloatingPulseMode(nextState, previousMode);
-  }
-
   return nextState;
 }
 
@@ -1098,18 +918,6 @@ function sendFloatingPulse() {
   floatingIconWindow.webContents.send('floating-icon-pulse');
 }
 
-function startFloatingPulseSchedule({ immediate = false } = {}) {
-  stopFloatingPulseSchedule();
-  if (immediate) {
-    sendFloatingPulse();
-    floatingPulseInterval = setInterval(sendFloatingPulse, FLOATING_ICON_PULSE_REPEAT_MS);
-    return;
-  }
-  floatingPulseTimeout = setTimeout(() => {
-    sendFloatingPulse();
-    floatingPulseInterval = setInterval(sendFloatingPulse, FLOATING_ICON_PULSE_REPEAT_MS);
-  }, FLOATING_ICON_PULSE_INITIAL_MS);
-}
 
 function createFloatingIconWindow() {
   if (floatingIconWindow && !floatingIconWindow.isDestroyed()) return;
@@ -1155,7 +963,6 @@ function createFloatingIconWindow() {
     floatingIconWindow = null;
     floatingIconDragStart = null;
     clearFloatingIconDragPolling();
-    stopFloatingPulseSchedule();
     stopFloatingStateSync();
     isFloatingMinimized = false;
   });
@@ -1176,9 +983,7 @@ function enterFloatingIconMode() {
 }
 
 function exitFloatingIconMode({ focusMain = true } = {}) {
-  stopFloatingPulseSchedule();
   stopFloatingStateSync();
-  clearFloatingTimedPulseState();
   floatingIconDragStart = null;
   clearFloatingIconDragPolling();
   isFloatingMinimized = false;
@@ -1360,7 +1165,6 @@ function createWindow() {
 
   mainWindow.on('show', () => {
     if (isFloatingMinimized) {
-      stopFloatingPulseSchedule();
       isFloatingMinimized = false;
       if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
         floatingIconWindow.hide();
@@ -1500,6 +1304,48 @@ ipcMain.handle('enter-floating-minimize', () => {
   if (!isFloatingMinimized) {
     enterFloatingIconMode();
   }
+  return true;
+});
+
+// Exit floating mode but keep mainWindow hidden (opacity 0) so the renderer
+// can enter compact/pill mode before revealing.  The floating icon is hidden
+// and mainWindow is positioned at the icon's location with its current size
+// but NOT shown — the renderer must call enterPillMode and then show the
+// window itself via bringToFront or similar after the compact bounds are set.
+ipcMain.handle('exit-floating-for-compact', () => {
+  if (!isFloatingMinimized) return false;
+
+  stopFloatingStateSync();
+  floatingIconDragStart = null;
+  clearFloatingIconDragPolling();
+  isFloatingMinimized = false;
+
+  const floatingBounds = floatingIconWindow && !floatingIconWindow.isDestroyed()
+    ? floatingIconWindow.getBounds()
+    : null;
+
+  if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
+    floatingIconWindow.hide();
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Position mainWindow at the floating icon location.  Hide it visually
+    // with opacity 0 so the renderer can enter pill mode and resize to compact
+    // bounds before anything is visible — avoiding a flash of the full window.
+    mainWindow.setOpacity(0);
+    const currentMainBounds = mainWindow.getBounds();
+    const nextBounds = floatingBounds
+      ? clampBounds({
+        x: floatingBounds.x,
+        y: floatingBounds.y,
+        width: Math.max(currentMainBounds.width || FULL_MIN_WIDTH, FULL_MIN_WIDTH),
+        height: Math.max(currentMainBounds.height || FULL_MIN_HEIGHT, FULL_MIN_HEIGHT),
+      }, 'display')
+      : currentMainBounds;
+    setMainWindowBoundsClamped(nextBounds, { persist: false, areaType: 'display' });
+    mainWindow.show();
+  }
+
   return true;
 });
 
@@ -1645,6 +1491,11 @@ ipcMain.on('set-dnd', (_event, enabled) => {
   applyDndState(enabled);
 });
 
+// Floating pulse — renderer drives timing, main sends to floating window
+ipcMain.on('trigger-floating-pulse', () => {
+  sendFloatingPulse();
+});
+
 // Modal window expansion
 ipcMain.handle('modal-opened', (_, minWidth, minHeight) => {
   if (mainWindow && !isPillMode) {
@@ -1714,6 +1565,12 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
     setMainWindowBoundsClamped(nextBounds, { areaType: PILL_CLAMP_AREA });
     rememberStablePillBounds(clampBounds(nextBounds, PILL_CLAMP_AREA));
     mainWindow.setResizable(false);
+    // Restore opacity in case it was set to 0 during a floating → compact
+    // transition (exit-floating-for-compact hides the window visually while
+    // keeping it technically shown so the renderer can process events).
+    if (mainWindow.getOpacity() < 1) {
+      mainWindow.setOpacity(1);
+    }
   }
 });
 

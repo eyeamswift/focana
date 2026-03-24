@@ -596,22 +596,6 @@ export default function SettingsModal({
                     Last checked {lastCheckedLabel}.
                   </p>
                 ) : null}
-                {updateState?.releaseNotes ? (
-                  <div style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-secondary)',
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '0.5rem',
-                    padding: '0.625rem 0.75rem',
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.45,
-                    maxHeight: '6.5rem',
-                    overflowY: 'auto',
-                  }}>
-                    {updateState.releaseNotes}
-                  </div>
-                ) : null}
               </div>
 
               {licenseEnabled ? (
@@ -844,13 +828,18 @@ export default function SettingsModal({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                     <input
-                      type="number"
-                      min="5"
-                      max="60"
+                      type="text"
+                      inputMode="numeric"
                       value={checkInIntervalFreeflow}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (Number.isFinite(val)) setCheckInIntervalFreeflow(Math.min(60, Math.max(5, val)));
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        if (raw === '') { setCheckInIntervalFreeflow(''); return; }
+                        const val = parseInt(raw, 10);
+                        if (Number.isFinite(val)) setCheckInIntervalFreeflow(Math.min(60, val));
+                      }}
+                      onBlur={() => {
+                        const val = parseInt(checkInIntervalFreeflow, 10);
+                        setCheckInIntervalFreeflow(Number.isFinite(val) ? Math.min(60, Math.max(5, val)) : 15);
                       }}
                       disabled={!checkInEnabled}
                       className="input"

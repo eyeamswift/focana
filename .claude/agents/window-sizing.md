@@ -172,6 +172,26 @@ The renderer must measure the **actual rendered height** of the current screen's
 
 ---
 
+## Cross-Agent: Check-In Triggered Transitions
+
+Not all window state transitions are user-initiated. The check-in system (governed by the checkin-timing agent at `.claude/agents/checkin-timing.md`) can trigger a floating → compact transition when a focus check-in prompt fires during floating/minimized mode.
+
+This transition follows a specific sequence:
+
+1. Renderer detects check-in should fire, checks `getFloatingMinimized()`
+2. If floating, renderer calls `bringToFront`
+3. Main process exits floating mode via `exitFloatingIconMode()`
+4. Renderer enters compact mode
+5. Compact check-in prompt popup opens
+
+This means `exitFloatingIconMode()` can be called without any user interaction — no click, no drag, no keyboard shortcut. The transition must still follow all window rules: opacity hiding, single `setBounds()`, workArea clamping, and position anchor preservation.
+
+If the user ignores the compact check-in prompt, the app remains in compact mode — it does NOT automatically return to floating. The floating pulse schedule may also have stopped. This is intentional behavior, not a window bug.
+
+The checkin-timing agent owns the decision of when to trigger this transition. This agent owns the execution mechanics. Do not modify check-in scheduling logic here — that belongs in the checkin-timing agent's domain.
+
+---
+
 ## The Four Active Bugs
 
 ### Bug 1: Clipped Startup Screens (Activation Gate, Name Capture)
@@ -313,6 +333,12 @@ Tests in `tests/e2e/electron-flows.spec.js` (~line 299) currently cover:
 - Position persistence across quit/relaunch
 - Multi-monitor display change handling
 - Choppy transition regression (visual smoothness is hard to test in E2E, but bounds-at-each-step assertions can catch intermediate-state bugs)
+
+## Keeping This Prompt Up to Date
+
+This agent prompt is static — it does not auto-update when the codebase changes. After any refactor that modifies window state transitions, geometry helpers, drag behavior, display clamping, or the floating/compact/full state machine, ask the user whether this file should be updated to match. If the answer is yes, update the relevant sections of this prompt before closing out the task.
+
+---
 
 # Persistent Agent Memory
 
