@@ -545,7 +545,7 @@ function getIsAppleSilicon() {
   return null;
 }
 
-const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/d4f23c8d-b002-48c9-8ed6-a5ea6220ac59?embed=1";
+const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d?embed=1";
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
