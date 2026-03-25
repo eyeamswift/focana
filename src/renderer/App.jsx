@@ -100,7 +100,7 @@ const CHECKIN_DETOUR_MESSAGES = [
 ];
 const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
-const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60;
+const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60 + 3; // +3s offset to avoid check-in collision
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
 const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 3000;
 const SESSION_FEEDBACK_CONTINUE_DELAY_MS = 200;
@@ -333,6 +333,16 @@ export default function App() {
   const [isPulsing, setIsPulsing] = useState(false);
   const [compactPulseSignal, setCompactPulseSignal] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState(null);
+  const lastNonEmptyTaskRef = useRef('');
+
+  useEffect(() => {
+    const trimmedTask = task.trim();
+    if (trimmedTask) {
+      lastNonEmptyTaskRef.current = task;
+    } else if (!isRunning && !isTimerVisible) {
+      lastNonEmptyTaskRef.current = '';
+    }
+  }, [task, isRunning, isTimerVisible]);
 
   const timerRef = useRef(null);
   const sessionToSave = useRef(null);
@@ -2052,6 +2062,7 @@ export default function App() {
     if (checkInStateRef.current !== 'idle' || !isRunningRef.current) return false;
     checkInPromptSurfaceRef.current = 'compact';
     pendingCompactCheckInPromptRef.current = false;
+    checkInStateRef.current = 'prompting';
     setCheckInState('prompting');
     setCheckInMessage('');
     setCheckInCelebrating(false);
@@ -2117,6 +2128,9 @@ export default function App() {
   const resolveCheckIn = useCallback(async (status) => {
     if (checkInStateRef.current !== 'prompting') return;
     if (status !== 'focused') return;
+    // Synchronously claim the ref so a second click cannot slip through
+    // while the async logCheckIn IPC is in flight.
+    checkInStateRef.current = 'resolved';
     const shouldReturnToCompact = checkInReturnToCompactRef.current;
     const shouldReturnToFloating = checkInReturnToFloatingRef.current;
     const elapsedSec = getElapsedSeconds();
@@ -2184,6 +2198,9 @@ export default function App() {
 
   const openCheckInDetourChoice = useCallback(() => {
     if (checkInStateRef.current !== 'prompting') return;
+    // Synchronously move the ref out of 'prompting' so the scheduling
+    // effect cannot log a "missed" check-in during the async compact exit.
+    checkInStateRef.current = 'detour-choice';
     checkInPromptSurfaceRef.current = 'full';
     const applyDetourChoiceState = () => {
       setCheckInState('detour-choice');
@@ -2244,14 +2261,9 @@ export default function App() {
     await logCheckIn('detour', elapsedSec);
     track('checkin_responded', { response: 'detour' });
 
-    if (mode === 'freeflow') {
-      const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
-      checkInShortIntervalRef.current = true;
-      checkInForcedNextRef.current = elapsedSec + shortInterval;
-    } else {
-      checkInShortIntervalRef.current = false;
-      checkInForcedNextRef.current = null;
-    }
+    const shortInterval = getShortCheckInIntervalSeconds(mode, initialTime);
+    checkInShortIntervalRef.current = true;
+    checkInForcedNextRef.current = elapsedSec + shortInterval;
 
     setCheckInState('detour-resolved');
     setCheckInMessage(CHECKIN_DETOUR_MESSAGES[Math.floor(Math.random() * CHECKIN_DETOUR_MESSAGES.length)]);
@@ -2305,6 +2317,7 @@ export default function App() {
       if (checkInStateRef.current !== 'idle' || !isRunningRef.current) return;
       checkInPromptSurfaceRef.current = 'full';
       pendingCompactCheckInPromptRef.current = false;
+      checkInStateRef.current = 'prompting';
       setCheckInState('prompting');
       setCheckInMessage('');
       setCheckInCelebrating(false);
@@ -2419,7 +2432,7 @@ export default function App() {
         freeflowPulseNextRef.current += FREEFLOW_PULSE_INTERVAL_SECONDS;
         crossedThreshold = true;
       }
-      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen && checkInState === 'idle') {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen && checkInStateRef.current === 'idle') {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
@@ -2456,7 +2469,7 @@ export default function App() {
       timedPulseLastElapsedRef.current = elapsed;
       timedPulseLastSegmentElapsedRef.current = segmentElapsed;
 
-      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen && checkInState === 'idle') {
+      if (crossedThreshold && pulseSettings.compactEnabled && !dndEnabled && !hasBlockingWindowOpen && checkInStateRef.current === 'idle') {
         if (isCompact) {
           setCompactPulseSignal((prev) => prev + 1);
         } else {
@@ -2469,7 +2482,9 @@ export default function App() {
 
     timedPulseLastElapsedRef.current = elapsed;
     timedPulseLastSegmentElapsedRef.current = 0;
-  }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse, checkInState]);
+  // Note: checkInStateRef (not checkInState) is used for pulse suppression to
+  // avoid stale-state races where a pulse and check-in fire in the same render.
+  }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
 
   useEffect(() => {
     if (!isRunning || !task.trim() || !checkInSettings.enabled) {
@@ -2479,32 +2494,51 @@ export default function App() {
     const elapsed = getElapsedSeconds();
 
     if (mode === 'freeflow') {
-      // If a check-in is already open and we've reached the next threshold,
-      // log the current one as missed and fire a fresh prompt.
-      const freeflowThresholdReached = (
-        (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current)
-        || (Number.isFinite(checkInFreeflowNextRef.current) && elapsed >= checkInFreeflowNextRef.current)
-      );
-
-      if (checkInState === 'prompting' && freeflowThresholdReached) {
-        logMissedCheckInIfPrompting(elapsed);
-        // Fall through to fire the new prompt below
-      } else if (checkInState !== 'idle') {
-        return;
-      }
-
       // Forced short-interval check-in (after detour/miss)
-      if (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current) {
-        triggerCheckInPromptRef.current();
-        return;
-      }
+      const forcedReached = Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current;
 
       // Lazy-init freeflow schedule if not yet set
       if (!Number.isFinite(checkInFreeflowNextRef.current)) {
         const intervalSeconds = getStandardCheckInIntervalSeconds('freeflow', initialTime);
         checkInFreeflowNextRef.current = elapsed + intervalSeconds;
       }
-      if (elapsed >= checkInFreeflowNextRef.current) {
+      const standardReached = elapsed >= checkInFreeflowNextRef.current;
+
+      // If a check-in is already showing and a genuinely NEW threshold has been
+      // reached (i.e. the schedule has advanced past the one that originally
+      // triggered the prompt), log the current prompt as missed and fall through
+      // to fire a fresh one.
+      if (checkInStateRef.current === 'prompting') {
+        // The prompt that is currently showing was fired at (or before) the
+        // current checkInFreeflowNextRef / checkInForcedNextRef.  A *new*
+        // threshold means one of these refs has been advanced past the prompt's
+        // origin point — which only happens when the standard schedule rolls
+        // forward.  Because we advance the ref immediately after firing (see
+        // below), re-entering this effect on the *same* threshold will see
+        // standardReached === false.  Only a genuinely new threshold will be
+        // true here.
+        const newThresholdReached = standardReached || forcedReached;
+        if (newThresholdReached) {
+          logMissedCheckInIfPrompting(elapsed);
+          // Fall through to fire the new prompt below
+        } else {
+          return;
+        }
+      } else if (checkInStateRef.current !== 'idle') {
+        return;
+      }
+
+      if (forcedReached) {
+        checkInForcedNextRef.current = null;
+        triggerCheckInPromptRef.current();
+        return;
+      }
+
+      if (standardReached) {
+        // Advance the schedule BEFORE firing so the next tick does not
+        // re-trigger the same threshold and immediately dismiss the prompt.
+        const intervalSeconds = getStandardCheckInIntervalSeconds('freeflow', initialTime);
+        checkInFreeflowNextRef.current = elapsed + intervalSeconds;
         triggerCheckInPromptRef.current();
       }
       return;
@@ -2524,10 +2558,10 @@ export default function App() {
       const crossedThisTick = previousSegmentElapsed < threshold;
 
       if (crossedThisTick) {
-        if (checkInState === 'prompting') {
+        if (checkInStateRef.current === 'prompting') {
           logMissedCheckInIfPrompting(elapsed);
           // checkInStateRef is now 'idle', fall through to fire new prompt
-        } else if (checkInState !== 'idle') {
+        } else if (checkInStateRef.current !== 'idle') {
           blockedAtThreshold = true; break;
         }
         const fired = triggerCheckInPromptRef.current({ skipCooldown: true });
@@ -4068,13 +4102,17 @@ export default function App() {
 
   // Compact mode render
   if (isCompact) {
+    const compactTask = task.trim()
+      ? task
+      : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
+
     return (
       // electron-draggable on the outer container lets users drag the pill window
       // from the transparent corner pixels (outside the rounded pill shape).
       // The pill itself is electron-no-drag so its mouse events fire normally.
       <div className={`app-container pill-mode electron-draggable${compactTransitioning ? ' pill-mode--transitioning' : ''}`}>
         <CompactMode
-          task={task}
+          task={compactTask}
           isRunning={isRunning}
           time={time}
           pulseSignal={compactPulseSignal}

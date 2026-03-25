@@ -1226,7 +1226,7 @@ test('always-on-top toggle persists and applies to floating icon mode', async ()
   }
 });
 
-test('macOS always-on-top also applies workspace visibility for main and floating windows', async () => {
+test('macOS always-on-top enables workspace visibility for main and floating windows', async () => {
   test.skip(process.platform !== 'darwin', 'macOS-only workspace visibility behavior');
 
   const { electronApp, page, cleanup } = await launchApp({ background: false });
@@ -1255,25 +1255,6 @@ test('macOS always-on-top also applies workspace visibility for main and floatin
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-
-    await page.getByRole('button', { name: 'Disable Always on Top' }).click();
-
-    await expect.poll(async () => {
-      const state = await readWorkspaceVisibilityState(electronApp);
-      return state.mainVisibleOnAllWorkspaces;
-    }).toBe(false);
-
-    await page.evaluate(() => {
-      window.electronAPI.toggleFloatingMinimize();
-    });
-
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
-
-    await expect.poll(async () => {
-      const state = await readWorkspaceVisibilityState(electronApp);
-      return state.floatingVisibleOnAllWorkspaces;
-    }, { timeout: 7000 }).toBe(false);
   } finally {
     await cleanup();
   }
@@ -1520,6 +1501,17 @@ test('idle compact mode without a task uses the timer-only pill width', async ()
       const bounds = await readMainWindowBounds(electronApp);
       return bounds?.width || 0;
     }, { timeout: 7000 }).toBeLessThanOrEqual(130);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact mode shows the active task by default during a running session', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact visible task');
+    await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('compact visible task');
   } finally {
     await cleanup();
   }

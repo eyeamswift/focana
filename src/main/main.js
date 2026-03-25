@@ -113,7 +113,17 @@ function applyWindowAlwaysOnTop(win, enabled) {
   if (!win || win.isDestroyed()) return;
   win.setAlwaysOnTop(enabled, enabled && process.platform === 'darwin' ? 'screen-saver' : undefined);
   if (process.platform === 'darwin') {
-    win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled });
+    if (enabled) {
+      win.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true,
+      });
+    } else {
+      win.setVisibleOnAllWorkspaces(false, {
+        visibleOnFullScreen: false,
+        skipTransformProcessType: true,
+      });
+    }
   }
 }
 
