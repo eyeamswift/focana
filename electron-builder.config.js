@@ -39,6 +39,8 @@ module.exports = {
     'src/main',
     'src/assets',
     'scripts',
+    '!scripts/packaged-smoke.js',
+    '!scripts/ship-smoke.sh',
     '!reference',
     '!release',
     '!.claude',

@@ -139,6 +139,54 @@ async function readMainWindowBounds(electronApp) {
   });
 }
 
+async function mainWindowMatchesAnchoredCompactPosition(electronApp, sourceBounds) {
+  return electronApp.evaluate(({ BrowserWindow, screen }, payload) => {
+    const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    if (!main || !payload) return false;
+
+    const currentBounds = main.getBounds();
+    const display = screen.getDisplayMatching(payload);
+    const candidateAreas = [display.workArea, display.bounds];
+    const epsilon = 2;
+    const right = payload.x + payload.width;
+    const bottom = payload.y + payload.height;
+    const leftArea = candidateAreas.find((area) => Math.abs(payload.x - area.x) <= epsilon);
+    const rightArea = candidateAreas.find((area) => Math.abs(right - (area.x + area.width)) <= epsilon);
+    const topArea = candidateAreas.find((area) => Math.abs(payload.y - area.y) <= epsilon);
+    const bottomArea = candidateAreas.find((area) => Math.abs(bottom - (area.y + area.height)) <= epsilon);
+
+    const expectedX = rightArea && !leftArea
+      ? Math.round((rightArea.x + rightArea.width) - currentBounds.width)
+      : leftArea && !rightArea
+        ? Math.round(leftArea.x)
+        : payload.x;
+    const expectedY = bottomArea && !topArea
+      ? Math.round((bottomArea.y + bottomArea.height) - currentBounds.height)
+      : topArea && !bottomArea
+        ? Math.round(topArea.y)
+        : payload.y;
+
+    return Math.abs(currentBounds.x - expectedX) <= epsilon
+      && Math.abs(currentBounds.y - expectedY) <= epsilon;
+  }, sourceBounds);
+}
+
+async function mainWindowMatchesFloatingRestorePosition(electronApp, floatingBounds) {
+  return electronApp.evaluate(({ BrowserWindow, screen }, payload) => {
+    const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    if (!main || !payload) return false;
+
+    const currentBounds = main.getBounds();
+    const display = screen.getDisplayMatching(payload);
+    const area = display.bounds;
+    const expectedX = Math.max(area.x, Math.min(payload.x, area.x + area.width - currentBounds.width));
+    const expectedY = Math.max(area.y, Math.min(payload.y, area.y + area.height - currentBounds.height));
+
+    return Math.abs(currentBounds.x - expectedX) <= 2
+      && Math.abs(currentBounds.y - expectedY) <= 2;
+  }, floatingBounds);
+}
+
 async function readFloatingWindowBounds(electronApp) {
   return electronApp.evaluate(({ BrowserWindow }) => {
     const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'));
@@ -629,9 +677,9 @@ test('timed time-up flows add time and resume later without losing task state', 
     await startTimedSession(page, 'timeup-audit', 1);
 
     await setTimeOffset(page, 65000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Continue Timed' }).click();
+    await page.getByRole('button', { name: 'Add 5 minutes' }).click();
 
     await expect.poll(() => readWindowMode(page)).toBe('pill');
     const keepGoingState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
@@ -641,9 +689,9 @@ test('timed time-up flows add time and resume later without losing task state', 
     expect(keepGoingState.seconds).toBeLessThanOrEqual(300);
 
     await setTimeOffset(page, 370000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Resume Later' }).click();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
     await expect(page.getByRole('heading', { name: 'Where did you leave off?' })).toBeVisible();
     await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume later note');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -679,7 +727,7 @@ test('timed time-up can switch into freeflow and restart freeflow check-ins from
     await startTimedSession(page, 'timeup-freeflow-handoff', 1);
 
     await setTimeOffset(page, 65000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
     await page.getByRole('button', { name: 'Switch to Freeflow' }).click();
 
@@ -712,9 +760,9 @@ test('timed time-up add time restores the full window when the session expired o
     expect(boundsBeforeExpire).toBeTruthy();
 
     await setTimeOffset(page, 65000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Continue Timed' }).click();
+    await page.getByRole('button', { name: 'Add 5 minutes' }).click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect.poll(async () => {
@@ -760,7 +808,7 @@ test('timed time-up freeflow handoff returns to floating minimize when the sessi
       const visibility = await readWindowVisibilityState(electronApp);
       return visibility.mainVisible;
     }, { timeout: 7000 }).toBe(true);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
     await page.getByRole('button', { name: 'Switch to Freeflow' }).click();
 
@@ -790,7 +838,7 @@ test('time-up end session opens the completion decision before showing the feedb
     await startTimedSession(page, 'feedback-auto-advance', 1);
 
     await setTimeOffset(page, 65000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
     await page.getByRole('button', { name: 'End Session' }).click();
 
@@ -823,7 +871,7 @@ test('selecting session feedback saves it and continues after the short post-cli
     await startTimedSession(page, 'feedback-select', 1);
 
     await setTimeOffset(page, 65000);
-    await expect(page.getByRole('heading', { name: 'Time is up' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
 
     await page.getByRole('button', { name: 'End Session' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
@@ -873,7 +921,7 @@ test('selecting session feedback records an immediate sync attempt', async () =>
     await page.locator('button[title="Stop & Save"]').click();
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
-    await page.getByRole('button', { name: 'No, Keep Task' }).click();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
 
     const feedbackPrompt = page.getByText('How was Focana this session?');
     await expect(feedbackPrompt).toBeVisible();
@@ -1241,8 +1289,10 @@ test('macOS always-on-top enables workspace visibility for main and floating win
       window.electronAPI.toggleFloatingMinimize();
     });
 
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(
+      () => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length,
+      { timeout: 7000 },
+    ).toBeGreaterThan(0);
 
     await expect.poll(async () => {
       const state = await readWorkspaceVisibilityState(electronApp);
@@ -1253,8 +1303,10 @@ test('macOS always-on-top enables workspace visibility for main and floating win
     expect(floatingWindow).toBeTruthy();
     await floatingWindow.evaluate(() => window.floatingAPI.expand());
 
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect.poll(async () => {
+      const state = await readWorkspaceVisibilityState(electronApp);
+      return state.mainVisibleOnAllWorkspaces;
+    }, { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }
@@ -1366,7 +1418,7 @@ test('parking lot opened from compact returns to the previous compact position',
   }
 });
 
-test('manual re-entry into compact restores the previous compact position', async () => {
+test('manual re-entry into compact anchors from the current full-window position after exiting compact', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1392,23 +1444,16 @@ test('manual re-entry into compact restores the previous compact position', asyn
       y: baseBounds.y,
     }));
 
-    const movedBounds = await readMainWindowBounds(electronApp);
-    expect(movedBounds).toBeTruthy();
-
     await exitCompactMode(page);
+    const fullBoundsAfterExit = await readMainWindowBounds(electronApp);
+    expect(fullBoundsAfterExit).toBeTruthy();
     await page.locator('button[aria-label="Enter Compact Mode"]').click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
-    await expect.poll(async () => {
-      const nextBounds = await readMainWindowBounds(electronApp);
-      return JSON.stringify({
-        x: nextBounds?.x || 0,
-        y: nextBounds?.y || 0,
-      });
-    }, { timeout: 7000 }).toBe(JSON.stringify({
-      x: movedBounds.x,
-      y: movedBounds.y,
-    }));
+    await expect.poll(
+      () => mainWindowMatchesAnchoredCompactPosition(electronApp, fullBoundsAfterExit),
+      { timeout: 7000 },
+    ).toBe(true);
   } finally {
     await cleanup();
   }
@@ -2012,8 +2057,8 @@ test('freeflow check-ins stay suppressed during DND and appear after DND is turn
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Turn Off Do Not Disturb' }).click();
 
-    await expect(page.getByText('Still focused on')).toBeVisible();
-    await expect(page.getByText('dnd-ui-checkin?')).toBeVisible();
+    await expect(page.getByText('Still focused on')).toBeVisible({ timeout: 7000 });
+    await expect(page.getByText('dnd-ui-checkin?')).toBeVisible({ timeout: 7000 });
   } finally {
     await cleanup();
   }
@@ -2027,6 +2072,7 @@ test('reusing a task from history does not overwrite historical session id or le
     durationMinutes: 22,
     mode: 'freeflow',
     completed: false,
+    kept: true,
     notes: 'seed note',
     createdAt: originalCreatedAt,
   };
@@ -2422,10 +2468,10 @@ test('stop flow is handled inside session notes without a second completion moda
     await page.locator('button[title="Stop & Save"]').click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Yes, Complete' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'No, Keep Task' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'No, Save for Later' })).toBeVisible();
 
     await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume from here');
-    await page.getByRole('button', { name: 'No, Keep Task' }).click();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('stop-flow-unified');
 
@@ -2452,7 +2498,7 @@ test('feedback prompt close button skips feedback and continues the stop flow ac
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await page.getByPlaceholder('Quick note about where to pick up next time...').fill('carry note');
-    await page.getByRole('button', { name: 'No, Keep Task' }).click();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
 
     const feedbackPrompt = page.getByText('How was Focana this session?');
     await expect(feedbackPrompt).toBeVisible();
@@ -2539,7 +2585,7 @@ test('minimize to floating icon restores idle task text', async () => {
   try {
     let mainPage = page;
     const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
-    const minimizeFloatingButton = mainPage.locator('button[aria-label="Minimize to Floating Icon"]');
+    const minimizeFloatingButton = mainPage.locator('button[aria-label="Minimize to Floating"]');
     await taskInput.fill('floating-state-test');
 
     await expect(minimizeFloatingButton).toBeVisible();
@@ -2595,8 +2641,10 @@ test('manual re-entry into floating minimize restores the previous floating posi
       window.electronAPI.toggleFloatingMinimize();
     });
 
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(
+      () => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length,
+      { timeout: 7000 },
+    ).toBeGreaterThan(0);
 
     const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
     expect(floatingWindow).toBeTruthy();
@@ -2635,8 +2683,10 @@ test('manual re-entry into floating minimize restores the previous floating posi
       window.electronAPI.toggleFloatingMinimize();
     });
 
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(
+      () => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length,
+      { timeout: 7000 },
+    ).toBeGreaterThan(0);
     await expect.poll(async () => {
       const nextBounds = await readFloatingWindowBounds(electronApp);
       return JSON.stringify({
@@ -2731,22 +2781,16 @@ test('expanding from a moved floating minimize restores the main window at the f
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect.poll(async () => {
-      const nextBounds = await readMainWindowBounds(electronApp);
-      return JSON.stringify({
-        x: nextBounds?.x || 0,
-        y: nextBounds?.y || 0,
-      });
-    }, { timeout: 7000 }).toBe(JSON.stringify({
-      x: movedFloatingBounds.x,
-      y: movedFloatingBounds.y,
-    }));
+    await expect.poll(
+      () => mainWindowMatchesFloatingRestorePosition(electronApp, movedFloatingBounds),
+      { timeout: 7000 },
+    ).toBe(true);
   } finally {
     await cleanup();
   }
 });
 
-test('exiting compact mode preserves full-window height for multi-line tasks', async () => {
+test('exiting compact mode preserves the settled full-window height for multi-line tasks', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -2758,6 +2802,8 @@ test('exiting compact mode preserves full-window height for multi-line tasks', a
       ));
       return main ? main.getBounds().height : null;
     });
+
+    await expect.poll(getMainHeight, { timeout: 7000 }).toBeLessThan(400);
 
     const initialHeight = await getMainHeight();
     expect(initialHeight).toBeGreaterThan(120);

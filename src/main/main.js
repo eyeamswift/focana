@@ -1622,7 +1622,7 @@ ipcMain.handle('enter-pill-mode', (_, options = {}) => {
 ipcMain.handle('capture-pill-restore-bounds', () => {
   if (!mainWindow || !isPillMode) return;
   pendingPillRestoreBounds = clampBounds(
-    compactTransientBaseBounds || lastStablePillBounds || mainWindow.getBounds(),
+    compactTransientBaseBounds || mainWindow.getBounds() || lastStablePillBounds,
     PILL_CLAMP_AREA,
   );
 });

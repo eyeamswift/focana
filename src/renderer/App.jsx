@@ -333,6 +333,7 @@ export default function App() {
   const [compactPulseSignal, setCompactPulseSignal] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const lastNonEmptyTaskRef = useRef('');
+  const prevDndEnabledRef = useRef(false);
 
   useEffect(() => {
     const trimmedTask = task.trim();
@@ -2518,17 +2519,23 @@ export default function App() {
       }
 
       if (forcedReached) {
-        checkInForcedNextRef.current = null;
-        triggerCheckInPromptRef.current();
+        void Promise.resolve(triggerCheckInPromptRef.current()).then((fired) => {
+          if (fired) {
+            checkInForcedNextRef.current = null;
+          }
+        });
         return;
       }
 
       if (standardReached) {
-        // Advance the schedule BEFORE firing so the next tick does not
-        // re-trigger the same threshold and immediately dismiss the prompt.
         const intervalSeconds = getStandardCheckInIntervalSeconds('freeflow', initialTime);
-        checkInFreeflowNextRef.current = elapsed + intervalSeconds;
-        triggerCheckInPromptRef.current();
+        void Promise.resolve(triggerCheckInPromptRef.current()).then((fired) => {
+          if (!fired) return;
+          // Only advance the schedule when the prompt actually opens.
+          // If DND or another blocker suppresses it, keep the threshold hot so
+          // the prompt can appear as soon as the blocker is cleared.
+          checkInFreeflowNextRef.current = elapsed + intervalSeconds;
+        });
       }
       return;
     }
@@ -2581,6 +2588,23 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [time]);
+
+  useEffect(() => {
+    const wasDndEnabled = prevDndEnabledRef.current;
+    prevDndEnabledRef.current = dndEnabled;
+
+    if (!wasDndEnabled || dndEnabled) return;
+    if (!isRunning || mode !== 'freeflow' || !checkInSettings.enabled) return;
+
+    const elapsed = getElapsedSeconds();
+    if (!Number.isFinite(checkInFreeflowNextRef.current) || elapsed < checkInFreeflowNextRef.current) return;
+
+    const intervalSeconds = getStandardCheckInIntervalSeconds('freeflow', initialTime);
+    void Promise.resolve(triggerCheckInPromptRef.current()).then((fired) => {
+      if (!fired) return;
+      checkInFreeflowNextRef.current = elapsed + intervalSeconds;
+    });
+  }, [checkInSettings.enabled, dndEnabled, getElapsedSeconds, getStandardCheckInIntervalSeconds, initialTime, isRunning, mode]);
 
   // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
@@ -3428,7 +3452,7 @@ export default function App() {
     if (!prepareTaskForStartChooser({
       taskText: nextTask,
       notes: nextNotes,
-      sessionId: session.id || null,
+      sessionId: null,
       carryoverSeconds: resumeCarryoverSeconds,
       suppressHistoryPop: true,
     })) {
@@ -4104,19 +4128,19 @@ export default function App() {
     }
   }
 
+  const activeTaskLabel = task.trim()
+    ? task
+    : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
+
   // Compact mode render
   if (isCompact) {
-    const compactTask = task.trim()
-      ? task
-      : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
-
     return (
       // electron-draggable on the outer container lets users drag the pill window
       // from the transparent corner pixels (outside the rounded pill shape).
       // The pill itself is electron-no-drag so its mouse events fire normally.
       <div className={`app-container pill-mode electron-draggable${compactTransitioning ? ' pill-mode--transitioning' : ''}`}>
         <CompactMode
-          task={compactTask}
+          task={activeTaskLabel}
           isRunning={isRunning}
           time={time}
           pulseSignal={compactPulseSignal}
@@ -4134,7 +4158,7 @@ export default function App() {
           isOpen={checkInState === 'prompting'}
           onFocused={() => resolveCheckIn('focused')}
           onDetour={openCheckInDetourChoice}
-          taskName={task}
+          taskName={activeTaskLabel}
           variant="compact"
         />
         <PostSessionParkingLotModal
@@ -4421,7 +4445,7 @@ export default function App() {
                       Still focused on
                     </div>
                     <div style={{ marginTop: '0.2rem', fontSize: '1rem', fontWeight: 800, color: '#B45309', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
-                      {task.trim() || 'this task'}?
+                      {activeTaskLabel.trim() || 'this task'}?
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
