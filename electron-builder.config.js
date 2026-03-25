@@ -80,6 +80,7 @@ module.exports = {
     createStartMenuShortcut: true,
   },
   dmg: {
+    title: '${productName} ${version}',
     contents: [
       { x: 130, y: 220 },
       {
