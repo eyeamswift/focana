@@ -1045,18 +1045,6 @@ export default function FocanaLanding() {
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
-            <p style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              color: COLORS.deepAmber,
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-              marginBottom: "16px",
-              animation: "fadeUp 0.6s ease both",
-            }}>
-              For macOS - founder launch pricing now live
-            </p>
-
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(40px, 5.5vw, 64px)",
@@ -1105,6 +1093,28 @@ export default function FocanaLanding() {
               Focana is a floating Mac focus app that keeps your task and timer visible while you work.
             </p>
 
+          </div>
+
+          <div style={{
+            overflow: "hidden",
+            borderRadius: "12px 12px 0 0",
+            maxWidth: "900px",
+            margin: "0 auto",
+            marginTop: "48px",
+          }}>
+            <img
+              src="/hero-screenshot.png"
+              alt="Focana app screenshot"
+              style={{ width: "100%", display: "block" }}
+            />
+          </div>
+
+          <div style={{
+            maxWidth: "900px",
+            margin: "0 auto",
+            paddingTop: "28px",
+            textAlign: "center",
+          }}>
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                 Buy Focana <span style={{ fontSize: "22px" }}>→</span>
@@ -1120,35 +1130,6 @@ export default function FocanaLanding() {
             }}>
               Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
             </p>
-            <p style={{
-              marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
-              opacity: 0.7, animation: "fadeUp 0.6s ease 0.4s both",
-            }}>
-              Windows coming soon -{" "}
-              <button
-                onClick={() => setWaitlistOpen(true)}
-                style={{
-                  background: "none", border: "none", padding: 0,
-                  color: COLORS.deepAmber, fontSize: "inherit", fontFamily: "inherit",
-                  cursor: "pointer", textDecoration: "underline",
-                }}
-              >join the waitlist</button>
-            </p>
-
-          </div>
-
-          <div style={{
-            overflow: "hidden",
-            borderRadius: "12px 12px 0 0",
-            maxWidth: "900px",
-            margin: "0 auto",
-            marginTop: "48px",
-          }}>
-            <img
-              src="/hero-screenshot.png"
-              alt="Focana app screenshot"
-              style={{ width: "100%", display: "block" }}
-            />
           </div>
         </div>
       </section>
