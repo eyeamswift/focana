@@ -12,6 +12,10 @@ function isDevRuntime(app) {
   return process.env.FOCANA_E2E === '1' || process.env.FOCANA_DEV === '1' || !app.isPackaged
 }
 
+function isPackagedDevTestLicenseAllowed(app) {
+  return Boolean(app?.isPackaged) && process.env.FOCANA_ALLOW_DEV_TEST_LICENSE === '1'
+}
+
 function isLicenseGateForced() {
   return process.env.FOCANA_FORCE_LICENSE_GATE === '1'
 }
@@ -283,7 +287,7 @@ function mapValidationError(error) {
 }
 
 function isDevTestLicenseAllowed(app) {
-  return isDevRuntime(app)
+  return isDevRuntime(app) || isPackagedDevTestLicenseAllowed(app)
 }
 
 function isStoredDevTestLicense(stored) {
@@ -420,10 +424,10 @@ function createLicenseService({ app, store }) {
     const keyPresent = Boolean(stored.key)
     const instanceId = stored.instanceId || ''
     const usingForcedDevFlow = isForcedDevLicenseFlow(app)
-    const usingDevTestLicense = usingForcedDevFlow && instanceId.startsWith('dev-test-')
-    const configured = runtime.licenseConfigured || usingForcedDevFlow || usingDevTestLicense
+    const usingDevTestLicense = isDevTestLicenseAllowed(app) && instanceId.startsWith('dev-test-')
+    const configured = runtime.licenseConfigured || usingForcedDevFlow || isDevTestLicenseAllowed(app)
     let status = stored.status || 'unlicensed'
-    const packagedDevTestLicense = runtime.licenseEnforced && !isDevRuntime(app) && isStoredDevTestLicense(stored)
+    const packagedDevTestLicense = runtime.licenseEnforced && !isDevTestLicenseAllowed(app) && isStoredDevTestLicense(stored)
 
     if (!runtime.licenseEnforced) {
       status = 'not_required'
@@ -615,7 +619,7 @@ function createLicenseService({ app, store }) {
     }
 
     const stored = getStoredLicense()
-    if (runtime.licenseEnforced && !isDevRuntime(app) && isStoredDevTestLicense(stored)) {
+    if (runtime.licenseEnforced && !isDevTestLicenseAllowed(app) && isStoredDevTestLicense(stored)) {
       return clearStoredLicense(null, 'unlicensed')
     }
 

@@ -36,7 +36,7 @@ const isDev = (process.env.FOCANA_DEV === '1' || !app.isPackaged) && process.env
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
 const isE2E = process.env.FOCANA_E2E === '1';
 const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
-const usePanelWindows = process.platform === 'darwin' && !app.isPackaged;
+const usePanelWindows = process.platform === 'darwin' && !isE2E;
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
 const STARTUP_SAFE_HEIGHT = 520;
