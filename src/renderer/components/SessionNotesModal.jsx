@@ -151,7 +151,7 @@ export default function SessionNotesModal({
                         variant="outline"
                         style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                       >
-                        No, Keep Task
+                        No, Save for Later
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>

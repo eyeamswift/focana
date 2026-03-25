@@ -42,8 +42,8 @@ export default function HistoryModal({
   const filteredSessions = useMemo(() => sessions.filter((session) => {
     const hasNotes = getNormalizedNotes(session).length > 0;
     if (activeTab === 'completed') return Boolean(session?.completed);
-    if (activeTab === 'discarded') return !session?.completed && !hasNotes;
-    return !session?.completed && hasNotes;
+    if (activeTab === 'discarded') return !session?.completed && !session?.kept;
+    return !session?.completed && Boolean(session?.kept);
   }), [sessions, activeTab]);
 
   const allowReuseActions = activeTab !== 'completed';

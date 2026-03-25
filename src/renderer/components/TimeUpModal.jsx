@@ -111,7 +111,7 @@ export default function TimeUpModal({
                     className="time-up-btn-secondary"
                   >
                     <Pause style={{ width: 13, height: 13 }} />
-                    Resume Later
+                    No, Save for Later
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent><p>Take a break — your task stays ready</p></TooltipContent>

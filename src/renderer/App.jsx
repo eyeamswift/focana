@@ -1048,7 +1048,7 @@ export default function App() {
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
 
-    const { duration, completed } = sessionToSave.current;
+    const { duration, completed, kept } = sessionToSave.current;
     const activeSessionId = currentSessionId;
     let savedSessionId = activeSessionId;
 
@@ -1060,6 +1060,7 @@ export default function App() {
             durationMinutes: duration,
             mode,
             completed,
+            kept: kept || false,
             notes: notes || '',
           });
         } else {
@@ -1068,6 +1069,7 @@ export default function App() {
             duration_minutes: duration,
             mode,
             completed,
+            kept: kept || false,
             notes: notes || undefined,
           });
           savedSessionId = created?.id || null;
@@ -1786,6 +1788,7 @@ export default function App() {
     checkInResolveTimeoutRef.current = null;
     checkInPromptSurfaceRef.current = 'full';
     pendingCompactCheckInPromptRef.current = false;
+    checkInStateRef.current = 'idle';
     setCheckInState('idle');
     setCheckInMessage('');
     setCheckInCelebrating(false);
@@ -2072,6 +2075,14 @@ export default function App() {
       return null;
     }
   }, [currentSessionId, task, ensureCurrentSessionId]);
+
+  const logMissedCheckInIfPrompting = useCallback((elapsedSec) => {
+    if (checkInStateRef.current !== 'prompting') return false;
+    void logCheckIn('missed', elapsedSec);
+    track('checkin_responded', { response: 'missed' });
+    clearCheckInUi();
+    return true;
+  }, [clearCheckInUi, logCheckIn]);
 
   const completeSessionFromCheckIn = useCallback(async (elapsedSec) => {
     let completedSessionId = currentSessionId;
@@ -2468,7 +2479,19 @@ export default function App() {
     const elapsed = getElapsedSeconds();
 
     if (mode === 'freeflow') {
-      if (checkInState !== 'idle') return;
+      // If a check-in is already open and we've reached the next threshold,
+      // log the current one as missed and fire a fresh prompt.
+      const freeflowThresholdReached = (
+        (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current)
+        || (Number.isFinite(checkInFreeflowNextRef.current) && elapsed >= checkInFreeflowNextRef.current)
+      );
+
+      if (checkInState === 'prompting' && freeflowThresholdReached) {
+        logMissedCheckInIfPrompting(elapsed);
+        // Fall through to fire the new prompt below
+      } else if (checkInState !== 'idle') {
+        return;
+      }
 
       // Forced short-interval check-in (after detour/miss)
       if (Number.isFinite(checkInForcedNextRef.current) && elapsed >= checkInForcedNextRef.current) {
@@ -2501,7 +2524,12 @@ export default function App() {
       const crossedThisTick = previousSegmentElapsed < threshold;
 
       if (crossedThisTick) {
-        if (checkInState !== 'idle') { blockedAtThreshold = true; break; }
+        if (checkInState === 'prompting') {
+          logMissedCheckInIfPrompting(elapsed);
+          // checkInStateRef is now 'idle', fall through to fire new prompt
+        } else if (checkInState !== 'idle') {
+          blockedAtThreshold = true; break;
+        }
         const fired = triggerCheckInPromptRef.current({ skipCooldown: true });
         if (!fired) { blockedAtThreshold = true; break; }
       }
@@ -2571,6 +2599,7 @@ export default function App() {
       elapsedBeforeRunRef.current = Math.max(0, initialTime);
       timeUpReturnToFloatingRef.current = Boolean(restoredFromFloating);
       timeUpReturnToCompactRef.current = restoredFromFloating ? false : wasCompact;
+      logMissedCheckInIfPrompting(initialTime);
       setIsRunning(false);
       setIsCompact(false);
       setShowNotesModal(false);
@@ -2592,7 +2621,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [mode, time, initialTime, beginSessionFeedbackFlow, captureCompactReturnBounds, clearCompactSessionCues, currentSessionId, isCompact, showNotesModal, showTimeUpModal]);
+  }, [mode, time, initialTime, beginSessionFeedbackFlow, captureCompactReturnBounds, clearCompactSessionCues, currentSessionId, isCompact, logMissedCheckInIfPrompting, showNotesModal, showTimeUpModal]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -3104,6 +3133,7 @@ export default function App() {
     sessionToSave.current = {
       ...sessionToSave.current,
       completed: false,
+      kept: true,
     };
     const endedSessionId = await saveSessionWithNotes(notes);
 
@@ -3256,10 +3286,11 @@ export default function App() {
     setSessionStartTime(null);
 
     clearCompactSessionCues();
-    // Override completed flag — task is not finished
+    // Override completed flag — task is not finished, mark as kept for Resume tab
     sessionToSave.current = {
       ...sessionToSave.current,
       completed: false,
+      kept: true,
     };
     postSessionNotesActionRef.current = 'resume-later';
     setSessionNotesMode('resume-later');

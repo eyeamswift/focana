@@ -106,9 +106,6 @@ function getStoredAlwaysOnTop() {
 }
 
 function getEffectiveAlwaysOnTop() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    return mainWindow.isAlwaysOnTop();
-  }
   return getStoredAlwaysOnTop();
 }
 
@@ -116,7 +113,7 @@ function applyWindowAlwaysOnTop(win, enabled) {
   if (!win || win.isDestroyed()) return;
   win.setAlwaysOnTop(enabled, enabled && process.platform === 'darwin' ? 'screen-saver' : undefined);
   if (process.platform === 'darwin') {
-    win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled, skipTransformProcessType: true });
+    win.setVisibleOnAllWorkspaces(enabled, { visibleOnFullScreen: enabled });
   }
 }
 
@@ -130,7 +127,38 @@ function applyAlwaysOnTop(enabled, options = {}) {
     store.set('settings.alwaysOnTop', next);
   }
 
+  if (next) {
+    startAlwaysOnTopReassert();
+  } else {
+    stopAlwaysOnTopReassert();
+  }
+
   return next;
+}
+
+/* --- Always-on-top periodic re-assertion (macOS) ---
+ * Workaround for Electron bug #36364: the window can vanish when another app
+ * enters fullscreen because macOS deactivates the panel and never re-renders
+ * it on the fullscreen Space.  Re-calling setAlwaysOnTop + setVisibleOnAll-
+ * Workspaces every few seconds nudges macOS into showing the window again.
+ * The calls are cheap no-ops when the state is already correct. */
+let alwaysOnTopReassertInterval = null;
+
+function startAlwaysOnTopReassert() {
+  stopAlwaysOnTopReassert();
+  if (process.platform !== 'darwin') return;
+  alwaysOnTopReassertInterval = setInterval(() => {
+    if (!getStoredAlwaysOnTop()) return;
+    applyWindowAlwaysOnTop(mainWindow, true);
+    applyWindowAlwaysOnTop(floatingIconWindow, true);
+  }, 3000);
+}
+
+function stopAlwaysOnTopReassert() {
+  if (alwaysOnTopReassertInterval) {
+    clearInterval(alwaysOnTopReassertInterval);
+    alwaysOnTopReassertInterval = null;
+  }
 }
 
 function getBoundsCenter(bounds) {
@@ -1749,7 +1777,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   updater.stop();
   feedbackSyncService.stop();
-  stopFloatingPulseSchedule();
   clearDndExpiryTimer();
   unregisterAll();
   app.quit();
@@ -1759,7 +1786,7 @@ app.on('will-quit', () => {
   checkpointActiveSessionInStore();
   updater.stop();
   feedbackSyncService.stop();
-  stopFloatingPulseSchedule();
+  stopAlwaysOnTopReassert();
   clearDndExpiryTimer();
   unregisterAll();
 });
