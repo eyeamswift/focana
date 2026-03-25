@@ -138,8 +138,6 @@ const schema = {
       alwaysOnTop: { type: 'boolean', default: true },
       bringToFront: { type: 'boolean', default: true },
       keepTextAfterCompletion: { type: 'boolean', default: false },
-      showTaskInCompactDefault: { type: 'boolean', default: true },
-      showTaskInCompactCustomized: { type: 'boolean', default: false },
       mainScreenControlsEnabled: {
         type: 'object',
         default: {

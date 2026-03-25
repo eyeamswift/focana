@@ -28,7 +28,6 @@ export default function CompactMode({
   isRunning,
   time,
   pulseSignal = 0,
-  showTaskByDefault = true,
   onDoubleClick,
   onOpenDistractionJar,
   thoughtCount = 0,
@@ -39,7 +38,6 @@ export default function CompactMode({
   dndActive = false,
   checkInState = 'idle',
 }) {
-  const [isHovered, setIsHovered]       = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [shouldPulse, setShouldPulse]   = useState(false);
   const [showHelpHint, setShowHelpHint] = useState(false);
@@ -59,7 +57,7 @@ export default function CompactMode({
 
   const taskLabel = task || '';
   const hasTaskLabel = taskLabel.trim().length > 0;
-  const isTaskVisible = hasTaskLabel && (isHovered || showTaskByDefault);
+  const isTaskVisible = hasTaskLabel;
 
   useEffect(() => {
     const label = (taskLabel || '').trim();
@@ -294,14 +292,6 @@ export default function CompactMode({
   // ---------------------------------------------------------------------------
   // Event handlers
   // ---------------------------------------------------------------------------
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
-
   const handleContextMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -349,8 +339,6 @@ export default function CompactMode({
       style={pillStyle}
       onPointerDown={handlePointerDown}
       onDragStart={(e) => e.preventDefault()}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       onClick={handlePillClick}
       onDoubleClick={handlePillDoubleClick}
       onContextMenu={handleContextMenu}

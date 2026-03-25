@@ -219,14 +219,12 @@ export default function SettingsModal({
   onShortcutsChange,
   shortcutsEnabledDefault,
   onShortcutsEnabledChange,
-  showTaskInCompactDefault,
   pinnedControlsDefault,
   onPinnedControlsChange,
   enabledControlsDefault,
   onEnabledControlsChange,
   preferredName,
   onPreferredNameChange,
-  onShowTaskInCompactDefaultChange,
   dndEnabled,
   onDndChange,
   checkInSettings,
@@ -246,7 +244,6 @@ export default function SettingsModal({
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [tempPreferredName, setTempPreferredName] = useState(normalizePreferredName(preferredName));
   const [preferredNameError, setPreferredNameError] = useState('');
-  const [showTaskInCompact, setShowTaskInCompact] = useState(showTaskInCompactDefault ?? true);
   const [pinnedControls, setPinnedControls] = useState(normalizeToolbarControlMap(pinnedControlsDefault, PINNED_CONTROLS_DEFAULT));
   const [enabledControls, setEnabledControls] = useState(normalizeToolbarControlMap(enabledControlsDefault, ENABLED_CONTROLS_DEFAULT));
   const [doNotDisturb, setDoNotDisturb] = useState(dndEnabled ?? false);
@@ -288,12 +285,6 @@ export default function SettingsModal({
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
         setTempPreferredName(normalizePreferredName(await window.electronAPI.storeGet('preferredName')) || normalizePreferredName(preferredName));
-        const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
-        setShowTaskInCompact(
-          hasExplicitCompactSetting
-            ? (settings.showTaskInCompactDefault ?? showTaskInCompactDefault ?? true)
-            : true
-        );
         setPinnedControls(normalizeToolbarControlMap({ ...(pinnedControlsDefault || {}), ...(settings.pinnedControls || {}) }, PINNED_CONTROLS_DEFAULT));
         setEnabledControls(normalizeToolbarControlMap({ ...(enabledControlsDefault || {}), ...(settings.mainScreenControlsEnabled || {}) }, ENABLED_CONTROLS_DEFAULT));
         setDoNotDisturb(settings.doNotDisturbEnabled ?? dndEnabled ?? false);
@@ -303,7 +294,7 @@ export default function SettingsModal({
         );
       })();
     }
-  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, isOpen, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault, showTaskInCompactDefault]);
+  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, isOpen, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault]);
 
   const handleSave = async () => {
     const normalizedPreferredName = normalizePreferredName(tempPreferredName);
@@ -324,8 +315,6 @@ export default function SettingsModal({
       window.electronAPI.setAlwaysOnTop(alwaysOnTop),
       window.electronAPI.storeSet('settings.bringToFront', bringToFront),
       window.electronAPI.storeSet('settings.keepTextAfterCompletion', keepTextAfterCompletion),
-      window.electronAPI.storeSet('settings.showTaskInCompactDefault', showTaskInCompact),
-      window.electronAPI.storeSet('settings.showTaskInCompactCustomized', true),
       window.electronAPI.storeSet('settings.pinnedControls', pinnedControls),
       window.electronAPI.storeSet('settings.mainScreenControlsEnabled', enabledControls),
       window.electronAPI.storeSet('settings.checkInEnabled', checkInEnabled),
@@ -337,7 +326,7 @@ export default function SettingsModal({
     const diffs = {};
     const trackable = {
       shortcutsEnabled, alwaysOnTop, bringToFront, keepTextAfterCompletion,
-      showTaskInCompact, pinnedControls, enabledControls, doNotDisturb,
+      pinnedControls, enabledControls, doNotDisturb,
       checkInEnabled, checkInIntervalFreeflow,
       preferredName: normalizedPreferredName,
     };
@@ -346,7 +335,6 @@ export default function SettingsModal({
       alwaysOnTop: oldSettings.alwaysOnTop,
       bringToFront: oldSettings.bringToFront,
       keepTextAfterCompletion: oldSettings.keepTextAfterCompletion,
-      showTaskInCompact: oldSettings.showTaskInCompactDefault,
       pinnedControls: oldSettings.pinnedControls,
       enabledControls: oldSettings.mainScreenControlsEnabled,
       doNotDisturb: oldSettings.doNotDisturbEnabled,
@@ -362,7 +350,6 @@ export default function SettingsModal({
     }
     onShortcutsEnabledChange?.(shortcutsEnabled);
     onAlwaysOnTopChange?.(alwaysOnTop);
-    onShowTaskInCompactDefaultChange?.(showTaskInCompact);
     onPinnedControlsChange?.(pinnedControls);
     onEnabledControlsChange?.(enabledControls);
     onDndChange?.(doNotDisturb);
@@ -789,10 +776,6 @@ export default function SettingsModal({
                 border: '1px solid var(--border-subtle)',
               }} className="space-y-3">
                 <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Behavior Settings</h4>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Lock task in compact mode</span>
-                  <Switch checked={showTaskInCompact} onCheckedChange={setShowTaskInCompact} />
-                </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Keep Focana always on top</span>
                   <Switch checked={alwaysOnTop} onCheckedChange={setAlwaysOnTop} />

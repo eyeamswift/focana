@@ -36,6 +36,7 @@ const isDev = (process.env.FOCANA_DEV === '1' || !app.isPackaged) && process.env
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
 const isE2E = process.env.FOCANA_E2E === '1';
 const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
+const usePanelWindows = process.platform === 'darwin' && !app.isPackaged;
 const FULL_MIN_WIDTH = 500;
 const FULL_MIN_HEIGHT = 120;
 const STARTUP_SAFE_HEIGHT = 520;
@@ -84,8 +85,6 @@ const ALLOWED_STORE_KEYS = new Set([
   'settings.alwaysOnTop',
   'settings.bringToFront',
   'settings.keepTextAfterCompletion',
-  'settings.showTaskInCompactDefault',
-  'settings.showTaskInCompactCustomized',
   'settings.pinnedControls',
   'settings.mainScreenControlsEnabled',
   'settings.doNotDisturbEnabled',
@@ -573,8 +572,6 @@ function sanitizeStoreValue(key, value) {
     case 'settings.alwaysOnTop':
     case 'settings.bringToFront':
     case 'settings.keepTextAfterCompletion':
-    case 'settings.showTaskInCompactDefault':
-    case 'settings.showTaskInCompactCustomized':
     case 'settings.doNotDisturbEnabled':
     case 'settings.checkInEnabled':
       return Boolean(value);
@@ -970,7 +967,7 @@ function createFloatingIconWindow() {
     y: initialBounds.y,
     width: initialBounds.width,
     height: initialBounds.height,
-    type: 'panel',
+    ...(usePanelWindows ? { type: 'panel' } : {}),
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -1088,7 +1085,7 @@ function createWindow() {
     y: initialBounds.y,
     width: initialBounds.width,
     height: initialBounds.height,
-    type: 'panel',
+    ...(usePanelWindows ? { type: 'panel' } : {}),
     frame: false,
     transparent: true,
     roundedCorners: false,

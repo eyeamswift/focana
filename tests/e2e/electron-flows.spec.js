@@ -1061,10 +1061,10 @@ test('freeflow floating pulse mirrors compact cadence', async () => {
     await page.waitForTimeout(1200);
     await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 1500 }).toBe(0);
 
-    await setElapsedSecondsForSession(page, (5 * 60) + 1, { mode: 'freeflow' });
+    await setElapsedSecondsForSession(page, (5 * 60) + 3, { mode: 'freeflow' });
     await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 4000 }).toBe(1);
 
-    await setElapsedSecondsForSession(page, (10 * 60) + 1, { mode: 'freeflow' });
+    await setElapsedSecondsForSession(page, (10 * 60) + 6, { mode: 'freeflow' });
     await expect.poll(() => readFloatingPulseCount(electronApp), { timeout: 4000 }).toBe(2);
   } finally {
     await cleanup();

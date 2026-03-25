@@ -278,7 +278,6 @@ export default function App() {
   const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [shortcutsHydrated, setShortcutsHydrated] = useState(false);
-  const [showTaskInCompactDefault, setShowTaskInCompactDefault] = useState(true);
   const [pinnedControls, setPinnedControls] = useState(PINNED_CONTROLS_DEFAULT);
   const [enabledMainControls, setEnabledMainControls] = useState(ENABLED_MAIN_CONTROLS_DEFAULT);
   const [suppressToolbarTooltips, setSuppressToolbarTooltips] = useState(false);
@@ -1519,18 +1518,6 @@ export default function App() {
         ) {
           await window.electronAPI.storeSet('settings.checkInIntervalTimed', TIMED_CHECKIN_PERCENTS);
         }
-        const hasExplicitCompactSetting = settings.showTaskInCompactCustomized === true;
-        if (hasExplicitCompactSetting) {
-          setShowTaskInCompactDefault(settings.showTaskInCompactDefault ?? true);
-        } else {
-          // Migration: older installs may still have legacy false persisted.
-          // New default behavior is task visible in compact mode.
-          await Promise.all([
-            window.electronAPI.storeSet('settings.showTaskInCompactDefault', true),
-            window.electronAPI.storeSet('settings.showTaskInCompactCustomized', false),
-          ]);
-          setShowTaskInCompactDefault(true);
-        }
         setPinnedControls(normalizeToolbarControlMap(settings.pinnedControls, PINNED_CONTROLS_DEFAULT));
         setEnabledMainControls(normalizeToolbarControlMap(settings.mainScreenControlsEnabled, ENABLED_MAIN_CONTROLS_DEFAULT));
         setShortcutsEnabled(settings.shortcutsEnabled ?? true);
@@ -2224,6 +2211,7 @@ export default function App() {
 
   const handleCheckInFinished = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
+    checkInStateRef.current = 'resolved'; // guard against double-click race
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     const shouldReturnToCompact = checkInReturnToCompactRef.current;
     const shouldReturnToFloating = checkInReturnToFloatingRef.current;
@@ -2255,6 +2243,7 @@ export default function App() {
 
   const handleCheckInDetour = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
+    checkInStateRef.current = 'detour-resolved'; // guard against double-click race
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
 
     const elapsedSec = getElapsedSeconds();
@@ -2569,6 +2558,21 @@ export default function App() {
       }
 
       checkInTimedIndexRef.current += 1;
+    }
+
+    // Forced short-interval check-in for timed mode (after detour/miss)
+    if (
+      !blockedAtThreshold
+      && Number.isFinite(checkInForcedNextRef.current)
+      && elapsed >= checkInForcedNextRef.current
+    ) {
+      checkInForcedNextRef.current = null;
+      if (checkInStateRef.current === 'prompting') {
+        logMissedCheckInIfPrompting(elapsed);
+      }
+      if (checkInStateRef.current === 'idle') {
+        triggerCheckInPromptRef.current({ skipCooldown: true });
+      }
     }
 
     timedCheckInLastElapsedRef.current = elapsed;
@@ -4116,7 +4120,6 @@ export default function App() {
           isRunning={isRunning}
           time={time}
           pulseSignal={compactPulseSignal}
-          showTaskByDefault={showTaskInCompactDefault}
           onDoubleClick={handleExitCompact}
           onOpenDistractionJar={handleOpenParkingLot}
           thoughtCount={thoughts.length}
@@ -4751,8 +4754,6 @@ export default function App() {
         shortcutsEnabledDefault={shortcutsEnabled}
         onShortcutsEnabledChange={setShortcutsEnabled}
 
-        showTaskInCompactDefault={showTaskInCompactDefault}
-        onShowTaskInCompactDefaultChange={setShowTaskInCompactDefault}
         pinnedControlsDefault={pinnedControls}
         onPinnedControlsChange={setPinnedControls}
         enabledControlsDefault={enabledMainControls}
