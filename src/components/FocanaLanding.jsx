@@ -1045,6 +1045,18 @@ export default function FocanaLanding() {
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
+            <p style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: COLORS.deepAmber,
+              textTransform: "uppercase",
+              letterSpacing: "2px",
+              marginBottom: "16px",
+              animation: "fadeUp 0.6s ease both",
+            }}>
+              For macOS - founder launch pricing now live
+            </p>
+
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(40px, 5.5vw, 64px)",
@@ -1090,7 +1102,7 @@ export default function FocanaLanding() {
               marginBottom: "40px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Meet Focana - the desktop focus buddy for busy brains.
+              Focana is a floating Mac focus app that keeps your task and timer visible while you work.
             </p>
 
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
@@ -1106,7 +1118,7 @@ export default function FocanaLanding() {
               marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
-              Try it risk-free for 7 days. If it doesn't stick, we'll refund you — no questions asked.
+              Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
             </p>
             <p style={{
               marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
@@ -1158,27 +1170,27 @@ export default function FocanaLanding() {
           {[
             {
               video: "/videos/get-started.mp4",
-              headline: "It takes just a few seconds to get started.",
-              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No learning curve.</>,
+              headline: "Start in seconds.",
+              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
             },
             {
               video: "/videos/always-on-top.mp4",
-              headline: "Out of sight, out of mind.",
-              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana floats above every app, every tab, every window. Your task and timer stay visible no matter where your work takes you. If you can see it, you can do it.</>,
+              headline: "Stay visible while you work.",
+              body: <><strong>Always visible.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
             },
             {
               video: "/videos/nudge-checkin.mp4",
-              headline: "You got distracted 10 minutes ago and didn't even notice.",
+              headline: "Gentle check-ins.",
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
             },
             {
               video: "/videos/parking-lot.mp4",
-              headline: "Every random thought feels urgent and you have to deal with it right now or you'll forget.",
+              headline: "Catch stray thoughts.",
               body: <><strong>Parking lot.</strong> Catch every stray thought mid-session without breaking your flow. Jot it down, close the panel, keep working. Everything's waiting for you when you're done — nothing lost, nothing derailed.</>,
             },
             {
               video: "/videos/pick-up-where-you-left-off.mp4",
-              headline: "You finally made progress but tomorrow you'll open your laptop and have no idea where you left off.",
+              headline: "Pick up where you left off.",
               body: <><strong>Pickup where you left off.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
             },
           ].map((row, i) => {
@@ -1301,7 +1313,7 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
               fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15, marginBottom: "20px",
             }}>
-              One payment. Lifetime access.
+              Founder launch pricing
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
               Buy Focana once, download it instantly,<br />
@@ -1320,7 +1332,7 @@ export default function FocanaLanding() {
             <span style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
               color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>Lifetime Access</span>
+            }}>Founder Launch</span>
             <div style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 56px)",
               fontWeight: 800, color: COLORS.warmBrown, margin: "12px 0",
@@ -1352,11 +1364,11 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
               color: COLORS.warmBrown, marginBottom: "12px",
             }}>
-              Why lifetime access?
+              Why buy during the founder launch?
             </h3>
             <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
               We want pricing to feel as calm as the product: simple, upfront, and easy to trust.
-              Buy it once, keep it, and get the updates we ship as Focana grows.
+              If you buy at $29, that purchase stays lifetime access while Focana grows.
               No subscription math. No renewal anxiety. Just a tool that stays with you.
             </p>
           </div>
@@ -1381,15 +1393,15 @@ export default function FocanaLanding() {
 
           <FAQItem
             question="How is this different from a browser extension?"
-            answer="Browser extensions live in your browser. Switch to Slack or your code editor and they're gone. Focana is a native Mac app — it uses OS-level permissions to float above every application on your screen. It can't disappear. That's the difference."
+            answer="Browser extensions live in your browser. Switch to Slack or your code editor and they're gone. Focana is a native Mac app, so your task and timer stay visible while you move between the apps you work in. That's the difference."
           />
           <FAQItem
             question="I have ADHD and I've tried dozens of productivity apps. Why would this one stick?"
-            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No settings. Type your task, start the timer, and it's floating on your screen. The reason other apps don't stick is because they ask too much of you before you've gotten any value. Focana doesn't."
+            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No setup maze. Type your task, start the timer, and it's right there while you work. The reason other apps don't stick is because they ask too much of you before you've gotten any value. Focana doesn't."
           />
           <FAQItem
             question='What does "always on top" actually mean?'
-            answer="It means Focana uses a macOS system-level feature to stay above every other window on your screen. Open Chrome, Slack, VS Code, Zoom — Focana stays visible. You can't accidentally bury it."
+            answer="It means Focana stays visible over your other windows while you work, so you don't lose your task when you switch apps. On macOS, true fullscreen Spaces can still be inconsistent, but across normal app windows Focana stays in view."
           />
           <FAQItem
             question="Does Focana help with ADHD time blindness?"

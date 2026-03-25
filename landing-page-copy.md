@@ -10,7 +10,7 @@
 How it Works
 Features
 FAQ
-Try Focana Free
+Buy Focana
 
 ---
 
@@ -30,14 +30,14 @@ You opened your laptop to do one thing.
 **Subheadline:**
 Sound familiar?
 
-Meet Focana - the desktop focus buddy for busy brains.
+Focana is a floating Mac focus app that keeps your task and timer visible while you work.
 
 **CTA:**
-Try Focana Free →
+Buy Focana →
 See How It Works
 
 **Below CTA:**
-Free for macOS. No account. No setup maze.
+Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
 
 **Secondary line:**
 Windows coming soon - join the waitlist
@@ -102,9 +102,9 @@ Freeflow if you're in the zone.
 Timeboxed if you need a hard stop.
 No forced 25-minute rules.
 
-It floats on top
-Above Slack. Above Chrome. Above VS Code.
-Your task and your timer stay right there — the whole time.
+It stays visible
+Across Slack, Chrome, VS Code, and the rest of your normal app windows.
+Your task and your timer stay right there while you work.
 
 You get the win
 "You focused for 23 minutes."
@@ -117,10 +117,10 @@ Every minute counts.
 
 Everything it does. Nothing it doesn't.
 
-It never disappears
-Focana uses native macOS permissions to float above every app
-on your screen. Not a browser extension. Not a web app.
-It can't hide — because that's the whole point.
+Stay visible while you work
+Focana is a native Mac app that stays visible across the apps
+you work in. Not a browser extension. Not a web app.
+Your task stays in view, so your intention does too.
 
 No account. No setup.
 Download it. Open it. Type your task.
@@ -147,7 +147,7 @@ When your session ends, every note you parked comes back to you.
 You stayed on task. And you kept everything that came up.
 Nothing gets lost.
 
-A gentle nudge
+A gentle check-in
 "Still on track?" — a soft check-in before you're
 30 minutes deep in something you didn't mean to open.
 Tap yes, keep going. Tap no, get back.
@@ -176,16 +176,11 @@ This is for you if...
 
 Own it forever. $29.
 
-Focana is in open beta — which means two things:
-you get to help shape what gets built,
-and you get the best price it will ever be.
+Founder launch pricing is live now.
 
 Founding Member — $29 lifetime
 Full access. No subscription. No renewals.
 Every feature, now and everything we ship next.
-
-When beta ends, Focana moves to $49 lifetime or $8/month.
-This price goes away when that happens.
 
 [Get Founding Member Access — $29]
 
@@ -195,7 +190,7 @@ No subscription. Ever.
 Why a lifetime deal during beta?
 Most apps charge full price to test an unfinished product.
 We'd rather reward the people willing to bet on us early.
-You get the lowest price it will ever be.
+If you buy at $29, that purchase stays lifetime access.
 We get real users, real feedback, and the resources to build faster.
 Fair trade.
 
@@ -206,22 +201,22 @@ Fair trade.
 How is this different from a browser extension?
 Browser extensions live in your browser. Switch to Slack
 or your code editor and they're gone. Focana is a native
-Mac app — it uses OS-level permissions to float above
-every application on your screen. It can't disappear.
-That's the difference.
+Mac app, so your task and timer stay visible while you move
+between the apps you work in. That's the difference.
 
 I have ADHD and I've tried dozens of productivity apps.
 Why would this one stick?
 Because Focana does exactly one thing and does it in under
-10 seconds. No account. No onboarding flow. No settings.
-Type your task, start the timer, and it's floating on your screen.
+10 seconds. No account. No onboarding flow. No setup maze.
+Type your task, start the timer, and it's right there while you work.
 The reason other apps don't stick is because they ask too much
 of you before you've gotten any value. Focana doesn't.
 
 What does "always on top" actually mean?
-It means Focana uses a macOS system-level feature to stay
-above every other window on your screen. Open Chrome, Slack,
-VS Code, Zoom — Focana stays visible. You can't accidentally bury it.
+It means Focana stays visible over your other windows while
+you work, so you don't lose your task when you switch apps.
+On macOS, true fullscreen Spaces can still be inconsistent,
+but across normal app windows Focana stays in view.
 
 Does Focana help with ADHD time blindness?
 Yes. The always-visible timer gives you a constant anchor
@@ -239,30 +234,26 @@ macOS is live now. Windows is in development — drop your
 email and you'll be the first to know when it's ready.
 
 What does it cost?
-Focana is free to try — download it, no account needed.
-If it clicks, founding member access is $29 one-time.
-That locks in lifetime access before the price goes up
-at launch. No subscription. No renewals.
+$29 one-time. That's lifetime access — no subscription,
+no renewals. You also get a 7-day money-back guarantee:
+if it doesn't stick, we'll refund you.
 
 Will the $29 price go up?
-Yes. When open beta ends, Focana moves to $49 lifetime
-or $8/month. The founding member price is only available
-during beta and goes away when that window closes.
+Pricing may change later. If you buy at $29, that purchase
+stays lifetime access with no subscription or renewals.
 
 What if I just want to try it first?
-Download it free. No account, no credit card. If it becomes
-part of your routine, grab founding member access from inside
-the app or right here.
+Buy it, use it for a week, and if it doesn't stick,
+we'll refund you. No questions asked.
 
 ---
 
 ## CLOSING CTA
 
 Takes 10 seconds to start your first session.
-Download it free. See if it sticks.
-Then lock in founding member access before beta ends.
+$29 once. Yours forever. 7-day guarantee.
 
-Try Focana Free →
+Buy Focana →
 
 Already know you want it?
 Get Founding Member Access — $29 lifetime
@@ -276,9 +267,9 @@ Windows coming soon — join the waitlist
 ## SEO META
 
 **Page title:**
-Focana — ADHD Focus Timer for Mac | Floating Desktop Timer
+Focana | Floating focus app for Mac
 
 **Meta description:**
-A floating focus timer for macOS that stays visible above
-every app — Slack, Chrome, VS Code, all of it. Built for
-ADHD and busy brains. Free, no account needed.
+Focana is a floating focus app for macOS that keeps your
+task and timer visible while you work across apps. Built for
+ADHD and busy brains.
