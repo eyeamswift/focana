@@ -1239,6 +1239,84 @@ export default function FocanaLanding() {
         </div>
       </section>
 
+      {/* FOUNDER STORY */}
+      <section id="founder-story" style={{ padding: "0 0 100px 0", background: "white" }}>
+        <div className="section">
+          <div style={{
+            background: COLORS.softCream,
+            borderRadius: "24px",
+            padding: "40px 24px",
+            border: `1px solid ${COLORS.beigeBorder}`,
+          }}>
+            <div style={{ maxWidth: "560px", margin: "0 auto", textAlign: "center" }}>
+              <p style={{
+                fontSize: "12px",
+                letterSpacing: "2.5px",
+                textTransform: "uppercase",
+                color: COLORS.deepAmber,
+                fontWeight: 600,
+                margin: "0 0 8px",
+              }}>
+                The Story
+              </p>
+
+              <h2 style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "clamp(28px, 3.5vw, 40px)",
+                fontWeight: 800,
+                color: COLORS.warmBrown,
+                margin: "0 0 28px",
+                lineHeight: 1.15,
+              }}>
+                Built by a busy brain.
+              </h2>
+
+              <div style={{
+                width: "88px",
+                height: "88px",
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.sunshineYellow})`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: `3px solid ${COLORS.deepAmber}`,
+                margin: "0 auto 10px",
+                boxShadow: "0 8px 20px rgba(92, 64, 51, 0.12)",
+              }}>
+                <span style={{ fontSize: "12px", color: COLORS.warmBrown, fontWeight: 700 }}>Photo</span>
+              </div>
+
+              <p style={{ fontSize: "15px", fontWeight: 700, color: COLORS.warmBrown, margin: "0 0 4px" }}>
+                Justin
+              </p>
+              <p style={{ fontSize: "12px", color: COLORS.coffeeBrown, margin: "0 0 24px", textTransform: "uppercase", letterSpacing: "1.5px" }}>
+                Founder
+              </p>
+
+              <div style={{
+                background: "#FFFCF2",
+                borderRadius: "16px",
+                padding: "24px 28px",
+                borderLeft: `4px solid ${COLORS.sunshineYellow}`,
+                textAlign: "left",
+              }}>
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
+                  I built Focana because I have ADHD and every focus tool I tried disappeared the moment I switched tabs. Out of sight, out of mind, literally.
+                </p>
+
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
+                  So I built the tool I needed: one that stays visible while you work, never makes you feel bad, and never asks you to set up a workspace before you can start working.
+                </p>
+
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.coffeeBrown, margin: 0, fontStyle: "italic" }}>
+                  This is the focus buddy I wish I had years ago.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* WHO IT'S FOR */}
       <section id="who-its-for" style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section">

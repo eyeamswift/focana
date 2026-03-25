@@ -161,6 +161,28 @@ One click between any mode.
 
 ---
 
+## FOUNDER STORY
+
+**Section label:**
+The Story
+
+**Headline:**
+Built by a busy brain.
+
+**Founder block:**
+Placeholder photo
+Justin
+Founder
+
+**Body:**
+I built Focana because I have ADHD and every focus tool I tried disappeared the moment I switched tabs. Out of sight, out of mind, literally.
+
+So I built the tool I needed: one that stays visible while you work, never makes you feel bad, and never asks you to set up a workspace before you can start working.
+
+This is the focus buddy I wish I had years ago.
+
+---
+
 ## WHO IT'S FOR
 
 This is for you if...
