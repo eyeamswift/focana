@@ -366,7 +366,6 @@ export default function SettingsModal({
     setKeepTextAfterCompletion(false);
     setTempPreferredName(normalizePreferredName(preferredName));
     setPreferredNameError('');
-    setShowTaskInCompact(true);
     setPinnedControls(PINNED_CONTROLS_DEFAULT);
     setEnabledControls(ENABLED_CONTROLS_DEFAULT);
     setDoNotDisturb(false);
