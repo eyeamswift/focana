@@ -1242,7 +1242,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* FOUNDER STORY */}
-      <section id="founder-story" style={{ padding: "0 0 100px 0", background: "white" }}>
+      <section id="founder-story" style={{ padding: "100px 0", background: "white" }}>
         <div className="section">
           <div style={{
             background: COLORS.softCream,
@@ -1326,11 +1326,6 @@ export default function FocanaLanding() {
       }}>
         <div className="section">
           <div style={{ textAlign: "center", maxWidth: "760px", margin: "0 auto 56px" }}>
-            <p style={{
-              fontSize: "13px", fontWeight: 700, color: COLORS.goldenGlow,
-              textAlign: "center", marginBottom: "12px",
-              textTransform: "uppercase", letterSpacing: "2px",
-            }}>Why Focana Feels Different</p>
             <h2 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(32px, 4vw, 44px)",
