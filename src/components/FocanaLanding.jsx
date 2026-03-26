@@ -1047,11 +1047,11 @@ export default function FocanaLanding() {
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
-              fontSize: "clamp(40px, 5.5vw, 64px)",
+              fontSize: "clamp(28px, 3.8vw, 42px)",
               fontWeight: 800,
-              lineHeight: 1.1,
+              lineHeight: 1.15,
               color: COLORS.warmBrown,
-              marginBottom: "24px",
+              marginBottom: "28px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
               You opened your laptop to do one thing.
@@ -1069,28 +1069,27 @@ export default function FocanaLanding() {
               >{headlines[headlineIndex]}</span>
             </h1>
 
-            <p style={{
-              fontSize: "clamp(16px, 1.8vw, 19px)",
-              lineHeight: 1.6,
-              fontStyle: "italic",
-              color: COLORS.warmBrown,
-              opacity: 0.7,
-              marginTop: "24px",
-              marginBottom: "24px",
-              animation: "fadeUp 0.6s ease 0.15s both",
-            }}>
-              Sound familiar?
-            </p>
-            <p style={{
+            <h2 style={{
               fontFamily: "'Outfit', sans-serif",
-              fontSize: "clamp(20px, 2.5vw, 28px)",
-              fontWeight: 700,
-              lineHeight: 1.4,
+              fontSize: "clamp(44px, 6vw, 72px)",
+              fontWeight: 800,
+              lineHeight: 1.05,
               color: COLORS.warmBrown,
-              marginBottom: "40px",
+              marginBottom: "24px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Focana is a floating Mac focus app that keeps your task and timer visible while you work.
+              Meet Focana — your desktop focus buddy.
+            </h2>
+
+            <p style={{
+              fontSize: "clamp(16px, 1.8vw, 19px)",
+              lineHeight: 1.7,
+              color: COLORS.coffeeBrown,
+              maxWidth: "650px",
+              margin: "0 auto 32px",
+              animation: "fadeUp 0.6s ease 0.25s both",
+            }}>
+              Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
             </p>
 
           </div>
@@ -1131,6 +1130,33 @@ export default function FocanaLanding() {
               Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ANTI-HUSTLE CULTURE */}
+      <section style={{ padding: "100px 0 0 0", background: "white" }}>
+        <div className="section" style={{ maxWidth: "760px", textAlign: "center" }}>
+          <p style={{
+            fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
+            textAlign: "center", marginBottom: "12px",
+            textTransform: "uppercase", letterSpacing: "2px",
+          }}>Anti-Hustle Culture</p>
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+            textAlign: "center", marginBottom: "24px",
+          }}>
+            Stop downloading productivity apps that don't work.
+          </h2>
+          <p style={{
+            fontSize: "19px",
+            lineHeight: 1.7,
+            color: COLORS.coffeeBrown,
+            maxWidth: "760px",
+            margin: "0 auto",
+          }}>
+            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need one tool that helps you do the thing you already sat down to do. Focana keeps one task visible on your screen, helps you protect your time, and catches the stray thoughts that try to pull you away.
+          </p>
         </div>
       </section>
 
