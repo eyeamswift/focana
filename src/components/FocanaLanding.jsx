@@ -1100,20 +1100,10 @@ export default function FocanaLanding() {
           <div style={{
             maxWidth: "900px",
             margin: "0 auto",
-            paddingTop: "28px",
+            paddingTop: "44px",
             textAlign: "center",
           }}>
-            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Start Focusing <span style={{ fontSize: "22px" }}>→</span>
-              </button>
-              <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                See How It Works
-              </a>
-            </div>
-
             <div style={{
-              marginTop: "18px",
               color: COLORS.coffeeBrown,
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
@@ -1131,6 +1121,15 @@ export default function FocanaLanding() {
               }}>
                 Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
               </p>
+            </div>
+
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px", animation: "fadeUp 0.6s ease 0.3s both" }}>
+              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                Start Focusing <span style={{ fontSize: "22px" }}>→</span>
+              </button>
+              <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                See How It Works
+              </a>
             </div>
           </div>
         </div>
