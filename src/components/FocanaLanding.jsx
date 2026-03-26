@@ -984,7 +984,7 @@ export default function FocanaLanding() {
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#pricing" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Pricing</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Buy Focana</button>
+            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Try Risk-Free</button>
           </div>
           <button
             className="hamburger-btn"
@@ -1029,7 +1029,7 @@ export default function FocanaLanding() {
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#pricing" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Pricing</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Buy Focana</button>
+          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Try Risk-Free</button>
         </div>
       )}
 
@@ -1116,7 +1116,7 @@ export default function FocanaLanding() {
           }}>
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Buy Focana <span style={{ fontSize: "22px" }}>→</span>
+                Start Focusing <span style={{ fontSize: "22px" }}>→</span>
               </button>
               <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                 See How It Works
@@ -1249,6 +1249,23 @@ export default function FocanaLanding() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* MID CTA */}
+      <section style={{ padding: "0 0 88px 0", background: COLORS.softCream }}>
+        <div className="section" style={{ maxWidth: "760px", textAlign: "center" }}>
+          <p style={{
+            fontSize: "18px",
+            lineHeight: 1.7,
+            color: COLORS.coffeeBrown,
+            margin: "0 0 20px",
+          }}>
+            Ready to try it for yourself?
+          </p>
+          <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Try Risk-Free
+          </button>
         </div>
       </section>
 
@@ -1445,7 +1462,7 @@ export default function FocanaLanding() {
               If it doesn't stick, we'll refund you.
             </p>
             <button onClick={() => openCheckout("pricing")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Buy Focana
+              Try Risk-Free
             </button>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
               One-time payment. macOS. Instant download.<br />
@@ -1544,7 +1561,7 @@ export default function FocanaLanding() {
           </p>
 
           <button onClick={() => openCheckout("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Buy Focana <span style={{ fontSize: "22px" }}>→</span>
+            Try Risk-Free <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
