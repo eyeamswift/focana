@@ -1284,26 +1284,13 @@ export default function FocanaLanding() {
                 Built by a busy brain.
               </h2>
 
-              <div style={{
-                width: "88px",
-                height: "88px",
-                borderRadius: "50%",
-                background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.sunshineYellow})`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: `3px solid ${COLORS.deepAmber}`,
-                margin: "0 auto 10px",
-                boxShadow: "0 8px 20px rgba(92, 64, 51, 0.12)",
+              <p style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                color: COLORS.warmBrown,
+                margin: "0 0 24px",
               }}>
-                <span style={{ fontSize: "12px", color: COLORS.warmBrown, fontWeight: 700 }}>Photo</span>
-              </div>
-
-              <p style={{ fontSize: "15px", fontWeight: 700, color: COLORS.warmBrown, margin: "0 0 4px" }}>
-                Justin
-              </p>
-              <p style={{ fontSize: "12px", color: COLORS.coffeeBrown, margin: "0 0 24px", textTransform: "uppercase", letterSpacing: "1.5px" }}>
-                Founder
+                Justin, Founder @ Focana
               </p>
 
               <div style={{
@@ -1353,8 +1340,9 @@ export default function FocanaLanding() {
           </div>
 
           <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
             gap: "24px",
             maxWidth: "1040px",
             margin: "0 auto",
@@ -1383,6 +1371,7 @@ export default function FocanaLanding() {
               },
             ].map((item, index) => (
               <div key={index} style={{
+                flex: "0 1 310px",
                 background: "rgba(255, 254, 248, 0.96)",
                 border: `1px solid ${COLORS.beigeBorder}44`,
                 borderRadius: "18px",
