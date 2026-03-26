@@ -1081,17 +1081,6 @@ export default function FocanaLanding() {
               Meet Focana — your desktop focus buddy.
             </h2>
 
-            <p style={{
-              fontSize: "clamp(16px, 1.8vw, 19px)",
-              lineHeight: 1.7,
-              color: COLORS.coffeeBrown,
-              maxWidth: "650px",
-              margin: "0 auto 32px",
-              animation: "fadeUp 0.6s ease 0.25s both",
-            }}>
-              Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
-            </p>
-
           </div>
 
           <div style={{
@@ -1123,12 +1112,26 @@ export default function FocanaLanding() {
               </a>
             </div>
 
-            <p style={{
-              marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
+            <div style={{
+              marginTop: "18px",
+              color: COLORS.coffeeBrown,
               animation: "fadeUp 0.6s ease 0.35s both",
             }}>
-              Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
-            </p>
+              <p style={{
+                fontSize: "clamp(16px, 1.8vw, 19px)",
+                lineHeight: 1.7,
+                maxWidth: "650px",
+                margin: "0 auto 8px",
+              }}>
+                Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
+              </p>
+              <p style={{
+                fontSize: "14px",
+                margin: 0,
+              }}>
+                Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
+              </p>
+            </div>
           </div>
         </div>
       </section>
