@@ -1360,12 +1360,12 @@ export default function FocanaLanding() {
                 body: "Browser extensions vanish when you switch tabs. Phone apps are on the wrong device. Focana floats above every window on your screen — browser, IDE, Slack, everything. If you can see it, you can do it.",
               },
               {
-                title: \"It doesn't try to manage your life.\",
+                title: "It doesn't try to manage your life.",
                 body: 'No dashboards. No integrations. No project boards. No 30-minute setup. Type a task, start a timer, get to work. Focana does one thing and stays out of your way.',
               },
               {
                 title: 'It catches the thoughts that derail you.',
-                body: \"Random idea mid-session? Dump it in the Parking Lot and get back to your task. Your stray thoughts are saved. Your focus isn't broken.\",
+                body: "Random idea mid-session? Dump it in the Parking Lot and get back to your task. Your stray thoughts are saved. Your focus isn't broken.",
               },
               {
                 title: 'It celebrates you instead of judging you.',
