@@ -545,7 +545,7 @@ function getIsAppleSilicon() {
   return null;
 }
 
-const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/d4f23c8d-b002-48c9-8ed6-a5ea6220ac59?embed=1";
+const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d?embed=1";
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
@@ -981,10 +981,10 @@ export default function FocanaLanding() {
             </svg>
           </a>
           <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-            <a href="#how-it-works" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
-            <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Features</a>
+            <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
+            <a href="#pricing" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Pricing</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => { setSignupModalOpen(true); setSignupLocation("nav"); phCapture("cta_clicked", { location: "nav" }); }} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Join Waitlist</button>
+            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Try Risk-Free</button>
           </div>
           <button
             className="hamburger-btn"
@@ -1026,10 +1026,10 @@ export default function FocanaLanding() {
           display: "flex", flexDirection: "column", gap: "16px",
           boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
         }}>
-          <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
-          <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Features</a>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
+          <a href="#pricing" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Pricing</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); setSignupModalOpen(true); setSignupLocation("mobile_nav"); phCapture("cta_clicked", { location: "mobile_nav" }); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Join Waitlist</button>
+          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Try Risk-Free</button>
         </div>
       )}
 
@@ -1047,11 +1047,11 @@ export default function FocanaLanding() {
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
-              fontSize: "clamp(40px, 5.5vw, 64px)",
+              fontSize: "clamp(28px, 3.8vw, 42px)",
               fontWeight: 800,
-              lineHeight: 1.1,
+              lineHeight: 1.15,
               color: COLORS.warmBrown,
-              marginBottom: "24px",
+              marginBottom: "28px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
               You opened your laptop to do one thing.
@@ -1069,58 +1069,27 @@ export default function FocanaLanding() {
               >{headlines[headlineIndex]}</span>
             </h1>
 
-            <p style={{
-              fontSize: "clamp(16px, 1.8vw, 19px)",
-              lineHeight: 1.6,
-              fontStyle: "italic",
-              color: COLORS.warmBrown,
-              opacity: 0.7,
-              marginTop: "24px",
-              marginBottom: "24px",
-              animation: "fadeUp 0.6s ease 0.15s both",
-            }}>
-              Sound familiar?
-            </p>
-            <p style={{
+            <h2 style={{
               fontFamily: "'Outfit', sans-serif",
-              fontSize: "clamp(20px, 2.5vw, 28px)",
-              fontWeight: 700,
-              lineHeight: 1.4,
+              fontSize: "clamp(44px, 6vw, 72px)",
+              fontWeight: 800,
+              lineHeight: 1.05,
               color: COLORS.warmBrown,
-              marginBottom: "40px",
+              marginBottom: "24px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Meet Focana - the desktop focus buddy for busy brains.
-            </p>
-
-            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <button onClick={() => { setSignupModalOpen(true); setSignupLocation("hero"); phCapture("cta_clicked", { location: "hero" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Get Notified <span style={{ fontSize: "22px" }}>→</span>
-              </button>
-              <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                See How It Works
-              </a>
-            </div>
+              Meet Focana — your desktop focus buddy.
+            </h2>
 
             <p style={{
-              marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
-              animation: "fadeUp 0.6s ease 0.35s both",
+              fontSize: "clamp(16px, 1.8vw, 19px)",
+              lineHeight: 1.7,
+              color: COLORS.coffeeBrown,
+              maxWidth: "650px",
+              margin: "0 auto 32px",
+              animation: "fadeUp 0.6s ease 0.25s both",
             }}>
-              Try it risk-free for 7 days. If it doesn't stick, we'll refund you — no questions asked.
-            </p>
-            <p style={{
-              marginTop: "8px", fontSize: "14px", color: COLORS.coffeeBrown,
-              opacity: 0.7, animation: "fadeUp 0.6s ease 0.4s both",
-            }}>
-              Windows coming soon -{" "}
-              <button
-                onClick={() => setWaitlistOpen(true)}
-                style={{
-                  background: "none", border: "none", padding: 0,
-                  color: COLORS.deepAmber, fontSize: "inherit", fontFamily: "inherit",
-                  cursor: "pointer", textDecoration: "underline",
-                }}
-              >join the waitlist</button>
+              Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
             </p>
 
           </div>
@@ -1138,48 +1107,104 @@ export default function FocanaLanding() {
               style={{ width: "100%", display: "block" }}
             />
           </div>
+
+          <div style={{
+            maxWidth: "900px",
+            margin: "0 auto",
+            paddingTop: "28px",
+            textAlign: "center",
+          }}>
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
+              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                Start Focusing <span style={{ fontSize: "22px" }}>→</span>
+              </button>
+              <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                See How It Works
+              </a>
+            </div>
+
+            <p style={{
+              marginTop: "16px", fontSize: "14px", color: COLORS.coffeeBrown,
+              animation: "fadeUp 0.6s ease 0.35s both",
+            }}>
+              Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ANTI-HUSTLE CULTURE */}
+      <section style={{ padding: "72px 0 36px 0", background: COLORS.softCream }}>
+        <div className="section">
+          <div style={{
+            maxWidth: "920px",
+            margin: "0 auto",
+            padding: "56px 40px",
+            textAlign: "center",
+            background: "white",
+            borderRadius: "28px",
+            border: `1px solid ${COLORS.beigeBorder}`,
+            boxShadow: "0 18px 40px rgba(92, 64, 51, 0.08)",
+          }}>
+            <p style={{
+              fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
+              textAlign: "center", marginBottom: "12px",
+              textTransform: "uppercase", letterSpacing: "2px",
+            }}>Anti-Hustle Culture</p>
+            <h2 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+              textAlign: "center", marginBottom: "24px",
+            }}>
+              Stop downloading productivity apps that don't work.
+            </h2>
+            <p style={{
+              fontSize: "19px",
+              lineHeight: 1.7,
+              color: COLORS.coffeeBrown,
+              maxWidth: "760px",
+              margin: "0 auto",
+            }}>
+              Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need one tool that helps you do the thing you already sat down to do. Focana keeps one task visible on your screen, helps you protect your time, and catches the stray thoughts that try to pull you away.
+            </p>
+          </div>
         </div>
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
+      <section id="features" style={{ padding: "36px 0 100px 0", background: COLORS.softCream }}>
         <div className="section">
           <p style={{
             fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
             textAlign: "center", marginBottom: "12px",
             textTransform: "uppercase", letterSpacing: "2px",
           }}>Key Features</p>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "80px",
-          }}>Everything you need. Nothing you don't.</h2>
 
           {[
             {
               video: "/videos/get-started.mp4",
-              headline: "It takes just a few seconds to get started.",
-              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No learning curve.</>,
+              headline: "Start in seconds.",
+              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
             },
             {
               video: "/videos/always-on-top.mp4",
-              headline: "Out of sight, out of mind.",
-              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana floats above every app, every tab, every window. Your task and timer stay visible no matter where your work takes you. If you can see it, you can do it.</>,
+              headline: "Stay visible while you work.",
+              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
             },
             {
               video: "/videos/nudge-checkin.mp4",
-              headline: "You got distracted 10 minutes ago and didn't even notice.",
+              headline: "Gentle check-ins.",
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
             },
             {
               video: "/videos/parking-lot.mp4",
-              headline: "Every random thought feels urgent and you have to deal with it right now or you'll forget.",
+              headline: "Catch stray thoughts.",
               body: <><strong>Parking lot.</strong> Catch every stray thought mid-session without breaking your flow. Jot it down, close the panel, keep working. Everything's waiting for you when you're done — nothing lost, nothing derailed.</>,
             },
             {
               video: "/videos/pick-up-where-you-left-off.mp4",
-              headline: "You finally made progress but tomorrow you'll open your laptop and have no idea where you left off.",
-              body: <><strong>Pickup where you left off.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
+              headline: "Pick up where you left off.",
+              body: <><strong>Session History.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
             },
           ].map((row, i) => {
             const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
@@ -1227,65 +1252,166 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* WHO IT'S FOR */}
-      <section id="who-its-for" style={{ padding: "100px 0", background: COLORS.softCream }}>
+      {/* MID CTA */}
+      <section style={{ padding: "0 0 88px 0", background: COLORS.softCream }}>
+        <div className="section" style={{ maxWidth: "760px", textAlign: "center" }}>
+          <p style={{
+            fontSize: "18px",
+            lineHeight: 1.7,
+            color: COLORS.coffeeBrown,
+            margin: "0 0 20px",
+          }}>
+            Ready to try it for yourself?
+          </p>
+          <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Try Risk-Free
+          </button>
+        </div>
+      </section>
+
+      {/* FOUNDER STORY */}
+      <section id="founder-story" style={{ padding: "100px 0", background: "white" }}>
         <div className="section">
-          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
+          <div style={{
+            background: COLORS.softCream,
+            borderRadius: "24px",
+            padding: "40px 24px",
+            border: `1px solid ${COLORS.beigeBorder}`,
+          }}>
+            <div style={{ maxWidth: "560px", margin: "0 auto", textAlign: "center" }}>
+              <p style={{
+                fontSize: "12px",
+                letterSpacing: "2.5px",
+                textTransform: "uppercase",
+                color: COLORS.deepAmber,
+                fontWeight: 600,
+                margin: "0 0 8px",
+              }}>
+                The Story
+              </p>
+
+              <h2 style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "clamp(28px, 3.5vw, 40px)",
+                fontWeight: 800,
+                color: COLORS.warmBrown,
+                margin: "0 0 28px",
+                lineHeight: 1.15,
+              }}>
+                Built by a busy brain.
+              </h2>
+
+              <p style={{
+                fontSize: "15px",
+                fontWeight: 700,
+                color: COLORS.warmBrown,
+                margin: "0 0 24px",
+              }}>
+                Justin, Founder @ Focana
+              </p>
+
+              <div style={{
+                background: "#FFFCF2",
+                borderRadius: "16px",
+                padding: "24px 28px",
+                borderLeft: `4px solid ${COLORS.sunshineYellow}`,
+                textAlign: "left",
+              }}>
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
+                  I built Focana because I have ADHD and every focus tool I tried disappeared the moment I switched tabs. Out of sight, out of mind, literally.
+                </p>
+
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
+                  So I built the tool I needed: one that stays visible while you work, never makes you feel bad, and never asks you to set up a workspace before you can start working.
+                </p>
+
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.coffeeBrown, margin: 0, fontStyle: "italic" }}>
+                  This is the focus buddy I wish I had years ago.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* DIFFERENCE */}
+      <section id="difference" style={{
+        padding: "100px 0",
+        background: `linear-gradient(160deg, ${COLORS.warmBrown}, ${COLORS.softBlack})`,
+      }}>
+        <div className="section">
+          <div style={{ textAlign: "center", maxWidth: "760px", margin: "0 auto 56px" }}>
             <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 44px)",
-              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "clamp(32px, 4vw, 44px)",
+              fontWeight: 800,
+              color: "#FEF3C7",
+              lineHeight: 1.15,
+              marginBottom: "18px",
             }}>
-              Built for You
+              Why Focana feels different
             </h2>
-            <p style={{ fontSize: "20px", lineHeight: 1.7, color: COLORS.deepAmber, fontWeight: 500, marginTop: "12px" }}>
-              If any of these sound like you, you're in the right place.
+            <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#F6E7C7" }}>
+              Most productivity tools ask you to build a system. Focana helps you protect the focus you already have.
             </p>
           </div>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
-            gap: "28px 24px",
-            maxWidth: "960px",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: "24px",
+            maxWidth: "1040px",
             margin: "0 auto",
+            alignItems: "start",
           }}>
             {[
-              { text: "People say 'just focus' like that's not the thing you're trying to do every single day.", rotate: "-2deg", color: "#FFF9E6" },
-              { text: "You've tried Notion, Todoist, Forest, a paper planner. Each one worked for exactly three days.", rotate: "1.5deg", color: "#E8F5E9" },
-              { text: "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.", rotate: "-1deg", color: "#FFF3E0" },
-              { text: "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.", rotate: "2deg", color: "#FFF9E6" },
-              { text: "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.", rotate: "-1.5deg", color: "#E8F5E9" },
-              { text: "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.", rotate: "1deg", color: "#FFF3E0" },
-            ].map((item, i) => (
-              <div key={i} style={{
-                background: item.color,
-                borderRadius: "4px",
-                padding: "24px 22px",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "12px",
-                transform: `rotate(${item.rotate})`,
-                boxShadow: "2px 3px 12px rgba(0,0,0,0.1), 1px 1px 3px rgba(0,0,0,0.06)",
-                border: "none",
-                minHeight: "140px",
-                transition: "transform 0.2s ease",
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = "rotate(0deg) scale(1.03)"}
-              onMouseLeave={e => e.currentTarget.style.transform = `rotate(${item.rotate})`}
-              >
-                <span style={{
-                  flexShrink: 0,
-                  width: "28px", height: "28px",
-                  borderRadius: "50%",
-                  background: "#4CAF50",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  marginTop: "2px",
+              {
+                title: 'It never disappears.',
+                body: "Browser extensions vanish when you switch tabs. Phone apps are on the wrong device. Focana floats above every window on your screen — browser, IDE, Slack, everything. If you can see it, you can do it.",
+              },
+              {
+                title: "It doesn't try to manage your life.",
+                body: 'No dashboards. No integrations. No project boards. No 30-minute setup. Type a task, start a timer, get to work. Focana does one thing and stays out of your way.',
+              },
+              {
+                title: 'It catches the thoughts that derail you.',
+                body: "Random idea mid-session? Dump it in the Parking Lot and get back to your task. Your stray thoughts are saved. Your focus isn't broken.",
+              },
+              {
+                title: 'It celebrates you instead of judging you.',
+                body: 'No \"session incomplete.\" No guilt. Focana tells you what you accomplished — even if it was just 8 minutes. Because showing up is the hardest part, and you did it.',
+              },
+              {
+                title: 'It works without wifi, without an account, and without the cloud.',
+                body: 'Focana is a desktop app that lives on your machine. No login. No sync. No server tracking your focus habits. Your data stays yours.',
+              },
+            ].map((item, index) => (
+              <div key={index} style={{
+                flex: "0 1 310px",
+                background: "rgba(255, 254, 248, 0.96)",
+                border: `1px solid ${COLORS.beigeBorder}44`,
+                borderRadius: "18px",
+                padding: "26px 24px",
+                boxShadow: "0 18px 40px rgba(0, 0, 0, 0.18)",
+              }}>
+                <h3 style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  lineHeight: 1.25,
+                  color: COLORS.warmBrown,
+                  marginBottom: "14px",
                 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </span>
-                <p style={{ fontSize: "15px", lineHeight: 1.55, color: COLORS.warmBrown, fontWeight: 500, margin: 0 }}>
-                  {item.text}
+                  {item.title}
+                </h3>
+                <p style={{
+                  fontSize: "16px",
+                  lineHeight: 1.7,
+                  color: COLORS.coffeeBrown,
+                  margin: 0,
+                }}>
+                  {item.body}
                 </p>
               </div>
             ))}
@@ -1301,7 +1427,7 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
               fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15, marginBottom: "20px",
             }}>
-              One payment. Lifetime access.
+              Founder launch pricing
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
               Buy Focana once, download it instantly,<br />
@@ -1320,7 +1446,7 @@ export default function FocanaLanding() {
             <span style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
               color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>Lifetime Access</span>
+            }}>Founder Launch</span>
             <div style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 56px)",
               fontWeight: 800, color: COLORS.warmBrown, margin: "12px 0",
@@ -1335,8 +1461,8 @@ export default function FocanaLanding() {
               7-day money-back guarantee.<br />
               If it doesn't stick, we'll refund you.
             </p>
-            <button onClick={() => { setSignupModalOpen(true); setSignupLocation("pricing"); phCapture("cta_clicked", { location: "pricing" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Join Waitlist
+            <button onClick={() => openCheckout("pricing")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Try Risk-Free
             </button>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
               One-time payment. macOS. Instant download.<br />
@@ -1352,11 +1478,11 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
               color: COLORS.warmBrown, marginBottom: "12px",
             }}>
-              Why lifetime access?
+              Why buy during the founder launch?
             </h3>
             <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
               We want pricing to feel as calm as the product: simple, upfront, and easy to trust.
-              Buy it once, keep it, and get the updates we ship as Focana grows.
+              If you buy at $29, that purchase stays lifetime access while Focana grows.
               No subscription math. No renewal anxiety. Just a tool that stays with you.
             </p>
           </div>
@@ -1381,15 +1507,15 @@ export default function FocanaLanding() {
 
           <FAQItem
             question="How is this different from a browser extension?"
-            answer="Browser extensions live in your browser. Switch to Slack or your code editor and they're gone. Focana is a native Mac app — it uses OS-level permissions to float above every application on your screen. It can't disappear. That's the difference."
+            answer="Browser extensions live in your browser. Switch to Slack or your code editor and they're gone. Focana is a native Mac app, so your task and timer stay visible while you move between the apps you work in. That's the difference."
           />
           <FAQItem
             question="I have ADHD and I've tried dozens of productivity apps. Why would this one stick?"
-            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No settings. Type your task, start the timer, and it's floating on your screen. The reason other apps don't stick is because they ask too much of you before you've gotten any value. Focana doesn't."
+            answer="Because Focana does exactly one thing and does it in under 10 seconds. No account. No onboarding flow. No setup maze. Type your task, start the timer, and it's right there while you work. The reason other apps don't stick is because they ask too much of you before you've gotten any value. Focana doesn't."
           />
           <FAQItem
             question='What does "always on top" actually mean?'
-            answer="It means Focana uses a macOS system-level feature to stay above every other window on your screen. Open Chrome, Slack, VS Code, Zoom — Focana stays visible. You can't accidentally bury it."
+            answer="It means Focana stays visible over your other windows while you work, so you don't lose your task when you switch apps. On macOS, true fullscreen Spaces can still be inconsistent, but across normal app windows Focana stays in view."
           />
           <FAQItem
             question="Does Focana help with ADHD time blindness?"
@@ -1434,8 +1560,8 @@ export default function FocanaLanding() {
             $29 once. Yours forever. 7-day guarantee.
           </p>
 
-          <button onClick={() => { setSignupModalOpen(true); setSignupLocation("final_cta"); phCapture("cta_clicked", { location: "final_cta" }); }} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Get Notified <span style={{ fontSize: "22px" }}>→</span>
+          <button onClick={() => openCheckout("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Try Risk-Free <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
