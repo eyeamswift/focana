@@ -1134,34 +1134,45 @@ export default function FocanaLanding() {
       </section>
 
       {/* ANTI-HUSTLE CULTURE */}
-      <section style={{ padding: "100px 0 0 0", background: "white" }}>
-        <div className="section" style={{ maxWidth: "760px", textAlign: "center" }}>
-          <p style={{
-            fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
-            textAlign: "center", marginBottom: "12px",
-            textTransform: "uppercase", letterSpacing: "2px",
-          }}>Anti-Hustle Culture</p>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "24px",
-          }}>
-            Stop downloading productivity apps that don't work.
-          </h2>
-          <p style={{
-            fontSize: "19px",
-            lineHeight: 1.7,
-            color: COLORS.coffeeBrown,
-            maxWidth: "760px",
+      <section style={{ padding: "72px 0 36px 0", background: COLORS.softCream }}>
+        <div className="section">
+          <div style={{
+            maxWidth: "920px",
             margin: "0 auto",
+            padding: "56px 40px",
+            textAlign: "center",
+            background: "white",
+            borderRadius: "28px",
+            border: `1px solid ${COLORS.beigeBorder}`,
+            boxShadow: "0 18px 40px rgba(92, 64, 51, 0.08)",
           }}>
-            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need one tool that helps you do the thing you already sat down to do. Focana keeps one task visible on your screen, helps you protect your time, and catches the stray thoughts that try to pull you away.
-          </p>
+            <p style={{
+              fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
+              textAlign: "center", marginBottom: "12px",
+              textTransform: "uppercase", letterSpacing: "2px",
+            }}>Anti-Hustle Culture</p>
+            <h2 style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+              textAlign: "center", marginBottom: "24px",
+            }}>
+              Stop downloading productivity apps that don't work.
+            </h2>
+            <p style={{
+              fontSize: "19px",
+              lineHeight: 1.7,
+              color: COLORS.coffeeBrown,
+              maxWidth: "760px",
+              margin: "0 auto",
+            }}>
+              Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need one tool that helps you do the thing you already sat down to do. Focana keeps one task visible on your screen, helps you protect your time, and catches the stray thoughts that try to pull you away.
+            </p>
+          </div>
         </div>
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "60px 0 100px 0", background: COLORS.softCream }}>
+      <section id="features" style={{ padding: "36px 0 100px 0", background: COLORS.softCream }}>
         <div className="section">
           <p style={{
             fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
