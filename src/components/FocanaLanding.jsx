@@ -1161,7 +1161,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "60px 0 100px 0", background: "white" }}>
+      <section id="features" style={{ padding: "60px 0 100px 0", background: COLORS.softCream }}>
         <div className="section">
           <p style={{
             fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
@@ -1178,7 +1178,7 @@ export default function FocanaLanding() {
             {
               video: "/videos/always-on-top.mp4",
               headline: "Stay visible while you work.",
-              body: <><strong>Always visible.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
+              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
             },
             {
               video: "/videos/nudge-checkin.mp4",
@@ -1193,7 +1193,7 @@ export default function FocanaLanding() {
             {
               video: "/videos/pick-up-where-you-left-off.mp4",
               headline: "Pick up where you left off.",
-              body: <><strong>Pickup where you left off.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
+              body: <><strong>Session History.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
             },
           ].map((row, i) => {
             const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
@@ -1319,50 +1319,87 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* WHO IT'S FOR */}
-      <section id="who-its-for" style={{ padding: "100px 0", background: COLORS.softCream }}>
+      {/* DIFFERENCE */}
+      <section id="difference" style={{
+        padding: "100px 0",
+        background: `linear-gradient(160deg, ${COLORS.warmBrown}, ${COLORS.softBlack})`,
+      }}>
         <div className="section">
-          <div style={{ textAlign: "center", maxWidth: "700px", margin: "0 auto", marginBottom: "60px" }}>
+          <div style={{ textAlign: "center", maxWidth: "760px", margin: "0 auto 56px" }}>
+            <p style={{
+              fontSize: "13px", fontWeight: 700, color: COLORS.goldenGlow,
+              textAlign: "center", marginBottom: "12px",
+              textTransform: "uppercase", letterSpacing: "2px",
+            }}>Why Focana Feels Different</p>
             <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 44px)",
-              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "clamp(32px, 4vw, 44px)",
+              fontWeight: 800,
+              color: "#FEF3C7",
+              lineHeight: 1.15,
+              marginBottom: "18px",
             }}>
-              Built for You
+              Why Focana feels different
             </h2>
-            <p style={{ fontSize: "20px", lineHeight: 1.7, color: COLORS.deepAmber, fontWeight: 500, marginTop: "12px" }}>
-              If any of these sound like you, you're in the right place.
+            <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#F6E7C7" }}>
+              Most productivity tools ask you to build a system. Focana helps you protect the focus you already have.
             </p>
           </div>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
-            gap: "28px 24px",
-            maxWidth: "960px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            gap: "24px",
+            maxWidth: "1040px",
             margin: "0 auto",
             alignItems: "start",
           }}>
             {[
-              { text: "People say 'just focus' like that's not the thing you're trying to do every single day.", rotate: "-1.5deg" },
-              { text: "You've tried Notion, Todoist, Forest, a paper planner. Each one worked for exactly three days.", rotate: "0.75deg" },
-              { text: "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.", rotate: "-0.5deg" },
-              { text: "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.", rotate: "1deg" },
-              { text: "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.", rotate: "-0.75deg" },
-              { text: "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.", rotate: "1.5deg" },
-            ].map((item, i) => (
-              <div key={i} style={{
-                background: "#FFF9E6",
-                borderRadius: "4px",
-                padding: "24px 22px",
-                transform: `rotate(${item.rotate})`,
-                boxShadow: "2px 3px 12px rgba(0,0,0,0.1), 1px 1px 3px rgba(0,0,0,0.06)",
-                border: "none",
-                transition: "transform 0.2s ease",
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = "rotate(0deg) scale(1.03)"}
-              onMouseLeave={e => e.currentTarget.style.transform = `rotate(${item.rotate})`}
-              >
-                <p style={{ fontSize: "15px", lineHeight: 1.55, color: COLORS.warmBrown, fontWeight: 500, margin: 0 }}>
-                  {item.text}
+              {
+                title: 'It never disappears.',
+                body: "Browser extensions vanish when you switch tabs. Phone apps are on the wrong device. Focana floats above every window on your screen — browser, IDE, Slack, everything. If you can see it, you can do it.",
+              },
+              {
+                title: \"It doesn't try to manage your life.\",
+                body: 'No dashboards. No integrations. No project boards. No 30-minute setup. Type a task, start a timer, get to work. Focana does one thing and stays out of your way.',
+              },
+              {
+                title: 'It catches the thoughts that derail you.',
+                body: \"Random idea mid-session? Dump it in the Parking Lot and get back to your task. Your stray thoughts are saved. Your focus isn't broken.\",
+              },
+              {
+                title: 'It celebrates you instead of judging you.',
+                body: 'No \"session incomplete.\" No guilt. Focana tells you what you accomplished — even if it was just 8 minutes. Because showing up is the hardest part, and you did it.',
+              },
+              {
+                title: 'It works without wifi, without an account, and without the cloud.',
+                body: 'Focana is a desktop app that lives on your machine. No login. No sync. No server tracking your focus habits. Your data stays yours.',
+              },
+            ].map((item, index) => (
+              <div key={index} style={{
+                background: "rgba(255, 254, 248, 0.96)",
+                border: `1px solid ${COLORS.beigeBorder}44`,
+                borderRadius: "18px",
+                padding: "26px 24px",
+                boxShadow: "0 18px 40px rgba(0, 0, 0, 0.18)",
+              }}>
+                <h3 style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  lineHeight: 1.25,
+                  color: COLORS.warmBrown,
+                  marginBottom: "14px",
+                }}>
+                  {item.title}
+                </h3>
+                <p style={{
+                  fontSize: "16px",
+                  lineHeight: 1.7,
+                  color: COLORS.coffeeBrown,
+                  margin: 0,
+                }}>
+                  {item.body}
                 </p>
               </div>
             ))}
