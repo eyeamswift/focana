@@ -1168,11 +1168,6 @@ export default function FocanaLanding() {
             textAlign: "center", marginBottom: "12px",
             textTransform: "uppercase", letterSpacing: "2px",
           }}>Key Features</p>
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "80px",
-          }}>Everything you need. Nothing you don't.</h2>
 
           {[
             {
@@ -1344,43 +1339,28 @@ export default function FocanaLanding() {
             gap: "28px 24px",
             maxWidth: "960px",
             margin: "0 auto",
+            alignItems: "start",
           }}>
             {[
-              { text: "People say 'just focus' like that's not the thing you're trying to do every single day.", rotate: "-2deg", color: "#FFF9E6" },
-              { text: "You've tried Notion, Todoist, Forest, a paper planner. Each one worked for exactly three days.", rotate: "1.5deg", color: "#E8F5E9" },
-              { text: "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.", rotate: "-1deg", color: "#FFF3E0" },
-              { text: "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.", rotate: "2deg", color: "#FFF9E6" },
-              { text: "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.", rotate: "-1.5deg", color: "#E8F5E9" },
-              { text: "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.", rotate: "1deg", color: "#FFF3E0" },
+              { text: "People say 'just focus' like that's not the thing you're trying to do every single day.", rotate: "-1.5deg" },
+              { text: "You've tried Notion, Todoist, Forest, a paper planner. Each one worked for exactly three days.", rotate: "0.75deg" },
+              { text: "You can spend three hours going down a rabbit hole you never planned to enter. But give five minutes to the thing that actually matters? Impossible.", rotate: "-0.5deg" },
+              { text: "Every random thought feels like an emergency. You chase it, lose your place, and can't get back.", rotate: "1deg" },
+              { text: "You got distracted. Again. Then got mad at yourself for getting distracted. Again. Now there are two problems and you still haven't finished.", rotate: "-0.75deg" },
+              { text: "Other people seem to just... sit down and work. For you, getting started is its own full-time job. And nobody sees that part.", rotate: "1.5deg" },
             ].map((item, i) => (
               <div key={i} style={{
-                background: item.color,
+                background: "#FFF9E6",
                 borderRadius: "4px",
                 padding: "24px 22px",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "12px",
                 transform: `rotate(${item.rotate})`,
                 boxShadow: "2px 3px 12px rgba(0,0,0,0.1), 1px 1px 3px rgba(0,0,0,0.06)",
                 border: "none",
-                minHeight: "140px",
                 transition: "transform 0.2s ease",
               }}
               onMouseEnter={e => e.currentTarget.style.transform = "rotate(0deg) scale(1.03)"}
               onMouseLeave={e => e.currentTarget.style.transform = `rotate(${item.rotate})`}
               >
-                <span style={{
-                  flexShrink: 0,
-                  width: "28px", height: "28px",
-                  borderRadius: "50%",
-                  background: "#4CAF50",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  marginTop: "2px",
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </span>
                 <p style={{ fontSize: "15px", lineHeight: 1.55, color: COLORS.warmBrown, fontWeight: 500, margin: 0 }}>
                   {item.text}
                 </p>
