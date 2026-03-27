@@ -13,5 +13,9 @@ export default defineConfig({
     checkOrigin: false,
   },
   integrations: [react(), sitemap()],
-  adapter: vercel(),
+  adapter: vercel({
+    webAnalytics: {
+      enabled: true,
+    },
+  }),
 });

@@ -1,4 +1,5 @@
 ---
+import Analytics from '@vercel/analytics/astro';
 import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
 
 const title = "Focana — Next Steps";
@@ -346,5 +347,6 @@ const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
         });
       })();
     </script>
+    <Analytics />
   </body>
 </html>

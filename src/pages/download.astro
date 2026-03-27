@@ -1,4 +1,5 @@
 ---
+import Analytics from '@vercel/analytics/astro';
 import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
 import { SITE_ORIGIN } from '../lib/siteOrigin';
 
@@ -335,5 +336,6 @@ const fallbackSiteOrigin = SITE_ORIGIN;
         });
       })();
     </script>
+    <Analytics />
   </body>
 </html>

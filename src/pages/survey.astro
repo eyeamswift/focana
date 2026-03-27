@@ -1,4 +1,5 @@
 ---
+import Analytics from '@vercel/analytics/astro';
 import { SITE_ORIGIN } from '../lib/siteOrigin';
 
 const title = "Focana — Quick Survey";
@@ -365,5 +366,6 @@ const fallbackSiteOrigin = SITE_ORIGIN;
         });
       })();
     </script>
+    <Analytics />
   </body>
 </html>
