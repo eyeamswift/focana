@@ -781,6 +781,7 @@ export default function FocanaLanding() {
     try {
       const lemon = await waitForCheckoutOverlay();
       lemon.Url.Open(CHECKOUT_URL);
+      phCapture("checkout_opened", { location });
     } catch (error) {
       console.error("Failed to open Lemon overlay:", error);
       phCapture("checkout_open_failed", { location });
