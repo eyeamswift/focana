@@ -1,5 +1,6 @@
 ---
 import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
 import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
 import { SITE_ORIGIN } from '../lib/siteOrigin';
 
@@ -337,5 +338,6 @@ const fallbackSiteOrigin = SITE_ORIGIN;
       })();
     </script>
     <Analytics />
+    <SpeedInsights />
   </body>
 </html>

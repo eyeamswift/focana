@@ -1,5 +1,6 @@
 ---
 import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
 import FocanaLanding from '../components/FocanaLanding.jsx';
 
 const title = "Focana | Floating focus app for Mac";
@@ -86,5 +87,6 @@ const jsonLd = {
       <FocanaLanding client:load />
     </main>
     <Analytics />
+    <SpeedInsights />
   </body>
 </html>
