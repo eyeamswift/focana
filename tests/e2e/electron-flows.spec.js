@@ -778,6 +778,50 @@ test('timed time-up add time restores the full window when the session expired o
   }
 });
 
+test('timed floating check-in restores a compact-started session into the compact prompt', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timed-floating-compact-origin', 1);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await setTimeOffset(page, 25000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('timed-floating-compact-origin?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('timed time-up freeflow handoff returns to floating minimize when the session expired from floating mode', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
@@ -1884,6 +1928,9 @@ test('freeflow check-in stays on the compact prompt surface and returns to compa
 
     await page.getByRole('button', { name: 'Yes' }).click();
 
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
+    await expect(page.locator('.toast-checkin')).toHaveCount(0);
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
   } finally {
     await cleanup();
@@ -2099,6 +2146,11 @@ test('freeflow check-in restores from floating minimize and returns there after 
 
     await page.getByRole('button', { name: 'Yes' }).click();
 
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
     await expect.poll(async () => {
@@ -2138,6 +2190,9 @@ test('timed check-in stays on the compact prompt surface and returns to compact 
 
     await page.getByRole('button', { name: 'Yes' }).click();
 
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
+    await expect(page.locator('.toast-checkin')).toHaveCount(0);
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
   } finally {
     await cleanup();
@@ -2204,6 +2259,11 @@ test('timed check-in restores from floating minimize into the compact prompt and
     await expect(page.getByText('timed-floating-checkin?')).toBeVisible();
 
     await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));

@@ -1349,6 +1349,9 @@ ipcMain.on('bring-to-front', () => {
     exitFloatingIconMode();
     return;
   }
+  if (typeof mainWindow.getOpacity === 'function' && mainWindow.getOpacity() < 1) {
+    mainWindow.setOpacity(1);
+  }
   setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
   mainWindow.show();
   mainWindow.focus();

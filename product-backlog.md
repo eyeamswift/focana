@@ -26,6 +26,24 @@
 
 ## Done
 
+### WIN-004 — Floating check-ins now restore compact-origin timed sessions correctly
+- Status: Done
+- Version: 1.2.1
+- Why it matters: A timed session started in compact and then minimized to float could disappear at the first timed check-in threshold instead of restoring the compact prompt.
+- Files: `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-003`
+- Notes: The floating check-in handoff now distinguishes compact-origin sessions from full-window-origin sessions. Compact-origin float sessions reveal the existing pill and open the compact check-in prompt directly instead of waiting on a redundant compact re-entry. `bring-to-front` also restores window opacity if a hidden main window needs to be revealed. Regression coverage now includes the real compact -> float -> timed check-in path on a 1-minute timer, plus the existing full -> float path.
+- Commits: —
+
+### UX-002 — Compact positive check-ins now use an ember burst instead of a text toast
+- Status: Done
+- Version: 1.2.1
+- Why it matters: The compact pill is too small for a sentence-style success message, especially when a floating session needs to return there and then minimize again quickly.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/CompactMode.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-004`
+- Notes: Compact-mode positive check-ins no longer show the centered text toast. They now trigger a brief pill-local ember spark animation while keeping the task and timer visible. When the check-in originated from float, the compact pill stays on screen for the short cue and only then returns to float. Full-window check-in success behavior is unchanged.
+- Commits: —
+
 ### WIN-002 — Compact task appeared missing during a broken local build/runtime state
 - Status: Done
 - Version: 1.2.0

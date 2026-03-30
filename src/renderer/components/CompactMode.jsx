@@ -18,6 +18,16 @@ const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
 const COMPACT_PULSE_CYCLE_MS = 4500;
 const COMPACT_PULSE_REPEAT_COUNT = 1;
+const COMPACT_SUCCESS_CUE_MS = 820;
+const COMPACT_SUCCESS_SPARKS = [
+  { top: '18%', left: '10%', width: 16, driftX: 32, driftY: -12, delay: 0, duration: 720 },
+  { top: '34%', left: '22%', width: 12, driftX: 24, driftY: 10, delay: 70, duration: 760 },
+  { top: '58%', left: '18%', width: 18, driftX: 30, driftY: -8, delay: 120, duration: 780 },
+  { top: '26%', left: '48%', width: 14, driftX: 28, driftY: -10, delay: 90, duration: 700 },
+  { top: '52%', left: '54%', width: 12, driftX: 34, driftY: 8, delay: 150, duration: 760 },
+  { top: '20%', left: '76%', width: 10, driftX: 24, driftY: 12, delay: 200, duration: 700 },
+  { top: '62%', left: '72%', width: 16, driftX: 26, driftY: -14, delay: 240, duration: 780 },
+];
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
@@ -26,6 +36,7 @@ export default function CompactMode({
   isRunning,
   time,
   pulseSignal = 0,
+  successCueSignal = 0,
   onDoubleClick,
   onOpenDistractionJar,
   thoughtCount = 0,
@@ -38,12 +49,15 @@ export default function CompactMode({
 }) {
   const [showControls, setShowControls] = useState(false);
   const [shouldPulse, setShouldPulse]   = useState(false);
+  const [showSuccessCue, setShowSuccessCue] = useState(false);
+  const [successCueBurstId, setSuccessCueBurstId] = useState(0);
   const [showHelpHint, setShowHelpHint] = useState(false);
   const [taskMetrics, setTaskMetrics]   = useState({ width: TASK_MIN_W, height: PILL_BASE_H });
 
   const clickTimerRef    = useRef(null);
   const controlsHideRef  = useRef(null);
   const pulseResetTimeoutRef = useRef(null);
+  const successCueTimeoutRef = useRef(null);
   const taskMeasureInlineRef = useRef(null);
   const taskMeasureBlockRef = useRef(null);
   const dragMoveHandlerRef = useRef(null);
@@ -52,6 +66,7 @@ export default function CompactMode({
   const hasInitialized   = useRef(false);
   const isDraggingRef    = useRef(false);
   const lastPulseSignalRef = useRef(pulseSignal);
+  const lastSuccessCueSignalRef = useRef(successCueSignal);
 
   const taskLabel = task || '';
   const hasTaskLabel = taskLabel.trim().length > 0;
@@ -204,6 +219,19 @@ export default function CompactMode({
   }, [pulseSignal, pulseEnabled, dndActive]);
 
   useEffect(() => {
+    if (successCueSignal === lastSuccessCueSignalRef.current) return;
+    lastSuccessCueSignalRef.current = successCueSignal;
+    if (!successCueSignal) return;
+    setSuccessCueBurstId((prev) => prev + 1);
+    setShowSuccessCue(true);
+    if (successCueTimeoutRef.current) clearTimeout(successCueTimeoutRef.current);
+    successCueTimeoutRef.current = setTimeout(() => {
+      setShowSuccessCue(false);
+      successCueTimeoutRef.current = null;
+    }, COMPACT_SUCCESS_CUE_MS);
+  }, [successCueSignal]);
+
+  useEffect(() => {
     if (showControls) {
       setShowHelpHint(false);
     }
@@ -213,6 +241,7 @@ export default function CompactMode({
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
     if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
     if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
+    if (successCueTimeoutRef.current) clearTimeout(successCueTimeoutRef.current);
     if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
     if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
     if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
@@ -352,6 +381,26 @@ export default function CompactMode({
       <span className="pill-pulse-border" aria-hidden="true" />
       <span className="pill-pulse-wash" aria-hidden="true" />
       <span className="pill-pulse-ripple" aria-hidden="true" />
+      {showSuccessCue ? (
+        <span key={successCueBurstId} className="pill-success-cue pill-success-cue--active" aria-hidden="true">
+          <span className="pill-success-wash" />
+          {COMPACT_SUCCESS_SPARKS.map((spark, index) => (
+            <span
+              key={`${successCueBurstId}-${index}`}
+              className="pill-success-spark"
+              style={{
+                '--spark-top': spark.top,
+                '--spark-left': spark.left,
+                '--spark-width': `${spark.width}px`,
+                '--spark-drift-x': `${spark.driftX}px`,
+                '--spark-drift-y': `${spark.driftY}px`,
+                '--spark-delay': `${spark.delay}ms`,
+                '--spark-duration': `${spark.duration}ms`,
+              }}
+            />
+          ))}
+        </span>
+      ) : null}
 
       <div className={`pill-content${isPulseAnimating ? ' pill-content--pulse' : ''}${showControls ? ' pill-content--controls' : ''}`}>
         <div

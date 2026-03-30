@@ -103,6 +103,7 @@ const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60 + 3; // +3s offset to avoid check-in collision
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
+const COMPACT_SUCCESS_CUE_MS = 800;
 const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 3000;
 const SESSION_FEEDBACK_CONTINUE_DELAY_MS = 200;
 const PINNED_CONTROLS_DEFAULT = {
@@ -332,6 +333,7 @@ export default function App() {
   });
   const [isPulsing, setIsPulsing] = useState(false);
   const [compactPulseSignal, setCompactPulseSignal] = useState(0);
+  const [compactSuccessCueSignal, setCompactSuccessCueSignal] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const lastNonEmptyTaskRef = useRef('');
   const prevDndEnabledRef = useRef(false);
@@ -355,6 +357,7 @@ export default function App() {
   const confettiTimerRef = useRef(null);
   const pulseIntervalRef = useRef(null);
   const pulseTimeoutRef = useRef(null);
+  const compactSuccessReturnTimerRef = useRef(null);
   const themeSettingsHydratedRef = useRef(false);
   const timeRef = useRef(0);
   const elapsedBeforeRunRef = useRef(0);
@@ -555,6 +558,7 @@ export default function App() {
       if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
       if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
       if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
+      if (compactSuccessReturnTimerRef.current) clearTimeout(compactSuccessReturnTimerRef.current);
       if (suppressToolbarTooltipTimerRef.current) clearTimeout(suppressToolbarTooltipTimerRef.current);
       if (compactRevealTimerRef.current) clearTimeout(compactRevealTimerRef.current);
     };
@@ -1785,6 +1789,8 @@ export default function App() {
   const clearCheckInUi = useCallback(() => {
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
     checkInResolveTimeoutRef.current = null;
+    if (compactSuccessReturnTimerRef.current) clearTimeout(compactSuccessReturnTimerRef.current);
+    compactSuccessReturnTimerRef.current = null;
     checkInPromptSurfaceRef.current = 'full';
     pendingCompactCheckInPromptRef.current = false;
     checkInStateRef.current = 'idle';
@@ -2133,6 +2139,23 @@ export default function App() {
     } else {
       advanceCheckInScheduleAfterResult(elapsedSec);
     }
+
+    if (isCompact) {
+      clearCheckInUi();
+      checkInReturnToCompactRef.current = false;
+      checkInReturnToFloatingRef.current = false;
+      pendingCompactRestoreRef.current = false;
+      setCompactSuccessCueSignal((prev) => prev + 1);
+
+      if (shouldReturnToFloating) {
+        compactSuccessReturnTimerRef.current = setTimeout(() => {
+          compactSuccessReturnTimerRef.current = null;
+          restoreDisplayMode({ returnToFloating: true });
+        }, COMPACT_SUCCESS_CUE_MS);
+      }
+      return;
+    }
+
     const focusedMessages = getFocusedCheckInMessages(preferredName);
     const randomMessage = focusedMessages[Math.floor(Math.random() * focusedMessages.length)];
     showToast('success', randomMessage, 2000, {
@@ -2142,27 +2165,10 @@ export default function App() {
       source: 'checkin-success',
     });
 
-    if (isCompact) {
-      setCheckInMessage(randomMessage);
-      setCheckInCelebrating(false);
-      setCheckInCelebrationType('none');
-      triggerConfetti(1200);
-    } else {
-      setCheckInMessage(randomMessage);
-      setCheckInCelebrating(true);
-      setCheckInCelebrationType('focused');
-      triggerConfetti(1200);
-    }
-
-    if (isCompact) {
-      clearCheckInUi();
-      if (shouldReturnToFloating) {
-        restoreDisplayMode({ returnToFloating: true });
-      } else {
-        pendingCompactRestoreRef.current = false;
-      }
-      return;
-    }
+    setCheckInMessage(randomMessage);
+    setCheckInCelebrating(true);
+    setCheckInCelebrationType('focused');
+    triggerConfetti(1200);
 
     setCheckInState('resolved');
     if (checkInResolveTimeoutRef.current) clearTimeout(checkInResolveTimeoutRef.current);
@@ -2330,10 +2336,17 @@ export default function App() {
       pendingCompactRestoreRef.current = false;
       checkInPromptSurfaceRef.current = 'compact';
       pendingCompactCheckInPromptRef.current = true;
-      // Exit floating mode but keep mainWindow hidden — enterPillMode (triggered
-      // by setIsCompact) will reposition and reveal it at compact size, avoiding
-      // a visible flash of the full-size window.
-      window.electronAPI.exitFloatingForCompact?.().then(() => {
+      // When floating originated from an already-compact session, React state is
+      // still "pill", so setIsCompact(true) would be a no-op. In that case the
+      // main window has already been restored at pill bounds; we just need to
+      // reveal it and open the compact prompt. Full-window floating sessions
+      // still need the normal compact-entry handoff.
+      void Promise.resolve(window.electronAPI.exitFloatingForCompact?.()).then(() => {
+        if (compactPromptRequested) {
+          window.electronAPI.bringToFront?.();
+          openCompactCheckInPrompt();
+          return;
+        }
         requestCompactEntry({ restorePreviousBounds: false, delayMs: 80 });
       });
       return true;
@@ -4220,6 +4233,7 @@ export default function App() {
           isRunning={isRunning}
           time={time}
           pulseSignal={compactPulseSignal}
+          successCueSignal={compactSuccessCueSignal}
           onDoubleClick={handleExitCompact}
           onOpenDistractionJar={handleOpenParkingLot}
           thoughtCount={thoughts.length}
