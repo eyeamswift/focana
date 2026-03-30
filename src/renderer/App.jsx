@@ -20,6 +20,7 @@ import TaskPreviewModal from './components/TaskPreviewModal';
 import ContextBox from './components/ContextBox';
 import CompactMode from './components/CompactMode';
 import TaskInput from './components/TaskInput';
+import FocusHeroCard from './components/FocusHeroCard';
 import HistoryModal from './components/HistoryModal';
 import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
@@ -4136,6 +4137,76 @@ export default function App() {
   const activeTaskLabel = task.trim()
     ? task
     : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
+  const fullScreenTaskState = isRunning ? 'running' : (isTimerVisible ? 'paused' : 'draft');
+  const fullScreenTaskEyebrow = fullScreenTaskState === 'paused'
+    ? 'Paused session'
+    : 'Set your next focus';
+  const fullScreenTaskHelper = fullScreenTaskState === 'paused'
+    ? 'Adjust the task if needed, then press play to continue.'
+    : (isStartModalOpen
+      ? 'Choose Freeflow or set a timer to begin.'
+      : '');
+  const fullScreenTimerControls = (
+    <>
+      {!isRunning ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={handlePlay}
+              disabled={!task.trim()}
+              variant="outline"
+              className="focus-control-btn focus-control-btn--primary timer-run-btn"
+              aria-label="Resume Timer"
+            >
+              <Play style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>Resume Timer</p></TooltipContent>
+        </Tooltip>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={handlePause}
+              variant="outline"
+              className="focus-control-btn focus-control-btn--soft timer-run-btn"
+              aria-label="Pause Timer"
+            >
+              <Pause style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>Pause Timer</p></TooltipContent>
+        </Tooltip>
+      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={handleStop}
+            disabled={!task.trim()}
+            variant="outline"
+            className="focus-control-btn focus-control-btn--outline"
+            aria-label="Stop and Save Session"
+          >
+            <Square style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>Stop & Save Session</p></TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={handleClear}
+            variant="ghost"
+            className="focus-control-btn focus-control-btn--ghost"
+            aria-label="Clear Current Task and Timer"
+          >
+            <RotateCcw style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent><p>Clear Current Task & Timer</p></TooltipContent>
+      </Tooltip>
+    </>
+  );
 
   // Compact mode render
   if (isCompact) {
@@ -4231,30 +4302,25 @@ export default function App() {
 
   // Full view render
   return (
-    <div className={`app-container${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}${compactTransitioning ? ' app-container--transitioning' : ''}`}>
-      <div ref={mainCardRef} className="main-card electron-draggable">
+    <div className={`app-container app-container--full app-container--focus-${fullScreenTaskState}${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}${compactTransitioning ? ' app-container--transitioning' : ''}`}>
+      <div ref={mainCardRef} className={`main-card electron-draggable${fullScreenTaskState === 'running' ? ' main-card--running' : ''}`}>
         {/* Header */}
-        <div className="electron-draggable" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+        <div className={`full-header electron-draggable${fullScreenTaskState === 'running' ? ' full-header--running' : ''}`}>
+          <div className="full-header__brand">
             <img
               src={theme === 'light' ? appLockupLight : appLockupDark}
               alt="Focana"
-              style={{
-                height: 36,
-                objectFit: 'contain',
-                objectPosition: 'left center',
-                display: 'block',
-              }}
+              className="full-header__brand-lockup"
             />
           </div>
-          <div className="electron-no-drag" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+          <div className="electron-no-drag full-header__nav">
             {enabledMainControls.history && pinnedControls.history && (
               <Button
                 aria-label="Open Session History"
                 onClick={() => setShowHistoryModal(true)}
+                className="full-header__nav-btn"
                 variant="ghost"
                 tabIndex={2}
-                style={{ height: '1.75rem', padding: '0 0.625rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500 }}
               >
                 History
               </Button>
@@ -4263,16 +4329,16 @@ export default function App() {
               <Button
                 aria-label="Open Parking Lot"
                 onClick={() => setDistractionJarOpen(true)}
+                className="full-header__nav-btn"
                 variant="ghost"
                 tabIndex={3}
-                style={{ height: '1.75rem', padding: '0 0.625rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500, position: 'relative' }}
               >
                 Parking Lot
                 {thoughts.length > 0 && <span className="badge" style={{ marginLeft: '0.25rem' }}>{thoughts.length}</span>}
               </Button>
             )}
           </div>
-          <div className="electron-no-drag top-toolbar" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <div className="electron-no-drag top-toolbar full-header__toolbar">
             {enabledMainControls.dnd && pinnedControls.dnd && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -4281,13 +4347,7 @@ export default function App() {
                     onClick={() => setDoNotDisturb(!dndEnabled, 'toolbar')}
                     size="icon"
                     variant="ghost"
-                    style={{
-                      height: '2rem',
-                      width: '2rem',
-                      color: dndEnabled ? 'var(--brand-action)' : 'var(--text-secondary)',
-                      background: dndEnabled ? 'color-mix(in srgb, var(--brand-primary) 14%, transparent)' : 'transparent',
-                      border: dndEnabled ? '1px solid color-mix(in srgb, var(--brand-primary) 60%, transparent)' : '1px solid transparent',
-                    }}
+                    className={`full-header__tool-btn${dndEnabled ? ' is-active' : ''}`}
                   >
                     <BellOff style={{ width: 16, height: 16 }} />
                   </Button>
@@ -4298,7 +4358,7 @@ export default function App() {
             {enabledMainControls.theme && pinnedControls.theme && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button aria-label="Toggle Theme" onClick={handleToggleTheme} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Toggle Theme" onClick={handleToggleTheme} size="icon" variant="ghost" className="full-header__tool-btn">
                     {theme === 'dark'
                       ? <Sun style={{ width: 18, height: 18 }} />
                       : <Moon style={{ width: 18, height: 18 }} />}
@@ -4315,13 +4375,7 @@ export default function App() {
                     onClick={handleToggleAlwaysOnTop}
                     size="icon"
                     variant="ghost"
-                    style={{
-                      height: '2rem',
-                      width: '2rem',
-                      color: isAlwaysOnTop ? 'var(--brand-action)' : 'var(--text-secondary)',
-                      background: isAlwaysOnTop ? 'color-mix(in srgb, var(--brand-primary) 14%, transparent)' : 'transparent',
-                      border: isAlwaysOnTop ? '1px solid color-mix(in srgb, var(--brand-primary) 60%, transparent)' : '1px solid transparent',
-                    }}
+                    className={`full-header__tool-btn${isAlwaysOnTop ? ' is-active' : ''}`}
                   >
                     <Pin style={{ width: 16, height: 16, fill: isAlwaysOnTop ? 'currentColor' : 'none' }} />
                   </Button>
@@ -4331,7 +4385,7 @@ export default function App() {
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="Open Settings" onClick={() => setShowSettings(true)} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                <Button aria-label="Open Settings" onClick={() => setShowSettings(true)} size="icon" variant="ghost" className="full-header__tool-btn">
                   <Settings style={{ width: 20, height: 20 }} />
                 </Button>
               </TooltipTrigger>
@@ -4339,7 +4393,7 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="Enter Compact Mode" onClick={() => requestCompactEntry()} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                <Button aria-label="Enter Compact Mode" onClick={() => requestCompactEntry()} size="icon" variant="ghost" className="full-header__tool-btn">
                   <Minimize2 style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>
@@ -4348,7 +4402,7 @@ export default function App() {
             {enabledMainControls.floatingMinimize && pinnedControls.floatingMinimize && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button aria-label="Minimize to Floating" onClick={handleMinimizeToFloating} size="icon" variant="ghost" style={{ height: '2rem', width: '2rem', color: 'var(--text-secondary)' }}>
+                  <Button aria-label="Minimize to Floating" onClick={handleMinimizeToFloating} size="icon" variant="ghost" className="full-header__tool-btn">
                     <X style={{ width: 16, height: 16 }} />
                   </Button>
                 </TooltipTrigger>
@@ -4406,277 +4460,214 @@ export default function App() {
         )}
 
         {/* Content */}
-        <div className={`electron-no-drag ${getPulseClassName()}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-          <TaskInput
-            ref={taskInputRef}
-            task={task}
-            setTask={setTask}
-            isActive={isNoteFocused || isRunning}
-            isLocked={isRunning}
-            checkInPromptActive={checkInState === 'prompting' || checkInState === 'detour-choice'}
-            checkInCelebrating={checkInCelebrating}
-            checkInCelebrationType={checkInCelebrationType}
-            onFocus={() => setIsNoteFocused(true)}
-            onBlur={() => setIsNoteFocused(false)}
-            onTaskSubmit={handleTaskSubmit}
-            onLockedInteraction={handleLockedTaskInputInteraction}
-            onHeightChange={handleTaskInputHeightChange}
-          />
-
-          {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || (checkInState === 'resolved' && !showCenteredFullWindowCheckInToast)) && (
-            <div
-              style={{
-                width: '100%',
-                maxWidth: checkInState === 'prompting' ? 480 : (checkInState === 'detour-choice' || checkInState === 'detour-resolved' ? 480 : 460),
-                marginTop: '0.5rem',
-                border: `1px solid ${checkInState === 'prompting' || checkInState === 'detour-choice' ? '#D97706' : 'var(--border-subtle)'}`,
-                borderRadius: checkInState === 'prompting' ? '0.75rem' : '0.5rem',
-                padding: checkInState === 'prompting' ? '0.85rem 0.875rem' : '0.5rem 0.625rem',
-                display: 'flex',
-                flexDirection: checkInState === 'prompting' ? 'column' : 'row',
-                alignItems: checkInState === 'prompting' ? 'stretch' : 'center',
-                justifyContent: 'space-between',
-                gap: checkInState === 'prompting' ? '0.75rem' : '0.5rem',
-                background: checkInState === 'prompting' ? 'var(--bg-surface)' : 'var(--bg-card)',
-                boxShadow: checkInState === 'prompting' ? '0 12px 28px rgba(46, 31, 24, 0.16)' : 'none',
-                transition: 'all 0.25s ease',
-                opacity: 1,
-              }}
-            >
-              {checkInState === 'prompting' && (
-                <>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>
-                      Still focused on
-                    </div>
-                    <div style={{ marginTop: '0.2rem', fontSize: '1rem', fontWeight: 800, color: '#B45309', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
-                      {activeTaskLabel.trim() || 'this task'}?
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-                    <Button
-                      variant="outline"
-                      onClick={() => resolveCheckIn('focused')}
-                      style={{ minWidth: '7rem', justifyContent: 'center' }}
-                      title="Still focused"
-                    >
-                      Yes
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={openCheckInDetourChoice}
-                      style={{ minWidth: '7rem', justifyContent: 'center' }}
-                      title="Not focused"
-                    >
-                      No
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {checkInState === 'resolved' && (
-                <>
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {checkInMessage}
-                  </span>
-                </>
-              )}
-
-              {checkInState === 'detour-choice' && (
-                <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600, flexShrink: 0 }}>
-                    What happened?
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginLeft: 'auto' }}>
-                    <Button
-                      size="sm"
-                      onClick={handleCheckInFinished}
-                      style={{ height: '1.9rem', borderRadius: '9999px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                      title="Finished"
-                    >
-                      <Check style={{ width: 13, height: 13 }} />
-                      Finished
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCheckInDetour}
-                      style={{ height: '1.9rem', borderRadius: '9999px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                      title="Took a detour"
-                    >
-                      <Undo2 style={{ width: 13, height: 13 }} />
-                      Took a detour
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {checkInState === 'detour-resolved' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {checkInMessage}
-                  </span>
-                  <Button
-                    size="sm"
-                    onClick={handleCheckInParkIt}
-                    style={{ height: '1.85rem', borderRadius: '9999px', flexShrink: 0 }}
-                    title="Open Parking Lot"
-                  >
-                    Jot it down
-                  </Button>
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                    and refocus.
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={handleCheckInDetourDismiss}
-                    style={{ width: '1.85rem', height: '1.85rem', borderRadius: '9999px', flexShrink: 0 }}
-                    title="Dismiss"
-                  >
-                    <X style={{ width: 12, height: 12 }} />
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isStartModalOpen && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              width: '100%',
-              marginTop: '0.625rem',
-              padding: '0.5rem 0.625rem',
-              background: 'var(--bg-card)',
-              borderRadius: '0.625rem',
-              border: '1px solid var(--border-strong)',
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.3rem 0.45rem',
-                border: '1px solid var(--brand-primary)',
-                borderRadius: '0.5rem',
-                background: 'var(--bg-surface)',
-                flexShrink: 0,
-              }}>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Set timer</span>
-                <input
-                  type="number"
-                  value={sessionMinutes}
-                  onChange={(e) => setSessionMinutes(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter') return;
-                    const validatedMinutes = getValidatedSessionMinutes();
-                    if (validatedMinutes === null) return;
-                    handleStartSession('timed', validatedMinutes);
-                  }}
-                  min="1"
-                  max="240"
-                  step="1"
-                  className="input"
-                  ref={sessionMinutesInputRef}
-                  style={{ width: '4ch', minWidth: '4rem', textAlign: 'center', height: '2rem', fontSize: '0.8125rem', padding: '0 0.35rem', flexShrink: 0 }}
+        <div className={`electron-no-drag full-view-content full-view-content--${fullScreenTaskState} ${getPulseClassName()}`}>
+          <div className={`focus-stage focus-stage--${fullScreenTaskState}`}>
+            <div className="focus-stage__surface">
+              {fullScreenTaskState === 'running' ? (
+                <FocusHeroCard
+                  task={activeTaskLabel}
+                  timerText={formatTime(time)}
+                  controls={fullScreenTimerControls}
+                  onLockedInteraction={handleLockedTaskInputInteraction}
                 />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', flexShrink: 0 }}>min</span>
-              </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, marginLeft: '0.75rem', marginRight: '0.25rem' }}>or</span>
-              <Button
-                onClick={() => handleStartSession('freeflow', 0)}
-                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)', fontSize: '0.8125rem', height: '2rem', padding: '0 0.75rem', flexShrink: 0, borderRadius: '0.375rem' }}
-              >
-                Freeflow
-              </Button>
-              <div style={{ flex: 1 }} />
-              <button
-                onClick={() => setIsStartModalOpen(false)}
-                tabIndex={-1}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.25rem', display: 'flex', alignItems: 'center', flexShrink: 0, borderRadius: '0.25rem' }}
-                aria-label="Cancel"
-              >
-                <X style={{ width: 14, height: 14 }} />
-              </button>
-            </div>
-          )}
+              ) : (
+                <TaskInput
+                  ref={taskInputRef}
+                  task={task}
+                  setTask={setTask}
+                  isActive={isNoteFocused || isStartModalOpen || fullScreenTaskState === 'paused'}
+                  visualState={fullScreenTaskState}
+                  eyebrowText={fullScreenTaskEyebrow}
+                  helperText={fullScreenTaskHelper}
+                  checkInPromptActive={checkInState === 'prompting' || checkInState === 'detour-choice'}
+                  checkInCelebrating={checkInCelebrating}
+                  checkInCelebrationType={checkInCelebrationType}
+                  onFocus={() => setIsNoteFocused(true)}
+                  onBlur={() => setIsNoteFocused(false)}
+                  onTaskSubmit={handleTaskSubmit}
+                  onLockedInteraction={handleLockedTaskInputInteraction}
+                  onHeightChange={handleTaskInputHeightChange}
+                />
+              )}
 
-          {contextNotes && (
-            <ContextBox
-              notes={contextNotes}
-              onUpdateNotes={handleUpdateContextNotes}
-              onDismiss={() => setContextNotes('')}
-              isSessionActive={isRunning}
-            />
-          )}
-
-          {isTimerVisible && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', width: '100%', marginTop: isShortFullWindow ? '0.5rem' : '1rem' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isShortFullWindow ? '0.5rem' : '0.75rem' }}>
-                <div style={{
-                  fontSize: isShortFullWindow ? '1.7rem' : '2.15rem',
-                  fontWeight: 600,
-                  transition: 'color 0.3s',
-                  color: isRunning ? 'var(--timer-running)' : 'var(--text-secondary)',
-                  fontVariantNumeric: 'tabular-nums',
-                  lineHeight: 1,
-                  letterSpacing: '-0.03em',
-                }}>
-                  {formatTime(time)}
+              {isStartModalOpen && (
+                <div className="start-chooser">
+                  <div className="start-chooser__timer">
+                    <span className="start-chooser__label">Set timer</span>
+                    <input
+                      type="number"
+                      value={sessionMinutes}
+                      onChange={(e) => setSessionMinutes(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return;
+                        const validatedMinutes = getValidatedSessionMinutes();
+                        if (validatedMinutes === null) return;
+                        handleStartSession('timed', validatedMinutes);
+                      }}
+                      min="1"
+                      max="240"
+                      step="1"
+                      className="input start-chooser__input"
+                      ref={sessionMinutesInputRef}
+                    />
+                    <span className="start-chooser__unit">min</span>
+                  </div>
+                  <span className="start-chooser__divider">or</span>
+                  <Button
+                    onClick={() => handleStartSession('freeflow', 0)}
+                    className="start-chooser__freeflow"
+                  >
+                    Freeflow
+                  </Button>
+                  <div style={{ flex: 1 }} />
+                  <button
+                    onClick={() => setIsStartModalOpen(false)}
+                    tabIndex={-1}
+                    className="start-chooser__cancel"
+                    aria-label="Cancel"
+                  >
+                    <X style={{ width: 14, height: 14 }} />
+                  </button>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isShortFullWindow ? '0.3rem' : '0.4rem' }}>
-                  {!isRunning ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button onClick={handlePlay} disabled={!task.trim()} variant="outline" className="timer-run-btn" style={{
-                          width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                          borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
-                        }}>
-                          <Play style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Resume Timer</p></TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button onClick={handlePause} variant="outline" className="timer-run-btn" style={{
-                          width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                          borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
-                        }}>
-                          <Pause style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Pause Timer</p></TooltipContent>
-                    </Tooltip>
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button onClick={handleStop} disabled={!task.trim()} variant="outline" style={{
-                        width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                        borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', padding: 0,
-                      }} aria-label="Stop and Save Session">
-                        <Square style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
+              )}
+            </div>
+
+            {(checkInState === 'prompting' || checkInState === 'detour-choice' || checkInState === 'detour-resolved' || (checkInState === 'resolved' && !showCenteredFullWindowCheckInToast)) && (
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: checkInState === 'prompting' ? 480 : (checkInState === 'detour-choice' || checkInState === 'detour-resolved' ? 480 : 460),
+                  marginTop: '0.5rem',
+                  border: `1px solid ${checkInState === 'prompting' || checkInState === 'detour-choice' ? '#D97706' : 'var(--border-subtle)'}`,
+                  borderRadius: checkInState === 'prompting' ? '0.75rem' : '0.5rem',
+                  padding: checkInState === 'prompting' ? '0.85rem 0.875rem' : '0.5rem 0.625rem',
+                  display: 'flex',
+                  flexDirection: checkInState === 'prompting' ? 'column' : 'row',
+                  alignItems: checkInState === 'prompting' ? 'stretch' : 'center',
+                  justifyContent: 'space-between',
+                  gap: checkInState === 'prompting' ? '0.75rem' : '0.5rem',
+                  background: checkInState === 'prompting' ? 'var(--bg-surface)' : 'var(--bg-card)',
+                  boxShadow: checkInState === 'prompting' ? '0 12px 28px rgba(46, 31, 24, 0.16)' : 'none',
+                  transition: 'all 0.25s ease',
+                  opacity: 1,
+                }}
+              >
+                {checkInState === 'prompting' && (
+                  <>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                        Still focused on
+                      </div>
+                      <div style={{ marginTop: '0.2rem', fontSize: '1rem', fontWeight: 800, color: '#B45309', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+                        {activeTaskLabel.trim() || 'this task'}?
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                      <Button
+                        variant="outline"
+                        onClick={() => resolveCheckIn('focused')}
+                        style={{ minWidth: '7rem', justifyContent: 'center' }}
+                        title="Still focused"
+                      >
+                        Yes
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Stop & Save Session</p></TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button onClick={handleClear} size="icon" variant="ghost" style={{
-                        width: isShortFullWindow ? '2.15rem' : '2.6rem', height: isShortFullWindow ? '2.15rem' : '2.6rem', borderRadius: '9999px',
-                        color: 'var(--text-secondary)', padding: 0,
-                      }}>
-                        <RotateCcw style={{ width: isShortFullWindow ? 17 : 21, height: isShortFullWindow ? 17 : 21 }} />
+                      <Button
+                        variant="outline"
+                        onClick={openCheckInDetourChoice}
+                        style={{ minWidth: '7rem', justifyContent: 'center' }}
+                        title="Not focused"
+                      >
+                        No
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Clear Current Task & Timer</p></TooltipContent>
-                  </Tooltip>
+                    </div>
+                  </>
+                )}
+
+                {checkInState === 'resolved' && (
+                  <>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                      {checkInMessage}
+                    </span>
+                  </>
+                )}
+
+                {checkInState === 'detour-choice' && (
+                  <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600, flexShrink: 0 }}>
+                      What happened?
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginLeft: 'auto' }}>
+                      <Button
+                        size="sm"
+                        onClick={handleCheckInFinished}
+                        style={{ height: '1.9rem', borderRadius: '9999px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        title="Finished"
+                      >
+                        <Check style={{ width: 13, height: 13 }} />
+                        Finished
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCheckInDetour}
+                        style={{ height: '1.9rem', borderRadius: '9999px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        title="Took a detour"
+                      >
+                        <Undo2 style={{ width: 13, height: 13 }} />
+                        Took a detour
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {checkInState === 'detour-resolved' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                      {checkInMessage}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={handleCheckInParkIt}
+                      style={{ height: '1.85rem', borderRadius: '9999px', flexShrink: 0 }}
+                      title="Open Parking Lot"
+                    >
+                      Jot it down
+                    </Button>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                      and refocus.
+                    </span>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={handleCheckInDetourDismiss}
+                      style={{ width: '1.85rem', height: '1.85rem', borderRadius: '9999px', flexShrink: 0 }}
+                      title="Dismiss"
+                    >
+                      <X style={{ width: 12, height: 12 }} />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {contextNotes && (
+              <ContextBox
+                notes={contextNotes}
+                onUpdateNotes={handleUpdateContextNotes}
+                onDismiss={() => setContextNotes('')}
+                isSessionActive={isRunning}
+              />
+            )}
+
+            {isTimerVisible && fullScreenTaskState !== 'running' && (
+              <div className={`focus-timer-panel focus-timer-panel--${fullScreenTaskState}${isShortFullWindow ? ' focus-timer-panel--compact' : ''}`}>
+                <div className="focus-timer-panel__body">
+                  <div className="focus-timer-panel__clock">{formatTime(time)}</div>
+                  <div className="focus-timer-panel__controls">{fullScreenTimerControls}</div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

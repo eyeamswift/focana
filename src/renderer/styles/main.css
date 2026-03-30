@@ -19,9 +19,19 @@
   --bg-surface: #FFF9E6;
   --bg-card: #FFF9E6;
   --bg-input: #FFF9E6;
-  --compact-pill: #FFF9E6;
-  --compact-text: #2E1F18;
-  --compact-task-cloud: rgba(46, 31, 24, 0.055);
+  --compact-pill: #FFF4DD;
+  --compact-text: #3A281F;
+  --compact-task-cloud: rgba(255, 249, 230, 0.08);
+  --compact-surface-bg:
+    radial-gradient(125% 145% at 6% 8%, rgba(185, 78, 16, 0.14) 0%, rgba(185, 78, 16, 0) 40%),
+    linear-gradient(155deg, rgba(255, 248, 231, 0.98) 0%, rgba(255, 239, 212, 0.98) 100%);
+  --compact-surface-border: rgba(185, 78, 16, 0.22);
+  --compact-surface-shadow: 0 18px 34px rgba(96, 62, 35, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.74);
+  --compact-ornament-border: rgba(74, 51, 41, 0.16);
+  --compact-ghost-bg: rgba(74, 51, 41, 0.04);
+  --compact-ghost-bg-hover: rgba(74, 51, 41, 0.08);
+  --compact-dnd-bg: rgba(185, 78, 16, 0.1);
+  --compact-dnd-fg: rgba(74, 51, 41, 0.72);
   --compact-pulse-direct-wave: none;
   --compact-pulse-radial: radial-gradient(130% 130% at 18% 50%, rgba(46, 31, 24, 0) 0%, rgba(46, 31, 24, 0.22) 24%, rgba(46, 31, 24, 0.54) 46%, rgba(46, 31, 24, 0) 72%);
   --compact-pulse-linear: linear-gradient(90deg, rgba(46, 31, 24, 0) 0%, rgba(74, 51, 41, 0.28) 34%, rgba(46, 31, 24, 0.58) 48%, rgba(185, 78, 16, 0.78) 52%, rgba(74, 51, 41, 0.28) 66%, rgba(46, 31, 24, 0) 100%);
@@ -85,6 +95,17 @@
   --tooltip-border: rgba(255, 249, 230, 0.22);
 
   --font-family: Inter, -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --focus-running-shell-bg:
+    radial-gradient(120% 120% at 50% -10%, color-mix(in srgb, var(--brand-primary) 16%, transparent) 0%, transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-window) 94%, transparent) 0%, color-mix(in srgb, var(--bg-card) 92%, transparent) 100%);
+  --focus-hero-bg:
+    radial-gradient(120% 135% at 18% 0%, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0) 45%),
+    linear-gradient(155deg, rgba(46, 31, 24, 0.96) 0%, rgba(74, 51, 41, 0.94) 100%);
+  --focus-hero-border: rgba(255, 232, 188, 0.22);
+  --focus-hero-shadow: 0 28px 58px rgba(46, 31, 24, 0.28), inset 0 1px 0 rgba(255, 249, 230, 0.08);
+  --focus-hero-shadow-hover: 0 32px 64px rgba(46, 31, 24, 0.32), inset 0 1px 0 rgba(255, 249, 230, 0.1);
+  --focus-hero-divider: rgba(255, 249, 230, 0.12);
+  --focus-running-chrome-opacity: 0.72;
 }
 
 :root[data-theme='dark'] {
@@ -95,6 +116,16 @@
   --compact-pill: #4A3329;
   --compact-text: #FFF9E6;
   --compact-task-cloud: rgba(255, 249, 230, 0.08);
+  --compact-surface-bg:
+    radial-gradient(125% 145% at 6% 8%, rgba(185, 78, 16, 0.28) 0%, rgba(185, 78, 16, 0) 38%),
+    linear-gradient(155deg, rgba(74, 51, 41, 0.98) 0%, rgba(58, 40, 32, 0.98) 100%);
+  --compact-surface-border: rgba(255, 230, 191, 0.12);
+  --compact-surface-shadow: 0 18px 34px rgba(46, 31, 24, 0.26), inset 0 1px 0 rgba(255, 249, 230, 0.08);
+  --compact-ornament-border: rgba(255, 230, 191, 0.16);
+  --compact-ghost-bg: rgba(255, 249, 230, 0.04);
+  --compact-ghost-bg-hover: rgba(255, 249, 230, 0.1);
+  --compact-dnd-bg: rgba(255, 249, 230, 0.09);
+  --compact-dnd-fg: rgba(255, 249, 230, 0.76);
   --compact-pulse-direct-wave: none;
   --compact-pulse-radial: radial-gradient(130% 130% at 18% 50%, rgba(255, 225, 145, 0) 0%, rgba(255, 225, 145, 0.08) 24%, rgba(255, 225, 145, 0.28) 46%, rgba(255, 225, 145, 0) 72%);
   --compact-pulse-linear: linear-gradient(90deg, rgba(255, 196, 88, 0) 0%, rgba(255, 214, 138, 0.14) 34%, rgba(255, 242, 201, 0.34) 48%, rgba(255, 249, 224, 0.42) 52%, rgba(255, 214, 138, 0.14) 66%, rgba(255, 196, 88, 0) 100%);
@@ -151,6 +182,24 @@
   --tooltip-bg: #FFF9E6;
   --tooltip-fg: #2E1F18;
   --tooltip-border: rgba(46, 31, 24, 0.22);
+  --focus-running-shell-bg:
+    radial-gradient(140% 128% at 50% -14%, rgba(185, 78, 16, 0.16) 0%, rgba(185, 78, 16, 0) 44%),
+    radial-gradient(96% 112% at 50% 118%, rgba(74, 51, 41, 0.28) 0%, rgba(74, 51, 41, 0) 62%),
+    linear-gradient(180deg, #140d0a 0%, #1a110d 34%, #100a08 100%);
+  --focus-hero-bg:
+    radial-gradient(120% 135% at 18% 0%, rgba(185, 78, 16, 0.2) 0%, rgba(185, 78, 16, 0) 42%),
+    linear-gradient(155deg, rgba(64, 43, 34, 0.98) 0%, rgba(92, 66, 54, 0.96) 100%);
+  --focus-hero-border: rgba(255, 221, 170, 0.26);
+  --focus-hero-shadow:
+    0 34px 82px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 249, 230, 0.12),
+    0 0 0 1px rgba(185, 78, 16, 0.18);
+  --focus-hero-shadow-hover:
+    0 40px 94px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(255, 249, 230, 0.14),
+    0 0 0 1px rgba(185, 78, 16, 0.26);
+  --focus-hero-divider: rgba(255, 236, 201, 0.12);
+  --focus-running-chrome-opacity: 0.62;
 }
 
 html, body {
@@ -419,21 +468,485 @@ html[data-window-mode='pill'] #root {
 }
 
 /* Timer play/pause should visually match stop by default, with stronger pressed contrast. */
-.timer-run-btn {
+.timer-run-btn:not(.focus-control-btn) {
   background: transparent !important;
   color: var(--text-secondary) !important;
 }
 
-.timer-run-btn:hover:not(:disabled) {
+.timer-run-btn:not(.focus-control-btn):hover:not(:disabled) {
   background: var(--bg-card) !important;
   color: var(--text-primary) !important;
 }
 
-.timer-run-btn:active:not(:disabled) {
+.timer-run-btn:not(.focus-control-btn):active:not(:disabled) {
   background: var(--brand-primary) !important;
   color: var(--text-on-brand) !important;
   border-color: var(--brand-primary) !important;
   transform: scale(0.98);
+}
+
+.full-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.full-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.full-header__brand-lockup {
+  height: 36px;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+}
+
+.full-header__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.full-header__nav-btn {
+  height: 1.85rem;
+  padding: 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.full-header__toolbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.full-header__tool-btn {
+  height: 2rem;
+  width: 2rem;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+
+.full-header__tool-btn.is-active {
+  color: var(--brand-action);
+  background: color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--brand-primary) 60%, transparent);
+}
+
+.main-card--running .full-header__nav-btn,
+.main-card--running .full-header__tool-btn {
+  opacity: var(--focus-running-chrome-opacity);
+}
+
+.main-card--running .full-header__nav-btn:hover,
+.main-card--running .full-header__nav-btn:focus-visible,
+.main-card--running .full-header__tool-btn:hover,
+.main-card--running .full-header__tool-btn:focus-visible,
+.main-card--running .full-header__tool-btn.is-active {
+  opacity: 1;
+}
+
+.full-view-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.focus-stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.focus-stage__surface {
+  width: min(100%, 980px);
+}
+
+.task-composer {
+  width: 100%;
+  padding: 0.95rem 1rem 1rem;
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 90%, transparent);
+  background:
+    radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--brand-primary) 10%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 84%, var(--neutral-cream)) 0%, color-mix(in srgb, var(--bg-card) 96%, transparent) 100%);
+  box-shadow: 0 18px 42px rgba(46, 31, 24, 0.12);
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.task-composer--draft {
+  padding-top: 1rem;
+}
+
+.task-composer--paused {
+  border-color: color-mix(in srgb, var(--brand-primary) 44%, var(--border-strong));
+  background:
+    radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--brand-primary) 14%, transparent) 0%, transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 78%, var(--neutral-cream)) 0%, color-mix(in srgb, var(--bg-card) 92%, transparent) 100%);
+  box-shadow: 0 20px 44px rgba(46, 31, 24, 0.14);
+}
+
+.task-composer--active {
+  transform: translateY(-1px);
+}
+
+.task-composer--prompting {
+  border-color: #D97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.24), 0 18px 42px rgba(46, 31, 24, 0.12);
+}
+
+.task-composer--celebrating {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.38), 0 20px 48px rgba(46, 31, 24, 0.14);
+}
+
+.task-composer--celebrating-completed {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.58), 0 22px 56px rgba(245, 158, 11, 0.24);
+}
+
+.task-composer__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.task-composer__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--brand-action);
+}
+
+.task-composer__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 58%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  color: var(--brand-action);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.task-composer__field {
+  position: relative;
+}
+
+.task-composer__textarea {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 3.75rem 0 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 1.125rem;
+  font-weight: 550;
+  line-height: 1.32;
+  letter-spacing: -0.015em;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-composer--paused .task-composer__textarea {
+  font-size: clamp(1.18rem, 2.2vw, 1.6rem);
+  font-weight: 650;
+  line-height: 1.24;
+  letter-spacing: -0.025em;
+}
+
+.task-composer__textarea:focus {
+  outline: none;
+}
+
+.task-composer__textarea::placeholder {
+  color: var(--text-placeholder);
+}
+
+.task-composer__helper {
+  margin-top: 0.85rem;
+  max-width: 42rem;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.task-composer__submit-wrap {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.task-composer__submit {
+  width: 2.45rem;
+  height: 2.45rem;
+  padding: 0;
+  border-radius: 0.85rem;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  box-shadow: 0 12px 24px rgba(185, 78, 16, 0.22);
+}
+
+.task-composer__submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.focus-hero {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.2rem 1.2rem 1.15rem;
+  border-radius: 1.6rem;
+  border: 1px solid var(--focus-hero-border);
+  background: var(--focus-hero-bg);
+  box-shadow: var(--focus-hero-shadow);
+  text-align: left;
+  animation: focus-hero-enter 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.focus-hero:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--focus-hero-shadow-hover);
+}
+
+.focus-hero__lock-surface {
+  appearance: none;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.focus-hero__lock-surface:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.focus-hero__eyebrow {
+  margin-bottom: 0.55rem;
+  color: rgba(255, 249, 230, 0.72);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.focus-hero__task {
+  color: var(--neutral-cream);
+  font-size: clamp(1.55rem, 3.25vw, 2.55rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.042em;
+  overflow-wrap: anywhere;
+}
+
+.focus-hero__timer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 1rem;
+  border-top: 1px solid var(--focus-hero-divider);
+}
+
+.focus-hero__clock {
+  color: var(--neutral-cream);
+  font-size: clamp(1.8rem, 3.4vw, 2.35rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.focus-hero__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+
+.start-chooser {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 96%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 92%, transparent) 100%);
+  box-shadow: 0 14px 26px rgba(46, 31, 24, 0.08);
+}
+
+.start-chooser__timer {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.52rem;
+  border-radius: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 40%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
+}
+
+.start-chooser__label,
+.start-chooser__divider,
+.start-chooser__unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.start-chooser__input {
+  width: 4rem;
+  min-width: 4rem;
+  height: 2rem;
+  text-align: center;
+  padding: 0 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.start-chooser__freeflow {
+  height: 2rem;
+  padding: 0 0.85rem;
+  border-radius: 0.7rem;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  font-size: 0.8125rem;
+}
+
+.start-chooser__cancel {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 0.4rem;
+}
+
+.start-chooser__cancel:hover {
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+  color: var(--text-primary);
+}
+
+.focus-timer-panel {
+  width: min(100%, 720px);
+  padding: 1rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 96%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 92%, transparent) 100%);
+  box-shadow: 0 18px 34px rgba(46, 31, 24, 0.1);
+}
+
+.focus-timer-panel--running {
+  border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-strong));
+  box-shadow: 0 18px 42px rgba(46, 31, 24, 0.14);
+}
+
+.focus-timer-panel--paused {
+  border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-strong));
+}
+
+.focus-timer-panel--compact {
+  width: min(100%, 640px);
+}
+
+.focus-timer-panel__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.focus-timer-panel__clock {
+  font-size: clamp(2.2rem, 5vw, 3.1rem);
+  font-weight: 700;
+  color: var(--timer-running);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.focus-timer-panel__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+
+.focus-control-btn {
+  width: 2.65rem;
+  height: 2.65rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 90%, transparent);
+  color: var(--text-secondary);
+}
+
+.focus-control-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: var(--text-primary);
+}
+
+.focus-control-btn--primary {
+  background: var(--brand-primary) !important;
+  border-color: transparent !important;
+  color: var(--text-on-brand) !important;
+  box-shadow: 0 14px 28px rgba(185, 78, 16, 0.22);
+}
+
+.focus-control-btn--soft {
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--brand-primary) 40%, transparent) !important;
+  color: var(--brand-action) !important;
+}
+
+.focus-control-btn--outline {
+  background: transparent !important;
+}
+
+.focus-control-btn--ghost {
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent) !important;
+  border-color: transparent !important;
+}
+
+@keyframes focus-hero-enter {
+  from {
+    opacity: 0.7;
+    transform: translateY(10px) scale(0.986);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .btn-icon {
@@ -826,10 +1339,10 @@ html[data-window-mode='pill'] #root {
   align-items: center;
   height: 44px;
   padding: 0 16px;
-  background: var(--compact-pill);
-  border-radius: 0;
-  box-shadow: var(--shadow-minimal);
-  border: var(--window-frame-width) solid var(--window-frame-color);
+  background: var(--compact-surface-bg);
+  border-radius: 20px;
+  box-shadow: var(--compact-surface-shadow);
+  border: 2px solid var(--compact-surface-border);
   cursor: default;
   user-select: none;
   -webkit-app-region: no-drag;
@@ -891,8 +1404,9 @@ html[data-window-mode='pill'] #root {
 .pill-content {
   position: relative;
   z-index: 2;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
   min-width: 0;
   height: 100%;
   background: transparent;
@@ -929,6 +1443,7 @@ html[data-window-mode='pill'] #root {
 
 /* Task text — slides/fades in on hover */
 .pill-task {
+  flex: 1 1 auto;
   max-width: 0;
   margin-right: 0;
   opacity: 0;
@@ -943,16 +1458,18 @@ html[data-window-mode='pill'] #root {
 
 .pill-task-text {
   display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--compact-text);
-  padding: 3px 8px;
+  padding: 0;
   border-radius: 0;
-  background: var(--compact-task-cloud);
+  background: transparent;
   white-space: normal;
   overflow-wrap: normal;
   word-break: normal;
-  line-height: 1.15;
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .pill-task-measure {
@@ -969,6 +1486,8 @@ html[data-window-mode='pill'] #root {
   top: -9999px;
   width: max-content;
   max-width: none;
+  padding: 0;
+  background: transparent;
 }
 
 .pill-task-text--measure-block {
@@ -977,62 +1496,101 @@ html[data-window-mode='pill'] #root {
   top: -9999px;
   max-width: none;
   width: 120px;
+  padding: 0;
+  background: transparent;
 }
 
-/* Brain icon + timer */
-.pill-core {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.pill-dock {
+  position: relative;
+  width: var(--compact-dock-width, 106px);
+  min-width: var(--compact-dock-width, 106px);
+  height: 36px;
   flex-shrink: 0;
 }
 
-.pill.pill--logo .pill-core {
-  gap: 0;
+.pill-resting,
+.pill-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.pill-resting {
+  gap: 0.35rem;
+  visibility: visible;
+}
+
+.pill-resting--hidden {
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .pill-timer {
-  font-size: 0.8125rem;
+  font-size: 1rem;
   font-family: ui-monospace, monospace;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   transition: color 0.2s;
+  letter-spacing: -0.03em;
+}
+
+.pill-dnd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--compact-dnd-bg);
+  color: var(--compact-dnd-fg);
+  flex-shrink: 0;
 }
 
 .pill-help {
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
   flex-shrink: 0;
 }
 
 .pill-help-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--compact-ornament-border);
+  border-radius: 999px;
   background: transparent;
   color: var(--compact-text);
-  opacity: 0.95;
+  opacity: 0.9;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  cursor: default;
+  cursor: help;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.pill-help-btn:hover {
+  background: var(--compact-ghost-bg);
+  border-color: color-mix(in srgb, var(--compact-ornament-border) 130%, transparent);
+  opacity: 1;
 }
 
 .pill-help-hint {
   position: absolute;
-  left: 8px;
-  right: 8px;
+  left: 12px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   background: var(--tooltip-bg);
   color: var(--tooltip-fg);
   border: 1px solid var(--tooltip-border);
   box-shadow: var(--shadow-minimal);
-  border-radius: 0;
-  padding: 0.4rem 0.55rem;
+  border-radius: 12px;
+  padding: 0.5rem 0.65rem;
   font-size: 0.72rem;
   line-height: 1.2;
   text-align: left;
@@ -1044,7 +1602,7 @@ html[data-window-mode='pill'] #root {
 .pill-help-hint::after {
   content: '';
   position: absolute;
-  right: 16px;
+  right: 18px;
   top: -5px;
   width: 8px;
   height: 8px;
@@ -1057,24 +1615,26 @@ html[data-window-mode='pill'] #root {
 
 /* Controls — slide/fade in on click */
 .pill-controls {
-  max-width: 0;
   opacity: 0;
-  overflow: hidden;
-  transition: max-width 0.2s ease, opacity 0.2s ease;
+  transform: translateY(4px);
+  pointer-events: none;
+  visibility: hidden;
   -webkit-app-region: no-drag;
 }
 
 .pill-controls--visible {
-  max-width: 110px;
   opacity: 1;
-  overflow: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .pill-controls-inner {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding-left: 8px;
+  justify-content: flex-end;
+  gap: 0.28rem;
+  width: 100%;
   overflow: visible;
 }
 
@@ -1085,20 +1645,22 @@ html[data-window-mode='pill'] #root {
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 0;
-  border: none;
-  background: transparent;
+  border-radius: 999px;
+  border: 1px solid var(--compact-ornament-border);
+  background: var(--compact-ghost-bg);
   cursor: pointer;
   color: var(--compact-text);
   padding: 0;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
   -webkit-app-region: no-drag;
 }
 
 .pill-btn:hover:not(:disabled) {
-  background: var(--border-subtle);
+  background: var(--compact-ghost-bg-hover);
+  border-color: color-mix(in srgb, var(--compact-ornament-border) 130%, transparent);
   color: var(--compact-text);
+  transform: translateY(-1px);
 }
 
 .pill-btn:disabled {
@@ -1119,7 +1681,7 @@ html[data-window-mode='pill'] #root {
   color: var(--text-on-brand);
   font-size: 0.625rem;
   font-weight: 600;
-  border-radius: 0;
+  border-radius: 999px;
   min-width: 14px;
   height: 14px;
   display: flex;
@@ -2205,6 +2767,16 @@ html[data-window-mode='pill'] #root {
   border-radius: var(--window-frame-radius);
 }
 
+.app-container--full {
+  background:
+    radial-gradient(120% 120% at 50% -10%, color-mix(in srgb, var(--brand-primary) 11%, transparent) 0%, transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-window) 96%, transparent) 0%, color-mix(in srgb, var(--bg-card) 94%, transparent) 100%);
+}
+
+.app-container--focus-running {
+  background: var(--focus-running-shell-bg);
+}
+
 .app-container--suppress-tooltips .tooltip-content {
   opacity: 0 !important;
 }
@@ -2259,6 +2831,10 @@ html[data-window-mode='pill'] #root {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.main-card--running {
+  padding-top: 1.15rem;
 }
 
 .main-card > * + * {

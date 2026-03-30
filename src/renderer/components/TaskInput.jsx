@@ -8,6 +8,9 @@ const TaskInput = forwardRef(({
   task,
   setTask,
   isActive,
+  visualState = 'draft',
+  eyebrowText = '',
+  helperText = '',
   isLocked = false,
   checkInPromptActive = false,
   checkInCelebrating = false,
@@ -21,6 +24,7 @@ const TaskInput = forwardRef(({
   const textareaRef = useRef(null);
   const wasPastedRef = useRef(false);
   const showSubmitButton = task.trim() && !isActive;
+  const hasText = task.trim().length > 0;
   const MIN_INPUT_HEIGHT = 48;
   const MAX_INPUT_HEIGHT = 120;
 
@@ -92,81 +96,67 @@ const TaskInput = forwardRef(({
     }
   };
 
+  const wrapperClasses = [
+    'task-composer',
+    `task-composer--${visualState}`,
+    hasText ? 'task-composer--has-text' : '',
+    isActive ? 'task-composer--active' : '',
+    checkInPromptActive ? 'task-composer--prompting' : '',
+    checkInCelebrating ? `task-composer--celebrating task-composer--celebrating-${checkInCelebrationType}` : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: 460 }}>
-      <textarea
-        ref={(node) => {
-          textareaRef.current = node;
-          if (typeof ref === 'function') ref(node);
-          else if (ref) ref.current = node;
-        }}
-        value={task}
-        onChange={(e) => {
-          if (isLocked) return;
-          setTask(e.target.value);
-        }}
-        onMouseDown={handleMouseDown}
-        onFocus={handleFocus}
-        onBlur={onBlur}
-        onPaste={handlePaste}
-        onKeyDown={handleKeyDown}
-        placeholder="Type your task here and hit Enter/Return"
-        maxLength={120}
-        readOnly={isLocked}
-        tabIndex={1}
-        rows={1}
-        style={{
-          width: '100%',
-          textAlign: 'left',
-          fontSize: task.trim() ? '1.375rem' : '1.0625rem',
-          fontWeight: task.trim() ? 600 : 500,
-          padding: showSubmitButton ? '0.8rem 3.5rem 0.8rem 1rem' : '0.8rem 1rem',
-          minHeight: '3rem',
-          borderWidth: 2,
-          borderStyle: 'solid',
-          borderRadius: '0.625rem',
-          borderColor: checkInPromptActive ? '#D97706' : (isActive ? 'var(--brand-action)' : 'var(--border-strong)'),
-          background: 'var(--bg-surface)',
-          fontFamily: 'Inter, system-ui, sans-serif',
-          color: 'var(--text-primary)',
-          transition: 'all 0.5s ease',
-          boxShadow: checkInCelebrating
-            ? (checkInCelebrationType === 'completed'
-              ? '0 0 0 3px rgba(245, 158, 11, 0.75), 0 0 20px rgba(245, 158, 11, 0.45)'
-              : '0 0 0 2px rgba(245, 158, 11, 0.55)')
-            : (checkInPromptActive
-              ? '0 0 0 2px rgba(217, 119, 6, 0.35)'
-              : (isActive ? '0 0 0 2px var(--focus-ring)' : 'none')),
-          resize: 'none',
-          overflow: 'hidden',
-          lineHeight: 1.4,
-          whiteSpace: 'pre-wrap',
-          overflowWrap: 'anywhere',
-        }}
-      />
-      {showSubmitButton && (
-        <span style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)' }}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                onClick={() => submitTask(textareaRef.current?.value || task)}
-                aria-label="Start session"
-                style={{
-                  height: '2.25rem',
-                  width: '2.25rem',
-                  borderRadius: '0.5rem',
-                  background: 'var(--brand-primary)',
-                  color: 'var(--text-on-brand)',
-                }}
-              >
-                <CornerDownLeft style={{ width: 20, height: 20 }} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Start Session</p></TooltipContent>
-          </Tooltip>
-        </span>
+    <div className={wrapperClasses}>
+      {(eyebrowText || helperText) && (
+        <div className="task-composer__meta">
+          {eyebrowText ? <span className="task-composer__eyebrow">{eyebrowText}</span> : <span />}
+          {visualState === 'paused' ? (
+            <span className="task-composer__status">Resume ready</span>
+          ) : null}
+        </div>
       )}
+      <div className="task-composer__field">
+        <textarea
+          ref={(node) => {
+            textareaRef.current = node;
+            if (typeof ref === 'function') ref(node);
+            else if (ref) ref.current = node;
+          }}
+          className="task-composer__textarea"
+          value={task}
+          onChange={(e) => {
+            if (isLocked) return;
+            setTask(e.target.value);
+          }}
+          onMouseDown={handleMouseDown}
+          onFocus={handleFocus}
+          onBlur={onBlur}
+          onPaste={handlePaste}
+          onKeyDown={handleKeyDown}
+          placeholder="Type your task here and hit Enter/Return"
+          maxLength={120}
+          readOnly={isLocked}
+          tabIndex={1}
+          rows={1}
+        />
+        {showSubmitButton && (
+          <span className="task-composer__submit-wrap">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  className="task-composer__submit"
+                  onClick={() => submitTask(textareaRef.current?.value || task)}
+                  aria-label="Start session"
+                >
+                  <CornerDownLeft style={{ width: 20, height: 20 }} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Start Session</p></TooltipContent>
+            </Tooltip>
+          </span>
+        )}
+      </div>
+      {helperText ? <p className="task-composer__helper">{helperText}</p> : null}
     </div>
   );
 });

@@ -1177,7 +1177,7 @@ test('stopping from the floating timer restores the main window and shows the st
   }
 });
 
-test('compact controls auto-hide restore the pill width and drag anchor', async () => {
+test('compact controls reveal in-place and auto-hide without shifting the pill width or drag anchor', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1193,7 +1193,7 @@ test('compact controls auto-hide restore the pill width and drag anchor', async 
     await expect.poll(async () => {
       const nextBounds = await readMainWindowBounds(electronApp);
       return nextBounds?.width || 0;
-    }).toBeGreaterThan(baseBounds.width);
+    }).toBe(baseBounds.width);
 
     await page.waitForTimeout(3400);
 
@@ -1591,6 +1591,114 @@ test('compact mode shows the active task by default when a timed session starts'
       return bounds?.width || 0;
     }, { timeout: 7000 }).toBeGreaterThan(130);
     await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('timed compact visible task');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact mode keeps the info icon at rest and hides it when controls are open', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact help icon');
+    const helpButton = page.locator('.pill-help-btn');
+    await expect(helpButton).toBeVisible();
+    await helpButton.hover();
+    await expect(page.locator('.pill-help-hint')).toBeVisible();
+
+    await page.locator('.pill').click();
+    await expect(page.locator('.pill-controls--visible')).toBeVisible();
+    await expect(helpButton).toBeHidden();
+    await expect(page.locator('.pill-help-hint')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact mode double click exits to fullscreen without first opening controls', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact double click');
+    await page.locator('.pill').dblclick();
+    await expect.poll(() => readWindowMode(page)).toBe('full');
+    await expect(page.locator('.pill-controls--visible')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact mode allows long tasks to wrap and grow the pill height', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'Refine top of funnel strategy for beta list launch and newsletter positioning review across twitter substack ADHD engine landing page and first-run activation copy, then tighten the onboarding promise, rewrite the social proof section, draft the beta invite email, and map the follow-up conversion flow');
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.height || 0;
+    }, { timeout: 7000 }).toBeGreaterThan(72);
+    await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('Refine top of funnel strategy');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('fullscreen idle state uses the draft composer instead of the running hero card', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await expect(page.locator('.task-composer.task-composer--draft')).toBeVisible();
+    await expect(page.locator('.focus-hero')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('fullscreen running state shows the locked hero card and explains locked edits', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'hero state task');
+    await exitCompactMode(page);
+    await expect(page.locator('.focus-hero')).toBeVisible();
+    await expect(page.locator('.focus-timer-panel')).toHaveCount(0);
+    await expect(page.locator('.focus-hero__eyebrow')).toHaveText('Focusing on');
+    await expect(page.locator('.focus-hero')).toContainText('hero state task');
+    await expect(page.locator('.focus-hero__clock')).toBeVisible();
+    await page.locator('.focus-hero__lock-surface').click();
+    await expect(page.getByText('Task is locked while timer is running. Pause or stop to edit.')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('fullscreen paused state restores the editable composer and resuming restores the hero card', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'paused hero state');
+    await exitCompactMode(page);
+    await page.getByRole('button', { name: 'Pause Timer' }).click();
+    await expect(page.locator('.focus-hero')).toHaveCount(0);
+    await expect(page.locator('.task-composer.task-composer--paused')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('paused hero state');
+    await page.getByRole('button', { name: 'Resume Timer' }).click();
+    await expect(page.locator('.focus-hero')).toBeVisible();
+    await expect(page.locator('.focus-hero')).toContainText('paused hero state');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('fullscreen hero keeps timed session context after exiting compact mode', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startTimedSession(page, 'timed hero state', 5);
+    await exitCompactMode(page);
+    await expect(page.locator('.focus-hero')).toBeVisible();
+    await expect(page.locator('.focus-hero')).toContainText('timed hero state');
+    await expect(page.locator('.focus-hero__clock')).toHaveText(/^\d{1,2}:\d{2}$/);
   } finally {
     await cleanup();
   }
