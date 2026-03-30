@@ -32,5 +32,32 @@
 - Why it matters: This looked like a product bug, but the current evidence points to a dirty local environment rather than a confirmed code regression.
 - Files: `src/renderer/components/CompactMode.jsx`, `package.json`
 - Related: —
-- Notes: Task is now always visible in compact mode (`isTaskVisible = hasTaskLabel`). Settings toggle removed. Reopen only if it reproduces from a clean packaged build.
+- Notes: Task is now always visible in compact mode (`isTaskVisible = hasTaskLabel`). Settings toggle removed. A later first-render sizing regression for short tasks is tracked separately in `WIN-003`.
 - Commits: `3b30d27`, `4afcad7`
+
+### WIN-003 — Compact mode now expands to the task width on first entry
+- Status: Done
+- Version: 1.2.1
+- Why it matters: Entering compact mode should not briefly lock into the timer-only shell and hide a running task, especially for shorter task names.
+- Files: `src/renderer/components/CompactMode.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-002`
+- Notes: Initial compact sizing now uses the settled width immediately instead of the timer-only base width. Regression coverage includes a short task (`List on Betalist`), regular running entry, and timed-session entry.
+- Commits: —
+
+### SES-001 — Quitting or restarting preserves the task but reopens paused
+- Status: Done
+- Version: 1.2.1
+- Why it matters: Hidden wall-clock time after an app quit makes session history unreliable and feels surprising when the app relaunches.
+- Files: `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
+- Related: —
+- Notes: Quit and restart now freeze the running timer snapshot, preserve the active task, clear `sessionStartedAt`, and relaunch with the timer paused until the user explicitly resumes.
+- Commits: —
+
+### UX-001 — Rapid task submission no longer drops the last typed character
+- Status: Done
+- Version: 1.2.1
+- Why it matters: Hitting Enter immediately after typing should submit the exact task the user sees, not a stale value missing the final character.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/TaskInput.jsx`
+- Related: —
+- Notes: Task submission now reads the live textarea value before opening the session chooser, so fast Enter presses and submit-button clicks keep the full task text.
+- Commits: —

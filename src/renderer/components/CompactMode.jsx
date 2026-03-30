@@ -110,6 +110,10 @@ export default function CompactMode({
     [basePillW, visibleTaskWidth, checkInPromptActive],
   );
   const ctrlWinW   = useMemo(() => hoverWinW + CTRL_W, [hoverWinW]);
+  const settledWinW = useMemo(
+    () => (showControls ? ctrlWinW : (isTaskVisible ? hoverWinW : baseWinW)),
+    [showControls, ctrlWinW, isTaskVisible, hoverWinW, baseWinW],
+  );
   const pillH = useMemo(
     () => (isTaskVisible ? taskMetrics.height : PILL_BASE_H),
     [isTaskVisible, taskMetrics.height],
@@ -168,12 +172,13 @@ export default function CompactMode({
       }
     };
 
-    // Initial mount — set immediately without shrink delay
+    // Initial mount — size to the settled compact width immediately so a
+    // running task does not get stuck in the timer-only shell.
     if (!hasInitialized.current) {
       hasInitialized.current = true;
-      pushPillSize(baseWinW, winH);
+      pushPillSize(settledWinW, winH);
       const retryTimer = setTimeout(() => {
-        pushPillSize(baseWinW, winH);
+        pushPillSize(settledWinW, winH);
       }, 80);
       return () => clearTimeout(retryTimer);
     }
@@ -189,7 +194,7 @@ export default function CompactMode({
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW, winH]);
+  }, [isTaskVisible, showControls, hoverWinW, ctrlWinW, baseWinW, settledWinW, winH]);
 
   useEffect(() => {
     if (pulseSignal === lastPulseSignalRef.current) return;

@@ -1552,13 +1552,99 @@ test('idle compact mode without a task uses the timer-only pill width', async ()
 });
 
 test('compact mode shows the active task by default during a running session', async () => {
-  const { page, cleanup } = await launchApp({ background: false });
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await startFreeflowSession(page, 'compact visible task');
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.width || 0;
+    }, { timeout: 7000 }).toBeGreaterThan(130);
     await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('compact visible task');
   } finally {
     await cleanup();
+  }
+});
+
+test('compact mode shows short tasks that stay within the default pill metrics', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'List on Betalist');
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.width || 0;
+    }, { timeout: 7000 }).toBeGreaterThan(130);
+    await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('List on Betalist');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact mode shows the active task by default when a timed session starts', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startTimedSession(page, 'timed compact visible task', 5);
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.width || 0;
+    }, { timeout: 7000 }).toBeGreaterThan(130);
+    await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('timed compact visible task');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('quitting while a timer is running restores the task with a paused timer on relaunch', async () => {
+  const storeDir = createStoreDir();
+  let firstLaunch = null;
+  let secondLaunch = null;
+
+  try {
+    firstLaunch = await launchApp({ background: false, storeDir });
+    await startFreeflowSession(firstLaunch.page, 'resume after quit');
+
+    await firstLaunch.page.waitForTimeout(2200);
+    const beforeQuitState = await firstLaunch.page.evaluate(async () => window.electronAPI.storeGet('timerState'));
+    expect(beforeQuitState?.isRunning).toBe(true);
+
+    await firstLaunch.cleanup({ deleteStoreDir: false });
+    firstLaunch = null;
+
+    const storedAfterQuit = JSON.parse(fs.readFileSync(path.join(storeDir, 'config.json'), 'utf8'));
+    expect(storedAfterQuit.currentTask?.text).toBe('resume after quit');
+    expect(storedAfterQuit.currentTask?.startedAt ?? null).toBeNull();
+    expect(storedAfterQuit.timerState?.isRunning).toBe(false);
+    expect(storedAfterQuit.timerState?.sessionStartedAt ?? null).toBeNull();
+    expect(storedAfterQuit.timerState?.elapsedSeconds).toBeGreaterThanOrEqual(1);
+
+    secondLaunch = await launchApp({ background: false, storeDir });
+
+    await expect.poll(async () => {
+      const timerState = await secondLaunch.page.evaluate(async () => window.electronAPI.storeGet('timerState'));
+      return JSON.stringify({
+        isRunning: timerState?.isRunning ?? null,
+        sessionStartedAt: timerState?.sessionStartedAt ?? null,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      isRunning: false,
+      sessionStartedAt: null,
+    }));
+
+    await expect.poll(
+      () => readDisplayedTimerSeconds(secondLaunch.page),
+      { timeout: 7000 },
+    ).not.toBeNull();
+    const firstDisplayedSeconds = await readDisplayedTimerSeconds(secondLaunch.page);
+    await expect(secondLaunch.page.locator(TASK_INPUT_SELECTOR)).toHaveValue('resume after quit');
+
+    await secondLaunch.page.waitForTimeout(1800);
+    const secondDisplayedSeconds = await readDisplayedTimerSeconds(secondLaunch.page);
+    expect(secondDisplayedSeconds).toBe(firstDisplayedSeconds);
+  } finally {
+    await firstLaunch?.cleanup({ deleteStoreDir: false });
+    await secondLaunch?.cleanup({ deleteStoreDir: true });
   }
 });
 

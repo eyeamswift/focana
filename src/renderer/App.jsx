@@ -3042,8 +3042,13 @@ export default function App() {
     return () => { if (cleanup) cleanup(); };
   }, [handlePause, handlePlay, handleStop, isRunning]);
 
-  const handleTaskSubmit = () => {
-    if (!task.trim()) return;
+  const handleTaskSubmit = (submittedTask = task) => {
+    const nextTask = typeof submittedTask === 'string' ? submittedTask : task;
+    const trimmedTask = nextTask.trim();
+    if (!trimmedTask) return;
+    if (nextTask !== task) {
+      setTask(nextTask);
+    }
 
     const hasPausedSessionToResume =
       isTimerVisible &&

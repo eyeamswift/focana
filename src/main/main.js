@@ -827,27 +827,14 @@ function formatFloatingTime(seconds) {
 }
 
 
-function checkpointActiveSessionInStore() {
+function checkpointActiveSessionInStore(options = {}) {
+  const pauseTimer = options?.pauseTimer === true;
   const timerState = store.get('timerState', {});
   const currentTask = store.get('currentTask', {});
   const activeSessionId = typeof timerState?.currentSessionId === 'string' && timerState.currentSessionId.trim()
     ? timerState.currentSessionId.trim()
     : null;
   const taskText = typeof currentTask?.text === 'string' ? currentTask.text.trim() : '';
-
-  if (!activeSessionId || !taskText) {
-    return false;
-  }
-
-  const sessions = store.get('sessions', []);
-  if (!Array.isArray(sessions)) {
-    return false;
-  }
-
-  const sessionIndex = sessions.findIndex((session) => session?.id === activeSessionId);
-  if (sessionIndex === -1) {
-    return false;
-  }
 
   const mode = timerState?.mode === 'timed' ? 'timed' : 'freeflow';
   const initialTime = Math.max(0, Number(timerState?.initialTime) || 0);
@@ -857,14 +844,11 @@ function checkpointActiveSessionInStore() {
     || Boolean(timerState?.isRunning)
     || baseElapsedSeconds > 0
     || initialTime > 0;
-
-  if (!hasRecoverableTimer) {
-    return false;
-  }
+  const wasRunning = Boolean(timerState?.isRunning);
 
   let elapsedSeconds = baseElapsedSeconds;
 
-  if (Boolean(timerState?.isRunning) && sessionStartedAt) {
+  if (wasRunning && sessionStartedAt) {
     const startedAtMs = new Date(sessionStartedAt).getTime();
     if (Number.isFinite(startedAtMs)) {
       elapsedSeconds += Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
@@ -875,7 +859,46 @@ function checkpointActiveSessionInStore() {
     elapsedSeconds = Math.min(elapsedSeconds, initialTime);
   }
 
+  let didPauseTimer = false;
+  if (pauseTimer && hasRecoverableTimer && wasRunning) {
+    const displaySeconds = mode === 'timed'
+      ? Math.max(0, initialTime - elapsedSeconds)
+      : elapsedSeconds;
+
+    store.set('timerState', {
+      ...timerState,
+      seconds: displaySeconds,
+      isRunning: false,
+      elapsedSeconds,
+      sessionStartedAt: null,
+    });
+    store.set('currentTask', {
+      ...currentTask,
+      startedAt: null,
+    });
+    didPauseTimer = true;
+  }
+
+  if (!hasRecoverableTimer) {
+    return didPauseTimer;
+  }
+
   const durationMinutes = Number((elapsedSeconds / 60).toFixed(2));
+
+  if (!activeSessionId || !taskText) {
+    return didPauseTimer;
+  }
+
+  const sessions = store.get('sessions', []);
+  if (!Array.isArray(sessions)) {
+    return didPauseTimer;
+  }
+
+  const sessionIndex = sessions.findIndex((session) => session?.id === activeSessionId);
+  if (sessionIndex === -1) {
+    return didPauseTimer;
+  }
+
   const nextSessions = [...sessions];
   nextSessions[sessionIndex] = {
     ...nextSessions[sessionIndex],
@@ -1255,7 +1278,7 @@ ipcMain.on('quit-app', () => {
 });
 
 ipcMain.on('restart-app', () => {
-  checkpointActiveSessionInStore();
+  checkpointActiveSessionInStore({ pauseTimer: true });
   app.relaunch();
   app.exit(0);
 });
@@ -1790,7 +1813,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-  checkpointActiveSessionInStore();
+  checkpointActiveSessionInStore({ pauseTimer: true });
   updater.stop();
   feedbackSyncService.stop();
   stopAlwaysOnTopReassert();

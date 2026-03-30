@@ -66,6 +66,18 @@ const TaskInput = forwardRef(({
     wasPastedRef.current = true;
   };
 
+  const submitTask = (rawTask) => {
+    const nextTask = typeof rawTask === 'string'
+      ? rawTask
+      : (textareaRef.current?.value || task);
+    const trimmedTask = nextTask.trim();
+    if (!trimmedTask) return;
+
+    track('task_entered', { input_method: wasPastedRef.current ? 'paste' : 'typed', char_count: trimmedTask.length });
+    wasPastedRef.current = false;
+    onTaskSubmit(nextTask);
+  };
+
   const handleKeyDown = (e) => {
     if (isLocked) {
       e.preventDefault();
@@ -73,11 +85,10 @@ const TaskInput = forwardRef(({
       return;
     }
 
-    if (e.key === 'Enter' && task.trim()) {
+    const currentValue = e.currentTarget?.value || task;
+    if (e.key === 'Enter' && currentValue.trim()) {
       e.preventDefault();
-      track('task_entered', { input_method: wasPastedRef.current ? 'paste' : 'typed', char_count: task.trim().length });
-      wasPastedRef.current = false;
-      onTaskSubmit();
+      submitTask(currentValue);
     }
   };
 
@@ -139,11 +150,7 @@ const TaskInput = forwardRef(({
             <TooltipTrigger asChild>
               <Button
                 size="icon"
-                onClick={() => {
-                  track('task_entered', { input_method: wasPastedRef.current ? 'paste' : 'typed', char_count: task.trim().length });
-                  wasPastedRef.current = false;
-                  onTaskSubmit();
-                }}
+                onClick={() => submitTask(textareaRef.current?.value || task)}
                 aria-label="Start session"
                 style={{
                   height: '2.25rem',
