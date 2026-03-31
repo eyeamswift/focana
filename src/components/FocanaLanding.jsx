@@ -1094,7 +1094,13 @@ export default function FocanaLanding() {
             <img
               src="/hero-screenshot.png"
               alt="Focana app screenshot"
-              style={{ width: "100%", display: "block" }}
+              style={{
+                width: "100%",
+                display: "block",
+                aspectRatio: "2877 / 721",
+                objectFit: "cover",
+                objectPosition: "top center",
+              }}
             />
           </div>
 
