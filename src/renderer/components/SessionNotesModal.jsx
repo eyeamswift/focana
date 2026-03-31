@@ -62,14 +62,17 @@ export default function SessionNotesModal({
 
   const isStopDecisionFlow = flow === 'stop-decision';
   const isResumeLaterFlow = flow === 'resume-later';
+  const safeTaskName = typeof taskName === 'string' && taskName.trim()
+    ? taskName.trim()
+    : 'Untitled task';
   const title = isStopDecisionFlow
     ? 'Did you finish?'
     : isResumeLaterFlow
       ? 'Where did you leave off?'
       : 'Great focus session!';
   const summaryText = isStopDecisionFlow
-    ? `You spent ${formatDuration(sessionDuration)} on "${taskName || 'Untitled task'}".`
-    : `${formatDuration(sessionDuration)} on "${taskName || 'Untitled task'}"`;
+    ? `You spent ${formatDuration(sessionDuration)} on "${safeTaskName}".`
+    : `${formatDuration(sessionDuration)} on "${safeTaskName}"`;
   const iconStyle = isStopDecisionFlow
     ? {
         background: 'var(--bg-card)',
@@ -86,22 +89,30 @@ export default function SessionNotesModal({
       if (open || feedbackPromptActive) return;
       handleRequestClose();
     }}>
-      <DialogContent style={{ background: 'var(--bg-card)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
+      <DialogContent
+        style={{
+          background: 'var(--bg-card)',
+          borderColor: 'var(--brand-action)',
+          maxWidth: '25rem',
+          maxHeight: 'min(calc(100vh - 1.75rem), 28rem)',
+          padding: '1.25rem 1.25rem 1.1rem',
+        }}
+      >
         {!feedbackPromptActive && (
           <button className="dialog-close-btn" onClick={handleRequestClose} aria-label="Close">
             <X style={{ width: 16, height: 16 }} />
           </button>
         )}
-        <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.5rem' }}>
+        <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.35rem' }}>
           <div style={{
             margin: '0 auto',
-            width: '3rem',
-            height: '3rem',
+            width: '2.65rem',
+            height: '2.65rem',
             borderRadius: '9999px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: '0.75rem',
+            marginBottom: '0.65rem',
             ...iconStyle,
           }}>
             {isStopDecisionFlow ? (
@@ -110,10 +121,10 @@ export default function SessionNotesModal({
               <CheckCircle style={{ width: 24, height: 24, color: 'var(--text-on-brand)' }} />
             )}
           </div>
-          <DialogTitle style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <DialogTitle style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             {title}
           </DialogTitle>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.45, marginTop: '0.2rem' }}>
             {summaryText}
           </p>
         </DialogHeader>
@@ -129,7 +140,7 @@ export default function SessionNotesModal({
           />
         ) : (
           <>
-            <div className="space-y-4" style={{ padding: '0.5rem 0' }}>
+            <div className="space-y-4" style={{ padding: '0.3rem 0 0' }}>
               <div>
                 <p style={{ color: 'var(--text-primary)', fontWeight: 500, marginBottom: '0.5rem' }}>
                   Where did you leave off? <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 400 }}>(optional)</span>
@@ -140,7 +151,7 @@ export default function SessionNotesModal({
                   placeholder="Quick note about where to pick up next time..."
                   maxLength={500}
                   className="no-resize"
-                  style={{ minHeight: 100, borderColor: 'var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+                  style={{ minHeight: 88, borderColor: 'var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                 />
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', textAlign: 'right' }}>
                   {notes.length}/500 characters
@@ -148,51 +159,58 @@ export default function SessionNotesModal({
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter style={{ marginTop: '0.85rem', flexDirection: 'column', alignItems: 'stretch', gap: '0.65rem' }}>
               {isStopDecisionFlow ? (
                 <>
                   {showResumeAction ? (
+                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={handleResume}
+                            variant="outline"
+                            size="sm"
+                            style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                          >
+                            Resume
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Close this prompt and continue the current session</p></TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ) : null}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          onClick={handleResume}
+                          onClick={handleIncomplete}
                           variant="outline"
+                          size="sm"
                           style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                         >
-                          Resume
+                          No, Save for Later
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent><p>Close this prompt and continue the current session</p></TooltipContent>
+                      <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>
                     </Tooltip>
-                  ) : null}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={handleIncomplete}
-                        variant="outline"
-                        style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-                      >
-                        No, Save for Later
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button onClick={handleComplete} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                        Yes, Complete
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent><p>Save notes and mark the task complete</p></TooltipContent>
-                  </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button onClick={handleComplete} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                          Yes, Complete
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Save notes and mark the task complete</p></TooltipContent>
+                    </Tooltip>
+                  </div>
                 </>
               ) : (
-                <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         onClick={handleSkip}
                         variant="outline"
+                        size="sm"
                         style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                       >
                         Skip
@@ -202,13 +220,13 @@ export default function SessionNotesModal({
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button onClick={handleSave} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                      <Button onClick={handleSave} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
                         Save
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Save notes and finish session</p></TooltipContent>
                   </Tooltip>
-                </>
+                </div>
               )}
             </DialogFooter>
           </>

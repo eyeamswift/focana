@@ -441,7 +441,15 @@ export default function ParkingLot({
 
       {/* Expanded Note Modal */}
       <Dialog open={expandedThought !== null} onOpenChange={(open) => !open && handleCloseExpanded()}>
-        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '36rem' }}>
+        <DialogContent
+          style={{
+            background: 'var(--bg-surface)',
+            borderColor: 'var(--brand-action)',
+            maxWidth: '25rem',
+            maxHeight: 'min(calc(100vh - 1.75rem), 26rem)',
+            padding: '1.25rem 1.25rem 1.1rem',
+          }}
+        >
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Edit3 style={{ width: 20, height: 20, color: 'var(--brand-primary)' }} />
@@ -449,19 +457,22 @@ export default function ParkingLot({
             </DialogTitle>
           </DialogHeader>
 
-          <div style={{ padding: '1rem 0' }}>
+          <div style={{ padding: '0.75rem 0 0.25rem' }}>
             <Textarea
               value={editingText}
               onChange={(e) => setEditingText(e.target.value)}
               placeholder="Edit your note..."
-              style={{ minHeight: 120, fontSize: '1rem', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', background: 'var(--bg-input)' }}
+              style={{ minHeight: 104, fontSize: '1rem', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', background: 'var(--bg-input)' }}
             />
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', textAlign: 'right' }}>
               {editingText.length} characters
             </p>
           </div>
 
-          <DialogFooter>
+          <DialogFooter
+            className="dialog-footer-between"
+            style={{ marginTop: '0.85rem', flexWrap: 'wrap', alignItems: 'center', rowGap: '0.75rem', columnGap: '0.75rem' }}
+          >
             <Button
               onClick={handleDeleteThought}
               variant="outline"
@@ -470,29 +481,31 @@ export default function ParkingLot({
               <Trash2 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
               Delete
             </Button>
-            <Button
-              onClick={handleStartThought}
-              variant="outline"
-              style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}
-            >
-              <ArrowRight style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
-              Start This Task
-            </Button>
-            <Button
-              onClick={handleCloseExpanded}
-              variant="outline"
-              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveEdit}
-              disabled={!editingText.trim() || typeof onUpdateThought !== 'function'}
-              style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
-            >
-              <Save style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
-              Save
-            </Button>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '0.5rem', marginLeft: 'auto' }}>
+              <Button
+                onClick={handleStartThought}
+                variant="outline"
+                style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}
+              >
+                <ArrowRight style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
+                Start This Task
+              </Button>
+              <Button
+                onClick={handleCloseExpanded}
+                variant="outline"
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={!editingText.trim() || typeof onUpdateThought !== 'function'}
+                style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
+              >
+                <Save style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
+                Save
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

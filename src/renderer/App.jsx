@@ -74,7 +74,7 @@ const WINDOW_SIZES = {
     parkingLot: [420, 500],
     postSessionParkingLot: [520, 560],
     timeUp: [540, 460],
-    notes: [420, 500],
+    notes: [420, 470],
     quickCapture: [420, 340],
   },
 };
@@ -4260,7 +4260,7 @@ export default function App() {
               className="focus-control-btn focus-control-btn--primary timer-run-btn"
               aria-label="Resume Timer"
             >
-              <Play style={{ width: isShortFullWindow ? 10 : 14, height: isShortFullWindow ? 10 : 14 }} />
+              <Play style={{ width: isShortFullWindow ? 9 : 11, height: isShortFullWindow ? 9 : 11 }} />
             </Button>
           </TooltipTrigger>
           <TooltipContent><p>Resume Timer</p></TooltipContent>
@@ -4279,8 +4279,8 @@ export default function App() {
                 aria-hidden="true"
                 className="focus-control-icon focus-control-icon--pause"
               >
-                <rect x="3.3" y="2.2" width="2.4" height="11.6" rx="1.2" fill="currentColor" />
-                <rect x="10.3" y="2.2" width="2.4" height="11.6" rx="1.2" fill="currentColor" />
+                <rect x="2.7" y="2.2" width="2.1" height="11.6" rx="1.05" fill="currentColor" />
+                <rect x="11.2" y="2.2" width="2.1" height="11.6" rx="1.05" fill="currentColor" />
               </svg>
             </Button>
           </TooltipTrigger>
@@ -4293,12 +4293,12 @@ export default function App() {
             <Button
               onClick={handleStop}
               disabled={!task.trim()}
-            variant="outline"
-            className="focus-control-btn focus-control-btn--outline"
-            aria-label="End Session"
-          >
-            <Square className="focus-control-icon" style={{ width: isShortFullWindow ? 9 : 12, height: isShortFullWindow ? 9 : 12 }} />
-          </Button>
+              variant="outline"
+              className="focus-control-btn focus-control-btn--outline"
+              aria-label="End Session"
+            >
+              <Square className="focus-control-icon" style={{ width: isShortFullWindow ? 8 : 10, height: isShortFullWindow ? 8 : 10 }} />
+            </Button>
           </TooltipTrigger>
           <TooltipContent><p>End Session</p></TooltipContent>
         </Tooltip>
@@ -4312,7 +4312,7 @@ export default function App() {
               className="focus-control-btn focus-control-btn--outline"
               aria-label="End Session"
             >
-              <Square className="focus-control-icon" style={{ width: isShortFullWindow ? 9 : 12, height: isShortFullWindow ? 9 : 12 }} />
+              <Square className="focus-control-icon" style={{ width: isShortFullWindow ? 8 : 10, height: isShortFullWindow ? 8 : 10 }} />
             </Button>
           </TooltipTrigger>
           <TooltipContent><p>End Session</p></TooltipContent>
@@ -4575,7 +4575,7 @@ export default function App() {
         )}
 
         {/* Content */}
-        <div className={`electron-no-drag full-view-content full-view-content--${fullScreenTaskState} ${getPulseClassName()}`}>
+        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState} ${getPulseClassName()}`}>
           <div className={`focus-stage focus-stage--${fullScreenTaskState}`}>
             <div className="focus-stage__surface">
               {fullScreenTaskState === 'running' ? (
