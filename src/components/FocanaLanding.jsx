@@ -1096,10 +1096,8 @@ export default function FocanaLanding() {
               alt="Focana app screenshot"
               style={{
                 width: "100%",
+                height: "auto",
                 display: "block",
-                aspectRatio: "2877 / 721",
-                objectFit: "cover",
-                objectPosition: "top center",
               }}
             />
           </div>
