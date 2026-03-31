@@ -9,6 +9,17 @@ const APP_VERSION = JSON.parse(
 ).version;
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]';
 const NAME_GATE_HEADING = 'One more thing. What should we call you?';
+const FOCUSED_CHECKIN_MESSAGES_WITH_NAME = [
+  'Nice, Justin. Keep going.',
+  'Good Job Justin 🍊',
+  'Justin, you got this',
+  'You\'re doing good, Justin',
+];
+const COMPLETED_CHECKIN_MESSAGES_WITH_NAME = [
+  'Done, Justin. What a win',
+  'Checked off, nice work, Justin',
+  'That\'s a wrap, Justin',
+];
 
 function buildSeedConfig(seedConfig = null) {
   return {
@@ -325,6 +336,24 @@ async function startTimedSession(page, taskName, minutes) {
 async function exitCompactMode(page) {
   await page.locator('.pill').dblclick();
   await expect.poll(() => readWindowMode(page)).toBe('full');
+}
+
+async function expectCheckInToastMessage(page, allowedMessages) {
+  const toast = page.locator('.toast-checkin').last();
+  await expect(toast).toBeVisible();
+  const text = (await toast.locator('p').textContent())?.trim();
+  expect(allowedMessages).toContain(text);
+}
+
+async function expectCheckInToastAboveConfetti(page) {
+  const toast = page.locator('.toast-checkin').last();
+  const confetti = page.locator('.confetti-overlay');
+  await expect(toast).toBeVisible();
+  await expect(confetti).toBeVisible();
+
+  const toastZIndex = await toast.evaluate((node) => Number(window.getComputedStyle(node.parentElement).zIndex || 0));
+  const confettiZIndex = await confetti.evaluate((node) => Number(window.getComputedStyle(node).zIndex || 0));
+  expect(toastZIndex).toBeGreaterThan(confettiZIndex);
 }
 
 test('first launch shows one-time name capture gate before app UI', async () => {
@@ -811,6 +840,7 @@ test('timed floating check-in restores a compact-started session into the compac
     await page.getByRole('button', { name: 'Yes' }).click();
 
     await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
     await expect(page.locator('.pill-success-cue--active')).toBeVisible();
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
@@ -902,6 +932,8 @@ test('time-up end session opens the completion decision before showing the feedb
     await page.waitForTimeout(1400);
     await expect(feedbackPrompt).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expectCheckInToastMessage(page, COMPLETED_CHECKIN_MESSAGES_WITH_NAME);
+    await expectCheckInToastAboveConfetti(page);
   } finally {
     await cleanup();
   }
@@ -1216,6 +1248,13 @@ test('stopping from the floating timer restores the main window and shows the st
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
   } finally {
     await cleanup();
   }
@@ -1929,8 +1968,8 @@ test('freeflow check-in stays on the compact prompt surface and returns to compa
     await page.getByRole('button', { name: 'Yes' }).click();
 
     await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
     await expect(page.locator('.pill-success-cue--active')).toBeVisible();
-    await expect(page.locator('.toast-checkin')).toHaveCount(0);
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
   } finally {
     await cleanup();
@@ -1995,6 +2034,105 @@ test('freeflow check-in still uses the full prompt surface when compact mode is 
     await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
     await expect(page.getByText('Still focused on')).toBeVisible();
     await expect(page.getByText('full-window-checkin?')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow full-window check-in shows a positive message after Yes', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'full-window-checkin-focused');
+    await exitCompactMode(page);
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('full-window-checkin-focused?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Yes' }).click();
+
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow full-window check-in opens and dismisses the detour flow after No', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'full-window-checkin-detour');
+    await exitCompactMode(page);
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('full-window-checkin-detour?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'No', exact: true }).click();
+
+    await expect(page.getByText('What happened?')).toBeVisible();
+    await page.getByRole('button', { name: 'Took a detour' }).click();
+    await expect(page.getByRole('button', { name: 'Jot it down' })).toBeVisible();
+    await page.locator('button[title="Dismiss"]').click();
+
+    await expect(page.getByText('What happened?')).toHaveCount(0);
+    await expect(page.locator('.toast-checkin')).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow full-window check-in shows the completion message above confetti after Finished', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'full-window-checkin-finished');
+    await exitCompactMode(page);
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('full-window-checkin-finished?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'No', exact: true }).click();
+    await expect(page.getByText('What happened?')).toBeVisible();
+    await page.getByRole('button', { name: 'Finished' }).click();
+
+    await expectCheckInToastMessage(page, COMPLETED_CHECKIN_MESSAGES_WITH_NAME);
+    await expectCheckInToastAboveConfetti(page);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
   } finally {
     await cleanup();
   }
@@ -2147,6 +2285,7 @@ test('freeflow check-in restores from floating minimize and returns there after 
     await page.getByRole('button', { name: 'Yes' }).click();
 
     await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
     await expect(page.locator('.pill-success-cue--active')).toBeVisible();
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
@@ -2191,8 +2330,8 @@ test('timed check-in stays on the compact prompt surface and returns to compact 
     await page.getByRole('button', { name: 'Yes' }).click();
 
     await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
     await expect(page.locator('.pill-success-cue--active')).toBeVisible();
-    await expect(page.locator('.toast-checkin')).toHaveCount(0);
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
   } finally {
     await cleanup();
@@ -2732,6 +2871,61 @@ test('stop flow is handled inside session notes without a second completion moda
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].completed).toBe(false);
     expect(savedSessions[0].notes).toBe('resume from here');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('resuming from the stop flow returns a compact-origin session to compact mode', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('stop-flow-resume-compact');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await page.waitForTimeout(6500);
+    await page.locator('.pill').click();
+    await page.locator('button[title="Stop & Save"]').click();
+
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    const timerBefore = await page.locator('.pill-timer').textContent();
+    await page.waitForTimeout(1200);
+    const timerAfter = await page.locator('.pill-timer').textContent();
+    expect(timerAfter).not.toBe(timerBefore);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('freeflow stop flow completion shows the completion message above confetti', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('stop-flow-complete-message');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await page.waitForTimeout(6500);
+    await page.locator('.pill').click();
+    await page.locator('button[title="Stop & Save"]').click();
+
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Yes, Complete' }).click();
+
+    const feedbackPrompt = page.getByText('How was Focana this session?');
+    await expect(feedbackPrompt).toBeVisible();
+    await expect(feedbackPrompt).toHaveCount(0, { timeout: 5000 });
+
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expectCheckInToastMessage(page, COMPLETED_CHECKIN_MESSAGES_WITH_NAME);
+    await expectCheckInToastAboveConfetti(page);
   } finally {
     await cleanup();
   }

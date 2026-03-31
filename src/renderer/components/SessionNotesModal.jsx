@@ -12,6 +12,8 @@ export default function SessionNotesModal({
   onSave,
   onComplete,
   onIncomplete,
+  onResume,
+  showResumeAction = false,
   sessionDuration,
   taskName,
   sessionFlowKey,
@@ -45,6 +47,11 @@ export default function SessionNotesModal({
 
   const handleIncomplete = () => {
     onIncomplete?.(notes.trim());
+    setNotes('');
+  };
+
+  const handleResume = () => {
+    onResume?.();
     setNotes('');
   };
 
@@ -144,6 +151,20 @@ export default function SessionNotesModal({
             <DialogFooter>
               {isStopDecisionFlow ? (
                 <>
+                  {showResumeAction ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={handleResume}
+                          variant="outline"
+                          style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                        >
+                          Resume
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Close this prompt and continue the current session</p></TooltipContent>
+                    </Tooltip>
+                  ) : null}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button

@@ -53,19 +53,20 @@ const shortcutsNeedRepair = (rawShortcuts, mergedShortcuts) => (
 
 const THEME_STORAGE_KEY = 'focana-theme';
 const WINDOW_SIZES = {
-  baseWidth: 500,
-  idleHeight: 140,
+  baseWidth: 460,
+  runningWidth: 432,
+  idleHeight: 124,
   startupCheckingHeight: 220,
   startupNameHeight: 380,
   startupActivationHeight: 460,
-  startChooserHeight: 188,
-  timerHeight: 120,
-  timerCheckInPromptHeight: 304,
-  timerCheckInDetourChoiceHeight: 284,
-  timerCheckInDetourResolvedHeight: 300,
-  timerCheckInResolvedHeight: 248,
-  contextHeight: 360,
-  timeUpHeight: 560,
+  startChooserHeight: 176,
+  timerHeight: 108,
+  timerCheckInPromptHeight: 280,
+  timerCheckInDetourChoiceHeight: 260,
+  timerCheckInDetourResolvedHeight: 276,
+  timerCheckInResolvedHeight: 228,
+  contextHeight: 332,
+  timeUpHeight: 520,
   modal: {
     settings: [420, 580],
     history: [420, 500],
@@ -82,11 +83,8 @@ const CHECKIN_MESSAGES = [
   'Nice, keep going',
   'Good Job! 🍊',
   '🙂',
-  "You're locked in",
   'Great. You got this.',
   "You're doing good 👍🏾",
-  'Crushing it',
-  'In the zone',
 ];
 const CHECKIN_COMPLETED_MESSAGES = [
   'Done! What a win',
@@ -107,9 +105,9 @@ const COMPACT_SUCCESS_CUE_MS = 800;
 const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 3000;
 const SESSION_FEEDBACK_CONTINUE_DELAY_MS = 200;
 const PINNED_CONTROLS_DEFAULT = {
-  alwaysOnTop: true,
-  dnd: true,
-  theme: true,
+  alwaysOnTop: false,
+  dnd: false,
+  theme: false,
   parkingLot: true,
   history: true,
   restart: false,
@@ -143,11 +141,10 @@ function getFocusedCheckInMessages(preferredName) {
   const safeName = normalizePreferredName(preferredName);
   if (!safeName) return CHECKIN_MESSAGES;
   return [
-    `Nice, keep going, ${safeName}`,
-    `${safeName}, you're locked in`,
+    `Nice, ${safeName}. Keep going.`,
+    `Good Job ${safeName} 🍊`,
     `${safeName}, you got this`,
     `You're doing good, ${safeName}`,
-    `Crushing it, ${safeName}`,
   ];
 }
 
@@ -370,6 +367,11 @@ export default function App() {
   const checkInReturnToFloatingRef = useRef(false);
   const checkInPromptSurfaceRef = useRef('full');
   const pendingCompactCheckInPromptRef = useRef(false);
+  const stopFlowResumeStateRef = useRef({
+    canResume: false,
+    returnToCompact: false,
+    returnToFloating: false,
+  });
   const checkInResolveTimeoutRef = useRef(null);
   const checkInFreeflowNextRef = useRef(null);
   const checkInTimedThresholdsRef = useRef([]);
@@ -423,6 +425,8 @@ export default function App() {
   const windowModeSyncingRef = useRef(false);
   const backgroundLicenseValidationRef = useRef(null);
   const taskInputResizeTimerRef = useRef(null);
+  const fullWindowTargetWidthRef = useRef(WINDOW_SIZES.baseWidth);
+  fullWindowTargetWidthRef.current = isRunning ? WINDOW_SIZES.runningWidth : WINDOW_SIZES.baseWidth;
 
   const pushModal = useCallback((modalName) => {
     modalStackRef.current.push(modalName);
@@ -574,6 +578,19 @@ export default function App() {
   const showToast = useCallback((type, message, duration = 2000, options = {}) => {
     setToast({ type, message, duration, ...options });
   }, []);
+
+  const showCompletedSessionMessage = useCallback(() => {
+    const completedMessages = getCompletedCheckInMessages(preferredName);
+    const completedMessage = completedMessages[Math.floor(Math.random() * completedMessages.length)];
+    showToast('success', completedMessage, 2000, {
+      showIcon: false,
+      showCloseButton: false,
+      placement: 'window-center',
+      source: 'checkin-success',
+      zIndex: 180,
+    });
+    return completedMessage;
+  }, [preferredName, showToast]);
 
   const handleCheckForUpdates = useCallback(async () => {
     try {
@@ -1438,10 +1455,11 @@ export default function App() {
       } else {
         await saveSessionWithNotes('');
         handleClearRef.current();
-        showToast('success', 'Task completed!');
+        showCompletedSessionMessage();
+        triggerConfetti();
       }
     }
-  }, [task, isRunning, getElapsedSeconds, pauseActiveTimer, mode, saveSessionWithNotes, showToast, isCompact, handleExitCompact]);
+  }, [task, isRunning, getElapsedSeconds, pauseActiveTimer, mode, saveSessionWithNotes, isCompact, handleExitCompact, showCompletedSessionMessage, triggerConfetti]);
 
   const handleShortcutAction = useCallback((action) => {
     (async () => {
@@ -2140,29 +2158,46 @@ export default function App() {
       advanceCheckInScheduleAfterResult(elapsedSec);
     }
 
+    const focusedMessages = getFocusedCheckInMessages(preferredName);
+    const randomMessage = focusedMessages[Math.floor(Math.random() * focusedMessages.length)];
+
     if (isCompact) {
       clearCheckInUi();
       checkInReturnToCompactRef.current = false;
       checkInReturnToFloatingRef.current = false;
       pendingCompactRestoreRef.current = false;
-      setCompactSuccessCueSignal((prev) => prev + 1);
 
       if (shouldReturnToFloating) {
+        showToast('success', randomMessage, 2000, {
+          showIcon: false,
+          showCloseButton: false,
+          placement: 'pill-center',
+          source: 'checkin-success',
+        });
+        setCompactSuccessCueSignal((prev) => prev + 1);
         compactSuccessReturnTimerRef.current = setTimeout(() => {
           compactSuccessReturnTimerRef.current = null;
           restoreDisplayMode({ returnToFloating: true });
-        }, COMPACT_SUCCESS_CUE_MS);
+        }, 2000);
+        return;
       }
+
+      showToast('success', randomMessage, 2000, {
+        showIcon: false,
+        showCloseButton: false,
+        placement: 'pill-center',
+        source: 'checkin-success',
+      });
+      setCompactSuccessCueSignal((prev) => prev + 1);
       return;
     }
 
-    const focusedMessages = getFocusedCheckInMessages(preferredName);
-    const randomMessage = focusedMessages[Math.floor(Math.random() * focusedMessages.length)];
     showToast('success', randomMessage, 2000, {
       showIcon: false,
       showCloseButton: false,
       placement: isCompact ? 'pill-center' : 'window-center',
       source: 'checkin-success',
+      zIndex: isCompact ? undefined : 180,
     });
 
     setCheckInMessage(randomMessage);
@@ -2232,9 +2267,9 @@ export default function App() {
     track('checkin_responded', { response: 'completed' });
 
     setIsRunning(false);
-    const completedMessages = getCompletedCheckInMessages(preferredName);
+    const completedMessage = showCompletedSessionMessage();
     setCheckInState('resolved');
-    setCheckInMessage(completedMessages[Math.floor(Math.random() * completedMessages.length)]);
+    setCheckInMessage(completedMessage);
     setCheckInCelebrating(true);
     setCheckInCelebrationType('completed');
     triggerConfetti(2200);
@@ -2247,7 +2282,7 @@ export default function App() {
         returnToFloating: shouldReturnToFloating,
       });
     }, 2000);
-  }, [completeSessionFromCheckIn, finalizeCompletedSessionUi, getElapsedSeconds, logCheckIn, preferredName, triggerConfetti]);
+  }, [completeSessionFromCheckIn, finalizeCompletedSessionUi, getElapsedSeconds, logCheckIn, showCompletedSessionMessage, triggerConfetti]);
 
   const handleCheckInDetour = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
@@ -2781,8 +2816,9 @@ export default function App() {
     const targetHeight = startupGateState === 'ready'
       ? requestedHeight
       : Math.max(requestedHeight, measureStartupGateHeight());
+    const targetWidth = fullWindowTargetWidthRef.current;
 
-    window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
+    window.electronAPI.ensureMainWindowSize?.(targetWidth, targetHeight);
   }, [measureStartupGateHeight, startupGateState]);
 
   const resizeToMainCardContent = useCallback((minHeight) => {
@@ -3023,7 +3059,14 @@ export default function App() {
     pauseActiveTimer();
   }, [isRunning, pauseActiveTimer]);
 
-  const handleStop = () => {
+  const handleStop = useCallback((options = {}) => {
+    const returnToFloating = options?.returnToFloating === true;
+    const returnToCompact = !returnToFloating && isCompact;
+    stopFlowResumeStateRef.current = {
+      canResume: true,
+      returnToCompact,
+      returnToFloating,
+    };
     const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
     clearCompactSessionCues();
     if (isCompact) {
@@ -3037,7 +3080,32 @@ export default function App() {
     };
     setSessionNotesMode('stop-decision');
     setShowNotesModal(true);
-  };
+  }, [clearCompactSessionCues, currentSessionId, getElapsedSeconds, handleExitCompact, isCompact, isRunning, pauseActiveTimer]);
+
+  const handleResumeStopFlow = useCallback(() => {
+    const {
+      canResume,
+      returnToCompact = false,
+      returnToFloating = false,
+    } = stopFlowResumeStateRef.current || {};
+
+    if (!canResume) return;
+
+    stopFlowResumeStateRef.current = {
+      canResume: false,
+      returnToCompact: false,
+      returnToFloating: false,
+    };
+    postSessionNotesActionRef.current = null;
+    sessionToSave.current = null;
+    setShowNotesModal(false);
+    setSessionNotesMode('complete');
+    resetSessionFeedbackFlow();
+    resumeActiveTimer('stop decision resume');
+    window.setTimeout(() => {
+      restoreDisplayMode({ returnToCompact, returnToFloating });
+    }, 40);
+  }, [resetSessionFeedbackFlow, restoreDisplayMode, resumeActiveTimer]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onFloatingTimerAction?.((action) => {
@@ -3050,7 +3118,7 @@ export default function App() {
         return;
       }
       if (action === 'stop') {
-        handleStop();
+        handleStop({ returnToFloating: true });
       }
     });
     return () => { if (cleanup) cleanup(); };
@@ -3193,6 +3261,10 @@ export default function App() {
     }
 
     if (sessionNotesMode === 'stop-decision') {
+      if (stopFlowResumeStateRef.current?.canResume) {
+        handleResumeStopFlow();
+        return;
+      }
       handleStopFlowIncomplete('');
       return;
     }
@@ -3221,6 +3293,11 @@ export default function App() {
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     sessionToSave.current = null;
+    stopFlowResumeStateRef.current = {
+      canResume: false,
+      returnToCompact: false,
+      returnToFloating: false,
+    };
 
     // Not completed: keep task text, but reset timer/session state.
     track('session_abandoned', { mode, duration_minutes: Math.round(durationMin * 10) / 10 });
@@ -3254,9 +3331,15 @@ export default function App() {
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     sessionToSave.current = null;
+    stopFlowResumeStateRef.current = {
+      canResume: false,
+      returnToCompact: false,
+      returnToFloating: false,
+    };
 
     track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
 
+    showCompletedSessionMessage();
     triggerConfetti();
     finalizeCompletedSessionUi(completedSessionId);
     resetSessionFeedbackFlow();
@@ -3266,7 +3349,7 @@ export default function App() {
       const streak = computeStreak(allSessions);
       if (streak >= 2) track('session_streak', { streak_count: streak });
     } catch (_) { /* non-critical */ }
-  }, [mode, saveSessionWithNotes, triggerConfetti, finalizeCompletedSessionUi, resetSessionFeedbackFlow]);
+  }, [mode, saveSessionWithNotes, showCompletedSessionMessage, triggerConfetti, finalizeCompletedSessionUi, resetSessionFeedbackFlow]);
 
   const finalizeTimeUpEndSession = useCallback(() => {
     track('post_session_choice', { choice: 'end_session' });
@@ -3274,6 +3357,11 @@ export default function App() {
     timeUpReturnToCompactRef.current = false;
     timeUpReturnToFloatingRef.current = false;
     setSessionStartTime(null);
+    stopFlowResumeStateRef.current = {
+      canResume: false,
+      returnToCompact: false,
+      returnToFloating: false,
+    };
 
     clearCompactSessionCues();
     setSessionNotesMode('stop-decision');
@@ -3905,7 +3993,7 @@ export default function App() {
           const pendingHeight = pendingCompactExitHeightRef.current;
           pendingCompactExitHeightRef.current = null;
           await window.electronAPI.exitPillMode({
-            width: WINDOW_SIZES.baseWidth,
+            width: fullWindowTargetWidthRef.current,
             height: Number.isFinite(pendingHeight) ? pendingHeight : undefined,
           });
           windowModeActualRef.current = 'full';
@@ -4151,6 +4239,7 @@ export default function App() {
     ? task
     : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
   const fullScreenTaskState = isRunning ? 'running' : (isTimerVisible ? 'paused' : 'draft');
+  const isRunningFullWindow = fullScreenTaskState === 'running';
   const fullScreenTaskEyebrow = fullScreenTaskState === 'paused'
     ? 'Paused session'
     : 'Set your next focus';
@@ -4171,7 +4260,7 @@ export default function App() {
               className="focus-control-btn focus-control-btn--primary timer-run-btn"
               aria-label="Resume Timer"
             >
-              <Play style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+              <Play style={{ width: isShortFullWindow ? 10 : 14, height: isShortFullWindow ? 10 : 14 }} />
             </Button>
           </TooltipTrigger>
           <TooltipContent><p>Resume Timer</p></TooltipContent>
@@ -4185,39 +4274,50 @@ export default function App() {
               className="focus-control-btn focus-control-btn--soft timer-run-btn"
               aria-label="Pause Timer"
             >
-              <Pause style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+              <svg
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+                className="focus-control-icon focus-control-icon--pause"
+              >
+                <rect x="3.3" y="2.2" width="2.4" height="11.6" rx="1.2" fill="currentColor" />
+                <rect x="10.3" y="2.2" width="2.4" height="11.6" rx="1.2" fill="currentColor" />
+              </svg>
             </Button>
           </TooltipTrigger>
           <TooltipContent><p>Pause Timer</p></TooltipContent>
         </Tooltip>
       )}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={handleStop}
-            disabled={!task.trim()}
+      {isRunning ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={handleStop}
+              disabled={!task.trim()}
             variant="outline"
             className="focus-control-btn focus-control-btn--outline"
-            aria-label="Stop and Save Session"
+            aria-label="End Session"
           >
-            <Square style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
+            <Square className="focus-control-icon" style={{ width: isShortFullWindow ? 9 : 12, height: isShortFullWindow ? 9 : 12 }} />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent><p>Stop & Save Session</p></TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={handleClear}
-            variant="ghost"
-            className="focus-control-btn focus-control-btn--ghost"
-            aria-label="Clear Current Task and Timer"
-          >
-            <RotateCcw style={{ width: isShortFullWindow ? 14 : 18, height: isShortFullWindow ? 14 : 18 }} />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent><p>Clear Current Task & Timer</p></TooltipContent>
-      </Tooltip>
+          </TooltipTrigger>
+          <TooltipContent><p>End Session</p></TooltipContent>
+        </Tooltip>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={handleStop}
+              disabled={!task.trim()}
+              variant="outline"
+              className="focus-control-btn focus-control-btn--outline"
+              aria-label="End Session"
+            >
+              <Square className="focus-control-icon" style={{ width: isShortFullWindow ? 9 : 12, height: isShortFullWindow ? 9 : 12 }} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>End Session</p></TooltipContent>
+        </Tooltip>
+      )}
     </>
   );
 
@@ -4268,6 +4368,8 @@ export default function App() {
           onSave={handleSaveSessionNotes}
           onComplete={handleStopFlowComplete}
           onIncomplete={handleStopFlowIncomplete}
+          onResume={handleResumeStopFlow}
+          showResumeAction={stopFlowResumeStateRef.current?.canResume === true}
           sessionDuration={sessionToSave.current?.duration || 0}
           taskName={task}
           sessionFlowKey={sessionNotesFlowKey}
@@ -4314,12 +4416,11 @@ export default function App() {
     );
   }
 
-  // Full view render
   return (
     <div className={`app-container app-container--full app-container--focus-${fullScreenTaskState}${suppressToolbarTooltips ? ' app-container--suppress-tooltips' : ''}${compactTransitioning ? ' app-container--transitioning' : ''}`}>
-      <div ref={mainCardRef} className={`main-card electron-draggable${fullScreenTaskState === 'running' ? ' main-card--running' : ''}`}>
+      <div ref={mainCardRef} className={`main-card electron-draggable${isRunningFullWindow ? ' main-card--running' : ''}`}>
         {/* Header */}
-        <div className={`full-header electron-draggable${fullScreenTaskState === 'running' ? ' full-header--running' : ''}`}>
+        <div className={`full-header electron-draggable${isRunningFullWindow ? ' full-header--running' : ''}`}>
           <div className="full-header__brand">
             <img
               src={theme === 'light' ? appLockupLight : appLockupDark}
@@ -4348,7 +4449,7 @@ export default function App() {
                 tabIndex={3}
               >
                 Parking Lot
-                {thoughts.length > 0 && <span className="badge" style={{ marginLeft: '0.25rem' }}>{thoughts.length}</span>}
+                {thoughts.length > 0 && <span className="full-header__nav-badge">{thoughts.length}</span>}
               </Button>
             )}
           </div>
@@ -4715,6 +4816,8 @@ export default function App() {
         onSave={handleSaveSessionNotes}
         onComplete={handleStopFlowComplete}
         onIncomplete={handleStopFlowIncomplete}
+        onResume={handleResumeStopFlow}
+        showResumeAction={stopFlowResumeStateRef.current?.canResume === true}
         sessionDuration={sessionToSave.current?.duration || 0}
         taskName={task}
         sessionFlowKey={sessionNotesFlowKey}

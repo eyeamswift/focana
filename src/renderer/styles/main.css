@@ -488,7 +488,7 @@ html[data-window-mode='pill'] #root {
 .full-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.55rem;
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
@@ -500,7 +500,7 @@ html[data-window-mode='pill'] #root {
 }
 
 .full-header__brand-lockup {
-  height: 36px;
+  height: 32px;
   object-fit: contain;
   object-position: left center;
   display: block;
@@ -516,23 +516,42 @@ html[data-window-mode='pill'] #root {
 }
 
 .full-header__nav-btn {
-  height: 1.85rem;
-  padding: 0 0.75rem;
+  height: 1.72rem;
+  padding: 0 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+.full-header__nav-badge {
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.24rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .full-header__toolbar {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .full-header__tool-btn {
-  height: 2rem;
-  width: 2rem;
+  height: 1.85rem;
+  width: 1.85rem;
   color: var(--text-secondary);
   border: 1px solid transparent;
 }
@@ -568,7 +587,7 @@ html[data-window-mode='pill'] #root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.9rem;
+  gap: 0.7rem;
 }
 
 .focus-stage__surface {
@@ -577,8 +596,8 @@ html[data-window-mode='pill'] #root {
 
 .task-composer {
   width: 100%;
-  padding: 0.95rem 1rem 1rem;
-  border-radius: 1.5rem;
+  padding: 0.8rem 0.85rem 0.85rem;
+  border-radius: 1.35rem;
   border: 1px solid color-mix(in srgb, var(--border-strong) 90%, transparent);
   background:
     radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--brand-primary) 10%, transparent) 0%, transparent 52%),
@@ -588,7 +607,7 @@ html[data-window-mode='pill'] #root {
 }
 
 .task-composer--draft {
-  padding-top: 1rem;
+  padding-top: 0.85rem;
 }
 
 .task-composer--paused {
@@ -621,7 +640,7 @@ html[data-window-mode='pill'] #root {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.6rem;
 }
 
 .task-composer__eyebrow {
@@ -650,15 +669,15 @@ html[data-window-mode='pill'] #root {
 
 .task-composer__textarea {
   width: 100%;
-  min-height: 3rem;
-  padding: 0 3.75rem 0 0;
+  min-height: 2.75rem;
+  padding: 0 3.35rem 0 0;
   border: none;
   background: transparent;
   color: var(--text-primary);
   font-family: var(--font-family);
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 550;
-  line-height: 1.32;
+  line-height: 1.28;
   letter-spacing: -0.015em;
   resize: none;
   overflow: hidden;
@@ -667,7 +686,7 @@ html[data-window-mode='pill'] #root {
 }
 
 .task-composer--paused .task-composer__textarea {
-  font-size: clamp(1.18rem, 2.2vw, 1.6rem);
+  font-size: clamp(1.08rem, 1.9vw, 1.4rem);
   font-weight: 650;
   line-height: 1.24;
   letter-spacing: -0.025em;
@@ -682,10 +701,10 @@ html[data-window-mode='pill'] #root {
 }
 
 .task-composer__helper {
-  margin-top: 0.85rem;
+  margin-top: 0.65rem;
   max-width: 42rem;
   color: var(--text-secondary);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   line-height: 1.45;
 }
 
@@ -697,10 +716,10 @@ html[data-window-mode='pill'] #root {
 }
 
 .task-composer__submit {
-  width: 2.45rem;
-  height: 2.45rem;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   background: var(--brand-primary);
   color: var(--text-on-brand);
   box-shadow: 0 12px 24px rgba(185, 78, 16, 0.22);
@@ -714,9 +733,9 @@ html[data-window-mode='pill'] #root {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-  padding: 1.2rem 1.2rem 1.15rem;
-  border-radius: 1.6rem;
+  gap: 0.72rem;
+  padding: 1rem 1rem 0.95rem;
+  border-radius: 1.45rem;
   border: 1px solid var(--focus-hero-border);
   background: var(--focus-hero-bg);
   box-shadow: var(--focus-hero-shadow);
@@ -732,7 +751,8 @@ html[data-window-mode='pill'] #root {
 
 .focus-hero__lock-surface {
   appearance: none;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 0;
   border: none;
   background: transparent;
@@ -747,47 +767,55 @@ html[data-window-mode='pill'] #root {
 }
 
 .focus-hero__eyebrow {
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.3rem;
   color: rgba(255, 249, 230, 0.72);
-  font-size: 0.76rem;
+  font-size: 0.64rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
+.focus-hero__body {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
 .focus-hero__task {
   color: var(--neutral-cream);
-  font-size: clamp(1.55rem, 3.25vw, 2.55rem);
+  font-size: clamp(1.18rem, 2.3vw, 1.78rem);
   font-weight: 800;
-  line-height: 1.12;
+  line-height: 1.1;
   letter-spacing: -0.042em;
   overflow-wrap: anywhere;
 }
 
-.focus-hero__timer-row {
+.focus-hero__aside {
+  flex: 0 0 auto;
+  min-width: 5.25rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding-top: 1rem;
-  border-top: 1px solid var(--focus-hero-divider);
+  justify-content: center;
+  gap: 0.34rem;
 }
 
 .focus-hero__clock {
   color: var(--neutral-cream);
-  font-size: clamp(1.8rem, 3.4vw, 2.35rem);
+  font-size: clamp(1.46rem, 2.55vw, 1.88rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: -0.04em;
+  text-align: center;
 }
 
 .focus-hero__controls {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-left: auto;
+  gap: 0.22rem;
+  justify-content: center;
 }
 
 .start-chooser {
@@ -858,8 +886,8 @@ html[data-window-mode='pill'] #root {
 
 .focus-timer-panel {
   width: min(100%, 720px);
-  padding: 1rem;
-  border-radius: 1.25rem;
+  padding: 0.82rem 0.9rem;
+  border-radius: 1.1rem;
   border: 1px solid var(--border-strong);
   background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 96%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 92%, transparent) 100%);
   box-shadow: 0 18px 34px rgba(46, 31, 24, 0.1);
@@ -882,12 +910,12 @@ html[data-window-mode='pill'] #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.8rem;
   flex-wrap: wrap;
 }
 
 .focus-timer-panel__clock {
-  font-size: clamp(2.2rem, 5vw, 3.1rem);
+  font-size: clamp(1.9rem, 4.2vw, 2.6rem);
   font-weight: 700;
   color: var(--timer-running);
   font-variant-numeric: tabular-nums;
@@ -898,22 +926,34 @@ html[data-window-mode='pill'] #root {
 .focus-timer-panel__controls {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   margin-left: auto;
 }
 
 .focus-control-btn {
-  width: 2.65rem;
-  height: 2.65rem;
+  width: 1.56rem;
+  height: 1.56rem;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 90%, transparent);
-  color: var(--text-secondary);
+  border: 1px solid rgba(255, 249, 230, 0.18);
+  background: rgba(255, 249, 230, 0.06) !important;
+  color: rgba(255, 249, 230, 0.84);
+}
+
+.focus-control-icon {
+  flex-shrink: 0;
+}
+
+.focus-control-icon--pause {
+  width: 0.72rem;
+  height: 0.72rem;
 }
 
 .focus-control-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  color: var(--text-primary);
+  color: var(--neutral-cream);
+  border-color: rgba(255, 249, 230, 0.32);
+  background: rgba(255, 249, 230, 0.1) !important;
 }
 
 .focus-control-btn--primary {
@@ -924,18 +964,22 @@ html[data-window-mode='pill'] #root {
 }
 
 .focus-control-btn--soft {
-  background: color-mix(in srgb, var(--brand-primary) 10%, transparent) !important;
-  border-color: color-mix(in srgb, var(--brand-primary) 40%, transparent) !important;
-  color: var(--brand-action) !important;
+  background: color-mix(in srgb, var(--brand-primary) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--brand-primary) 78%, transparent) !important;
+  color: #FCD9A6 !important;
 }
 
 .focus-control-btn--outline {
-  background: transparent !important;
+  background: var(--neutral-cream) !important;
+  border-color: transparent !important;
+  color: #5A4034 !important;
+  box-shadow: 0 10px 20px rgba(25, 18, 12, 0.18);
 }
 
 .focus-control-btn--ghost {
-  background: color-mix(in srgb, var(--bg-card) 90%, transparent) !important;
-  border-color: transparent !important;
+  background: rgba(255, 249, 230, 0.1) !important;
+  border-color: rgba(255, 249, 230, 0.24) !important;
+  color: rgba(255, 249, 230, 0.88) !important;
 }
 
 @keyframes focus-hero-enter {
@@ -2901,16 +2945,21 @@ html[data-window-mode='pill'] #root {
   border-radius: 0;
   box-shadow: none;
   border: none;
-  padding: 1rem;
+  padding: 0.8rem;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
 .main-card--running {
-  padding-top: 1.15rem;
+  padding-top: 0.62rem;
+  padding-bottom: 0.48rem;
 }
 
 .main-card > * + * {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
+}
+
+.main-card--running > * + * {
+  margin-top: 0.52rem;
 }

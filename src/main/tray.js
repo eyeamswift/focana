@@ -6,6 +6,7 @@ let dndEnabled = false;
 let dndUntil = null;
 let cachedMainWindow = null;
 let onDndChange = null;
+let onAlwaysOnTopChange = null;
 
 function normalizeUntil(input) {
   if (!input) return null;
@@ -36,6 +37,12 @@ function requestDndChange(nextState, source) {
   }
 }
 
+function requestAlwaysOnTopChange(enabled, source) {
+  if (typeof onAlwaysOnTopChange === 'function') {
+    onAlwaysOnTopChange({ enabled: Boolean(enabled), source });
+  }
+}
+
 function buildDndMenuTemplate(source = 'tray') {
   return [
     {
@@ -59,6 +66,13 @@ function buildDndMenuTemplate(source = 'tray') {
 }
 
 function buildTrayTemplate(mainWindow) {
+  const alwaysOnTopEnabled = Boolean(
+    mainWindow
+      && !mainWindow.isDestroyed()
+      && typeof mainWindow.isAlwaysOnTop === 'function'
+      && mainWindow.isAlwaysOnTop()
+  );
+
   return [
     {
       label: 'Show/Hide',
@@ -94,6 +108,12 @@ function buildTrayTemplate(mainWindow) {
         mainWindow.show();
         mainWindow.focus();
         mainWindow.webContents.send('tray-open-settings');
+      },
+    },
+    {
+      label: alwaysOnTopEnabled ? 'Disable Always on Top' : 'Enable Always on Top',
+      click: () => {
+        requestAlwaysOnTopChange(!alwaysOnTopEnabled, 'tray');
       },
     },
     {
@@ -139,6 +159,7 @@ function rebuildMenu() {
 function createTray(mainWindow, options = {}) {
   cachedMainWindow = mainWindow;
   onDndChange = typeof options.onDndChange === 'function' ? options.onDndChange : null;
+  onAlwaysOnTopChange = typeof options.onAlwaysOnTopChange === 'function' ? options.onAlwaysOnTopChange : null;
 
   const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
   let icon;
@@ -254,4 +275,14 @@ function popupCompactContextMenu(window, options = {}) {
   menu.popup({ window });
 }
 
-module.exports = { createTray, popupFloatingContextMenu, popupCompactContextMenu, setDndState };
+function popupMainContextMenu(window) {
+  if (!window || window.isDestroyed()) return;
+  const menu = Menu.buildFromTemplate(buildTrayTemplate(window));
+  menu.popup({ window });
+}
+
+function refreshTrayMenu() {
+  rebuildMenu();
+}
+
+module.exports = { createTray, popupFloatingContextMenu, popupCompactContextMenu, popupMainContextMenu, refreshTrayMenu, setDndState };

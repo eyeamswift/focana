@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage } = requi
 const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
-const { createTray, popupCompactContextMenu, popupFloatingContextMenu, setDndState } = require('./tray');
+const { createTray, popupCompactContextMenu, popupFloatingContextMenu, popupMainContextMenu, refreshTrayMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 const { createFeedbackSyncService } = require('./feedbackSync');
 const { createLicenseService } = require('./licenseService');
@@ -37,7 +37,7 @@ const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
 const isE2E = process.env.FOCANA_E2E === '1';
 const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
 const usePanelWindows = process.platform === 'darwin' && !isE2E;
-const FULL_MIN_WIDTH = 500;
+const FULL_MIN_WIDTH = 432;
 const FULL_MIN_HEIGHT = 120;
 const STARTUP_SAFE_HEIGHT = 520;
 const PILL_MIN_WIDTH = 100;
@@ -141,6 +141,8 @@ function applyAlwaysOnTop(enabled, options = {}) {
   } else {
     stopAlwaysOnTopReassert();
   }
+
+  refreshTrayMenu();
 
   return next;
 }
@@ -1138,6 +1140,9 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   }
+  mainWindow.webContents.on('context-menu', () => {
+    popupMainContextMenu(mainWindow);
+  });
   mainWindow.webContents.on('did-finish-load', () => {
     if (
       isDev
@@ -1255,6 +1260,9 @@ function createWindow() {
     createTray(mainWindow, {
       onDndChange: (nextState) => {
         applyDndState(nextState);
+      },
+      onAlwaysOnTopChange: (nextState) => {
+        applyAlwaysOnTop(nextState?.enabled);
       },
     });
   }

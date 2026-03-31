@@ -44,6 +44,7 @@ export default function Toast({ toast, onDismiss, placement = 'top-right' }) {
   const showIcon = toast.showIcon !== false;
   const showCloseButton = toast.showCloseButton !== false;
   const isCentered = placement === 'pill-center' || placement === 'window-center';
+  const hostZIndex = Number.isFinite(Number(toast.zIndex)) ? Number(toast.zIndex) : 50;
   const hostStyle = isCentered
     ? {
         position: 'fixed',
@@ -52,14 +53,14 @@ export default function Toast({ toast, onDismiss, placement = 'top-right' }) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '0.5rem',
-        zIndex: 50,
+        zIndex: hostZIndex,
         pointerEvents: 'none',
       }
     : {
         position: 'fixed',
         top: '1rem',
         right: '1rem',
-        zIndex: 50,
+        zIndex: hostZIndex,
       };
   const toastStyle = isCentered
     ? {
