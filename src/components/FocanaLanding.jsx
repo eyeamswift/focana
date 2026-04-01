@@ -22,7 +22,7 @@ function phCapture(event, props) {
 }
 
 // Feature Video with click-to-play overlay
-function FeatureVideo({ src }) {
+function FeatureVideo({ src, poster, ariaLabel, preload = "metadata" }) {
   const videoRef = useRef(null);
   const [state, setState] = useState("idle"); // "idle" | "playing" | "ended"
   const [hovered, setHovered] = useState(false);
@@ -68,6 +68,9 @@ function FeatureVideo({ src }) {
         ref={videoRef}
         muted
         playsInline
+        poster={poster}
+        aria-label={ariaLabel}
+        preload={preload}
         src={src}
         style={{
           width: "100%",
@@ -1101,14 +1104,11 @@ export default function FocanaLanding() {
             margin: "0 auto",
             marginTop: "48px",
           }}>
-            <img
-              src="/hero-screenshot.png"
-              alt="Focana app screenshot"
-              style={{
-                width: "100%",
-                height: "auto",
-                display: "block",
-              }}
+            <FeatureVideo
+              src="/videos/hero-video.mp4"
+              poster="/hero-screenshot.png"
+              ariaLabel="Focana app demo video"
+              preload="auto"
             />
           </div>
 
