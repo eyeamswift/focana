@@ -312,14 +312,16 @@ export default function ParkingLot({
                         : <Square style={{ width: 16, height: 16 }} />}
                     </button>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', paddingTop: '0.125rem' }}>
-                    <Checkbox
-                      id={`thought-${index}`}
-                      checked={thought.completed}
-                      onCheckedChange={() => onToggleThought(thought.id)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
+                  {!selectionMode && (
+                    <div style={{ display: 'flex', alignItems: 'center', paddingTop: '0.125rem' }}>
+                      <Checkbox
+                        id={`thought-${index}`}
+                        checked={thought.completed}
+                        onCheckedChange={() => onToggleThought(thought.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  )}
                   <div
                     style={{
                       flex: 1,
@@ -445,9 +447,9 @@ export default function ParkingLot({
           style={{
             background: 'var(--bg-surface)',
             borderColor: 'var(--brand-action)',
-            maxWidth: '25rem',
+            maxWidth: '26.5rem',
             maxHeight: 'min(calc(100vh - 1.75rem), 26rem)',
-            padding: '1.25rem 1.25rem 1.1rem',
+            padding: '1.15rem 1.15rem 1rem',
           }}
         >
           <DialogHeader>
@@ -471,28 +473,32 @@ export default function ParkingLot({
 
           <DialogFooter
             className="dialog-footer-between"
-            style={{ marginTop: '0.85rem', flexWrap: 'wrap', alignItems: 'center', rowGap: '0.75rem', columnGap: '0.75rem' }}
+            style={{ marginTop: '0.8rem', alignItems: 'center', gap: '0.65rem', flexWrap: 'nowrap' }}
           >
             <Button
               onClick={handleDeleteThought}
               variant="outline"
+              size="sm"
               style={{ borderColor: '#FCA5A5', color: '#DC2626' }}
             >
-              <Trash2 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
+              <Trash2 style={{ width: 14, height: 14, marginRight: '0.22rem' }} />
               Delete
             </Button>
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '0.5rem', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'flex-end', gap: '0.4rem', marginLeft: 'auto' }}>
               <Button
                 onClick={handleStartThought}
                 variant="outline"
+                size="sm"
+                aria-label="Start This Task"
                 style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}
               >
-                <ArrowRight style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
-                Start This Task
+                <ArrowRight style={{ width: 14, height: 14, marginRight: '0.22rem' }} />
+                Start Task
               </Button>
               <Button
                 onClick={handleCloseExpanded}
                 variant="outline"
+                size="sm"
                 style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
               >
                 Cancel
@@ -500,9 +506,10 @@ export default function ParkingLot({
               <Button
                 onClick={handleSaveEdit}
                 disabled={!editingText.trim() || typeof onUpdateThought !== 'function'}
+                size="sm"
                 style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
               >
-                <Save style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
+                <Save style={{ width: 14, height: 14, marginRight: '0.22rem' }} />
                 Save
               </Button>
             </div>

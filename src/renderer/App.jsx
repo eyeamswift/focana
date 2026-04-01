@@ -78,6 +78,11 @@ const WINDOW_SIZES = {
     quickCapture: [420, 340],
   },
 };
+const TASK_CHARACTER_LIMIT = 96;
+const clampTaskText = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.slice(0, TASK_CHARACTER_LIMIT);
+};
 const STARTUP_GATE_VERTICAL_PADDING = 32;
 const CHECKIN_MESSAGES = [
   'Nice, keep going',
@@ -425,6 +430,9 @@ export default function App() {
   const windowModeSyncingRef = useRef(false);
   const backgroundLicenseValidationRef = useRef(null);
   const taskInputResizeTimerRef = useRef(null);
+  const handleTaskChange = useCallback((nextValue) => {
+    setTask(clampTaskText(nextValue));
+  }, []);
   const fullWindowTargetWidthRef = useRef(WINDOW_SIZES.baseWidth);
   fullWindowTargetWidthRef.current = isRunning ? WINDOW_SIZES.runningWidth : WINDOW_SIZES.baseWidth;
 
@@ -1607,7 +1615,7 @@ export default function App() {
         timedPulseLastSegmentElapsedRef.current = restoredSegmentElapsed;
         timedCueSegmentStartElapsedRef.current = restoredSegmentStartElapsed;
         timedCueSegmentDurationRef.current = restoredSegmentDuration;
-        setTask(restoredTaskText);
+        setTask(clampTaskText(restoredTaskText));
         setContextNotes(restoredContextNote);
         setTime(restoredDisplayTime);
         setMode(restoredMode);
@@ -3125,7 +3133,7 @@ export default function App() {
   }, [handlePause, handlePlay, handleStop, isRunning]);
 
   const handleTaskSubmit = (submittedTask = task) => {
-    const nextTask = typeof submittedTask === 'string' ? submittedTask : task;
+    const nextTask = clampTaskText(typeof submittedTask === 'string' ? submittedTask : task);
     const trimmedTask = nextTask.trim();
     if (!trimmedTask) return;
     if (nextTask !== task) {
@@ -3208,7 +3216,6 @@ export default function App() {
     resetCompactPulseSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
     historyResumeCarryoverSecondsRef.current = 0;
     setIsStartModalOpen(false);
-    requestCompactEntry({ delayMs: 100 });
   };
 
   const handleSaveSessionNotes = async (notes) => {
@@ -3474,7 +3481,7 @@ export default function App() {
     carryoverSeconds = 0,
     suppressHistoryPop = false,
   }) => {
-    const nextTask = typeof taskText === 'string' ? taskText.trim() : '';
+    const nextTask = clampTaskText(typeof taskText === 'string' ? taskText : '').trim();
     if (!nextTask) return false;
     const nextNotes = typeof notes === 'string' ? notes : '';
     const normalizedCarryoverSeconds = Math.max(0, Math.round(Number(carryoverSeconds) || 0));
@@ -4589,7 +4596,8 @@ export default function App() {
                 <TaskInput
                   ref={taskInputRef}
                   task={task}
-                  setTask={setTask}
+                  setTask={handleTaskChange}
+                  maxLength={TASK_CHARACTER_LIMIT}
                   isActive={isNoteFocused || isStartModalOpen || fullScreenTaskState === 'paused'}
                   visualState={fullScreenTaskState}
                   eyebrowText={fullScreenTaskEyebrow}

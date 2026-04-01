@@ -1711,7 +1711,7 @@ test('compact mode double click exits to fullscreen without first opening contro
   }
 });
 
-test('compact mode allows long tasks to wrap and grow the pill height', async () => {
+test('compact mode keeps capped long tasks readable without overflowing the pill', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1719,8 +1719,10 @@ test('compact mode allows long tasks to wrap and grow the pill height', async ()
     await expect.poll(async () => {
       const bounds = await readMainWindowBounds(electronApp);
       return bounds?.height || 0;
-    }, { timeout: 7000 }).toBeGreaterThan(72);
-    await expect(page.locator('.pill-content > .pill-task .pill-task-text')).toContainText('Refine top of funnel strategy');
+    }, { timeout: 7000 }).toBeGreaterThanOrEqual(72);
+    const pillTaskText = page.locator('.pill-content > .pill-task .pill-task-text');
+    await expect(pillTaskText).toContainText('Refine top of funnel strategy');
+    await expect.poll(async () => ((await pillTaskText.textContent()) || '').trim().length).toBeLessThanOrEqual(96);
   } finally {
     await cleanup();
   }

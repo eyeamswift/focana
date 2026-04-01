@@ -7,6 +7,7 @@ import { track } from '../utils/analytics';
 const TaskInput = forwardRef(({
   task,
   setTask,
+  maxLength = 120,
   isActive,
   visualState = 'draft',
   eyebrowText = '',
@@ -134,7 +135,7 @@ const TaskInput = forwardRef(({
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           placeholder="Type your task here and hit Enter/Return"
-          maxLength={120}
+          maxLength={maxLength}
           readOnly={isLocked}
           tabIndex={1}
           rows={1}
