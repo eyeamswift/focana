@@ -1082,6 +1082,16 @@ export default function FocanaLanding() {
               Meet Focana — your desktop focus buddy.
             </h2>
 
+            <p style={{
+              fontSize: "clamp(18px, 2.3vw, 24px)",
+              lineHeight: 1.5,
+              color: COLORS.coffeeBrown,
+              marginBottom: "12px",
+              animation: "fadeUp 0.6s ease 0.3s both",
+            }}>
+              Always-on-top. Keeping your attention anchored through the chaos.
+            </p>
+
           </div>
 
           <div style={{
