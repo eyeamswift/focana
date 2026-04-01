@@ -1079,20 +1079,20 @@ export default function FocanaLanding() {
               fontWeight: 800,
               lineHeight: 1.05,
               color: COLORS.warmBrown,
-              marginBottom: "24px",
+              marginBottom: "18px",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
               Meet Focana — your desktop focus buddy.
             </h2>
 
             <p style={{
-              fontSize: "clamp(18px, 2.3vw, 24px)",
-              lineHeight: 1.5,
+              fontSize: "clamp(14px, 1.6vw, 17px)",
+              lineHeight: 1.35,
               color: COLORS.coffeeBrown,
-              marginBottom: "12px",
+              marginBottom: "0",
               animation: "fadeUp 0.6s ease 0.3s both",
             }}>
-              Always-on-top. Keeping your attention anchored through the chaos.
+              Always-on-top, even when you switch tabs & apps. Keeping your attention anchored through the chaos
             </p>
 
           </div>
@@ -1102,7 +1102,7 @@ export default function FocanaLanding() {
             borderRadius: "12px 12px 0 0",
             maxWidth: "900px",
             margin: "0 auto",
-            marginTop: "48px",
+            marginTop: "24px",
           }}>
             <FeatureVideo
               src="/videos/hero-video.mp4"
