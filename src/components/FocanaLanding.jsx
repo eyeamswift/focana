@@ -1106,7 +1106,6 @@ export default function FocanaLanding() {
           }}>
             <FeatureVideo
               src="/videos/hero-video.mp4"
-              poster="/hero-screenshot.png"
               ariaLabel="Focana app demo video"
               preload="auto"
             />
