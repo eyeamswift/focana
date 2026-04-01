@@ -5,10 +5,13 @@ const path = require('path')
 const { _electron: electron } = require('@playwright/test')
 
 const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]'
+const RUNNING_TASK_SELECTOR = '.focus-hero__task'
+const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text'
 const ACTIVATION_HEADING = 'Activate Focana on this Mac'
 const NAME_GATE_HEADING = 'One more thing. What should we call you?'
 const DEFAULT_LICENSE_KEY = process.env.FOCANA_SMOKE_LICENSE_KEY || 'password'
 const STOP_BUTTON_SELECTOR = [
+  'button[aria-label="End Session"]',
   'button[aria-label="Stop and Save Session"]',
   'button[title="Stop & Save Session"]',
   'button[title="Stop & Save"]',
@@ -78,6 +81,25 @@ async function readWindowMode(page) {
   return page.evaluate(() => document.documentElement.getAttribute('data-window-mode'))
 }
 
+async function readDisplayedTaskText(page) {
+  const runningTask = page.locator(RUNNING_TASK_SELECTOR).first()
+  if (await runningTask.isVisible().catch(() => false)) {
+    return ((await runningTask.textContent().catch(() => '')) || '').trim()
+  }
+
+  const pillTask = page.locator(PILL_TASK_SELECTOR).first()
+  if (await pillTask.isVisible().catch(() => false)) {
+    return ((await pillTask.textContent().catch(() => '')) || '').trim()
+  }
+
+  const taskInput = page.locator(TASK_INPUT_SELECTOR).first()
+  if (await taskInput.isVisible().catch(() => false)) {
+    return ((await taskInput.inputValue().catch(() => '')) || '').trim()
+  }
+
+  return ''
+}
+
 async function readFloatingWindowBounds(electronApp) {
   return electronApp.evaluate(({ BrowserWindow }) => {
     const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'))
@@ -141,9 +163,21 @@ async function runFreeflowSmoke(page, electronApp) {
   await taskInput.press('Enter')
   await page.getByRole('button', { name: 'Freeflow' }).click()
 
+  await poll(async () => (await readWindowMode(page)) === 'full', {
+    timeoutMs: 10000,
+    description: 'full mode after freeflow start',
+  })
+
+  await poll(async () => (await readDisplayedTaskText(page)).includes(taskName), {
+    timeoutMs: 10000,
+    description: 'task to appear in the fullscreen running view',
+  })
+
+  info('Entering compact mode from fullscreen')
+  await page.getByRole('button', { name: 'Enter Compact Mode' }).click()
   await poll(async () => (await readWindowMode(page)) === 'pill', {
     timeoutMs: 10000,
-    description: 'compact mode after freeflow start',
+    description: 'compact mode after manual entry',
   })
 
   info('Returning from compact to full window')
@@ -197,8 +231,8 @@ async function runFreeflowSmoke(page, electronApp) {
   })
 
   await poll(async () => {
-    const currentTask = await page.locator(TASK_INPUT_SELECTOR).inputValue().catch(() => '')
-    return currentTask === taskName
+    const currentTask = await readDisplayedTaskText(page)
+    return currentTask.includes(taskName)
   }, {
     timeoutMs: 10000,
     description: 'task text to survive floating round-trip',
@@ -234,18 +268,18 @@ async function runTimedSmoke(page) {
   await minutesInput.fill('1')
   await minutesInput.press('Enter')
 
-  await poll(async () => (await readWindowMode(page)) === 'pill', {
+  await poll(async () => (await readWindowMode(page)) === 'full', {
     timeoutMs: 10000,
-    description: 'compact mode after timed start',
+    description: 'full mode after timed start',
   })
 
   await setTimeOffset(page, 65000)
   await page.getByRole('heading', { name: "Time's up" }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByRole('button', { name: 'Add 5 minutes' }).click()
 
-  await poll(async () => (await readWindowMode(page)) === 'pill', {
+  await poll(async () => (await readWindowMode(page)) === 'full', {
     timeoutMs: 10000,
-    description: 'compact mode after timed extension',
+    description: 'full mode after timed extension',
   })
 }
 
