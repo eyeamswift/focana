@@ -988,7 +988,7 @@ export default function FocanaLanding() {
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#pricing" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Pricing</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Try Risk-Free</button>
+            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Get Focana</button>
           </div>
           <button
             className="hamburger-btn"
@@ -1033,7 +1033,7 @@ export default function FocanaLanding() {
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#pricing" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Pricing</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Try Risk-Free</button>
+          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Get Focana</button>
         </div>
       )}
 
@@ -1096,6 +1096,27 @@ export default function FocanaLanding() {
               Meet Focana — always-on-top, keeping your attention anchored through the chaos.
             </p>
 
+            <div style={{
+              maxWidth: "900px",
+              margin: "0 auto",
+              paddingTop: "32px",
+              textAlign: "center",
+            }}>
+              <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
+                <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                  Get Focana <span style={{ fontSize: "22px" }}>→</span>
+                </button>
+              </div>
+              <p style={{
+                fontSize: "15px",
+                color: COLORS.coffeeBrown,
+                marginTop: "14px",
+                animation: "fadeUp 0.6s ease 0.35s both",
+              }}>
+                $29 lifetime · No subscription · macOS
+              </p>
+            </div>
+
           </div>
 
           <div style={{
@@ -1113,26 +1134,6 @@ export default function FocanaLanding() {
             />
           </div>
 
-          <div style={{
-            maxWidth: "900px",
-            margin: "0 auto",
-            paddingTop: "44px",
-            textAlign: "center",
-          }}>
-            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
-              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Start Focusing <span style={{ fontSize: "22px" }}>→</span>
-              </button>
-            </div>
-            <p style={{
-              fontSize: "15px",
-              color: COLORS.coffeeBrown,
-              marginTop: "14px",
-              animation: "fadeUp 0.6s ease 0.35s both",
-            }}>
-              $29 lifetime · No subscription · macOS
-            </p>
-          </div>
         </div>
       </section>
 
@@ -1182,16 +1183,6 @@ export default function FocanaLanding() {
             textAlign: "center", marginBottom: "12px",
             textTransform: "uppercase", letterSpacing: "2px",
           }}>Key Features</p>
-          <p style={{
-            fontSize: "clamp(16px, 1.9vw, 19px)",
-            lineHeight: 1.7,
-            color: COLORS.coffeeBrown,
-            textAlign: "center",
-            maxWidth: "760px",
-            margin: "0 auto 56px",
-          }}>
-            Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
-          </p>
 
           {[
             {
@@ -1277,7 +1268,7 @@ export default function FocanaLanding() {
             Ready to try it for yourself?
           </p>
           <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Try Risk-Free
+            Start Focusing
           </button>
         </div>
       </section>
@@ -1385,7 +1376,13 @@ export default function FocanaLanding() {
               },
               {
                 title: "It doesn't try to manage your life.",
-                body: 'No dashboards. No integrations. No project boards. No 30-minute setup. Type a task, start a timer, get to work. Focana does one thing and stays out of your way.',
+                body: <>No dashboards. No integrations. No project boards. <span style={{
+                  background: "linear-gradient(180deg, transparent 0%, transparent 46%, rgba(252, 211, 77, 0.42) 46%, rgba(252, 211, 77, 0.42) 88%, transparent 88%)",
+                  padding: "0 2px",
+                  borderRadius: "4px",
+                  boxDecorationBreak: "clone",
+                  WebkitBoxDecorationBreak: "clone",
+                }}>No 30-minute setup. Type a task, start a timer, get to work.</span> Focana does one thing and stays out of your way.</>,
               },
               {
                 title: 'It catches the thoughts that derail you.',
@@ -1399,35 +1396,61 @@ export default function FocanaLanding() {
                 title: 'It works without wifi, without an account, and without the cloud.',
                 body: 'Focana is a desktop app that lives on your machine. No login. No sync. No server tracking your focus habits. Your data stays yours.',
               },
-            ].map((item, index) => (
-              <div key={index} style={{
-                flex: "0 1 310px",
-                background: "rgba(255, 254, 248, 0.96)",
-                border: `1px solid ${COLORS.beigeBorder}44`,
-                borderRadius: "18px",
-                padding: "26px 24px",
-                boxShadow: "0 18px 40px rgba(0, 0, 0, 0.18)",
-              }}>
-                <h3 style={{
-                  fontFamily: "'Outfit', sans-serif",
-                  fontSize: "24px",
-                  fontWeight: 700,
-                  lineHeight: 1.25,
-                  color: COLORS.warmBrown,
-                  marginBottom: "14px",
+            ].map((item, index) => {
+              const isHighlighted = index === 0 || index === 4;
+
+              return (
+                <div key={index} style={{
+                  position: "relative",
+                  overflow: "hidden",
+                  flex: "0 1 310px",
+                  background: isHighlighted
+                    ? `linear-gradient(180deg, rgba(255, 254, 248, 0.98) 0%, rgba(255, 249, 230, 0.98) 100%)`
+                    : "rgba(255, 254, 248, 0.96)",
+                  border: isHighlighted
+                    ? `1px solid ${COLORS.sunshineYellow}55`
+                    : `1px solid ${COLORS.beigeBorder}44`,
+                  borderRadius: "18px",
+                  padding: "26px 24px",
+                  boxShadow: isHighlighted
+                    ? "0 22px 46px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(245, 158, 11, 0.05)"
+                    : "0 18px 40px rgba(0, 0, 0, 0.18)",
                 }}>
-                  {item.title}
-                </h3>
-                <p style={{
-                  fontSize: "16px",
-                  lineHeight: 1.7,
-                  color: COLORS.coffeeBrown,
-                  margin: 0,
-                }}>
-                  {item.body}
-                </p>
-              </div>
-            ))}
+                  {isHighlighted ? (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: "radial-gradient(circle at 82% 18%, rgba(252, 211, 77, 0.34) 0%, rgba(252, 211, 77, 0.12) 24%, rgba(252, 211, 77, 0.04) 40%, transparent 62%)",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  ) : null}
+
+                  <div style={{ position: "relative", zIndex: 1 }}>
+                    <h3 style={{
+                      fontFamily: "'Outfit', sans-serif",
+                      fontSize: "24px",
+                      fontWeight: 700,
+                      lineHeight: 1.25,
+                      color: COLORS.warmBrown,
+                      marginBottom: "14px",
+                    }}>
+                      {item.title}
+                    </h3>
+                    <p style={{
+                      fontSize: "16px",
+                      lineHeight: 1.7,
+                      color: COLORS.coffeeBrown,
+                      margin: 0,
+                    }}>
+                      {item.body}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1475,7 +1498,7 @@ export default function FocanaLanding() {
               If it doesn't stick, we'll refund you.
             </p>
             <button onClick={() => openCheckout("pricing")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Try Risk-Free
+              Start My Focus <span style={{ fontSize: "22px" }}>→</span>
             </button>
             <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
               One-time payment. macOS. Instant download.<br />
@@ -1574,7 +1597,7 @@ export default function FocanaLanding() {
           </p>
 
           <button onClick={() => openCheckout("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Try Risk-Free <span style={{ fontSize: "22px" }}>→</span>
+            Get Focana <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
