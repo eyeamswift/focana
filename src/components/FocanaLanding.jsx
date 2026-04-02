@@ -24,7 +24,7 @@ function phCapture(event, props) {
 // Video component supporting an interactive hero mode and ambient in-view playback.
 function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior = "ambient" }) {
   const videoRef = useRef(null);
-  const [state, setState] = useState("idle"); // "idle" | "playing" | "ended"
+  const [state, setState] = useState("idle"); // "idle" | "playing"
   const [hovered, setHovered] = useState(false);
   const isAmbient = behavior === "ambient";
 
@@ -33,7 +33,12 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
 
     const video = videoRef.current;
     if (!video) return;
-    const onEnded = () => setState("ended");
+    const onEnded = () => {
+      video.pause();
+      video.load();
+      setHovered(false);
+      setState("idle");
+    };
     video.addEventListener("ended", onEnded);
     return () => video.removeEventListener("ended", onEnded);
   }, [isAmbient]);
@@ -79,14 +84,12 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
       video.pause();
       setState("idle");
     } else {
-      if (state === "ended") video.currentTime = 0;
       video.play();
       setState("playing");
     }
   };
 
   const isActive = state === "playing";
-  const isEnded = state === "ended";
 
   return (
     <div
@@ -143,17 +146,10 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
               transition: "transform 0.2s ease",
             }}
           >
-            {isEnded ? (
-              /* Replay arrow */
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 1 }}>
-                <path d="M12 5V1L7 6l5 5V7a6 6 0 110 10 5.97 5.97 0 01-4.24-1.76l-1.42 1.42A8 8 0 1012 5z" fill={COLORS.warmBrown} />
-              </svg>
-            ) : (
-              /* Play triangle */
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 3 }}>
-                <path d="M8 5v14l11-7z" fill={COLORS.warmBrown} />
-              </svg>
-            )}
+            {/* Play triangle */}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 3 }}>
+              <path d="M8 5v14l11-7z" fill={COLORS.warmBrown} />
+            </svg>
           </div>
         </div>
       )}
@@ -1226,16 +1222,6 @@ export default function FocanaLanding() {
 
           {[
             {
-              video: "/videos/get-started.mp4",
-              headline: "Start in seconds.",
-              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
-            },
-            {
-              video: "/videos/always-on-top.mp4",
-              headline: "Stay visible while you work.",
-              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
-            },
-            {
               video: "/videos/nudge-checkin.mp4",
               headline: "Gentle check-ins.",
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
@@ -1249,6 +1235,16 @@ export default function FocanaLanding() {
               video: "/videos/pick-up-where-you-left-off.mp4",
               headline: "Pick up where you left off.",
               body: <><strong>Session History.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
+            },
+            {
+              video: "/videos/always-on-top.mp4",
+              headline: "Stay visible while you work.",
+              body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
+            },
+            {
+              video: "/videos/get-started.mp4",
+              headline: "Start in seconds.",
+              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
             },
           ].map((row, i) => {
             const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
