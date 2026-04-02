@@ -21,21 +21,58 @@ function phCapture(event, props) {
   }
 }
 
-// Feature Video with click-to-play overlay
-function FeatureVideo({ src, poster, ariaLabel, preload = "metadata" }) {
+// Video component supporting an interactive hero mode and ambient in-view playback.
+function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior = "ambient" }) {
   const videoRef = useRef(null);
   const [state, setState] = useState("idle"); // "idle" | "playing" | "ended"
   const [hovered, setHovered] = useState(false);
+  const isAmbient = behavior === "ambient";
 
   useEffect(() => {
+    if (isAmbient) return;
+
     const video = videoRef.current;
     if (!video) return;
     const onEnded = () => setState("ended");
     video.addEventListener("ended", onEnded);
     return () => video.removeEventListener("ended", onEnded);
-  }, []);
+  }, [isAmbient]);
+
+  useEffect(() => {
+    if (!isAmbient) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const playVideo = () => {
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {});
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          playVideo();
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(video);
+
+    return () => {
+      observer.disconnect();
+      video.pause();
+    };
+  }, [isAmbient]);
 
   const handleClick = () => {
+    if (isAmbient) return;
+
     const video = videoRef.current;
     if (!video) return;
     if (state === "playing") {
@@ -53,12 +90,12 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata" }) {
 
   return (
     <div
-      onClick={handleClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onClick={isAmbient ? undefined : handleClick}
+      onMouseEnter={isAmbient ? undefined : () => setHovered(true)}
+      onMouseLeave={isAmbient ? undefined : () => setHovered(false)}
       style={{
         position: "relative",
-        cursor: "pointer",
+        cursor: isAmbient ? "default" : "pointer",
         borderRadius: "12px",
         overflow: "hidden",
         boxShadow: "0 4px 20px rgba(92, 64, 51, 0.1)",
@@ -68,18 +105,20 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata" }) {
         ref={videoRef}
         muted
         playsInline
+        loop={isAmbient}
         poster={poster}
         aria-label={ariaLabel}
         preload={preload}
         src={src}
+        disablePictureInPicture
         style={{
           width: "100%",
           display: "block",
-          opacity: isActive ? 1 : hovered ? 0.8 : 0.65,
-          transition: "opacity 0.25s ease",
+          opacity: isAmbient ? 1 : isActive ? 1 : hovered ? 0.8 : 0.65,
+          transition: isAmbient ? "none" : "opacity 0.25s ease",
         }}
       />
-      {!isActive && (
+      {!isAmbient && !isActive && (
         <div
           style={{
             position: "absolute",
@@ -1131,6 +1170,7 @@ export default function FocanaLanding() {
               poster="/hero-thumbnail-fullscreen-checkin.png"
               ariaLabel="Focana app demo video"
               preload="auto"
+              behavior="interactive"
             />
           </div>
 
