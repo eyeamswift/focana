@@ -1238,7 +1238,7 @@ export default function FocanaLanding() {
 
           {[
             {
-              video: "/videos/nudge-checkin.mp4",
+              video: "/videos/check-in-landingpage.mp4",
               headline: "Gentle check-ins.",
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
             },
@@ -1254,7 +1254,7 @@ export default function FocanaLanding() {
             },
             {
               video: "/videos/always-on-top.mp4",
-              headline: "Stay visible while you work.",
+              headline: "Always visible while you work.",
               body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
             },
             {
