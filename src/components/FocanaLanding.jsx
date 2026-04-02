@@ -1049,6 +1049,18 @@ export default function FocanaLanding() {
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
+            <p style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: COLORS.deepAmber,
+              textTransform: "uppercase",
+              letterSpacing: "2px",
+              marginBottom: "18px",
+              animation: "fadeUp 0.6s ease 0.05s both",
+            }}>
+              The focus buddy for busy brains
+            </p>
+
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(28px, 3.8vw, 42px)",
@@ -1073,26 +1085,15 @@ export default function FocanaLanding() {
               >{headlines[headlineIndex]}</span>
             </h1>
 
-            <h2 style={{
-              fontFamily: "'Outfit', sans-serif",
-              fontSize: "clamp(44px, 6vw, 72px)",
-              fontWeight: 800,
-              lineHeight: 1.05,
-              color: COLORS.warmBrown,
-              marginBottom: "18px",
-              animation: "fadeUp 0.6s ease 0.2s both",
-            }}>
-              Meet Focana — your desktop focus buddy.
-            </h2>
-
             <p style={{
               fontSize: "clamp(14px, 1.6vw, 17px)",
-              lineHeight: 1.35,
+              fontWeight: 500,
+              lineHeight: 1.5,
               color: COLORS.coffeeBrown,
               marginBottom: "0",
-              animation: "fadeUp 0.6s ease 0.3s both",
+              animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Always-on-top, even when you switch tabs & apps. Keeping your attention anchored through the chaos
+              Meet Focana — always-on-top, keeping your attention anchored through the chaos.
             </p>
 
           </div>
@@ -1106,6 +1107,7 @@ export default function FocanaLanding() {
           }}>
             <FeatureVideo
               src="/videos/hero-video.mp4"
+              poster="/hero-thumbnail-fullscreen-checkin.png"
               ariaLabel="Focana app demo video"
               preload="auto"
             />
@@ -1117,34 +1119,19 @@ export default function FocanaLanding() {
             paddingTop: "44px",
             textAlign: "center",
           }}>
-            <div style={{
-              color: COLORS.coffeeBrown,
-              animation: "fadeUp 0.6s ease 0.35s both",
-            }}>
-              <p style={{
-                fontSize: "clamp(16px, 1.8vw, 19px)",
-                lineHeight: 1.7,
-                maxWidth: "650px",
-                margin: "0 auto 8px",
-              }}>
-                Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
-              </p>
-              <p style={{
-                fontSize: "14px",
-                margin: 0,
-              }}>
-                Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px", animation: "fadeUp 0.6s ease 0.3s both" }}>
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
               <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                 Start Focusing <span style={{ fontSize: "22px" }}>→</span>
               </button>
-              <a href="#features" className="ghost-btn" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                See How It Works
-              </a>
             </div>
+            <p style={{
+              fontSize: "15px",
+              color: COLORS.coffeeBrown,
+              marginTop: "14px",
+              animation: "fadeUp 0.6s ease 0.35s both",
+            }}>
+              $29 lifetime · No subscription · macOS
+            </p>
           </div>
         </div>
       </section>
@@ -1195,6 +1182,16 @@ export default function FocanaLanding() {
             textAlign: "center", marginBottom: "12px",
             textTransform: "uppercase", letterSpacing: "2px",
           }}>Key Features</p>
+          <p style={{
+            fontSize: "clamp(16px, 1.9vw, 19px)",
+            lineHeight: 1.7,
+            color: COLORS.coffeeBrown,
+            textAlign: "center",
+            maxWidth: "760px",
+            margin: "0 auto 56px",
+          }}>
+            Built by a founder with ADHD, for busy brains who need to start faster, stay focused, and feel good about what they got done.
+          </p>
 
           {[
             {
