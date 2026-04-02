@@ -1320,7 +1320,7 @@ export default function FocanaLanding() {
             Ready to try it for yourself?
           </p>
           <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Start Focusing
+            Start My Focus
           </button>
         </div>
       </section>
