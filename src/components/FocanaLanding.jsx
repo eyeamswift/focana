@@ -1243,7 +1243,7 @@ export default function FocanaLanding() {
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
             },
             {
-              video: "/videos/parking-lot-landingpage-demo.mp4",
+              video: "/videos/Parking-lot-demo.mp4",
               headline: "Catch stray thoughts.",
               body: <><strong>Parking lot.</strong> Catch every stray thought mid-session without breaking your flow. Jot it down, close the panel, keep working. Everything's waiting for you when you're done — nothing lost, nothing derailed.</>,
             },
