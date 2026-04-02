@@ -22,7 +22,8 @@ function phCapture(event, props) {
 }
 
 // Video component supporting an interactive hero mode and ambient in-view playback.
-function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior = "ambient" }) {
+function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior = "ambient", scrollOnPlay = false }) {
+  const wrapperRef = useRef(null);
   const videoRef = useRef(null);
   const [state, setState] = useState("idle"); // "idle" | "playing"
   const [hovered, setHovered] = useState(false);
@@ -84,6 +85,19 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
       video.pause();
       setState("idle");
     } else {
+      if (scrollOnPlay && wrapperRef.current) {
+        const prefersReducedMotion = typeof window !== "undefined"
+          && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+        requestAnimationFrame(() => {
+          wrapperRef.current?.scrollIntoView({
+            behavior: prefersReducedMotion ? "auto" : "smooth",
+            block: "center",
+            inline: "nearest",
+          });
+        });
+      }
+
       video.play();
       setState("playing");
     }
@@ -93,6 +107,7 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
 
   return (
     <div
+      ref={wrapperRef}
       onClick={isAmbient ? undefined : handleClick}
       onMouseEnter={isAmbient ? undefined : () => setHovered(true)}
       onMouseLeave={isAmbient ? undefined : () => setHovered(false)}
@@ -1167,6 +1182,7 @@ export default function FocanaLanding() {
               ariaLabel="Focana app demo video"
               preload="auto"
               behavior="interactive"
+              scrollOnPlay
             />
           </div>
 
@@ -1227,7 +1243,7 @@ export default function FocanaLanding() {
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
             },
             {
-              video: "/videos/parking-lot.mp4",
+              video: "/videos/parking-lot-landingpage-demo.mp4",
               headline: "Catch stray thoughts.",
               body: <><strong>Parking lot.</strong> Catch every stray thought mid-session without breaking your flow. Jot it down, close the panel, keep working. Everything's waiting for you when you're done — nothing lost, nothing derailed.</>,
             },
