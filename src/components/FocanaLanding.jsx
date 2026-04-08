@@ -229,6 +229,38 @@ function FAQItem({ question, answer }) {
   );
 }
 
+function SaasHubBadge({ location = "pricing" }) {
+  return (
+    <a
+      href="https://www.saashub.com/focana-app?utm_source=badge&utm_campaign=badge&utm_content=focana-app&badge_variant=neutral&badge_kind=approved"
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => phCapture("external_badge_clicked", { source: "saashub", location })}
+      aria-label="View Focana on SaaSHub"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "16px",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+      }}
+    >
+      <img
+        src="https://cdn-b.saashub.com/img/badges/approved-neutral.png?v=1"
+        alt="Approved on SaaSHub"
+        loading="lazy"
+        decoding="async"
+        style={{
+          width: "150px",
+          maxWidth: "100%",
+          height: "auto",
+          display: "block",
+        }}
+      />
+    </a>
+  );
+}
+
 // Windows waitlist modal
 function WaitlistModal({ open, onClose }) {
   const [email, setEmail] = useState("");
@@ -1549,6 +1581,9 @@ export default function FocanaLanding() {
               7-day money-back guarantee.<br />
               If it doesn't stick, we'll refund you.
             </p>
+            <div style={{ marginBottom: "28px" }}>
+              <SaasHubBadge location="pricing" />
+            </div>
             <button onClick={() => openCheckout("pricing")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
               Start My Focus <span style={{ fontSize: "22px" }}>→</span>
             </button>

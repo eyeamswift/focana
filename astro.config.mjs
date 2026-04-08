@@ -11,6 +11,10 @@ export default defineConfig({
   output: 'static',
   security: {
     checkOrigin: false,
+    allowedDomains: [
+      { protocol: 'https', hostname: 'focana.app' },
+      { protocol: 'https', hostname: 'www.focana.app' },
+    ],
   },
   integrations: [react(), sitemap()],
   adapter: vercel({

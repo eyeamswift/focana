@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { saveSurveyToSupabase } from '../../lib/saveSurvey';
+import { hasJsonContentType, isTrustedOrigin } from '../../lib/requestSecurity';
 
 export const prerender = false;
 
@@ -15,10 +16,24 @@ export const POST: APIRoute = async ({ request }) => {
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  if (!isTrustedOrigin(request)) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
+
+  if (!hasJsonContentType(request)) {
+    return new Response(JSON.stringify({ error: 'Expected application/json' }), {
+      status: 415,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
+
   if (!supabaseUrl || !supabaseServiceKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ error: 'Service unavailable' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
 
@@ -29,7 +44,7 @@ export const POST: APIRoute = async ({ request }) => {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
 
@@ -40,7 +55,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (!email && !orderId) {
     return new Response(JSON.stringify({ error: 'Email or order_id is required' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
 
@@ -52,7 +67,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (Object.keys(patchBody).length === 0) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
 
@@ -77,12 +92,12 @@ export const POST: APIRoute = async ({ request }) => {
     );
     return new Response(JSON.stringify({ error: 'Failed to save survey' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
   }
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 };

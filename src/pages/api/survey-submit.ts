@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { buildSiteUrl } from '../../lib/siteOrigin';
+import { isTrustedOrigin } from '../../lib/requestSecurity';
 import { saveSurveyToSupabase } from '../../lib/saveSurvey';
 
 export const prerender = false;
@@ -19,6 +20,13 @@ export const POST: APIRoute = async ({ request, url }) => {
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  if (!isTrustedOrigin(request)) {
+    return new Response('Forbidden', {
+      status: 403,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
+
   const formData = await request.formData();
   const email = getStringValue(formData.get('email'));
   const orderId = getStringValue(formData.get('order_id'));
@@ -35,7 +43,7 @@ export const POST: APIRoute = async ({ request, url }) => {
   }, url.origin);
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('[survey-submit] Server misconfigured');
+    console.error('[survey-submit] Missing server configuration');
     redirectUrl.searchParams.set('survey', 'error');
     return Response.redirect(redirectUrl, 303);
   }
