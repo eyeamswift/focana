@@ -635,11 +635,14 @@ const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https:
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [productMenuOpen, setProductMenuOpen] = useState(false);
+  const [mobileProductMenuOpen, setMobileProductMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
   const [signupLocation, setSignupLocation] = useState("hero");
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const [checkoutError, setCheckoutError] = useState("");
+  const productMenuRef = useRef(null);
   const checkoutReadyPromiseRef = useRef(null);
   const checkoutErrorTimeoutRef = useRef(null);
   const headlines = ["It didn't get done.", "You did 3 other things.", "You forgot what it was.", "Where did the time go?"];
@@ -795,6 +798,38 @@ export default function FocanaLanding() {
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      setMobileProductMenuOpen(false);
+    }
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!productMenuOpen) return;
+
+    const handlePointerDown = (event) => {
+      if (productMenuRef.current && !productMenuRef.current.contains(event.target)) {
+        setProductMenuOpen(false);
+      }
+    };
+
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setProductMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleEsc);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [productMenuOpen]);
 
   const navOpacity = Math.min(scrollY / 200, 1);
 
@@ -971,6 +1006,13 @@ export default function FocanaLanding() {
         .nav-link:hover {
           color: ${COLORS.deepAmber} !important;
         }
+        .product-trigger:hover {
+          color: ${COLORS.deepAmber} !important;
+        }
+        .product-menu-item:hover {
+          background: ${COLORS.softCream};
+          color: ${COLORS.deepAmber} !important;
+        }
         @media (max-width: 768px) {
           .nav-links { display: none !important; }
           .hamburger-btn { display: flex !important; }
@@ -1067,6 +1109,101 @@ export default function FocanaLanding() {
             </svg>
           </a>
           <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+            <div
+              ref={productMenuRef}
+              style={{ position: "relative" }}
+              onMouseEnter={() => setProductMenuOpen(true)}
+              onMouseLeave={() => setProductMenuOpen(false)}
+            >
+              <button
+                type="button"
+                className="product-trigger"
+                aria-expanded={productMenuOpen}
+                aria-haspopup="true"
+                onClick={() => setProductMenuOpen((open) => !open)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: COLORS.coffeeBrown,
+                  fontSize: "15px",
+                  fontWeight: 500,
+                  transition: "color 0.2s ease",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Product
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden="true"
+                  style={{
+                    transform: productMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                >
+                  <path d="M2.25 4.5 6 8.25 9.75 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {productMenuOpen && (
+                <div
+                  aria-label="Product links"
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 14px)",
+                    left: "-12px",
+                    minWidth: "220px",
+                    padding: "10px",
+                    borderRadius: "18px",
+                    border: `1px solid ${COLORS.beigeBorder}`,
+                    background: "rgba(255, 254, 248, 0.98)",
+                    backdropFilter: "blur(18px)",
+                    boxShadow: "0 22px 48px rgba(92, 64, 51, 0.16)",
+                  }}
+                >
+                  <a
+                    href="/download"
+                    className="product-menu-item"
+                    onClick={() => setProductMenuOpen(false)}
+                    style={{
+                      display: "block",
+                      padding: "12px 14px",
+                      borderRadius: "12px",
+                      color: COLORS.warmBrown,
+                      textDecoration: "none",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      transition: "background 0.2s ease, color 0.2s ease",
+                    }}
+                  >
+                    Download Focana
+                  </a>
+                  <a
+                    href="/updates"
+                    className="product-menu-item"
+                    onClick={() => setProductMenuOpen(false)}
+                    style={{
+                      display: "block",
+                      padding: "12px 14px",
+                      borderRadius: "12px",
+                      color: COLORS.warmBrown,
+                      textDecoration: "none",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      transition: "background 0.2s ease, color 0.2s ease",
+                    }}
+                  >
+                    Updates
+                  </a>
+                </div>
+              )}
+            </div>
             <a href="#features" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>How it Works</a>
             <a href="#pricing" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Pricing</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
@@ -1074,7 +1211,10 @@ export default function FocanaLanding() {
           </div>
           <button
             className="hamburger-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => {
+              setProductMenuOpen(false);
+              setMobileMenuOpen(!mobileMenuOpen);
+            }}
             aria-label="Toggle menu"
             aria-expanded={mobileMenuOpen}
             style={{
@@ -1112,6 +1252,72 @@ export default function FocanaLanding() {
           display: "flex", flexDirection: "column", gap: "16px",
           boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
         }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => setMobileProductMenuOpen((open) => !open)}
+              aria-expanded={mobileProductMenuOpen}
+              style={{
+                background: "none",
+                border: "none",
+                color: COLORS.coffeeBrown,
+                fontSize: "16px",
+                fontWeight: 500,
+                padding: "8px 0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+              }}
+            >
+              <span>Product</span>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden="true"
+                style={{
+                  transform: mobileProductMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                }}
+              >
+                <path d="M2.25 4.5 6 8.25 9.75 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {mobileProductMenuOpen && (
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                marginLeft: "2px",
+                paddingLeft: "14px",
+                borderLeft: `2px solid ${COLORS.beigeBorder}`,
+              }}>
+                <a
+                  href="/download"
+                  onClick={() => {
+                    setMobileProductMenuOpen(false);
+                    setMobileMenuOpen(false);
+                  }}
+                  style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, padding: "2px 0" }}
+                >
+                  Download Focana
+                </a>
+                <a
+                  href="/updates"
+                  onClick={() => {
+                    setMobileProductMenuOpen(false);
+                    setMobileMenuOpen(false);
+                  }}
+                  style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, padding: "2px 0" }}
+                >
+                  Updates
+                </a>
+              </div>
+            )}
+          </div>
           <a href="#features" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>How it Works</a>
           <a href="#pricing" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Pricing</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>

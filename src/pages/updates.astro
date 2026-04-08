@@ -1,0 +1,753 @@
+---
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = 'Focana Updates';
+const description = 'See the latest Focana release notes and product improvements.';
+const canonicalURL = `${SITE_ORIGIN}/updates`;
+const ogImage = `${SITE_ORIGIN}/og-image.png`;
+
+const releases = [
+  {
+    version: '1.3.2',
+    date: 'Wednesday, April 8, 2026',
+    fixes: [
+      'Sessions now pause when your Mac sleeps.',
+      'Timers over an hour are now easier to read.',
+    ],
+    improvements: [
+      'You can move completed or discarded sessions back to Resume.',
+      'Switching tasks from Parking Lot during an active session is now smoother.',
+      'Parking Lot delete and clear actions are now safer.',
+      'Full-window dragging feels more reliable.',
+    ],
+  },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content={canonicalURL} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <style>
+      :root {
+        --bg: #fffef8;
+        --bg-soft: rgba(255, 249, 230, 0.84);
+        --bg-panel: rgba(255, 255, 255, 0.92);
+        --line: #e5d4b1;
+        --text: #5c4033;
+        --muted: #8b6f47;
+        --muted-soft: #7a6548;
+        --accent: #f59e0b;
+        --accent-deep: #d97706;
+        --shadow: 0 24px 60px rgba(92, 64, 51, 0.12);
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-height: 100vh;
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background:
+          radial-gradient(circle at top, rgba(245, 158, 11, 0.12), transparent 30%),
+          radial-gradient(circle at 18% 16%, rgba(245, 158, 11, 0.08), transparent 24%),
+          linear-gradient(160deg, #fffef8 0%, #fff9e6 54%, rgba(254, 243, 199, 0.3) 100%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      button:focus-visible,
+      a:focus-visible {
+        outline: 3px solid rgba(217, 119, 6, 0.9);
+        outline-offset: 3px;
+        border-radius: 12px;
+      }
+
+      .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        backdrop-filter: blur(22px);
+        background: rgba(255, 254, 248, 0.84);
+        border-bottom: 1px solid rgba(229, 212, 177, 0.7);
+      }
+
+      .nav-inner,
+      .hero,
+      .updates-layout,
+      .site-footer {
+        width: min(1180px, calc(100% - 48px));
+        margin: 0 auto;
+      }
+
+      .nav-inner {
+        min-height: 82px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .brand-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        box-shadow: 0 12px 28px rgba(92, 64, 51, 0.14);
+      }
+
+      .brand-name {
+        font-family: 'Outfit', sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+      }
+
+      .nav-link,
+      .product-trigger {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--muted);
+        text-decoration: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: color 0.2s ease;
+      }
+
+      .nav-link:hover,
+      .product-trigger:hover,
+      .product-item:hover,
+      .aside-link:hover,
+      .footer-link:hover {
+        color: var(--text);
+      }
+
+      .product-shell {
+        position: relative;
+      }
+
+      .product-trigger {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .product-dropdown {
+        position: absolute;
+        top: calc(100% + 14px);
+        left: -12px;
+        min-width: 230px;
+        padding: 10px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: var(--shadow);
+      }
+
+      .product-item {
+        display: block;
+        padding: 12px 14px;
+        border-radius: 12px;
+        text-decoration: none;
+        color: var(--muted);
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+
+      .product-item:hover {
+        background: var(--bg-soft);
+      }
+
+      .download-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: 14px;
+        text-decoration: none;
+        font-weight: 700;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        box-shadow: 0 14px 34px rgba(217, 119, 6, 0.24);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .download-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 18px 38px rgba(217, 119, 6, 0.3);
+      }
+
+      .mobile-toggle {
+        display: none;
+        width: 44px;
+        height: 44px;
+        border: none;
+        background: none;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      .mobile-drawer {
+        display: none;
+        border-bottom: 1px solid rgba(229, 212, 177, 0.9);
+        background: rgba(255, 254, 248, 0.98);
+      }
+
+      .mobile-drawer-inner {
+        width: min(1180px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 18px 0 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .mobile-link,
+      .mobile-product-trigger {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 16px;
+        font-weight: 500;
+        background: none;
+        border: none;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .mobile-product-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .mobile-product-links {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-left: 16px;
+        border-left: 2px solid rgba(229, 212, 177, 0.9);
+      }
+
+      .hero {
+        padding: 84px 0 56px;
+        text-align: center;
+      }
+
+      .hero-mark {
+        width: 108px;
+        height: 108px;
+        margin: 0 auto 24px;
+        border-radius: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(circle at 50% 30%, rgba(245, 158, 11, 0.26), rgba(217, 119, 6, 0.12) 58%, transparent 72%),
+          rgba(255, 255, 255, 0.68);
+        border: 1px solid rgba(229, 212, 177, 0.9);
+        box-shadow: 0 18px 48px rgba(92, 64, 51, 0.12);
+      }
+
+      .hero-mark img {
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(229, 212, 177, 0.84);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .hero h1 {
+        margin-top: 22px;
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(42px, 7vw, 72px);
+        font-weight: 800;
+        line-height: 1.04;
+        letter-spacing: -0.05em;
+      }
+
+      .hero p {
+        width: min(680px, 100%);
+        margin: 18px auto 0;
+        font-size: clamp(17px, 2vw, 20px);
+        line-height: 1.7;
+        color: var(--muted);
+      }
+
+      .updates-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 240px;
+        gap: 72px;
+        align-items: start;
+        padding-bottom: 96px;
+      }
+
+      .release-list {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .release-card {
+        padding: 38px 40px 44px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--bg-panel);
+        box-shadow: var(--shadow);
+      }
+
+      .release-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(255, 249, 230, 0.92);
+        border: 1px solid rgba(229, 212, 177, 0.84);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .release-version {
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(46px, 7vw, 76px);
+        line-height: 0.98;
+        letter-spacing: -0.05em;
+      }
+
+      .release-date {
+        margin-top: 12px;
+        font-size: 18px;
+        color: var(--muted-soft);
+      }
+
+      .release-section {
+        margin-top: 36px;
+      }
+
+      .release-section h2 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 30px;
+        font-weight: 700;
+        margin-bottom: 16px;
+      }
+
+      .release-section ul {
+        padding-left: 24px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .release-section li {
+        font-size: 18px;
+        line-height: 1.75;
+        color: var(--muted);
+      }
+
+      .release-section li::marker {
+        color: var(--accent);
+      }
+
+      .aside {
+        position: sticky;
+        top: 112px;
+      }
+
+      .aside-card {
+        padding: 24px 22px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: var(--bg-panel);
+        box-shadow: var(--shadow);
+      }
+
+      .aside-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted-soft);
+      }
+
+      .aside-links {
+        margin-top: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .aside-link {
+        text-decoration: none;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.5;
+        transition: color 0.2s ease;
+      }
+
+      .aside-link.primary {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .site-footer {
+        padding: 0 0 56px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        color: var(--muted-soft);
+      }
+
+      .footer-links {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+
+      .footer-link {
+        text-decoration: none;
+        color: var(--muted-soft);
+        transition: color 0.2s ease;
+      }
+
+      @media (max-width: 960px) {
+        .nav-links {
+          display: none;
+        }
+
+        .mobile-toggle,
+        .mobile-drawer {
+          display: block;
+        }
+
+        .updates-layout {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+
+        .aside {
+          position: static;
+        }
+
+        .hero {
+          padding-top: 64px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .nav-inner,
+        .hero,
+        .updates-layout,
+        .site-footer,
+        .mobile-drawer-inner {
+          width: min(100% - 32px, 1180px);
+        }
+
+        .brand-name {
+          font-size: 21px;
+        }
+
+        .hero h1 {
+          font-size: clamp(34px, 11vw, 50px);
+        }
+
+        .hero p,
+        .release-section li {
+          font-size: 16px;
+        }
+
+        .release-version {
+          font-size: clamp(38px, 12vw, 56px);
+        }
+
+        .release-section h2 {
+          font-size: 26px;
+        }
+
+        .release-card {
+          padding: 30px 24px 34px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="nav-inner">
+        <a href="/" class="brand-link" aria-label="Focana home">
+          <img src="/favicon.png" alt="" class="brand-mark" width="42" height="42" />
+          <span class="brand-name">Focana</span>
+        </a>
+
+        <div class="nav-links">
+          <div class="product-shell" data-product-shell>
+            <button class="product-trigger" type="button" aria-expanded="false" aria-haspopup="true" data-product-toggle>
+              <span>Product</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.25 4.5 6 8.25 9.75 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </button>
+            <div class="product-dropdown" data-product-dropdown hidden>
+              <a href="/download" class="product-item">Download Focana</a>
+              <a href="/updates" class="product-item">Updates</a>
+            </div>
+          </div>
+          <a href="/#features" class="nav-link">How it Works</a>
+          <a href="/#pricing" class="nav-link">Pricing</a>
+          <a href="/#faq" class="nav-link">FAQ</a>
+          <a href="/download" class="download-btn">Download</a>
+        </div>
+
+        <button class="mobile-toggle" type="button" aria-expanded="false" aria-label="Open menu" data-mobile-toggle>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="mobile-drawer" data-mobile-drawer hidden>
+        <div class="mobile-drawer-inner">
+          <button class="mobile-product-trigger" type="button" aria-expanded="false" data-mobile-product-toggle>
+            <span>Product</span>
+            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2.25 4.5 6 8.25 9.75 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+          <div class="mobile-product-links" data-mobile-product-links hidden>
+            <a href="/download" class="mobile-link">Download Focana</a>
+            <a href="/updates" class="mobile-link">Updates</a>
+          </div>
+          <a href="/#features" class="mobile-link">How it Works</a>
+          <a href="/#pricing" class="mobile-link">Pricing</a>
+          <a href="/#faq" class="mobile-link">FAQ</a>
+          <a href="/download" class="download-btn">Download</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-mark">
+          <img src="/favicon.png" alt="" width="64" height="64" />
+        </div>
+        <span class="eyebrow">Latest Product Updates</span>
+        <h1>What's new in Focana?</h1>
+        <p>
+          Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.
+        </p>
+      </section>
+
+      <section class="updates-layout">
+        <div class="release-list">
+          {releases.map((release, index) => (
+            <article class="release-card" id={`version-${release.version.replaceAll('.', '-')}`}>
+              <span class="release-pill">{index === 0 ? 'Latest Release' : 'Release'}</span>
+              <h2 class="release-version">Version {release.version}</h2>
+              <p class="release-date">{release.date}</p>
+
+              <div class="release-section">
+                <h2>Fixes</h2>
+                <ul>
+                  {release.fixes.map((item) => (
+                    <li>{item}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div class="release-section">
+                <h2>Improvements</h2>
+                <ul>
+                  {release.improvements.map((item) => (
+                    <li>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <aside class="aside">
+          <div class="aside-card">
+            <p class="aside-label">Quick Links</p>
+            <div class="aside-links">
+              <a href="/download" class="aside-link primary">Download Focana</a>
+              <a href="#version-1-3-2" class="aside-link">Version 1.3.2</a>
+              <a href="/#pricing" class="aside-link">Pricing</a>
+              <a href="/#faq" class="aside-link">FAQ</a>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>&copy; 2026 Focana. The desktop focus buddy for busy brains.</p>
+      <div class="footer-links">
+        <a href="/" class="footer-link">Home</a>
+        <a href="/download" class="footer-link">Download</a>
+        <a href="mailto:hello@focana.app" class="footer-link">Contact</a>
+      </div>
+    </footer>
+
+    <Analytics />
+    <SpeedInsights />
+
+    <script>
+      const productShell = document.querySelector('[data-product-shell]');
+      const productToggle = document.querySelector('[data-product-toggle]');
+      const productDropdown = document.querySelector('[data-product-dropdown]');
+      const mobileToggle = document.querySelector('[data-mobile-toggle]');
+      const mobileDrawer = document.querySelector('[data-mobile-drawer]');
+      const mobileProductToggle = document.querySelector('[data-mobile-product-toggle]');
+      const mobileProductLinks = document.querySelector('[data-mobile-product-links]');
+      const mobileDrawerLinks = mobileDrawer?.querySelectorAll('a');
+
+      const setExpanded = (element, expanded) => {
+        element?.setAttribute('aria-expanded', String(expanded));
+      };
+
+      const closeProductMenu = () => {
+        if (!productDropdown || !productToggle) return;
+        productDropdown.hidden = true;
+        setExpanded(productToggle, false);
+      };
+
+      const toggleProductMenu = () => {
+        if (!productDropdown || !productToggle) return;
+        const nextOpen = productDropdown.hidden;
+        productDropdown.hidden = !nextOpen;
+        setExpanded(productToggle, nextOpen);
+      };
+
+      const closeMobileDrawer = () => {
+        if (!mobileDrawer || !mobileToggle) return;
+        mobileDrawer.hidden = true;
+        setExpanded(mobileToggle, false);
+        if (mobileProductLinks && mobileProductToggle) {
+          mobileProductLinks.hidden = true;
+          setExpanded(mobileProductToggle, false);
+        }
+      };
+
+      productToggle?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleProductMenu();
+      });
+
+      document.addEventListener('click', (event) => {
+        if (productShell && !productShell.contains(event.target)) {
+          closeProductMenu();
+        }
+      });
+
+      mobileToggle?.addEventListener('click', () => {
+        if (!mobileDrawer || !mobileToggle) return;
+        const nextOpen = mobileDrawer.hidden;
+        mobileDrawer.hidden = !nextOpen;
+        setExpanded(mobileToggle, nextOpen);
+        closeProductMenu();
+      });
+
+      mobileProductToggle?.addEventListener('click', () => {
+        if (!mobileProductLinks || !mobileProductToggle) return;
+        const nextOpen = mobileProductLinks.hidden;
+        mobileProductLinks.hidden = !nextOpen;
+        setExpanded(mobileProductToggle, nextOpen);
+      });
+
+      mobileDrawerLinks?.forEach((link) => {
+        link.addEventListener('click', closeMobileDrawer);
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeProductMenu();
+          closeMobileDrawer();
+        }
+      });
+    </script>
+  </body>
+</html>
