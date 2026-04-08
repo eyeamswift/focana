@@ -1189,14 +1189,22 @@ export default function FocanaLanding() {
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
               </div>
-              <p style={{
-                fontSize: "15px",
-                color: COLORS.coffeeBrown,
-                marginTop: "14px",
-                animation: "fadeUp 0.6s ease 0.35s both",
-              }}>
-                $29 lifetime · No subscription · macOS
-              </p>
+            <p style={{
+              fontSize: "15px",
+              color: COLORS.coffeeBrown,
+              marginTop: "14px",
+              animation: "fadeUp 0.6s ease 0.35s both",
+            }}>
+              $29 lifetime · No subscription · macOS
+            </p>
+            <div style={{
+              marginTop: "18px",
+              display: "flex",
+              justifyContent: "center",
+              animation: "fadeUp 0.6s ease 0.4s both",
+            }}>
+              <SaasHubBadge location="hero" />
+            </div>
             </div>
 
           </div>
