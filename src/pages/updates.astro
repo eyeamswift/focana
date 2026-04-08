@@ -7,6 +7,7 @@ const title = 'Focana Updates';
 const description = 'See the latest Focana release notes and product improvements.';
 const canonicalURL = `${SITE_ORIGIN}/updates`;
 const ogImage = `${SITE_ORIGIN}/og-image.png`;
+const checkoutUrl = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || 'https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d?embed=1';
 
 const releases = [
   {
@@ -53,6 +54,8 @@ const releases = [
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
+
+    <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
 
     <style>
       :root {
@@ -470,6 +473,23 @@ const releases = [
         color: var(--muted-soft);
       }
 
+      .checkout-error {
+        position: fixed;
+        top: 96px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 40;
+        width: min(90vw, 420px);
+        padding: 12px 16px;
+        border-radius: 14px;
+        background: #5c4033;
+        color: #fff;
+        box-shadow: 0 18px 40px rgba(92, 64, 51, 0.2);
+        text-align: center;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
       .footer-links {
         display: flex;
         align-items: center;
@@ -569,14 +589,14 @@ const releases = [
               </svg>
             </button>
             <div class="product-dropdown" data-product-dropdown hidden>
-              <a href="/download" class="product-item">Download Focana</a>
+              <a href={checkoutUrl} class="product-item" data-checkout-trigger data-checkout-location="updates_product_dropdown">Download Focana</a>
               <a href="/updates" class="product-item">Updates</a>
             </div>
           </div>
           <a href="/#features" class="nav-link">How it Works</a>
           <a href="/#pricing" class="nav-link">Pricing</a>
           <a href="/#faq" class="nav-link">FAQ</a>
-          <a href="/download" class="download-btn">Download</a>
+          <a href={checkoutUrl} class="download-btn" data-checkout-trigger data-checkout-location="updates_nav_download">Download</a>
         </div>
 
         <button class="mobile-toggle" type="button" aria-expanded="false" aria-label="Open menu" data-mobile-toggle>
@@ -597,16 +617,18 @@ const releases = [
             </svg>
           </button>
           <div class="mobile-product-links" data-mobile-product-links hidden>
-            <a href="/download" class="mobile-link">Download Focana</a>
+            <a href={checkoutUrl} class="mobile-link" data-checkout-trigger data-checkout-location="updates_mobile_product_dropdown">Download Focana</a>
             <a href="/updates" class="mobile-link">Updates</a>
           </div>
           <a href="/#features" class="mobile-link">How it Works</a>
           <a href="/#pricing" class="mobile-link">Pricing</a>
           <a href="/#faq" class="mobile-link">FAQ</a>
-          <a href="/download" class="download-btn">Download</a>
+          <a href={checkoutUrl} class="download-btn" data-checkout-trigger data-checkout-location="updates_mobile_nav_download">Download</a>
         </div>
       </div>
     </header>
+
+    <div class="checkout-error" data-checkout-error hidden></div>
 
     <main>
       <section class="hero">
@@ -653,7 +675,7 @@ const releases = [
           <div class="aside-card">
             <p class="aside-label">Quick Links</p>
             <div class="aside-links">
-              <a href="/download" class="aside-link primary">Download Focana</a>
+              <a href={checkoutUrl} class="aside-link primary" data-checkout-trigger data-checkout-location="updates_quick_links_download">Download Focana</a>
               <a href="#version-1-3-2" class="aside-link">Version 1.3.2</a>
               <a href="/#pricing" class="aside-link">Pricing</a>
               <a href="/#faq" class="aside-link">FAQ</a>
@@ -667,7 +689,7 @@ const releases = [
       <p>&copy; 2026 Focana. The desktop focus buddy for busy brains.</p>
       <div class="footer-links">
         <a href="/" class="footer-link">Home</a>
-        <a href="/download" class="footer-link">Download</a>
+        <a href={checkoutUrl} class="footer-link" data-checkout-trigger data-checkout-location="updates_footer_download">Download</a>
         <a href="mailto:hello@focana.app" class="footer-link">Contact</a>
       </div>
     </footer>
@@ -675,7 +697,8 @@ const releases = [
     <Analytics />
     <SpeedInsights />
 
-    <script>
+    <script define:vars={{ checkoutUrl }}>
+      const CHECKOUT_URL = checkoutUrl;
       const productShell = document.querySelector('[data-product-shell]');
       const productToggle = document.querySelector('[data-product-toggle]');
       const productDropdown = document.querySelector('[data-product-dropdown]');
@@ -684,6 +707,10 @@ const releases = [
       const mobileProductToggle = document.querySelector('[data-mobile-product-toggle]');
       const mobileProductLinks = document.querySelector('[data-mobile-product-links]');
       const mobileDrawerLinks = mobileDrawer?.querySelectorAll('a');
+      const checkoutTriggers = document.querySelectorAll('[data-checkout-trigger]');
+      const checkoutError = document.querySelector('[data-checkout-error]');
+      let checkoutReadyPromise = null;
+      let checkoutErrorTimeout = null;
 
       const setExpanded = (element, expanded) => {
         element?.setAttribute('aria-expanded', String(expanded));
@@ -709,6 +736,131 @@ const releases = [
         if (mobileProductLinks && mobileProductToggle) {
           mobileProductLinks.hidden = true;
           setExpanded(mobileProductToggle, false);
+        }
+      };
+
+      const showCheckoutError = (message) => {
+        if (!checkoutError) return;
+        checkoutError.textContent = message;
+        checkoutError.hidden = false;
+
+        if (checkoutErrorTimeout) {
+          window.clearTimeout(checkoutErrorTimeout);
+        }
+
+        checkoutErrorTimeout = window.setTimeout(() => {
+          checkoutError.hidden = true;
+          checkoutErrorTimeout = null;
+        }, 5000);
+      };
+
+      const getCheckoutSuccessContext = (event) => {
+        const payload = event?.data || {};
+        const nestedOrder = payload.order || {};
+        const attributes = payload.attributes || nestedOrder.attributes || {};
+
+        const email =
+          payload.user_email ||
+          attributes.user_email ||
+          nestedOrder.user_email ||
+          '';
+
+        const orderId =
+          payload.id ||
+          payload.order_id ||
+          nestedOrder.id ||
+          nestedOrder.order_id ||
+          '';
+
+        return {
+          email: email ? String(email).trim() : '',
+          orderId: orderId ? String(orderId).trim() : '',
+        };
+      };
+
+      const setupLemon = () => {
+        if (!window.LemonSqueezy || window.__focanaUpdatesCheckoutSetup) return;
+
+        window.__focanaUpdatesCheckoutSetup = true;
+        window.LemonSqueezy.Setup({
+          eventHandler: (event) => {
+            if (event.event !== 'Checkout.Success') return;
+
+            const { email, orderId } = getCheckoutSuccessContext(event);
+
+            try {
+              window.sessionStorage.setItem(
+                'focana_purchase_context',
+                JSON.stringify({ email, orderId })
+              );
+            } catch {}
+
+            const redirectUrl = new URL('/download', window.location.origin);
+            if (email) redirectUrl.searchParams.set('email', email);
+            if (orderId) redirectUrl.searchParams.set('order_id', orderId);
+            window.location.href = redirectUrl.toString();
+          },
+        });
+      };
+
+      const waitForCheckoutOverlay = () => {
+        if (window.LemonSqueezy?.Url?.Open) {
+          setupLemon();
+          return Promise.resolve(window.LemonSqueezy);
+        }
+
+        if (checkoutReadyPromise) {
+          return checkoutReadyPromise;
+        }
+
+        checkoutReadyPromise = new Promise((resolve, reject) => {
+          let pollId = null;
+          let timeoutId = null;
+
+          const cleanup = () => {
+            window.removeEventListener('lemon:ready', handleReady);
+            if (pollId) window.clearInterval(pollId);
+            if (timeoutId) window.clearTimeout(timeoutId);
+            checkoutReadyPromise = null;
+          };
+
+          const finish = (callback) => {
+            cleanup();
+            callback();
+          };
+
+          const tryResolve = () => {
+            if (!window.LemonSqueezy?.Url?.Open) return false;
+            setupLemon();
+            finish(() => resolve(window.LemonSqueezy));
+            return true;
+          };
+
+          const handleReady = () => {
+            tryResolve();
+          };
+
+          window.addEventListener('lemon:ready', handleReady);
+          pollId = window.setInterval(() => {
+            tryResolve();
+          }, 100);
+          timeoutId = window.setTimeout(() => {
+            finish(() => reject(new Error('Lemon checkout overlay did not become available in time.')));
+          }, 4000);
+
+          tryResolve();
+        });
+
+        return checkoutReadyPromise;
+      };
+
+      const openCheckout = async () => {
+        try {
+          const lemon = await waitForCheckoutOverlay();
+          lemon.Url.Open(CHECKOUT_URL);
+        } catch (error) {
+          console.error('Failed to open Lemon overlay:', error);
+          showCheckoutError('Checkout is still loading. Please try again.');
         }
       };
 
@@ -740,6 +892,15 @@ const releases = [
 
       mobileDrawerLinks?.forEach((link) => {
         link.addEventListener('click', closeMobileDrawer);
+      });
+
+      checkoutTriggers.forEach((trigger) => {
+        trigger.addEventListener('click', (event) => {
+          event.preventDefault();
+          closeProductMenu();
+          closeMobileDrawer();
+          openCheckout();
+        });
       });
 
       document.addEventListener('keydown', (event) => {

@@ -1167,12 +1167,16 @@ export default function FocanaLanding() {
                     boxShadow: "0 22px 48px rgba(92, 64, 51, 0.16)",
                   }}
                 >
-                  <a
-                    href="/download"
+                  <button
+                    type="button"
                     className="product-menu-item"
-                    onClick={() => setProductMenuOpen(false)}
+                    onClick={() => {
+                      setProductMenuOpen(false);
+                      openCheckout("nav_product_dropdown");
+                    }}
                     style={{
                       display: "block",
+                      width: "100%",
                       padding: "12px 14px",
                       borderRadius: "12px",
                       color: COLORS.warmBrown,
@@ -1180,10 +1184,14 @@ export default function FocanaLanding() {
                       fontSize: "14px",
                       fontWeight: 600,
                       transition: "background 0.2s ease, color 0.2s ease",
+                      textAlign: "left",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
                     }}
                   >
                     Download Focana
-                  </a>
+                  </button>
                   <a
                     href="/updates"
                     className="product-menu-item"
@@ -1295,16 +1303,28 @@ export default function FocanaLanding() {
                 paddingLeft: "14px",
                 borderLeft: `2px solid ${COLORS.beigeBorder}`,
               }}>
-                <a
-                  href="/download"
+                <button
+                  type="button"
                   onClick={() => {
                     setMobileProductMenuOpen(false);
                     setMobileMenuOpen(false);
+                    openCheckout("mobile_product_dropdown");
                   }}
-                  style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, padding: "2px 0" }}
+                  style={{
+                    color: COLORS.coffeeBrown,
+                    textDecoration: "none",
+                    fontSize: "15px",
+                    fontWeight: 500,
+                    padding: "2px 0",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                  }}
                 >
                   Download Focana
-                </a>
+                </button>
                 <a
                   href="/updates"
                   onClick={() => {
