@@ -2,29 +2,26 @@
 import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
 import { SITE_ORIGIN } from '../lib/siteOrigin';
+import releasesData from '../data/releases.json';
 
 const title = 'Focana Updates';
 const description = 'See the latest Focana release notes and product improvements.';
 const canonicalURL = `${SITE_ORIGIN}/updates`;
 const ogImage = `${SITE_ORIGIN}/og-image.png`;
 const checkoutUrl = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || 'https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d?embed=1';
-
-const releases = [
-  {
-    version: '1.3.2',
-    date: 'Wednesday, April 8, 2026',
-    fixes: [
-      'Sessions now pause when your Mac sleeps.',
-      'Timers over an hour are now easier to read.',
-    ],
-    improvements: [
-      'You can move completed or discarded sessions back to Resume.',
-      'Switching tasks from Parking Lot during an active session is now smoother.',
-      'Parking Lot delete and clear actions are now safer.',
-      'Full-window dragging feels more reliable.',
-    ],
-  },
-];
+const fallbackSummary = 'Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.';
+const releases = Array.isArray(releasesData)
+  ? releasesData.map((release) => ({
+      ...release,
+      summary: typeof release?.summary === 'string' ? release.summary : '',
+      displayDate: typeof release?.displayDate === 'string' ? release.displayDate : '',
+      fixes: Array.isArray(release?.fixes) ? release.fixes : [],
+      improvements: Array.isArray(release?.improvements) ? release.improvements : [],
+      anchorId: `version-${String(release?.version || '').replaceAll('.', '-')}`,
+    }))
+  : [];
+const latestRelease = releases[0] || null;
+const heroSummary = latestRelease?.summary || fallbackSummary;
 ---
 
 <html lang="en">
@@ -637,38 +634,46 @@ const releases = [
         </div>
         <span class="eyebrow">Latest Product Updates</span>
         <h1>What's new in Focana?</h1>
-        <p>
-          Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.
-        </p>
+        <p>{heroSummary}</p>
       </section>
 
       <section class="updates-layout">
         <div class="release-list">
-          {releases.map((release, index) => (
-            <article class="release-card" id={`version-${release.version.replaceAll('.', '-')}`}>
+          {releases.length > 0 ? releases.map((release, index) => (
+            <article class="release-card" id={release.anchorId}>
               <span class="release-pill">{index === 0 ? 'Latest Release' : 'Release'}</span>
               <h2 class="release-version">Version {release.version}</h2>
-              <p class="release-date">{release.date}</p>
+              <p class="release-date">{release.displayDate}</p>
 
-              <div class="release-section">
-                <h2>Fixes</h2>
-                <ul>
-                  {release.fixes.map((item) => (
-                    <li>{item}</li>
-                  ))}
-                </ul>
-              </div>
+              {release.fixes.length > 0 && (
+                <div class="release-section">
+                  <h2>Fixes</h2>
+                  <ul>
+                    {release.fixes.map((item) => (
+                      <li>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-              <div class="release-section">
-                <h2>Improvements</h2>
-                <ul>
-                  {release.improvements.map((item) => (
-                    <li>{item}</li>
-                  ))}
-                </ul>
-              </div>
+              {release.improvements.length > 0 && (
+                <div class="release-section">
+                  <h2>Improvements</h2>
+                  <ul>
+                    {release.improvements.map((item) => (
+                      <li>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </article>
-          ))}
+          )) : (
+            <article class="release-card">
+              <span class="release-pill">Latest Release</span>
+              <h2 class="release-version">Updates coming soon</h2>
+              <p class="release-date">Release notes will show up here as new versions ship.</p>
+            </article>
+          )}
         </div>
 
         <aside class="aside">
@@ -676,7 +681,9 @@ const releases = [
             <p class="aside-label">Quick Links</p>
             <div class="aside-links">
               <a href={checkoutUrl} class="aside-link primary" data-checkout-trigger data-checkout-location="updates_quick_links_download">Download Focana</a>
-              <a href="#version-1-3-2" class="aside-link">Version 1.3.2</a>
+              {releases.map((release) => (
+                <a href={`#${release.anchorId}`} class="aside-link">Version {release.version}</a>
+              ))}
               <a href="/#pricing" class="aside-link">Pricing</a>
               <a href="/#faq" class="aside-link">FAQ</a>
             </div>
