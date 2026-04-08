@@ -1111,7 +1111,7 @@ export default function FocanaLanding() {
           <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
             <div
               ref={productMenuRef}
-              style={{ position: "relative" }}
+              style={{ position: "relative", paddingBottom: "14px", marginBottom: "-14px" }}
               onMouseEnter={() => setProductMenuOpen(true)}
               onMouseLeave={() => setProductMenuOpen(false)}
             >
@@ -1156,7 +1156,7 @@ export default function FocanaLanding() {
                   aria-label="Product links"
                   style={{
                     position: "absolute",
-                    top: "calc(100% + 14px)",
+                    top: "100%",
                     left: "-12px",
                     minWidth: "220px",
                     padding: "10px",
