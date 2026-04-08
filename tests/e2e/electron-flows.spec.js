@@ -111,12 +111,13 @@ async function triggerShortcutAction(electronApp, action) {
 
 function parseTimerTextToSeconds(timerText) {
   if (typeof timerText !== 'string') return null;
-  const hourMatch = timerText.match(/^(\d+)h (\d{2})m$/);
+  const hourMatch = timerText.match(/^(\d+):(\d{2}):(\d{2})$/);
   if (hourMatch) {
     const hours = Number(hourMatch[1]);
     const minutes = Number(hourMatch[2]);
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-    return (hours * 3600) + (minutes * 60);
+    const seconds = Number(hourMatch[3]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    return (hours * 3600) + (minutes * 60) + seconds;
   }
 
   const minuteMatch = timerText.match(/^(\d{2}):(\d{2})$/);
@@ -131,7 +132,7 @@ async function readDisplayedTimerSeconds(page) {
   const timerText = await page.evaluate(() => {
     const allText = Array.from(document.querySelectorAll('div, span'))
       .map((el) => (el.textContent || '').trim())
-      .filter((text) => /^\d{2}:\d{2}$/.test(text) || /^\d+h \d{2}m$/.test(text));
+      .filter((text) => /^\d{2}:\d{2}$/.test(text) || /^\d+:\d{2}:\d{2}$/.test(text));
     return allText.length > 0 ? allText[0] : null;
   });
 
@@ -336,6 +337,20 @@ async function startTimedSession(page, taskName, minutes) {
 async function exitCompactMode(page) {
   await page.locator('.pill').dblclick();
   await expect.poll(() => readWindowMode(page)).toBe('full');
+}
+
+async function readAppRegion(locator) {
+  return locator.evaluate((el) => {
+    const styles = window.getComputedStyle(el);
+    return styles.getPropertyValue('-webkit-app-region') || styles.webkitAppRegion || '';
+  });
+}
+
+async function dismissSessionFeedbackIfPresent(page) {
+  const closeButton = page.getByRole('button', { name: 'Close feedback prompt' });
+  if (await closeButton.count()) {
+    await closeButton.click();
+  }
 }
 
 async function expectCheckInToastMessage(page, allowedMessages) {
@@ -1501,6 +1516,93 @@ test('parking lot opened from compact returns to the previous compact position',
   }
 });
 
+test('parking lot task switch can be declined and returns to the previous running session view', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-switch-decline');
+    const beforeSeconds = await readDisplayedTimerSeconds(page);
+    expect(beforeSeconds).not.toBeNull();
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      main?.webContents.send('tray-open-parking-lot');
+    });
+
+    await expect(page.getByRole('heading', { name: 'Parking Lot' })).toBeVisible();
+    await page.getByPlaceholder('Capture a thought... (Enter to add)').fill('switch later');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+    await page.getByRole('button', { name: 'Start This Task' }).click();
+
+    await expect(page.getByRole('heading', { name: 'End current session and switch tasks?' })).toBeVisible();
+    await page.getByRole('button', { name: 'No, Keep This Session' }).click();
+
+    await expect(page.getByText('Saved in Parking Lot')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Parking Lot' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+
+    await page.waitForTimeout(1200);
+    const afterSeconds = await readDisplayedTimerSeconds(page);
+    expect(afterSeconds).not.toBeNull();
+    expect(afterSeconds).toBeGreaterThan(beforeSeconds);
+
+    const storedThoughts = await page.evaluate(() => window.electronAPI.storeGet('thoughts'));
+    expect(storedThoughts.some((thought) => thought?.text === 'switch later')).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('parking lot task switch can stop the current session and seed the next task', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'switch-current-session');
+    await exitCompactMode(page);
+    await setTimeOffset(page, 6500);
+
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+    await page.getByPlaceholder('Capture a thought... (Enter to add)').fill('queued switch task');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+    await page.getByRole('button', { name: 'Start This Task' }).click();
+
+    await expect(page.getByRole('heading', { name: 'End current session and switch tasks?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Yes, End Session' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
+    await dismissSessionFeedbackIfPresent(page);
+
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('queued switch task');
+    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
+
+    const storedThoughts = await page.evaluate(() => window.electronAPI.storeGet('thoughts'));
+    expect(storedThoughts.some((thought) => thought?.text === 'queued switch task')).toBe(true);
+
+    const storedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    expect(storedSessions.some((session) => session?.task === 'switch-current-session')).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('header navigation gap stays draggable while controls remain clickable', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    const navRegion = await readAppRegion(page.locator('.full-header__nav'));
+    const parkingLotRegion = await readAppRegion(page.getByRole('button', { name: 'Open Parking Lot' }));
+    const settingsRegion = await readAppRegion(page.getByRole('button', { name: 'Open Settings' }));
+
+    expect(navRegion).toContain('drag');
+    expect(parkingLotRegion).toContain('no-drag');
+    expect(settingsRegion).toContain('no-drag');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('manual re-entry into compact anchors from the current full-window position after exiting compact', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
@@ -2637,6 +2739,65 @@ test('history delete requires explicit confirmation for single and bulk actions'
   }
 });
 
+test('history can restore completed and discarded sessions back to Resume', async () => {
+  const sessions = [
+    {
+      id: 'hist-complete-1',
+      task: 'Completed restore me',
+      durationMinutes: 15,
+      mode: 'freeflow',
+      completed: true,
+      kept: false,
+      notes: 'completed note',
+      createdAt: new Date('2026-02-10T12:00:00.000Z').toISOString(),
+    },
+    {
+      id: 'hist-discard-1',
+      task: 'Discarded restore me',
+      durationMinutes: 9,
+      mode: 'freeflow',
+      completed: false,
+      kept: false,
+      notes: 'discarded note',
+      createdAt: new Date('2026-02-11T12:00:00.000Z').toISOString(),
+    },
+  ];
+
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.evaluate(async (nextSessions) => {
+      await window.electronAPI.storeSet('sessions', nextSessions);
+    }, sessions);
+    await page.reload();
+
+    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('tab', { name: 'Completed' }).click();
+    await expect(page.getByText('Completed restore me')).toBeVisible();
+    await page.getByRole('button', { name: 'Restore to Resume' }).click();
+    await expect(page.getByText('No completed sessions yet.')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Discarded' }).click();
+    await expect(page.getByText('Discarded restore me')).toBeVisible();
+    await page.getByRole('button', { name: 'Restore to Resume' }).click();
+    await expect(page.getByText('No discarded sessions yet.')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Resume' }).click();
+    await expect(page.getByText('Completed restore me')).toBeVisible();
+    await expect(page.getByText('Discarded restore me')).toBeVisible();
+
+    const storedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    const restoredCompleted = storedSessions.find((item) => item.id === 'hist-complete-1');
+    const restoredDiscarded = storedSessions.find((item) => item.id === 'hist-discard-1');
+    expect(restoredCompleted.completed).toBe(false);
+    expect(restoredCompleted.kept).toBe(true);
+    expect(restoredDiscarded.completed).toBe(false);
+    expect(restoredDiscarded.kept).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('shortcut recorder handles modifier and escape without lockup', async () => {
   const { page, cleanup } = await launchApp();
   try {
@@ -2868,6 +3029,7 @@ test('stop flow is handled inside session notes without a second completion moda
     await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume from here');
     await page.getByRole('button', { name: 'No, Save for Later' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('stop-flow-unified');
 
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
@@ -2926,6 +3088,8 @@ test('freeflow stop flow completion shows the completion message above confetti'
     await expect(feedbackPrompt).toHaveCount(0, { timeout: 5000 });
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
     await expectCheckInToastMessage(page, COMPLETED_CHECKIN_MESSAGES_WITH_NAME);
     await expectCheckInToastAboveConfetti(page);
   } finally {
@@ -2957,6 +3121,7 @@ test('feedback prompt close button skips feedback and continues the stop flow ac
 
     await expect(feedbackPrompt).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('feedback-close');
 
     await expect.poll(async () => {
@@ -2967,6 +3132,79 @@ test('feedback prompt close button skips feedback and continues the stop flow ac
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].completed).toBe(false);
     expect(savedSessions[0].notes).toBe('carry note');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('post-session parking lot dismiss requires confirmation and Done returns to the full idle shell', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'post-session-dismiss');
+    await exitCompactMode(page);
+    await setTimeOffset(page, 6500);
+
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+    const thoughtInput = page.getByPlaceholder('Capture a thought... (Enter to add)');
+    await thoughtInput.fill('dismiss me later');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Yes, Complete' }).click();
+    await dismissSessionFeedbackIfPresent(page);
+
+    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toBeVisible();
+    await page.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(page.getByRole('heading', { name: 'Dismiss note?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByText('dismiss me later')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('post-session parking lot can seed the next task without deleting the saved note', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'post-session-start-next');
+    await exitCompactMode(page);
+    await setTimeOffset(page, 6500);
+
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+    const thoughtInput = page.getByPlaceholder('Capture a thought... (Enter to add)');
+    await thoughtInput.fill('turn this into the next task');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Yes, Complete' }).click();
+    await dismissSessionFeedbackIfPresent(page);
+
+    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toBeVisible();
+    await page.getByRole('button', { name: 'Start as next task' }).click();
+
+    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('turn this into the next task');
+    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+    await expect(page.locator('p.line-clamp-2.break-words').filter({ hasText: 'turn this into the next task' })).toBeVisible();
+
+    const storedThoughts = await page.evaluate(() => window.electronAPI.storeGet('thoughts'));
+    expect(storedThoughts.some((thought) => thought?.text === 'turn this into the next task')).toBe(true);
   } finally {
     await cleanup();
   }
@@ -3000,6 +3238,59 @@ test('timer catches up after renderer blocking instead of drifting by one tick',
   }
 });
 
+test('hour-plus timers stay visibly active in compact, full, and floating views', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: false,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'hour-plus-display');
+
+    await setTimeOffset(page, 3600000);
+    await page.waitForTimeout(1200);
+
+    const compactTimer = page.locator('.pill-timer').first();
+    await expect(compactTimer).toHaveText(/\d+:\d{2}:\d{2}/);
+    const compactBefore = parseTimerTextToSeconds((await compactTimer.textContent())?.trim() || '');
+    await page.waitForTimeout(1100);
+    const compactAfter = parseTimerTextToSeconds((await compactTimer.textContent())?.trim() || '');
+    expect(compactBefore).not.toBeNull();
+    expect(compactAfter).not.toBeNull();
+    expect(compactAfter).toBeGreaterThan(compactBefore);
+
+    await exitCompactMode(page);
+    const fullTimer = page.locator('.focus-hero__clock').first();
+    await expect(fullTimer).toHaveText(/\d+:\d{2}:\d{2}/);
+    const fullBefore = parseTimerTextToSeconds((await fullTimer.textContent())?.trim() || '');
+    await page.waitForTimeout(1100);
+    const fullAfter = parseTimerTextToSeconds((await fullTimer.textContent())?.trim() || '');
+    expect(fullBefore).not.toBeNull();
+    expect(fullAfter).not.toBeNull();
+    expect(fullAfter).toBeGreaterThan(fullBefore);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    const floatingLabel = floatingWindow.locator('#timer-label');
+    await expect(floatingLabel).toHaveText(/\d+:\d{2}:\d{2}/);
+    const floatingBefore = parseTimerTextToSeconds((await floatingLabel.textContent())?.trim() || '');
+    await floatingWindow.waitForTimeout(1100);
+    const floatingAfter = parseTimerTextToSeconds((await floatingLabel.textContent())?.trim() || '');
+    expect(floatingBefore).not.toBeNull();
+    expect(floatingAfter).not.toBeNull();
+    expect(floatingAfter).toBeGreaterThan(floatingBefore);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('editing a parking lot note preserves completion state', async () => {
   const { page, cleanup } = await launchApp();
 
@@ -3024,6 +3315,105 @@ test('editing a parking lot note preserves completion state', async () => {
 
     await expect(page.getByText('updated thought')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Copy Selected' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('parking lot destructive actions require confirmation and Start This Task keeps the note', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+
+    const thoughtInput = page.getByPlaceholder('Capture a thought... (Enter to add)');
+    await thoughtInput.fill('delete me');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+    await thoughtInput.fill('clear me');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+    await thoughtInput.fill('startable note');
+    await page.getByRole('button', { name: 'Add Note' }).click();
+
+    await page.getByText('delete me').click();
+    await expect(page.getByRole('heading', { name: 'Edit Note' })).toBeVisible();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Delete note?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).last().click();
+    await expect(page.getByPlaceholder('Edit your note...')).toHaveValue('delete me');
+
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Delete note?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Delete Note' }).last().click();
+    await expect(page.getByText('delete me')).toHaveCount(0);
+
+    await expect(page.locator('.checkbox')).toHaveCount(2);
+    await page.locator('.checkbox').nth(1).click();
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await expect(page.getByRole('heading', { name: 'Delete note?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Delete Notes' }).click();
+    await expect(page.getByText('clear me')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Start This Task' }).click();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('startable note');
+    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
+    await expect(page.locator('p.line-clamp-2.break-words').filter({ hasText: 'startable note' })).toBeVisible();
+
+    const storedThoughts = await page.evaluate(() => window.electronAPI.storeGet('thoughts'));
+    expect(storedThoughts.some((thought) => thought?.text === 'startable note')).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('system sleep pauses an active session without counting slept time', async () => {
+  const { electronApp, page, cleanup } = await launchApp();
+
+  try {
+    await startFreeflowSession(page, 'sleep-pauses-session');
+    await page.waitForTimeout(1400);
+
+    const beforeSuspend = await readDisplayedTimerSeconds(page);
+    expect(beforeSuspend).not.toBeNull();
+
+    const staleRunningSnapshot = await page.evaluate(async () => {
+      const [currentTask, timerState] = await Promise.all([
+        window.electronAPI.storeGet('currentTask'),
+        window.electronAPI.storeGet('timerState'),
+      ]);
+      return { currentTask, timerState };
+    });
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+    });
+
+    await page.evaluate(async (snapshot) => {
+      await window.electronAPI.storeSet('currentTask', snapshot.currentTask);
+      await window.electronAPI.storeSet('timerState', snapshot.timerState);
+    }, staleRunningSnapshot);
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('resume');
+    });
+
+    await expect(page.getByText('Session paused while your Mac slept')).toBeVisible();
+    await expect.poll(async () => {
+      const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+      return JSON.stringify({
+        isRunning: Boolean(timerState?.isRunning),
+        hasSessionStartedAt: Boolean(timerState?.sessionStartedAt),
+      });
+    }).toBe(JSON.stringify({ isRunning: false, hasSessionStartedAt: false }));
+
+    const afterSuspend = await readDisplayedTimerSeconds(page);
+    expect(afterSuspend).not.toBeNull();
+    expect(afterSuspend).toBeGreaterThanOrEqual(beforeSuspend);
+
+    await page.waitForTimeout(1400);
+    const afterWait = await readDisplayedTimerSeconds(page);
+    expect(afterWait).toBe(afterSuspend);
   } finally {
     await cleanup();
   }

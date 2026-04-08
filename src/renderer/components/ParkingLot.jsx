@@ -24,6 +24,7 @@ export default function ParkingLot({
   const [editingText, setEditingText] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedThoughtIds, setSelectedThoughtIds] = useState([]);
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   const displayThoughts = useMemo(() => [...thoughts]
     .map((thought, index) => ({ thought, index }))
@@ -105,21 +106,25 @@ export default function ParkingLot({
 
   const handleDeleteThought = () => {
     if (expandedThought !== null) {
-      onRemoveThought(expandedThought);
-      track('parking_lot_item_deleted');
-      setExpandedThought(null);
-      setEditingText('');
+      const thought = thoughts.find((entry) => entry.id === expandedThought);
+      setPendingDelete({
+        type: 'single',
+        ids: [expandedThought],
+        label: thought?.text || 'this note',
+        fromExpanded: true,
+      });
     }
   };
 
   const handleDeleteThoughtById = (thoughtId) => {
     if (!thoughtId) return;
-    onRemoveThought(thoughtId);
-    track('parking_lot_item_deleted');
-    if (expandedThought === thoughtId) {
-      setExpandedThought(null);
-      setEditingText('');
-    }
+    const thought = thoughts.find((entry) => entry.id === thoughtId);
+    setPendingDelete({
+      type: 'single',
+      ids: [thoughtId],
+      label: thought?.text || 'this note',
+      fromExpanded: expandedThought === thoughtId,
+    });
   };
 
   const handleStartThought = () => {
@@ -165,14 +170,50 @@ export default function ParkingLot({
 
   const handleClearSelected = () => {
     if (selectedThoughtIds.length === 0) return;
-    if (typeof onRemoveThoughts === 'function') {
-      onRemoveThoughts(selectedThoughtIds);
-    } else {
-      selectedThoughtIds.forEach((thoughtId) => onRemoveThought(thoughtId));
+    setPendingDelete({
+      type: 'selected',
+      ids: [...selectedThoughtIds],
+      label: `${selectedThoughtIds.length} selected note${selectedThoughtIds.length === 1 ? '' : 's'}`,
+    });
+  };
+
+  const handleRequestClearCompleted = () => {
+    const completedIds = thoughts.filter((thought) => thought.completed).map((thought) => thought.id);
+    if (completedIds.length === 0) return;
+    setPendingDelete({
+      type: 'completed',
+      ids: completedIds,
+      label: `${completedIds.length} completed note${completedIds.length === 1 ? '' : 's'}`,
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!pendingDelete?.ids?.length) {
+      setPendingDelete(null);
+      return;
     }
-    track('parking_lot_cleared', { cleared_count: selectedThoughtIds.length, mode: 'bulk_selected' });
-    setSelectedThoughtIds([]);
-    setSelectionMode(false);
+
+    if (pendingDelete.type === 'single') {
+      onRemoveThought(pendingDelete.ids[0]);
+      track('parking_lot_item_deleted');
+      if (pendingDelete.fromExpanded) {
+        setExpandedThought(null);
+        setEditingText('');
+      }
+    } else if (pendingDelete.type === 'selected') {
+      if (typeof onRemoveThoughts === 'function') {
+        onRemoveThoughts(pendingDelete.ids);
+      } else {
+        pendingDelete.ids.forEach((thoughtId) => onRemoveThought(thoughtId));
+      }
+      track('parking_lot_cleared', { cleared_count: pendingDelete.ids.length, mode: 'bulk_selected' });
+      setSelectedThoughtIds([]);
+      setSelectionMode(false);
+    } else if (pendingDelete.type === 'completed') {
+      onClearCompleted();
+    }
+
+    setPendingDelete(null);
   };
 
   return (
@@ -414,7 +455,7 @@ export default function ParkingLot({
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  onClick={selectionMode ? handleClearSelected : onClearCompleted}
+                  onClick={selectionMode ? handleClearSelected : handleRequestClearCompleted}
                   disabled={selectionMode && selectedCount === 0}
                   style={selectionMode ? { color: '#DC2626' } : { color: 'var(--text-secondary)' }}
                 >
@@ -513,6 +554,31 @@ export default function ParkingLot({
                 Save
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '26rem' }}>
+          <DialogHeader>
+            <DialogTitle>Delete note?</DialogTitle>
+          </DialogHeader>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5 }}>
+            {pendingDelete?.type === 'single'
+              ? `This will permanently delete "${pendingDelete?.label || 'this note'}".`
+              : `This will permanently delete ${pendingDelete?.label || 'these notes'}.`}
+          </p>
+          <DialogFooter style={{ marginTop: '1rem', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <Button
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmDelete} style={{ background: 'var(--error)', color: 'white' }}>
+              {pendingDelete?.type === 'single' ? 'Delete Note' : 'Delete Notes'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

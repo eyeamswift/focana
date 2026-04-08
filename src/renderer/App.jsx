@@ -270,6 +270,7 @@ export default function App() {
   const [showTaskPreview, setShowTaskPreview] = useState(false);
   const [previewSession, setPreviewSession] = useState(null);
   const [previewUseTaskEnabled, setPreviewUseTaskEnabled] = useState(true);
+  const [previewRestoreEnabled, setPreviewRestoreEnabled] = useState(false);
   const modalStackRef = useRef([]);
 
   // Compact mode
@@ -290,6 +291,7 @@ export default function App() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [postSessionParkingLotSessionId, setPostSessionParkingLotSessionId] = useState(null);
   const [postSessionParkingLotHiddenIds, setPostSessionParkingLotHiddenIds] = useState([]);
+  const [parkingLotTaskSwitchConfirm, setParkingLotTaskSwitchConfirm] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
   const [sessionFeedbackPrompt, setSessionFeedbackPrompt] = useState(null);
@@ -425,6 +427,8 @@ export default function App() {
   const wasCompactRef = useRef(false);
   const hasTrackedAppOpenedRef = useRef(false);
   const suppressHistoryPopRef = useRef(false);
+  const pendingParkingLotTaskSwitchRef = useRef(null);
+  const prepareTaskForStartChooserRef = useRef(() => false);
   const windowModeDesiredRef = useRef('full');
   const windowModeActualRef = useRef('full');
   const windowModeSyncingRef = useRef(false);
@@ -728,7 +732,7 @@ export default function App() {
     }
     resetCheckInScheduleRef.current(mode, initialTime, elapsedBeforeRunRef.current);
     resetCompactPulseScheduleRef.current(mode, initialTime, elapsedBeforeRunRef.current);
-  }, [currentSessionId, mode, initialTime]);
+  }, [currentSessionId, initialTime, mode]);
 
   const resolveStartupReadyState = useCallback(async () => {
     const storedPreferredName = normalizePreferredName(
@@ -1959,6 +1963,77 @@ export default function App() {
     clearTimedCueSegment();
   }, [clearCheckInRuntime, clearCompactPulseRuntime, clearTimedCueSegment]);
 
+  const applyPausedTimerSnapshot = useCallback((payload = {}) => {
+    const nextTimerState = payload?.timerState && typeof payload.timerState === 'object'
+      ? payload.timerState
+      : {};
+    const nextCurrentTask = payload?.currentTask && typeof payload.currentTask === 'object'
+      ? payload.currentTask
+      : {};
+    const nextMode = nextTimerState?.mode === 'timed' ? 'timed' : 'freeflow';
+    const nextInitialTime = Math.max(0, Math.floor(Number(nextTimerState?.initialTime) || 0));
+    const nextElapsedSeconds = Math.max(0, Math.floor(Number(nextTimerState?.elapsedSeconds) || 0));
+    const nextDisplayTime = nextMode === 'timed'
+      ? Math.max(0, nextInitialTime - nextElapsedSeconds)
+      : nextElapsedSeconds;
+    const nextTask = typeof nextCurrentTask?.text === 'string' ? nextCurrentTask.text : '';
+    const nextContextNotes = typeof nextCurrentTask?.contextNote === 'string' ? nextCurrentTask.contextNote : '';
+    const nextCurrentSessionId = typeof nextTimerState?.currentSessionId === 'string' && nextTimerState.currentSessionId.trim()
+      ? nextTimerState.currentSessionId.trim()
+      : null;
+
+    clearCheckInUi();
+    clearCompactSessionCues();
+    elapsedBeforeRunRef.current = nextElapsedSeconds;
+    checkInTimedIndexRef.current = Math.max(0, Math.floor(Number(nextTimerState?.checkInTimedIndex) || 0));
+    checkInTimedPendingIndexRef.current = Number.isFinite(Number(nextTimerState?.checkInTimedPendingIndex))
+      ? Math.max(0, Math.floor(Number(nextTimerState.checkInTimedPendingIndex)))
+      : null;
+    compactPulseIndexRef.current = Math.max(0, Math.floor(Number(nextTimerState?.compactPulseTimedIndex) || 0));
+    timedCueSegmentStartElapsedRef.current = Math.max(0, Math.floor(Number(nextTimerState?.timedSegmentStartElapsed) || 0));
+    timedCueSegmentDurationRef.current = Math.max(0, Math.floor(Number(nextTimerState?.timedSegmentDuration) || 0));
+    setTask(clampTaskText(nextTask));
+    setContextNotes(nextContextNotes);
+    setMode(nextMode);
+    setInitialTime(nextInitialTime);
+    setTime(nextDisplayTime);
+    setIsTimerVisible(Boolean(nextTimerState?.timerVisible));
+    setIsRunning(false);
+    setSessionStartTime(null);
+    setCurrentSessionId(nextCurrentSessionId);
+  }, [clearCheckInUi, clearCompactSessionCues]);
+
+  const reconcilePausedTimerSnapshotFromStore = useCallback(async () => {
+    if (!isRunning) return false;
+
+    const [savedCurrentTask, savedTimerState] = await Promise.all([
+      window.electronAPI.storeGet('currentTask'),
+      window.electronAPI.storeGet('timerState'),
+    ]);
+
+    const savedSessionId = typeof savedTimerState?.currentSessionId === 'string' && savedTimerState.currentSessionId.trim()
+      ? savedTimerState.currentSessionId.trim()
+      : null;
+    const localSessionId = typeof currentSessionId === 'string' && currentSessionId.trim()
+      ? currentSessionId.trim()
+      : null;
+    const hasPausedRecoverableTimer = (
+      Boolean(savedTimerState?.timerVisible)
+      || Math.max(0, Math.floor(Number(savedTimerState?.elapsedSeconds) || 0)) > 0
+      || Math.max(0, Math.floor(Number(savedTimerState?.initialTime) || 0)) > 0
+    ) && !Boolean(savedTimerState?.isRunning);
+
+    if (!hasPausedRecoverableTimer) return false;
+    if (localSessionId && savedSessionId && localSessionId !== savedSessionId) return false;
+
+    applyPausedTimerSnapshot({
+      currentTask: savedCurrentTask,
+      timerState: savedTimerState,
+    });
+    showToast('info', 'Session paused while your Mac slept');
+    return true;
+  }, [applyPausedTimerSnapshot, currentSessionId, isRunning, showToast]);
+
   const restoreDisplayMode = useCallback(({ returnToCompact = false, returnToFloating = false } = {}) => {
     if (returnToFloating) {
       pendingCompactRestoreRef.current = false;
@@ -1980,6 +2055,7 @@ export default function App() {
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = 0;
     sessionToSave.current = null;
+    pendingParkingLotTaskSwitchRef.current = null;
     parkingLotReturnToCompactRef.current = false;
     parkingLotReturnToFloatingRef.current = false;
     historyReturnToCompactRef.current = false;
@@ -2000,6 +2076,7 @@ export default function App() {
     setShowTimeUpModal(false);
     setSessionNotesMode('complete');
     setSessionStartTime(null);
+    setParkingLotTaskSwitchConfirm(null);
     invalidatePendingSessionCreation();
     resetSessionFeedbackFlow();
 
@@ -2026,27 +2103,21 @@ export default function App() {
 
   const finalizeCompletedSessionUi = useCallback((completedSessionId, {
     focusTaskInput = false,
-    returnToCompact = false,
-    returnToFloating = false,
   } = {}) => {
     const shouldShowParkingLot = hasPostSessionParkingLotItems(completedSessionId);
     handleClear();
     if (shouldShowParkingLot && completedSessionId) {
-      postSessionParkingLotReturnToCompactRef.current = returnToCompact;
-      postSessionParkingLotReturnToFloatingRef.current = returnToFloating;
+      postSessionParkingLotReturnToCompactRef.current = false;
+      postSessionParkingLotReturnToFloatingRef.current = false;
       openPostSessionParkingLot(completedSessionId);
       return;
     }
     postSessionParkingLotReturnToCompactRef.current = false;
     postSessionParkingLotReturnToFloatingRef.current = false;
-    if (returnToCompact || returnToFloating) {
-      restoreDisplayMode({ returnToCompact, returnToFloating });
-      return;
-    }
     if (focusTaskInput) {
       setTimeout(() => taskInputRef.current?.focus(), 140);
     }
-  }, [handleClear, hasPostSessionParkingLotItems, openPostSessionParkingLot, restoreDisplayMode]);
+  }, [handleClear, hasPostSessionParkingLotItems, openPostSessionParkingLot]);
 
   useEffect(() => {
     getElapsedSecondsRef.current = getElapsedSeconds;
@@ -2788,6 +2859,24 @@ export default function App() {
     }
   }, [popAndOpenPrevModal, restoreDisplayMode]);
 
+  const startPendingParkingLotTaskSwitch = useCallback(() => {
+    const pendingSwitch = pendingParkingLotTaskSwitchRef.current;
+    if (!pendingSwitch?.taskText) return false;
+    pendingParkingLotTaskSwitchRef.current = null;
+    return prepareTaskForStartChooserRef.current({
+      taskText: pendingSwitch.taskText,
+      notes: '',
+      sessionId: null,
+      carryoverSeconds: 0,
+    });
+  }, []);
+
+  const handleCancelParkingLotTaskSwitch = useCallback(() => {
+    setParkingLotTaskSwitchConfirm(null);
+    handleCloseParkingLot();
+    showToast('success', 'Saved in Parking Lot');
+  }, [handleCloseParkingLot, showToast]);
+
   const handleCheckInParkIt = useCallback(() => {
     track('detour_parked');
     const shouldReturnToCompact = checkInReturnToCompactRef.current;
@@ -3068,8 +3157,16 @@ export default function App() {
   }, [isRunning, pauseActiveTimer]);
 
   const handleStop = useCallback((options = {}) => {
-    const returnToFloating = options?.returnToFloating === true;
-    const returnToCompact = !returnToFloating && isCompact;
+    const explicitReturnToFloating = options?.returnToFloating;
+    const explicitReturnToCompact = options?.returnToCompact;
+    const returnToFloating = explicitReturnToFloating === true;
+    const returnToCompact = returnToFloating
+      ? false
+      : explicitReturnToCompact === true
+        ? true
+        : explicitReturnToCompact === false
+          ? false
+          : isCompact;
     stopFlowResumeStateRef.current = {
       canResume: true,
       returnToCompact,
@@ -3090,6 +3187,24 @@ export default function App() {
     setShowNotesModal(true);
   }, [clearCompactSessionCues, currentSessionId, getElapsedSeconds, handleExitCompact, isCompact, isRunning, pauseActiveTimer]);
 
+  const handleConfirmParkingLotTaskSwitch = useCallback(() => {
+    if (!parkingLotTaskSwitchConfirm?.taskText) return;
+
+    pendingParkingLotTaskSwitchRef.current = {
+      thoughtId: parkingLotTaskSwitchConfirm.thoughtId,
+      taskText: parkingLotTaskSwitchConfirm.taskText,
+    };
+
+    const returnToCompact = parkingLotTaskSwitchConfirm.returnToCompact === true;
+    const returnToFloating = parkingLotTaskSwitchConfirm.returnToFloating === true;
+
+    setParkingLotTaskSwitchConfirm(null);
+    setDistractionJarOpen(false);
+    parkingLotReturnToCompactRef.current = false;
+    parkingLotReturnToFloatingRef.current = false;
+    handleStop({ returnToCompact, returnToFloating });
+  }, [handleStop, parkingLotTaskSwitchConfirm]);
+
   const handleResumeStopFlow = useCallback(() => {
     const {
       canResume,
@@ -3106,6 +3221,7 @@ export default function App() {
     };
     postSessionNotesActionRef.current = null;
     sessionToSave.current = null;
+    pendingParkingLotTaskSwitchRef.current = null;
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     resetSessionFeedbackFlow();
@@ -3131,6 +3247,32 @@ export default function App() {
     });
     return () => { if (cleanup) cleanup(); };
   }, [handlePause, handlePlay, handleStop, isRunning]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.onSystemSuspendPaused?.((payload) => {
+      applyPausedTimerSnapshot(payload);
+      showToast('info', 'Session paused while your Mac slept');
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [applyPausedTimerSnapshot, showToast]);
+
+  useEffect(() => {
+    const handleVisibilityResume = () => {
+      if (document.visibilityState !== 'visible') return;
+      void reconcilePausedTimerSnapshotFromStore();
+    };
+    const handleFocusResume = () => {
+      void reconcilePausedTimerSnapshotFromStore();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityResume);
+    window.addEventListener('focus', handleFocusResume);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityResume);
+      window.removeEventListener('focus', handleFocusResume);
+    };
+  }, [reconcilePausedTimerSnapshotFromStore]);
 
   const handleTaskSubmit = (submittedTask = task) => {
     const nextTask = clampTaskText(typeof submittedTask === 'string' ? submittedTask : task);
@@ -3216,6 +3358,7 @@ export default function App() {
     resetCompactPulseSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
     historyResumeCarryoverSecondsRef.current = 0;
     setIsStartModalOpen(false);
+    requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
   };
 
   const handleSaveSessionNotes = async (notes) => {
@@ -3233,6 +3376,7 @@ export default function App() {
       setTime(0);
       setInitialTime(0);
       setIsTimerVisible(false);
+      setIsCompact(false);
       setSessionStartTime(null);
       elapsedBeforeRunRef.current = 0;
       resetSessionFeedbackFlow();
@@ -3260,6 +3404,7 @@ export default function App() {
       setTime(0);
       setInitialTime(0);
       setIsTimerVisible(false);
+      setIsCompact(false);
       setSessionStartTime(null);
       elapsedBeforeRunRef.current = 0;
       resetSessionFeedbackFlow();
@@ -3285,6 +3430,7 @@ export default function App() {
     if (!sessionToSave.current) {
       setShowNotesModal(false);
       setSessionNotesMode('complete');
+      pendingParkingLotTaskSwitchRef.current = null;
       resetSessionFeedbackFlow();
       return;
     }
@@ -3313,17 +3459,23 @@ export default function App() {
     setTime(0);
     setInitialTime(0);
     setIsTimerVisible(false);
+    setIsCompact(false);
     setSessionStartTime(null);
+    if (startPendingParkingLotTaskSwitch()) {
+      resetSessionFeedbackFlow();
+      return;
+    }
     resetSessionFeedbackFlow();
     if (hasPostSessionParkingLotItems(endedSessionId)) {
       openPostSessionParkingLot(endedSessionId);
     }
-  }, [mode, saveSessionWithNotes, showToast, hasPostSessionParkingLotItems, openPostSessionParkingLot, resetSessionFeedbackFlow]);
+  }, [hasPostSessionParkingLotItems, mode, openPostSessionParkingLot, resetSessionFeedbackFlow, saveSessionWithNotes, showToast, startPendingParkingLotTaskSwitch]);
 
   const finalizeStopFlowComplete = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
       setShowNotesModal(false);
       setSessionNotesMode('complete');
+      pendingParkingLotTaskSwitchRef.current = null;
       resetSessionFeedbackFlow();
       return;
     }
@@ -3346,6 +3498,11 @@ export default function App() {
 
     track('session_completed', { mode, duration_minutes: Math.round(durationMin * 10) / 10, source: 'stop_flow' });
 
+    if (startPendingParkingLotTaskSwitch()) {
+      resetSessionFeedbackFlow();
+      return;
+    }
+
     showCompletedSessionMessage();
     triggerConfetti();
     finalizeCompletedSessionUi(completedSessionId);
@@ -3356,7 +3513,7 @@ export default function App() {
       const streak = computeStreak(allSessions);
       if (streak >= 2) track('session_streak', { streak_count: streak });
     } catch (_) { /* non-critical */ }
-  }, [mode, saveSessionWithNotes, showCompletedSessionMessage, triggerConfetti, finalizeCompletedSessionUi, resetSessionFeedbackFlow]);
+  }, [finalizeCompletedSessionUi, mode, resetSessionFeedbackFlow, saveSessionWithNotes, showCompletedSessionMessage, startPendingParkingLotTaskSwitch, triggerConfetti]);
 
   const finalizeTimeUpEndSession = useCallback(() => {
     track('post_session_choice', { choice: 'end_session' });
@@ -3546,6 +3703,10 @@ export default function App() {
     return true;
   }, [clearCheckInUi, clearCompactSessionCues, invalidatePendingSessionCreation, resetSessionFeedbackFlow]);
 
+  useEffect(() => {
+    prepareTaskForStartChooserRef.current = prepareTaskForStartChooser;
+  }, [prepareTaskForStartChooser]);
+
   const handleUseTask = (session) => {
     if (!session || typeof session !== 'object') {
       setShowHistoryModal(false);
@@ -3608,6 +3769,7 @@ export default function App() {
   const handlePreviewTask = (session, options = {}) => {
     setPreviewSession(session);
     setPreviewUseTaskEnabled(options.allowUseTask !== false);
+    setPreviewRestoreEnabled(options.allowRestore === true);
     pushModal('history');
     setShowTaskPreview(true);
     setShowHistoryModal(false);
@@ -3616,8 +3778,35 @@ export default function App() {
   const handleCloseTaskPreview = () => {
     setShowTaskPreview(false);
     setPreviewUseTaskEnabled(true);
+    setPreviewRestoreEnabled(false);
     popAndOpenPrevModal();
   };
+
+  const handleRestoreSession = useCallback(async (session) => {
+    const sessionId = typeof session === 'string' ? session : session?.id;
+    if (!sessionId) return;
+
+    try {
+      const updated = await SessionStore.update(sessionId, {
+        completed: false,
+        kept: true,
+      });
+      if (!updated) return;
+
+      await loadSessions();
+
+      if (previewSession?.id === sessionId) {
+        setPreviewSession(updated);
+        setPreviewUseTaskEnabled(true);
+        setPreviewRestoreEnabled(false);
+      }
+
+      showToast('success', 'Restored to Resume');
+    } catch (error) {
+      console.error('Error restoring session to Resume:', error);
+      showToast('warning', 'Could not restore this session');
+    }
+  }, [loadSessions, previewSession?.id, showToast]);
 
   const handleCloseHistory = () => {
     setShowHistoryModal(false);
@@ -3779,10 +3968,11 @@ export default function App() {
     postSessionParkingLotReturnToFloatingRef.current = false;
     setPostSessionParkingLotSessionId(null);
     setPostSessionParkingLotHiddenIds([]);
-    if (restorePreviousDisplayMode) {
+    const hasActiveTaskShell = Boolean(task.trim()) || isRunning || isTimerVisible;
+    if (restorePreviousDisplayMode && hasActiveTaskShell) {
       restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
     }
-  }, [restoreDisplayMode]);
+  }, [isRunning, isTimerVisible, restoreDisplayMode, task]);
 
   useEffect(() => {
     if (!postSessionParkingLotSessionId) return;
@@ -3822,7 +4012,6 @@ export default function App() {
   const startThoughtAsNextTask = useCallback((thoughtId) => {
     const thought = thoughts.find((entry) => entry.id === thoughtId);
     if (!thought?.text) return;
-    setThoughts((prev) => prev.filter((entry) => entry.id !== thoughtId));
     closePostSessionParkingLot({ restorePreviousDisplayMode: false });
     prepareTaskForStartChooser({
       taskText: thought.text,
@@ -3837,6 +4026,24 @@ export default function App() {
       console.error('Analytics tracking failed in startThoughtAsNextTask:', error);
     }
   }, [thoughts, closePostSessionParkingLot, prepareTaskForStartChooser]);
+
+  const handleParkingLotStartThoughtAsNextTask = useCallback((thoughtId) => {
+    const thought = thoughts.find((entry) => entry.id === thoughtId);
+    if (!thought?.text) return;
+
+    const hasActiveSessionToSwitch = Boolean(task.trim()) && (isRunning || isTimerVisible || currentSessionId);
+    if (!hasActiveSessionToSwitch) {
+      startThoughtAsNextTask(thoughtId);
+      return;
+    }
+
+    setParkingLotTaskSwitchConfirm({
+      thoughtId,
+      taskText: thought.text,
+      returnToCompact: parkingLotReturnToCompactRef.current === true,
+      returnToFloating: parkingLotReturnToFloatingRef.current === true,
+    });
+  }, [currentSessionId, isRunning, isTimerVisible, startThoughtAsNextTask, task, thoughts]);
 
   const getPulseClassName = () => {
     if (isPulsing === 'gentle') return 'animate-pulse-gentle';
@@ -4404,14 +4611,17 @@ export default function App() {
           session={previewSession}
           sessions={sessions}
           onUseTask={handleUseTask}
+          onRestoreSession={handleRestoreSession}
           onUpdateNotes={handleUpdateTaskNotes}
           canUseTask={previewUseTaskEnabled}
+          canRestore={previewRestoreEnabled}
         />
         <HistoryModal
           isOpen={showHistoryModal}
           onClose={handleCloseHistory}
           sessions={sessions}
           onUseTask={handleUseTask}
+          onRestoreSession={handleRestoreSession}
           onPreviewTask={handlePreviewTask}
           onDeleteSession={handleDeleteSession}
           onDeleteSessions={handleDeleteSessions}
@@ -4435,7 +4645,7 @@ export default function App() {
               className="full-header__brand-lockup"
             />
           </div>
-          <div className="electron-no-drag full-header__nav">
+          <div className="full-header__nav">
             {enabledMainControls.history && pinnedControls.history && (
               <Button
                 aria-label="Open Session History"
@@ -4805,8 +5015,30 @@ export default function App() {
         onRemoveThoughts={removeThoughts}
         onToggleThought={toggleThought}
         onClearCompleted={clearCompletedThoughts}
-        onStartThoughtAsNextTask={startThoughtAsNextTask}
+        onStartThoughtAsNextTask={handleParkingLotStartThoughtAsNextTask}
       />
+      <Dialog open={parkingLotTaskSwitchConfirm !== null} onOpenChange={(open) => { if (!open) setParkingLotTaskSwitchConfirm(null); }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '25rem' }}>
+          <DialogHeader>
+            <DialogTitle>End current session and switch tasks?</DialogTitle>
+          </DialogHeader>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5 }}>
+            Focana will stop your current session first, then prepare this Parking Lot item as your next task.
+          </p>
+          <DialogFooter style={{ marginTop: '1rem', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <Button
+              variant="outline"
+              onClick={handleCancelParkingLotTaskSwitch}
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              No, Keep This Session
+            </Button>
+            <Button onClick={handleConfirmParkingLotTaskSwitch} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+              Yes, End Session
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <PostSessionParkingLotModal
         isOpen={Boolean(postSessionParkingLotSessionId)}
         thoughts={postSessionParkingLotThoughts}
@@ -4853,14 +5085,17 @@ export default function App() {
         session={previewSession}
         sessions={sessions}
         onUseTask={handleUseTask}
+        onRestoreSession={handleRestoreSession}
         onUpdateNotes={handleUpdateTaskNotes}
         canUseTask={previewUseTaskEnabled}
+        canRestore={previewRestoreEnabled}
       />
       <HistoryModal
         isOpen={showHistoryModal}
         onClose={handleCloseHistory}
         sessions={sessions}
         onUseTask={handleUseTask}
+        onRestoreSession={handleRestoreSession}
         onPreviewTask={handlePreviewTask}
         onDeleteSession={handleDeleteSession}
         onDeleteSessions={handleDeleteSessions}

@@ -13,18 +13,88 @@
 
 ## Next Up
 
-### LIC-001 — Local packaged smoke builds can opt into `password` via explicit env flag
+### WIN-005 — Post-session flows should never restore to compact with no active task
+- Priority: High
 - Status: Next Up
-- Version: 1.2.1
-- Why it matters: Packaged smoke testing should not require embedded Lemon config just to get through activation locally.
-- Files: `src/main/licenseService.js`, `tests/license-service.test.js`
-- Related: —
-- Notes: Local work is present but not committed. Intended contract: packaged builds stay blocked by default, but `FOCANA_ALLOW_DEV_TEST_LICENSE=1` allows the existing `password` dev-test flow for local binary launches only.
+- Version: 1.3.2
+- Why it matters: Returning users to a blank compact shell after stop/completion feels broken and hides the next obvious action.
+- Files: `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-003`
+- Notes: Merge the duplicate blank-compact reports here and treat the compact/logo observation as part of the same issue unless a packaged-only repro proves otherwise. Desired rule: if stop/completion leaves no active task, restore the full idle shell instead of compact. Acceptance coverage should include `No, Save for Later`, `Yes, Complete`, and post-session parking-lot handoff paths.
+- Commits: —
+
+### SES-002 — System sleep should auto-pause a running session
+- Priority: High
+- Status: Next Up
+- Version: 1.3.2
+- Why it matters: Counting sleep time as focused time breaks trust and corrupts session history.
+- Files: `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-001`
+- Notes: Expected behavior is auto-pause on sleep and explicit resume after wake; this should not use wall-clock catch-up. Current code has no sleep/wake handling, so this starts as a behavior gap plus verification task. Acceptance coverage should verify pause on sleep, cleared `sessionStartedAt`, and explicit resume on wake.
+- Commits: —
+
+### UX-003 — Session history should support moving completed/discarded work back to Resume
+- Priority: High
+- Status: Next Up
+- Version: 1.3.2
+- Why it matters: Users need a reversible way to recover work without starting from scratch or losing context.
+- Files: `src/renderer/components/HistoryModal.jsx`, `src/renderer/components/TaskPreviewModal.jsx`, `src/renderer/App.jsx`
+- Related: `QA-001`
+- Notes: Add a recovery action for completed/discarded entries so they can become resumable again instead of being terminal states. Acceptance coverage should verify the item moves back to `Resume`, can be started again, and does not mutate historical records incorrectly.
+- Commits: —
+
+### QA-001 — Audit one-click destructive flows and remove unverified data-loss paths
+- Priority: High
+- Status: Next Up
+- Version: 1.3.2
+- Why it matters: Silent destructive actions are high-trust failures in a tool meant to reduce overwhelm.
+- Files: `src/renderer/components/ParkingLot.jsx`, `src/renderer/components/HistoryModal.jsx`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-003`
+- Notes: Audit delete, clear, start-task, discard, and post-session parking-lot actions. Add confirmation, undo, or state-safe recovery wherever the action is currently one click and irreversible. Acceptance coverage should prove parking lot, history, and post-session flows are confirmable, undoable, or otherwise recoverable.
+- Commits: —
+
+### UX-004 — Hour-plus timer formatting should still look active
+- Priority: Medium
+- Status: Next Up
+- Version: 1.3.2
+- Why it matters: Switching from `MM:SS` to `1h 02m` reads like a paused timer even when the clock is still running.
+- Files: `src/renderer/utils/time.js`, `src/renderer/components/CompactMode.jsx`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-002`
+- Notes: Treat this as a display/trust issue, not a timer-engine rewrite. Keep elapsed-time semantics intact while making hour-plus timers visibly feel live across full, compact, and floating surfaces. Acceptance coverage should preserve existing parsing and confirm the timer still appears active after one hour.
 - Commits: —
 
 ## Later
 
+### UX-005 — Focus blocks should support a checklist of sub-tasks
+- Priority: Medium
+- Status: Later
+- Version: 1.4.0
+- Why it matters: A single work block often contains a short queue of concrete sub-tasks that users want to check off without losing the top-level focus.
+- Files: `src/renderer/App.jsx`, `src/main/store.js`, relevant session UI components
+- Related: `UX-003`
+- Notes: This is not a Parking Lot enhancement. Model it as an active-session checklist under one block/task title, not as a flat note list. Acceptance coverage should confirm one focus block can hold multiple checkable sub-tasks without turning Parking Lot into the work queue.
+- Commits: —
+
+### SET-001 — Focana should launch at login by default with a settings toggle
+- Priority: Medium
+- Status: Later
+- Version: 1.4.0
+- Why it matters: Focana works best as a daily habit tool when it is already there at the start of the day, but users still need an easy way to turn that behavior off.
+- Files: `src/main/main.js`, `src/renderer/components/SettingsModal.jsx`, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: —
+- Notes: Default new installs to launch at login, surface the control in Settings, and persist the user’s choice so the app never silently turns itself back on after they disable it. Acceptance coverage should verify first-run default enabled, toggle-off persists, toggle-on restores startup launch, and platform-specific login-item wiring matches the saved setting.
+- Commits: —
+
 ## Done
+
+### LIC-001 — Local packaged smoke builds can opt into `password` via explicit env flag
+- Status: Done
+- Version: 1.2.1
+- Why it matters: Packaged smoke testing should not require embedded Lemon config just to get through activation locally.
+- Files: `src/main/licenseService.js`, `tests/license-service.test.js`, `scripts/packaged-smoke.js`
+- Related: —
+- Notes: Packaged builds stay blocked by default, but `FOCANA_ALLOW_DEV_TEST_LICENSE=1` now allows the existing `password` dev-test flow for local binary launches only. Coverage exists in unit tests for both blocked-by-default and opt-in activation, and the packaged smoke script now launches packaged binaries with the env flag set.
+- Commits: —
 
 ### WIN-004 — Floating check-ins now restore compact-origin timed sessions correctly
 - Status: Done

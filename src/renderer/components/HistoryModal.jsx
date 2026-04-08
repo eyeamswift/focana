@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { Tabs, TabsList, TabsTrigger } from './ui/Tabs';
-import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, NotebookPen, Trash2, X } from 'lucide-react';
+import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, NotebookPen, Trash2, Undo2, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ITEMS_PER_PAGE = 5;
@@ -30,6 +30,7 @@ export default function HistoryModal({
   onClose,
   sessions,
   onUseTask,
+  onRestoreSession,
   onPreviewTask,
   onDeleteSession,
   onDeleteSessions,
@@ -47,6 +48,7 @@ export default function HistoryModal({
   }), [sessions, activeTab]);
 
   const allowReuseActions = activeTab !== 'completed';
+  const allowRestoreActions = activeTab === 'completed' || activeTab === 'discarded';
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE));
   const startIndex = currentPage * ITEMS_PER_PAGE;
   const paginatedSessions = filteredSessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -78,7 +80,10 @@ export default function HistoryModal({
   };
 
   const handlePreview = (session) => {
-    onPreviewTask?.(session, { allowUseTask: allowReuseActions });
+    onPreviewTask?.(session, {
+      allowUseTask: allowReuseActions,
+      allowRestore: allowRestoreActions,
+    });
   };
 
   const toggleSessionSelection = (sessionId) => {
@@ -238,6 +243,26 @@ export default function HistoryModal({
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent><p>Start this task</p></TooltipContent>
+                      </Tooltip>
+                    )}
+
+                    {allowRestoreActions && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label="Restore to Resume"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRestoreSession?.(session);
+                            }}
+                            size="icon"
+                            variant="ghost"
+                            style={{ color: 'var(--brand-primary)', borderRadius: '9999px' }}
+                          >
+                            <Undo2 style={{ width: 18, height: 18 }} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Restore to Resume</p></TooltipContent>
                       </Tooltip>
                     )}
 

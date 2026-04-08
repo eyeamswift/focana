@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { FileText, Edit3, X } from 'lucide-react';
+import { FileText, Edit3, Undo2, X } from 'lucide-react';
 
 export default function TaskPreviewModal({
   isOpen,
@@ -11,8 +11,10 @@ export default function TaskPreviewModal({
   session,
   sessions = [],
   onUseTask,
+  onRestoreSession,
   onUpdateNotes,
   canUseTask = true,
+  canRestore = false,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedNotes, setEditedNotes] = useState('');
@@ -50,6 +52,11 @@ export default function TaskPreviewModal({
   const handleUseTask = () => {
     if (!session || !canUseTask) return;
     onUseTask(session);
+  };
+
+  const handleRestoreSession = () => {
+    if (!session || !canRestore) return;
+    onRestoreSession?.(session);
   };
 
   const handleSaveNotes = () => {
@@ -152,6 +159,17 @@ export default function TaskPreviewModal({
             >
               <Edit3 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
               {session.notes ? 'Edit Notes' : 'Add Notes'}
+            </Button>
+          )}
+
+          {!isEditing && canRestore && (
+            <Button
+              onClick={handleRestoreSession}
+              variant="outline"
+              style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}
+            >
+              <Undo2 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
+              Restore to Resume
             </Button>
           )}
 

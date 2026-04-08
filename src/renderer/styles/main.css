@@ -513,6 +513,7 @@ html[data-window-mode='pill'] #root {
   gap: 0.25rem;
   flex: 1;
   min-width: 0;
+  -webkit-app-region: drag;
 }
 
 .full-header__nav-btn {

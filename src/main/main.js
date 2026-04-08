@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const store = require('./store');
 const { registerShortcuts, unregisterAll } = require('./shortcuts');
@@ -68,6 +68,8 @@ let pendingProgrammaticMainBounds = null;
 let clearProgrammaticMainBoundsTimer = null;
 let awaitingInitialMainWindowShow = false;
 let startupRevealFallbackTimer = null;
+let pendingSystemResumeSyncTimer = null;
+let pendingSystemPausePayload = null;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -819,8 +821,10 @@ function formatFloatingTime(seconds) {
   const safeSeconds = Math.max(0, Number.isFinite(seconds) ? Math.floor(seconds) : 0);
   const hours = Math.floor(safeSeconds / 3600);
   if (hours > 0) {
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+    const remainder = safeSeconds % 3600;
+    const minutes = Math.floor(remainder / 60);
+    const secs = remainder % 60;
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
 
   const minutes = Math.floor(safeSeconds / 60);
@@ -912,6 +916,72 @@ function checkpointActiveSessionInStore(options = {}) {
   };
   store.set('sessions', nextSessions);
   return true;
+}
+
+function handleSystemSuspend() {
+  const didPauseTimer = checkpointActiveSessionInStore({ pauseTimer: true });
+  if (!didPauseTimer) {
+    pendingSystemPausePayload = null;
+    return;
+  }
+
+  pendingSystemPausePayload = {
+    currentTask: store.get('currentTask', {}),
+    timerState: store.get('timerState', {}),
+  };
+
+  syncFloatingWindowState({ preservePosition: true });
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('system-suspend-paused', pendingSystemPausePayload);
+  }
+}
+
+function syncPausedSessionAfterResume() {
+  const snapshot = pendingSystemPausePayload;
+  if (snapshot?.timerState && typeof snapshot.timerState === 'object') {
+    store.set('currentTask', snapshot.currentTask || {});
+    store.set('timerState', snapshot.timerState);
+    syncFloatingWindowState({ preservePosition: true });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('system-suspend-paused', snapshot);
+    }
+    pendingSystemPausePayload = null;
+    return;
+  }
+
+  const timerState = store.get('timerState', {});
+  const hasPausedRecoverableTimer = (
+    Boolean(timerState?.timerVisible)
+    || Math.max(0, Number(timerState?.elapsedSeconds) || 0) > 0
+    || Math.max(0, Number(timerState?.initialTime) || 0) > 0
+  ) && !Boolean(timerState?.isRunning);
+
+  if (!hasPausedRecoverableTimer) {
+    pendingSystemPausePayload = null;
+    return;
+  }
+
+  syncFloatingWindowState({ preservePosition: true });
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const payload = {
+      currentTask: store.get('currentTask', {}),
+      timerState,
+    };
+    mainWindow.webContents.send('system-suspend-paused', payload);
+  }
+  pendingSystemPausePayload = null;
+}
+
+function handleSystemResume() {
+  if (pendingSystemResumeSyncTimer) {
+    clearTimeout(pendingSystemResumeSyncTimer);
+  }
+
+  pendingSystemResumeSyncTimer = setTimeout(() => {
+    pendingSystemResumeSyncTimer = null;
+    syncPausedSessionAfterResume();
+  }, 150);
 }
 
 function getFloatingWindowState() {
@@ -1810,6 +1880,8 @@ app.whenReady().then(() => {
       applyDndState({ enabled: false, until: null });
     }
   }
+  powerMonitor.on('suspend', handleSystemSuspend);
+  powerMonitor.on('resume', handleSystemResume);
   createWindow();
   updater.start();
   feedbackSyncService.start();
@@ -1824,6 +1896,12 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  powerMonitor.removeListener('suspend', handleSystemSuspend);
+  powerMonitor.removeListener('resume', handleSystemResume);
+  if (pendingSystemResumeSyncTimer) {
+    clearTimeout(pendingSystemResumeSyncTimer);
+    pendingSystemResumeSyncTimer = null;
+  }
   checkpointActiveSessionInStore({ pauseTimer: true });
   updater.stop();
   feedbackSyncService.stop();
