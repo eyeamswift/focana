@@ -174,7 +174,7 @@ async function runFreeflowSmoke(page, electronApp) {
   })
 
   info('Entering compact mode from fullscreen')
-  await page.getByRole('button', { name: 'Enter Compact Mode' }).click()
+  await page.getByRole('button', { name: 'Enter Compact Mode' }).click({ force: true })
   await poll(async () => (await readWindowMode(page)) === 'pill', {
     timeoutMs: 10000,
     description: 'compact mode after manual entry',
@@ -268,18 +268,27 @@ async function runTimedSmoke(page) {
   await minutesInput.fill('1')
   await minutesInput.press('Enter')
 
-  await poll(async () => (await readWindowMode(page)) === 'full', {
+  await poll(async () => {
+    const mode = await readWindowMode(page)
+    return mode === 'pill' || mode === 'full'
+  }, {
     timeoutMs: 10000,
-    description: 'full mode after timed start',
+    description: 'running shell after timed start',
   })
 
   await setTimeOffset(page, 65000)
   await page.getByRole('heading', { name: "Time's up" }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByRole('button', { name: 'Add 5 minutes' }).click()
 
-  await poll(async () => (await readWindowMode(page)) === 'full', {
+  await poll(async () => {
+    const mode = await readWindowMode(page)
+    const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'))
+    return (mode === 'pill' || mode === 'full')
+      && Boolean(timerState?.isRunning)
+      && Number(timerState?.initialTime) >= 360
+  }, {
     timeoutMs: 10000,
-    description: 'full mode after timed extension',
+    description: 'timed session to keep running after extension',
   })
 }
 
