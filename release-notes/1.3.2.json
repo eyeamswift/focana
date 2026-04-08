@@ -1,0 +1,15 @@
+{
+  "version": "1.3.2",
+  "publishedAt": "2026-04-08",
+  "summary": "Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.",
+  "fixes": [
+    "Sessions now pause when your Mac sleeps.",
+    "Timers over an hour are now easier to read."
+  ],
+  "improvements": [
+    "You can move completed or discarded sessions back to Resume.",
+    "Switching tasks from Parking Lot during an active session is now smoother.",
+    "Parking Lot delete and clear actions are now safer.",
+    "Full-window dragging feels more reliable."
+  ]
+}

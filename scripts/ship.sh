@@ -58,10 +58,20 @@ update_local_env() {
   fi
 }
 
+cleanup_temp_files() {
+  if [ -n "${RELEASE_NOTES_BODY_FILE:-}" ] && [ -f "${RELEASE_NOTES_BODY_FILE:-}" ]; then
+    rm -f "$RELEASE_NOTES_BODY_FILE"
+  fi
+}
+
 VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
 PRODUCT="$(node -p "require('$PROJECT_ROOT/electron-builder.config.js').productName")"
 REPO="$(node -p "const config = require('$PROJECT_ROOT/electron-builder.config.js'); config.publish.owner + '/' + config.publish.repo")"
 TAG="v$VERSION"
+RELEASE_NOTES_SCRIPT="$PROJECT_ROOT/scripts/release-notes.js"
+RELEASE_NOTES_BODY_FILE=""
+
+trap cleanup_temp_files EXIT
 
 ARM64_DMG="$PRODUCT-$VERSION-mac-arm64.dmg"
 X64_DMG="$PRODUCT-$VERSION-mac-x64.dmg"
@@ -90,6 +100,51 @@ GITHUB_DL="https://github.com/$REPO/releases/download/$TAG"
 ARM64_URL="$GITHUB_DL/$ARM64_DMG"
 X64_URL="$GITHUB_DL/$X64_DMG"
 
+prepare_release_notes() {
+  if [ "$DRY_RUN" = true ]; then
+    info "Would validate and render release notes for $VERSION"
+    return
+  fi
+
+  if [ ! -f "$RELEASE_NOTES_SCRIPT" ]; then
+    warn "Missing release notes helper at $RELEASE_NOTES_SCRIPT. GitHub release body and landing updates sync will be skipped."
+    return
+  fi
+
+  if ! node "$RELEASE_NOTES_SCRIPT" validate --version "$VERSION" >/dev/null 2>&1; then
+    warn "Release notes for $VERSION are missing or malformed. GitHub release body and landing updates sync will be skipped."
+    return
+  fi
+
+  RELEASE_NOTES_BODY_FILE="$(mktemp -t focana-release-notes.XXXXXX)"
+  if ! node "$RELEASE_NOTES_SCRIPT" render-github --version "$VERSION" >"$RELEASE_NOTES_BODY_FILE"; then
+    warn "Could not render GitHub release notes for $VERSION. The GitHub release body will be skipped."
+    rm -f "$RELEASE_NOTES_BODY_FILE"
+    RELEASE_NOTES_BODY_FILE=""
+    return
+  fi
+
+  ok "Release notes loaded for $VERSION"
+}
+
+sync_landing_release_notes() {
+  if [ "$DRY_RUN" = true ]; then
+    info "Would sync landing updates data from release notes"
+    return
+  fi
+
+  if [ ! -f "$RELEASE_NOTES_SCRIPT" ]; then
+    warn "Missing release notes helper at $RELEASE_NOTES_SCRIPT. Landing updates sync will be skipped."
+    return
+  fi
+
+  if node "$RELEASE_NOTES_SCRIPT" sync-landing --landing-root "$LANDING_ROOT"; then
+    ok "Landing updates data synced"
+  else
+    warn "Landing updates sync skipped because the release notes are missing or malformed."
+  fi
+}
+
 info "Preflight: checking local tooling, auth, and repo state"
 
 for tool in node gh vercel curl git xcrun; do
@@ -116,7 +171,9 @@ if [ "$SKIP_BUILD" = true ]; then
   warn "Skip build enabled: existing release artifacts will be reused."
 fi
 
-info "Step 1/10: Build, sign, notarize, and staple the mac release"
+prepare_release_notes
+
+info "Step 1/11: Build, sign, notarize, and staple the mac release"
 if [ "$DRY_RUN" = true ]; then
   info "Would run: npm run build:mac:release"
 elif [ "$SKIP_BUILD" = true ]; then
@@ -126,7 +183,7 @@ else
   ok "Build complete"
 fi
 
-info "Step 2/10: Verify local release artifacts and DMG notarization"
+info "Step 2/11: Verify local release artifacts and DMG notarization"
 if [ "$DRY_RUN" = true ]; then
   info "Would verify 7 release artifacts exist in $RELEASE_DIR"
   info "Would validate stapled DMGs with xcrun stapler validate"
@@ -142,7 +199,7 @@ else
   ok "All release artifacts exist and DMGs validate as notarized/stapled"
 fi
 
-info "Step 3/10: Create and push the release tag"
+info "Step 3/11: Create and push the release tag"
 CURRENT_BRANCH="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)"
 if [ "$CURRENT_BRANCH" != "main" ]; then
   warn "Current branch is $CURRENT_BRANCH, not main. The release tag will still point at the current commit."
@@ -163,16 +220,22 @@ else
   ok "Tag $TAG exists locally and on origin"
 fi
 
-info "Step 4/10: Publish the GitHub release"
+info "Step 4/11: Publish the GitHub release"
 if [ "$DRY_RUN" = true ]; then
   info "Would create or update GitHub release $TAG with 7 assets"
 else
   if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
     gh release upload "$TAG" "${ASSET_PATHS[@]}" --repo "$REPO" --clobber
+    if [ -n "$RELEASE_NOTES_BODY_FILE" ]; then
+      gh release edit "$TAG" --repo "$REPO" --notes-file "$RELEASE_NOTES_BODY_FILE"
+    fi
   else
     CREATE_ARGS=(release create "$TAG" "${ASSET_PATHS[@]}" --repo "$REPO" --title "$PRODUCT $VERSION")
     if [[ "$VERSION" == *-* ]]; then
       CREATE_ARGS+=(--prerelease)
+    fi
+    if [ -n "$RELEASE_NOTES_BODY_FILE" ]; then
+      CREATE_ARGS+=(--notes-file "$RELEASE_NOTES_BODY_FILE")
     fi
     gh "${CREATE_ARGS[@]}"
   fi
@@ -180,7 +243,7 @@ else
   ok "GitHub release $TAG published"
 fi
 
-info "Step 5/10: Verify GitHub release assets"
+info "Step 5/11: Verify GitHub release assets"
 if [ "$DRY_RUN" = true ]; then
   info "Would confirm all 7 assets are present on GitHub release $TAG"
 else
@@ -200,7 +263,7 @@ else
   ok "All assets verified on GitHub release"
 fi
 
-info "Step 6/10: Verify public download URLs"
+info "Step 6/11: Verify public download URLs"
 if [ "$DRY_RUN" = true ]; then
   info "Would check $ARM64_DMG, $X64_DMG, and $MANIFEST for HTTP 200/302"
 else
@@ -215,7 +278,10 @@ else
   ok "GitHub release download URLs are live"
 fi
 
-info "Step 7/10: Update Vercel env vars (preview only)"
+info "Step 7/11: Sync landing updates data"
+sync_landing_release_notes
+
+info "Step 8/11: Update Vercel env vars (preview only)"
 if [ "$DRY_RUN" = true ]; then
   info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for preview branch codex/landing-preview"
 else
@@ -225,7 +291,7 @@ else
   ok "Vercel env vars updated for codex/landing-preview"
 fi
 
-info "Step 8/10: Update the local landing env file"
+info "Step 9/11: Update the local landing env file"
 if [ "$DRY_RUN" = true ]; then
   info "Would update $LANDING_ROOT/.env with the latest GitHub DMG URLs"
 else
@@ -234,7 +300,7 @@ else
   ok "Local landing .env updated"
 fi
 
-info "Step 9/10: Redeploy Vercel preview"
+info "Step 10/11: Redeploy Vercel preview"
 if [ "$DRY_RUN" = true ]; then
   info "Would trigger a preview deploy for $LANDING_ROOT"
 else
@@ -247,7 +313,7 @@ else
   ok "Vercel preview deploy triggered"
 fi
 
-info "Step 10/10: Summary"
+info "Step 11/11: Summary"
 printf '\n'
 ok "Release workflow ready for $PRODUCT $VERSION"
 info "GitHub release: https://github.com/$REPO/releases/tag/$TAG"
