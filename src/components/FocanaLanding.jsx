@@ -1019,7 +1019,7 @@ export default function FocanaLanding() {
             padding-top: 100px !important;
             padding-bottom: 60px !important;
           }
-          .hero-section .section > div:first-child {
+          .hero-split {
             flex-direction: column !important;
           }
           .cta-btn {
@@ -1349,49 +1349,52 @@ export default function FocanaLanding() {
         }} />
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
-          <div style={{
+          {/* Headline - full width, centered */}
+          <h1 style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "clamp(32px, 4.5vw, 56px)",
+            fontWeight: 800,
+            lineHeight: 1.15,
+            color: COLORS.warmBrown,
+            marginBottom: "48px",
+            textAlign: "center",
+            animation: "fadeUp 0.6s ease 0.1s both",
+          }}>
+            Your ADHD doesn't need another productivity app.{" "}
+            <span
+              style={{
+                background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                display: "inline-block",
+              }}
+            >It needs an attention anchor.</span>
+          </h1>
+
+          {/* Split: Subtitle + CTA left, Video right */}
+          <div className="hero-split" style={{
             display: "flex",
             alignItems: "center",
             gap: "48px",
             maxWidth: "1100px",
             margin: "0 auto",
+            animation: "fadeUp 0.6s ease 0.2s both",
           }}>
-            {/* Left: Headline + Subtitle + CTA */}
-            <div style={{ flex: "1 1 0", minWidth: "320px", animation: "fadeUp 0.6s ease 0.1s both" }}>
-              <h1 style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "clamp(26px, 3.2vw, 40px)",
-                fontWeight: 800,
-                lineHeight: 1.15,
-                color: COLORS.warmBrown,
-                marginBottom: "24px",
-              }}>
-                Your ADHD doesn't need another productivity app.{" "}
-                <span
-                  style={{
-                    background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                    display: "inline-block",
-                  }}
-                >It needs an attention anchor.</span>
-              </h1>
-
+            <div style={{ flex: "1 1 0", minWidth: "280px" }}>
               <p style={{
-                fontSize: "clamp(14px, 1.4vw, 17px)",
+                fontSize: "clamp(15px, 1.5vw, 18px)",
                 fontWeight: 500,
                 lineHeight: 1.6,
                 color: COLORS.coffeeBrown,
                 marginBottom: "28px",
-                textAlign: "center",
               }}>
                 7 ADHD coping mechanisms engineered into one calm desktop focus system.
                 <br />
                 Always visible, always anchoring you back to what matters.
               </p>
 
-              <div style={{ textAlign: "center" }}>
+              <div>
                 <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
@@ -1405,13 +1408,11 @@ export default function FocanaLanding() {
               </div>
             </div>
 
-            {/* Right: Hero GIF video */}
             <div style={{
-              flex: "1 1 0",
-              minWidth: "320px",
+              flex: "1.2 1 0",
+              minWidth: "300px",
               overflow: "hidden",
               borderRadius: "12px",
-              animation: "fadeUp 0.6s ease 0.2s both",
             }}>
               <video
                 src="/videos/Hero-GIF.mp4"
