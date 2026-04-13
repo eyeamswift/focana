@@ -1381,7 +1381,7 @@ export default function FocanaLanding() {
             margin: "0 auto",
             animation: "fadeUp 0.6s ease 0.2s both",
           }}>
-            <div style={{ flex: "1 1 0", minWidth: "280px", textAlign: "center" }}>
+            <div style={{ flex: "1 1 0", minWidth: "280px" }}>
               <p style={{
                 fontSize: "clamp(15px, 1.5vw, 18px)",
                 fontWeight: 500,
@@ -1401,14 +1401,14 @@ export default function FocanaLanding() {
                 Always visible, always anchoring you back to what matters.
               </p>
 
-              <div style={{ display: "inline-block" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
                 <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
                 <p style={{
                   fontSize: "15px",
                   color: COLORS.coffeeBrown,
-                  marginTop: "14px",
+                  margin: 0,
                 }}>
                   $29 lifetime · No subscription · macOS
                 </p>
@@ -1484,6 +1484,11 @@ export default function FocanaLanding() {
 
           {[
             {
+              video: "/videos/get-started.mp4",
+              headline: "Get started in 7 seconds.",
+              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
+            },
+            {
               video: "/videos/check-in-landingpage.mp4",
               headline: "Gentle check-ins.",
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
@@ -1502,11 +1507,6 @@ export default function FocanaLanding() {
               video: "/videos/always-on-top.mp4",
               headline: "Always visible while you work.",
               body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
-            },
-            {
-              video: "/videos/get-started.mp4",
-              headline: "Start in seconds.",
-              body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
             },
           ].map((row, i) => {
             const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
