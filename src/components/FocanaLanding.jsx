@@ -1436,7 +1436,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* COMPETITOR COMPARISON */}
-      <section style={{ padding: "72px 0 36px 0", background: COLORS.softCream }}>
+      <section style={{ padding: "72px 0 36px 0", background: "white" }}>
         <div className="section">
           <h2 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
@@ -1520,13 +1520,18 @@ export default function FocanaLanding() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "72px 0 100px 0", background: COLORS.warmVanilla }}>
+      <section id="features" style={{ padding: "72px 0 100px 0", background: COLORS.softCream }}>
         <div className="section">
           <h2 style={{
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
             fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "48px",
+            textAlign: "center", marginBottom: "12px",
           }}>The Focana Focus System</h2>
+          <p style={{
+            fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
+            textAlign: "center", marginBottom: "48px",
+            textTransform: "uppercase", letterSpacing: "2px",
+          }}>How it works</p>
 
           {[
             {
@@ -1601,7 +1606,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* MID CTA */}
-      <section style={{ padding: "0 0 88px 0", background: COLORS.softCream }}>
+      <section style={{ padding: "0 0 88px 0", background: "white" }}>
         <div className="section" style={{ maxWidth: "760px", textAlign: "center" }}>
           <p style={{
             fontSize: "18px",
@@ -1618,7 +1623,7 @@ export default function FocanaLanding() {
       </section>
 
       {/* FOUNDER STORY */}
-      <section id="founder-story" style={{ padding: "100px 0", background: "white" }}>
+      <section id="founder-story" style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section">
           <div style={{
             background: COLORS.softCream,
