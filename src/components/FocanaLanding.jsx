@@ -1356,8 +1356,7 @@ export default function FocanaLanding() {
               marginBottom: "28px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
-              Your ADHD doesn't need another productivity app.
-              <br />
+              Your ADHD doesn't need another productivity app.{" "}
               <span
                 style={{
                   background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
