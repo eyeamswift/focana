@@ -1346,7 +1346,7 @@ export default function FocanaLanding() {
         }} />
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
-          <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
+          <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "left" }}>
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(28px, 3.8vw, 42px)",
@@ -1369,46 +1369,39 @@ export default function FocanaLanding() {
               >It needs an attention anchor.</span>
             </h1>
 
-            <p style={{
-              fontSize: "clamp(14px, 1.6vw, 17px)",
-              fontWeight: 500,
-              lineHeight: 1.5,
-              color: COLORS.coffeeBrown,
-              marginBottom: "0",
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "40px",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              7 ADHD coping mechanisms engineered into one calm desktop focus system.
-              <br />
-              Always visible, always anchoring you back to what matters.
-            </p>
-
-            <div style={{
-              maxWidth: "900px",
-              margin: "0 auto",
-              paddingTop: "32px",
-              textAlign: "center",
-            }}>
-              <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s ease 0.3s both" }}>
+              <div style={{ textAlign: "center" }}>
                 <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
+                <p style={{
+                  fontSize: "15px",
+                  color: COLORS.coffeeBrown,
+                  marginTop: "14px",
+                }}>
+                  $29 lifetime · No subscription · macOS
+                </p>
               </div>
-            <p style={{
-              fontSize: "15px",
-              color: COLORS.coffeeBrown,
-              marginTop: "14px",
-              animation: "fadeUp 0.6s ease 0.35s both",
-            }}>
-              $29 lifetime · No subscription · macOS
-            </p>
-            <div style={{
-              marginTop: "18px",
-              display: "flex",
-              justifyContent: "center",
-              animation: "fadeUp 0.6s ease 0.4s both",
-            }}>
-              <SaasHubBadge location="hero" />
-            </div>
+              <p style={{
+                fontSize: "clamp(14px, 1.6vw, 17px)",
+                fontWeight: 500,
+                lineHeight: 1.5,
+                color: COLORS.coffeeBrown,
+                marginBottom: "0",
+                textAlign: "left",
+                maxWidth: "340px",
+              }}>
+                7 ADHD coping mechanisms engineered into one calm desktop focus system.
+                <br />
+                Always visible, always anchoring you back to what matters.
+              </p>
             </div>
 
           </div>
@@ -1938,6 +1931,7 @@ export default function FocanaLanding() {
             </svg>
           </a>
           <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
+            <SaasHubBadge location="footer" />
             <a href="mailto:hello@focana.app" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Contact</a>
             <a href="/privacy" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Privacy Policy</a>
             <p style={{ fontSize: "13px", color: COLORS.warmGray }}>
