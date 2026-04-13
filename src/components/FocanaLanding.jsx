@@ -1347,18 +1347,6 @@ export default function FocanaLanding() {
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
           <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
-            <p style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              color: COLORS.deepAmber,
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-              marginBottom: "18px",
-              animation: "fadeUp 0.6s ease 0.05s both",
-            }}>
-              The focus buddy for busy brains
-            </p>
-
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(28px, 3.8vw, 42px)",
