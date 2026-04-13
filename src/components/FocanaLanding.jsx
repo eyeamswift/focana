@@ -1602,28 +1602,25 @@ export default function FocanaLanding() {
               </div>
             );
           })}
-        </div>
-      </section>
 
-      {/* MID CTA */}
-      <section style={{ padding: "0 0 88px 0", background: "white" }}>
-        <div className="section" style={{ maxWidth: "760px", textAlign: "center" }}>
-          <p style={{
-            fontSize: "18px",
-            lineHeight: 1.7,
-            color: COLORS.coffeeBrown,
-            margin: "0 0 20px",
-          }}>
-            Ready to try it for yourself?
-          </p>
-          <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Start My Focus
-          </button>
+          <div style={{ maxWidth: "760px", margin: "80px auto 0", textAlign: "center" }}>
+            <p style={{
+              fontSize: "18px",
+              lineHeight: 1.7,
+              color: COLORS.coffeeBrown,
+              margin: "0 0 20px",
+            }}>
+              Ready to try it for yourself?
+            </p>
+            <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Start My Focus
+            </button>
+          </div>
         </div>
       </section>
 
       {/* FOUNDER STORY */}
-      <section id="founder-story" style={{ padding: "100px 0", background: COLORS.softCream }}>
+      <section id="founder-story" style={{ padding: "100px 0", background: "white" }}>
         <div className="section">
           <div style={{
             background: COLORS.softCream,
