@@ -1019,6 +1019,9 @@ export default function FocanaLanding() {
             padding-top: 100px !important;
             padding-bottom: 60px !important;
           }
+          .hero-section .section > div:first-child {
+            flex-direction: column !important;
+          }
           .cta-btn {
             padding: 14px 24px !important;
             font-size: 15px !important;
@@ -1338,7 +1341,7 @@ export default function FocanaLanding() {
       {/* HERO */}
       <section className="hero-section" style={{
         paddingTop: "140px", paddingBottom: 0, position: "relative", overflow: "hidden",
-        background: `linear-gradient(160deg, ${COLORS.warmVanilla} 0%, ${COLORS.softCream} 50%, ${COLORS.creamYellow}22 100%)`,
+        background: COLORS.softCream,
       }}>
         <div style={{
           position: "absolute", inset: 0, opacity: 0.03,
@@ -1346,82 +1349,78 @@ export default function FocanaLanding() {
         }} />
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
-          <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "left" }}>
-            <h1 style={{
-              fontFamily: "'Outfit', sans-serif",
-              fontSize: "clamp(28px, 3.8vw, 42px)",
-              fontWeight: 800,
-              lineHeight: 1.15,
-              color: COLORS.warmBrown,
-              marginBottom: "28px",
-              animation: "fadeUp 0.6s ease 0.1s both",
-            }}>
-              Your ADHD doesn't need another productivity app.{" "}
-              <span
-                style={{
-                  background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                  display: "inline-block",
-                }}
-              >It needs an attention anchor.</span>
-            </h1>
-
-          </div>
-
           <div style={{
             display: "flex",
             alignItems: "center",
-            gap: "40px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            maxWidth: "900px",
+            gap: "48px",
+            maxWidth: "1100px",
             margin: "0 auto",
-            animation: "fadeUp 0.6s ease 0.2s both",
           }}>
-            <div style={{ textAlign: "center" }}>
-              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                Get Focana <span style={{ fontSize: "22px" }}>→</span>
-              </button>
-              <p style={{
-                fontSize: "15px",
-                color: COLORS.coffeeBrown,
-                marginTop: "14px",
+            {/* Left: Headline + Subtitle + CTA */}
+            <div style={{ flex: "1 1 0", minWidth: "320px", animation: "fadeUp 0.6s ease 0.1s both" }}>
+              <h1 style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "clamp(26px, 3.2vw, 40px)",
+                fontWeight: 800,
+                lineHeight: 1.15,
+                color: COLORS.warmBrown,
+                marginBottom: "24px",
               }}>
-                $29 lifetime · No subscription · macOS
-              </p>
-            </div>
-            <p style={{
-              fontSize: "clamp(14px, 1.6vw, 17px)",
-              fontWeight: 500,
-              lineHeight: 1.5,
-              color: COLORS.coffeeBrown,
-              marginBottom: "0",
-              textAlign: "left",
-              maxWidth: "400px",
-            }}>
-              7 ADHD coping mechanisms engineered into one calm desktop focus system.
-              <br />
-              Always visible, always anchoring you back to what matters.
-            </p>
-          </div>
+                Your ADHD doesn't need another productivity app.{" "}
+                <span
+                  style={{
+                    background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    display: "inline-block",
+                  }}
+                >It needs an attention anchor.</span>
+              </h1>
 
-          <div style={{
-            overflow: "hidden",
-            borderRadius: "12px 12px 0 0",
-            maxWidth: "900px",
-            margin: "0 auto",
-            marginTop: "24px",
-          }}>
-            <FeatureVideo
-              src="/videos/hero-video.mp4"
-              poster="/hero-thumbnail-fullscreen-checkin.png"
-              ariaLabel="Focana app demo video"
-              preload="auto"
-              behavior="interactive"
-              scrollOnPlay
-            />
+              <p style={{
+                fontSize: "clamp(14px, 1.4vw, 17px)",
+                fontWeight: 500,
+                lineHeight: 1.6,
+                color: COLORS.coffeeBrown,
+                marginBottom: "28px",
+              }}>
+                7 ADHD coping mechanisms engineered into one calm desktop focus system.
+                <br />
+                Always visible, always anchoring you back to what matters.
+              </p>
+
+              <div>
+                <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                  Get Focana <span style={{ fontSize: "22px" }}>→</span>
+                </button>
+                <p style={{
+                  fontSize: "15px",
+                  color: COLORS.coffeeBrown,
+                  marginTop: "14px",
+                }}>
+                  $29 lifetime · No subscription · macOS
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Hero GIF video */}
+            <div style={{
+              flex: "1 1 0",
+              minWidth: "320px",
+              overflow: "hidden",
+              borderRadius: "12px",
+              animation: "fadeUp 0.6s ease 0.2s both",
+            }}>
+              <video
+                src="/videos/Hero-GIF.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                style={{ width: "100%", display: "block", borderRadius: "12px" }}
+              />
+            </div>
           </div>
 
         </div>
