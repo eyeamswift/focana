@@ -640,12 +640,10 @@ export default function FocanaLanding() {
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
   const [signupLocation, setSignupLocation] = useState("hero");
-  const [headlineIndex, setHeadlineIndex] = useState(0);
   const [checkoutError, setCheckoutError] = useState("");
   const productMenuRef = useRef(null);
   const checkoutReadyPromiseRef = useRef(null);
   const checkoutErrorTimeoutRef = useRef(null);
-  const headlines = ["It didn't get done.", "You did 3 other things.", "You forgot what it was.", "Where did the time go?"];
 
   useEffect(() => {
     let rafId = 0;
@@ -661,14 +659,6 @@ export default function FocanaLanding() {
       window.removeEventListener("scroll", handle);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, []);
-
-  // Rotating headline
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setHeadlineIndex((prev) => (prev + 1) % 4);
-    }, 4000);
-    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1378,19 +1368,17 @@ export default function FocanaLanding() {
               marginBottom: "28px",
               animation: "fadeUp 0.6s ease 0.1s both",
             }}>
-              You opened your laptop to do one thing.
+              Your ADHD doesn't need another productivity app.
               <br />
               <span
-                key={headlineIndex}
                 style={{
                   background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
                   display: "inline-block",
-                  animation: "headlineFade 4s ease both",
                 }}
-              >{headlines[headlineIndex]}</span>
+              >It needs an attention anchor.</span>
             </h1>
 
             <p style={{
@@ -1401,7 +1389,9 @@ export default function FocanaLanding() {
               marginBottom: "0",
               animation: "fadeUp 0.6s ease 0.2s both",
             }}>
-              Meet Focana — always-on-top, keeping your attention anchored through the chaos.
+              7 ADHD coping mechanisms engineered into one calm desktop focus system.
+              <br />
+              Always visible, always anchoring you back to what matters.
             </p>
 
             <div style={{
