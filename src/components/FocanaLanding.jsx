@@ -1346,7 +1346,7 @@ export default function FocanaLanding() {
         }} />
 
         <div className="section" style={{ position: "relative", zIndex: 2 }}>
-          <div style={{ maxWidth: "720px", margin: "0 auto", textAlign: "left" }}>
+          <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "left" }}>
             <h1 style={{
               fontFamily: "'Outfit', sans-serif",
               fontSize: "clamp(28px, 3.8vw, 42px)",
@@ -1369,41 +1369,43 @@ export default function FocanaLanding() {
               >It needs an attention anchor.</span>
             </h1>
 
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "40px",
-              flexWrap: "wrap",
-              justifyContent: "flex-start",
-              animation: "fadeUp 0.6s ease 0.2s both",
-            }}>
-              <div style={{ textAlign: "center" }}>
-                <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-                  Get Focana <span style={{ fontSize: "22px" }}>→</span>
-                </button>
-                <p style={{
-                  fontSize: "15px",
-                  color: COLORS.coffeeBrown,
-                  marginTop: "14px",
-                }}>
-                  $29 lifetime · No subscription · macOS
-                </p>
-              </div>
+          </div>
+
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "40px",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            maxWidth: "900px",
+            margin: "0 auto",
+            animation: "fadeUp 0.6s ease 0.2s both",
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+                Get Focana <span style={{ fontSize: "22px" }}>→</span>
+              </button>
               <p style={{
-                fontSize: "clamp(14px, 1.6vw, 17px)",
-                fontWeight: 500,
-                lineHeight: 1.5,
+                fontSize: "15px",
                 color: COLORS.coffeeBrown,
-                marginBottom: "0",
-                textAlign: "left",
-                maxWidth: "340px",
+                marginTop: "14px",
               }}>
-                7 ADHD coping mechanisms engineered into one calm desktop focus system.
-                <br />
-                Always visible, always anchoring you back to what matters.
+                $29 lifetime · No subscription · macOS
               </p>
             </div>
-
+            <p style={{
+              fontSize: "clamp(14px, 1.6vw, 17px)",
+              fontWeight: 500,
+              lineHeight: 1.5,
+              color: COLORS.coffeeBrown,
+              marginBottom: "0",
+              textAlign: "left",
+              maxWidth: "400px",
+            }}>
+              7 ADHD coping mechanisms engineered into one calm desktop focus system.
+              <br />
+              Always visible, always anchoring you back to what matters.
+            </p>
           </div>
 
           <div style={{
