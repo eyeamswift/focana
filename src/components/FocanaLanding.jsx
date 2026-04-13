@@ -1384,13 +1384,14 @@ export default function FocanaLanding() {
                 lineHeight: 1.6,
                 color: COLORS.coffeeBrown,
                 marginBottom: "28px",
+                textAlign: "center",
               }}>
                 7 ADHD coping mechanisms engineered into one calm desktop focus system.
                 <br />
                 Always visible, always anchoring you back to what matters.
               </p>
 
-              <div>
+              <div style={{ textAlign: "center" }}>
                 <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
