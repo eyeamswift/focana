@@ -1465,8 +1465,8 @@ export default function FocanaLanding() {
             justifyContent: "center",
           }}>
             {[
-              { title: "Distraction Blockers", body: "Block apps you actually need. Fight your brain instead of working with it." },
-              { title: "Browser Extensions", body: "Disappear the moment you switch tabs. Out of sight, out of mind." },
+              { title: "Distraction Blockers", body: "Block apps you actually need, and fights your brain instead of working with it." },
+              { title: "Browser Extensions", body: <span>Disappear the moment you switch tabs.<br /><em>Out of sight, out of mind.</em></span> },
               { title: "Pomodoro Timers", body: "A countdown and nothing else. No check-ins, no thought capture, no context when you come back." },
             ].map((card) => (
               <div key={card.title} style={{
@@ -1520,13 +1520,13 @@ export default function FocanaLanding() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "36px 0 100px 0", background: COLORS.softCream }}>
+      <section id="features" style={{ padding: "72px 0 100px 0", background: COLORS.warmVanilla }}>
         <div className="section">
-          <p style={{
-            fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
-            textAlign: "center", marginBottom: "12px",
-            textTransform: "uppercase", letterSpacing: "2px",
-          }}>Key Features</p>
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+            textAlign: "center", marginBottom: "48px",
+          }}>The Focana Focus System</h2>
 
           {[
             {
@@ -1627,17 +1627,6 @@ export default function FocanaLanding() {
             border: `1px solid ${COLORS.beigeBorder}`,
           }}>
             <div style={{ maxWidth: "560px", margin: "0 auto", textAlign: "center" }}>
-              <p style={{
-                fontSize: "12px",
-                letterSpacing: "2.5px",
-                textTransform: "uppercase",
-                color: COLORS.deepAmber,
-                fontWeight: 600,
-                margin: "0 0 8px",
-              }}>
-                The Story
-              </p>
-
               <h2 style={{
                 fontFamily: "'Outfit', sans-serif",
                 fontSize: "clamp(28px, 3.5vw, 40px)",
@@ -1876,13 +1865,9 @@ export default function FocanaLanding() {
       <section id="faq" style={{ padding: "100px 0", background: COLORS.softCream }}>
         <div className="section" style={{ maxWidth: "760px" }}>
           <div style={{ textAlign: "center", marginBottom: "50px" }}>
-            <span style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>FAQ</span>
             <h2 style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(28px, 3.5vw, 40px)",
-              fontWeight: 800, marginTop: "16px", color: COLORS.warmBrown,
+              fontWeight: 800, color: COLORS.warmBrown,
             }}>
               Frequently asked questions
             </h2>
