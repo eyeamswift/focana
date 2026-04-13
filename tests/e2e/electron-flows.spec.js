@@ -261,6 +261,15 @@ async function waitForFloatingWindow(electronApp) {
   return floatingWindow;
 }
 
+async function readFloatingPromptState(floatingWindow) {
+  return floatingWindow.evaluate(() => ({
+    mode: document.body?.dataset?.mode || null,
+    stage: document.body?.dataset?.mode === 'prompt'
+      ? (document.querySelector('.prompt-step.is-active')?.dataset?.stage || null)
+      : null,
+  }));
+}
+
 async function installFloatingPulseCounter(electronApp) {
   await electronApp.evaluate(({ BrowserWindow }) => {
     global.__focanaE2EFloatingPulseCount = 0;
@@ -708,6 +717,146 @@ test('manual update check reports when the app is already current', async () => 
     await page.getByRole('button', { name: 'Check for Updates' }).click();
 
     await expect(page.getByText('You are up to date.')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('idle re-entry cue loops in full window and hands off immediately to floating prompt', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+
+    const taskComposer = page.locator('.task-composer').first();
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+
+    await expect(taskComposer).toHaveClass(/task-composer--prompting/);
+    await expect(taskComposer).toHaveClass(/task-composer--reentry-strong/);
+
+    await page.waitForTimeout(6500);
+    await expect(taskComposer).not.toHaveClass(/task-composer--reentry-strong/);
+    await expect(taskComposer).toHaveClass(/task-composer--prompting/);
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 35000);
+    await expect.poll(async () => (await taskComposer.getAttribute('class')) || '', { timeout: 4000 })
+      .toContain('task-composer--reentry-strong');
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating re-entry prompt escape snoozes for ten minutes', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
+
+    await floatingWindow.keyboard.press('Escape');
+
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, 14 * 60 * 1000);
+    await page.waitForTimeout(1200);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 3000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, (15 * 60 * 1000) + 3000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating re-entry prompt mirrors the idle start flow for new tasks', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
+
+    await floatingWindow.locator('#prompt-task-input').fill('floating-reentry-start');
+    await floatingWindow.locator('#prompt-task-input').press('Enter');
+
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'start-chooser' }));
+
+    await floatingWindow.locator('#prompt-freeflow-btn').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    const currentTask = await page.evaluate(() => window.electronAPI.storeGet('currentTask'));
+    expect(timerState.mode).toBe('freeflow');
+    expect(timerState.isRunning).toBe(true);
+    expect(timerState.timerVisible).toBe(true);
+    expect(currentTask?.text).toBe('floating-reentry-start');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating resumable re-entry is choice-first and start something new opens the finish modal', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'resume-choice-task');
+    await exitCompactMode(page);
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('resume-choice-task');
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+
+    await floatingWindow.locator('#prompt-resume-btn').click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'start-chooser' }));
+
+    await floatingWindow.locator('#prompt-back-btn').click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+
+    await floatingWindow.locator('#prompt-start-new-btn').click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
   } finally {
     await cleanup();
   }

@@ -27,6 +27,15 @@ let floatingStateInterval = null;
 let floatingIconDragStart = null;
 let floatingIconDragPollTimer = null;
 let floatingWindowDisplayState = { mode: 'icon', timeText: '00:00' };
+let floatingReentryState = {
+  open: false,
+  promptKey: 0,
+  promptKind: 'start',
+  resumeTaskName: '',
+  defaultTaskText: '',
+  defaultMinutes: 25,
+};
+let floatingPromptStage = 'task-entry';
 let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
 const licenseService = createLicenseService({ app, store });
@@ -51,6 +60,13 @@ const DRAG_OVERRIDE_TTL_MS = 120;
 const FLOATING_ICON_SIZE = 64;
 const FLOATING_TIMER_WIDTH = 116;
 const FLOATING_TIMER_HEIGHT = 48;
+const FLOATING_PROMPT_WIDTH = 420;
+const FLOATING_PROMPT_STAGE_HEIGHTS = {
+  'task-entry': 228,
+  'start-chooser': 256,
+  'resume-choice': 208,
+  'snooze-options': 286,
+};
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
@@ -990,6 +1006,20 @@ function getFloatingWindowState() {
   const timerVisible = Boolean(timerState && typeof timerState === 'object' && timerState.timerVisible);
   const totalSeconds = Number(timerState?.seconds) || 0;
   const theme = store.get('settings.theme', 'light') === 'dark' ? 'dark' : 'light';
+
+  if (floatingReentryState.open) {
+    return {
+      mode: 'prompt',
+      theme,
+      promptKey: floatingReentryState.promptKey,
+      promptKind: floatingReentryState.promptKind,
+      promptStage: floatingPromptStage,
+      resumeTaskName: floatingReentryState.resumeTaskName,
+      defaultTaskText: floatingReentryState.defaultTaskText,
+      defaultMinutes: floatingReentryState.defaultMinutes,
+    };
+  }
+
   return {
     mode: timerVisible ? 'timer' : 'icon',
     timeText: formatFloatingTime(totalSeconds),
@@ -998,7 +1028,52 @@ function getFloatingWindowState() {
   };
 }
 
+function getDefaultFloatingPromptStage(state = floatingReentryState) {
+  return state?.promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry';
+}
+
+function sanitizeFloatingPromptStage(stage, state = floatingReentryState) {
+  const fallback = getDefaultFloatingPromptStage(state);
+  if (typeof stage !== 'string' || !stage.trim()) return fallback;
+
+  const normalized = stage.trim();
+  if (!Object.prototype.hasOwnProperty.call(FLOATING_PROMPT_STAGE_HEIGHTS, normalized)) {
+    return fallback;
+  }
+
+  if (state?.promptKind !== 'resume-choice' && normalized === 'resume-choice') {
+    return fallback;
+  }
+
+  return normalized;
+}
+
+function sanitizeFloatingReentryState(nextState = {}) {
+  const safeState = nextState && typeof nextState === 'object' ? nextState : {};
+  return {
+    open: safeState.open === true,
+    promptKey: Math.max(0, Math.floor(Number(safeState.promptKey) || 0)),
+    promptKind: safeState.promptKind === 'resume-choice' ? 'resume-choice' : 'start',
+    resumeTaskName: typeof safeState.resumeTaskName === 'string'
+      ? safeState.resumeTaskName.trim().slice(0, 120)
+      : '',
+    defaultTaskText: typeof safeState.defaultTaskText === 'string'
+      ? safeState.defaultTaskText.slice(0, 160)
+      : '',
+    defaultMinutes: clampNumber(safeState.defaultMinutes, 1, 240, 25),
+  };
+}
+
 function getFloatingSizeForState(state = floatingWindowDisplayState) {
+  if (state?.mode === 'prompt') {
+    const promptStage = sanitizeFloatingPromptStage(state?.promptStage, {
+      promptKind: state?.promptKind,
+    });
+    return {
+      width: FLOATING_PROMPT_WIDTH,
+      height: FLOATING_PROMPT_STAGE_HEIGHTS[promptStage] || FLOATING_PROMPT_STAGE_HEIGHTS['task-entry'],
+    };
+  }
   if (state?.mode === 'timer') {
     return { width: FLOATING_TIMER_WIDTH, height: FLOATING_TIMER_HEIGHT };
   }
@@ -1013,6 +1088,7 @@ function stopFloatingStateSync() {
 }
 
 function syncFloatingWindowState({ preservePosition = true } = {}) {
+  const previousState = floatingWindowDisplayState;
   const nextState = getFloatingWindowState();
   floatingWindowDisplayState = nextState;
 
@@ -1020,12 +1096,20 @@ function syncFloatingWindowState({ preservePosition = true } = {}) {
 
   const size = getFloatingSizeForState(nextState);
   const nextBounds = preservePosition
-    ? clampBounds({
-      x: floatingIconWindow.getBounds().x,
-      y: floatingIconWindow.getBounds().y,
-      width: size.width,
-      height: size.height,
-    }, 'workArea')
+    ? (() => {
+      const currentBounds = floatingIconWindow.getBounds();
+      const shouldAnchorBottomRight = previousState?.mode === 'prompt' || nextState?.mode === 'prompt';
+      return clampBounds({
+        x: shouldAnchorBottomRight
+          ? currentBounds.x + currentBounds.width - size.width
+          : currentBounds.x,
+        y: shouldAnchorBottomRight
+          ? currentBounds.y + currentBounds.height - size.height
+          : currentBounds.y,
+        width: size.width,
+        height: size.height,
+      }, 'workArea');
+    })()
     : getFloatingBoundsNearMain(mainWindow?.getBounds(), nextState);
 
   setFloatingIconBoundsClamped(nextBounds);
@@ -1643,6 +1727,34 @@ ipcMain.on('set-dnd', (_event, enabled) => {
 // Floating pulse — renderer drives timing, main sends to floating window
 ipcMain.on('trigger-floating-pulse', () => {
   sendFloatingPulse();
+});
+
+ipcMain.on('set-floating-reentry-state', (_event, payload = {}) => {
+  const previousState = floatingReentryState;
+  floatingReentryState = sanitizeFloatingReentryState(payload);
+  const shouldResetStage = (
+    !previousState?.open
+    || !floatingReentryState.open
+    || previousState?.promptKind !== floatingReentryState.promptKind
+    || previousState?.promptKey !== floatingReentryState.promptKey
+  );
+  floatingPromptStage = shouldResetStage
+    ? getDefaultFloatingPromptStage(floatingReentryState)
+    : sanitizeFloatingPromptStage(floatingPromptStage, floatingReentryState);
+  syncFloatingWindowState({ preservePosition: true });
+});
+
+ipcMain.on('floating-reentry-stage', (_event, stage) => {
+  if (!floatingReentryState.open) return;
+  const nextStage = sanitizeFloatingPromptStage(stage, floatingReentryState);
+  if (nextStage === floatingPromptStage) return;
+  floatingPromptStage = nextStage;
+  syncFloatingWindowState({ preservePosition: true });
+});
+
+ipcMain.on('floating-reentry-action', (_event, payload = {}) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('floating-reentry-action', payload);
 });
 
 // Modal window expansion

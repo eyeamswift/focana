@@ -93,6 +93,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('floating-timer-action', handler);
     return () => ipcRenderer.removeListener('floating-timer-action', handler);
   },
+  onFloatingReentryAction: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('floating-reentry-action', handler);
+    return () => ipcRenderer.removeListener('floating-reentry-action', handler);
+  },
   onSystemSuspendPaused: (callback) => {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on('system-suspend-paused', handler);
@@ -107,6 +112,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Floating pulse (renderer-driven timing)
   triggerFloatingPulse: () => ipcRenderer.send('trigger-floating-pulse'),
+  setFloatingReentryState: (state) => ipcRenderer.send('set-floating-reentry-state', state),
 
   // Pill drag (JS-based — CSS drag regions block mouse events)
   pillDragStart: () => ipcRenderer.send('pill-drag-start'),

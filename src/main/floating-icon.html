@@ -19,21 +19,27 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         --timer-pill-bg: rgba(74, 51, 41, 0.96);
         --timer-pill-border: rgba(255, 249, 230, 0.2);
         --timer-pill-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
         --timer-pill-text: #fff9e6;
         --timer-pill-pulse-bar: rgba(245, 158, 11, 0.34);
         --timer-pill-pulse-glow: rgba(245, 158, 11, 0.32);
-      }
-
-      body[data-theme='light'] {
-        --timer-pill-bg: rgba(250, 244, 226, 0.98);
-        --timer-pill-border: rgba(191, 96, 13, 0.28);
-        --timer-pill-shadow: 0 12px 28px rgba(117, 74, 34, 0.18);
-        --timer-pill-text: #7c2d12;
-        --timer-pill-pulse-bar: rgba(245, 158, 11, 0.22);
-        --timer-pill-pulse-glow: rgba(245, 158, 11, 0.22);
+        --prompt-bg: rgba(255, 249, 238, 0.98);
+        --prompt-border: rgba(191, 96, 13, 0.24);
+        --prompt-shadow: 0 24px 48px rgba(46, 31, 24, 0.2);
+        --prompt-title: #5f2a0a;
+        --prompt-text: #7c2d12;
+        --prompt-muted: #8f4d1f;
+        --prompt-input-bg: rgba(255, 255, 255, 0.78);
+        --prompt-input-border: rgba(191, 96, 13, 0.2);
+        --prompt-ghost-bg: rgba(255, 245, 230, 0.82);
+        --prompt-ghost-border: rgba(191, 96, 13, 0.18);
+        --prompt-ghost-text: #7c2d12;
+        --prompt-primary-bg: #b45309;
+        --prompt-primary-text: #fff9ed;
+        --prompt-backdrop: rgba(28, 19, 13, 0.12);
       }
 
       body[data-theme='dark'] {
@@ -41,6 +47,20 @@
         --timer-pill-border: rgba(255, 249, 230, 0.2);
         --timer-pill-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
         --timer-pill-text: #fff9e6;
+        --prompt-bg: rgba(52, 34, 28, 0.98);
+        --prompt-border: rgba(252, 211, 77, 0.18);
+        --prompt-shadow: 0 24px 54px rgba(0, 0, 0, 0.38);
+        --prompt-title: #fff3d9;
+        --prompt-text: #f8d7a2;
+        --prompt-muted: #ddb987;
+        --prompt-input-bg: rgba(255, 249, 230, 0.06);
+        --prompt-input-border: rgba(255, 249, 230, 0.14);
+        --prompt-ghost-bg: rgba(255, 249, 230, 0.06);
+        --prompt-ghost-border: rgba(255, 249, 230, 0.16);
+        --prompt-ghost-text: #fff3d9;
+        --prompt-primary-bg: #f59e0b;
+        --prompt-primary-text: #2c1608;
+        --prompt-backdrop: rgba(0, 0, 0, 0.18);
       }
 
       #icon-button {
@@ -175,16 +195,281 @@
         pointer-events: none;
       }
 
-      body[data-mode='timer'] #icon-button {
-        border-radius: 9999px;
+      #prompt-shell {
+        position: relative;
+        display: none;
+        width: 100%;
+        height: 100%;
       }
 
-      body[data-mode='timer'] #icon-image {
+      #prompt-backdrop {
+        position: absolute;
+        inset: 0;
+        border-radius: 22px;
+        background: var(--prompt-backdrop);
+      }
+
+      #prompt-card {
+        position: absolute;
+        inset: 10px;
+        display: flex;
+        flex-direction: column;
+        border-radius: 22px;
+        border: 1px solid var(--prompt-border);
+        background:
+          radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--prompt-primary-bg) 11%, transparent) 0%, transparent 52%),
+          linear-gradient(180deg, color-mix(in srgb, var(--prompt-bg) 96%, transparent) 0%, var(--prompt-bg) 100%);
+        box-shadow: var(--prompt-shadow);
+        color: var(--prompt-text);
+        overflow: hidden;
+      }
+
+      .prompt-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.8rem 0.95rem 0;
+      }
+
+      .prompt-header__spacer {
+        width: 4.25rem;
+      }
+
+      .prompt-header__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 1.9rem;
+        padding: 0 0.7rem;
+        border-radius: 9999px;
+        border: 1px solid var(--prompt-ghost-border);
+        background: var(--prompt-ghost-bg);
+        color: var(--prompt-ghost-text);
+        font-size: 0.75rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .prompt-header__btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .prompt-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0.7rem 0.95rem 1rem;
+      }
+
+      .prompt-step {
+        display: none;
+        flex-direction: column;
+        gap: 0.8rem;
+      }
+
+      .prompt-step.is-active {
+        display: flex;
+      }
+
+      .prompt-title {
+        margin: 0;
+        font-size: 1.02rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--prompt-title);
+        text-align: center;
+      }
+
+      .prompt-copy {
+        margin: 0;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        color: var(--prompt-muted);
+        text-align: center;
+      }
+
+      .prompt-task-name {
+        color: var(--prompt-title);
+        font-weight: 800;
+      }
+
+      .prompt-input,
+      .prompt-textarea {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid var(--prompt-input-border);
+        background: var(--prompt-input-bg);
+        color: var(--prompt-title);
+        font-family: inherit;
+        font-size: 0.92rem;
+        line-height: 1.4;
+        outline: none;
+        box-sizing: border-box;
+      }
+
+      .prompt-input {
+        height: 2.85rem;
+        padding: 0 0.85rem;
+      }
+
+      .prompt-textarea {
+        min-height: 5.2rem;
+        max-height: 5.2rem;
+        padding: 0.78rem 0.85rem;
+        resize: none;
+      }
+
+      .prompt-input:focus,
+      .prompt-textarea:focus {
+        border-color: color-mix(in srgb, var(--prompt-primary-bg) 82%, transparent);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--prompt-primary-bg) 18%, transparent);
+      }
+
+      .prompt-actions {
+        display: flex;
+        gap: 0.55rem;
+      }
+
+      .prompt-actions--column {
+        flex-direction: column;
+      }
+
+      .prompt-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        min-height: 2.5rem;
+        padding: 0.7rem 0.95rem;
+        border-radius: 14px;
+        border: 1px solid transparent;
+        font-size: 0.84rem;
+        font-weight: 800;
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+      }
+
+      .prompt-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      .prompt-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .prompt-btn--primary {
+        background: var(--prompt-primary-bg);
+        color: var(--prompt-primary-text);
+        box-shadow: 0 12px 22px rgba(180, 83, 9, 0.22);
+      }
+
+      .prompt-btn--ghost {
+        background: var(--prompt-ghost-bg);
+        border-color: var(--prompt-ghost-border);
+        color: var(--prompt-ghost-text);
+      }
+
+      .prompt-btn--soft {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.54);
+        border-color: var(--prompt-ghost-border);
+        color: var(--prompt-ghost-text);
+      }
+
+      body[data-theme='dark'] .prompt-btn--soft {
+        background: rgba(255, 249, 230, 0.08);
+      }
+
+      .prompt-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+
+      .prompt-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.2rem;
+        padding: 0.45rem 0.8rem;
+        border-radius: 9999px;
+        border: 1px solid var(--prompt-ghost-border);
+        background: var(--prompt-ghost-bg);
+        color: var(--prompt-ghost-text);
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .prompt-chip:hover {
+        transform: translateY(-1px);
+      }
+
+      .prompt-chip.is-active {
+        border-color: transparent;
+        background: color-mix(in srgb, var(--prompt-primary-bg) 88%, white 12%);
+        color: var(--prompt-primary-text);
+        box-shadow: 0 10px 18px rgba(180, 83, 9, 0.18);
+      }
+
+      .prompt-chooser-task {
+        padding: 0.7rem 0.8rem;
+        border-radius: 14px;
+        border: 1px solid var(--prompt-ghost-border);
+        background: color-mix(in srgb, var(--prompt-ghost-bg) 92%, transparent);
+      }
+
+      .prompt-chooser-task__label {
+        display: block;
+        margin-bottom: 0.25rem;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--prompt-muted);
+      }
+
+      .prompt-chooser-task__value {
+        display: block;
+        font-size: 0.9rem;
+        line-height: 1.35;
+        font-weight: 700;
+        color: var(--prompt-title);
+        overflow-wrap: anywhere;
+      }
+
+      .prompt-inline-row {
+        display: flex;
+        gap: 0.55rem;
+      }
+
+      .prompt-inline-row .prompt-input {
+        flex: 1;
+      }
+
+      body[data-mode='timer'] #icon-image,
+      body[data-mode='prompt'] #icon-image {
         display: none;
       }
 
       body[data-mode='timer'] #timer-pill {
         display: inline-flex;
+      }
+
+      body[data-mode='prompt'] #icon-button,
+      body[data-mode='prompt'] #timer-pill {
+        display: none;
+      }
+
+      body[data-mode='prompt'] #prompt-shell {
+        display: block;
+      }
+
+      body[data-mode='timer'] #icon-button {
+        border-radius: 9999px;
       }
 
       body[data-mode='timer'] #icon-button:hover #timer-pill {
@@ -257,6 +542,76 @@
       </span>
     </div>
 
+    <div id="prompt-shell" aria-hidden="true">
+      <div id="prompt-backdrop"></div>
+      <div id="prompt-card" role="dialog" aria-modal="true" aria-labelledby="prompt-title">
+        <div class="prompt-header">
+          <button id="prompt-back-btn" class="prompt-header__btn" type="button">Back</button>
+          <span class="prompt-header__spacer" id="prompt-header-spacer"></span>
+          <button id="prompt-dismiss-btn" class="prompt-header__btn" type="button">Dismiss</button>
+        </div>
+        <div class="prompt-body">
+          <section id="prompt-step-start" class="prompt-step" data-stage="task-entry">
+            <h2 id="prompt-title" class="prompt-title">What are you working on?</h2>
+            <p class="prompt-copy">Enter your next focus, then choose a timer or Freeflow.</p>
+            <textarea
+              id="prompt-task-input"
+              class="prompt-textarea"
+              rows="2"
+              placeholder="Type your task here..."
+            ></textarea>
+            <div class="prompt-actions">
+              <button id="prompt-task-next-btn" class="prompt-btn prompt-btn--primary" type="button">Next</button>
+            </div>
+          </section>
+
+          <section id="prompt-step-resume" class="prompt-step" data-stage="resume-choice">
+            <h2 class="prompt-title">Ready to resume?</h2>
+            <p class="prompt-copy">
+              Pick up <span id="prompt-resume-task-name" class="prompt-task-name">this task</span>,
+              or wrap it up first and start something new.
+            </p>
+            <div class="prompt-actions prompt-actions--column">
+              <button id="prompt-resume-btn" class="prompt-btn prompt-btn--primary" type="button">Resume Previous Task</button>
+              <button id="prompt-start-new-btn" class="prompt-btn prompt-btn--ghost" type="button">Start Something New</button>
+            </div>
+          </section>
+
+          <section id="prompt-step-chooser" class="prompt-step" data-stage="start-chooser">
+            <div class="prompt-chooser-task">
+              <span class="prompt-chooser-task__label">Task</span>
+              <span id="prompt-chooser-task-value" class="prompt-chooser-task__value">Untitled task</span>
+            </div>
+            <div class="prompt-chip-row">
+              <button class="prompt-chip" id="prompt-quick-15" type="button">15m</button>
+              <button class="prompt-chip" id="prompt-quick-25" type="button">25m</button>
+              <button class="prompt-chip" id="prompt-quick-45" type="button">45m</button>
+              <button class="prompt-chip" id="prompt-quick-custom" type="button">Custom</button>
+            </div>
+            <div class="prompt-inline-row">
+              <input id="prompt-minutes-input" class="prompt-input" type="number" min="1" max="240" step="1" value="25" />
+              <button id="prompt-start-timed-btn" class="prompt-btn prompt-btn--primary" type="button">Start Timer</button>
+            </div>
+            <div class="prompt-actions">
+              <button id="prompt-freeflow-btn" class="prompt-btn prompt-btn--ghost" type="button">Freeflow</button>
+            </div>
+          </section>
+
+          <section id="prompt-step-snooze" class="prompt-step" data-stage="snooze-options">
+            <h2 class="prompt-title">Snooze reminder</h2>
+            <p class="prompt-copy">Pick when this should come back.</p>
+            <div class="prompt-actions prompt-actions--column">
+              <button id="prompt-snooze-10" class="prompt-btn prompt-btn--soft" type="button">10 minutes</button>
+              <button id="prompt-snooze-30" class="prompt-btn prompt-btn--soft" type="button">30 minutes</button>
+              <button id="prompt-snooze-60" class="prompt-btn prompt-btn--soft" type="button">1 hour</button>
+              <button id="prompt-snooze-120" class="prompt-btn prompt-btn--soft" type="button">2 hours</button>
+              <button id="prompt-snooze-reopen" class="prompt-btn prompt-btn--ghost" type="button">Until I reopen</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <script>
       const iconButton = document.getElementById('icon-button');
       const timerPill = document.getElementById('timer-pill');
@@ -265,6 +620,33 @@
       const timerToggleButton = document.getElementById('timer-toggle-btn');
       const timerToggleIcon = document.getElementById('timer-toggle-icon');
       const timerStopButton = document.getElementById('timer-stop-btn');
+      const promptShell = document.getElementById('prompt-shell');
+      const promptCard = document.getElementById('prompt-card');
+      const promptBackdrop = document.getElementById('prompt-backdrop');
+      const promptBackButton = document.getElementById('prompt-back-btn');
+      const promptDismissButton = document.getElementById('prompt-dismiss-btn');
+      const promptStartStep = document.getElementById('prompt-step-start');
+      const promptResumeStep = document.getElementById('prompt-step-resume');
+      const promptChooserStep = document.getElementById('prompt-step-chooser');
+      const promptSnoozeStep = document.getElementById('prompt-step-snooze');
+      const promptTaskInput = document.getElementById('prompt-task-input');
+      const promptTaskNextButton = document.getElementById('prompt-task-next-btn');
+      const promptResumeTaskName = document.getElementById('prompt-resume-task-name');
+      const promptChooserTaskValue = document.getElementById('prompt-chooser-task-value');
+      const promptMinutesInput = document.getElementById('prompt-minutes-input');
+      const promptStartTimedButton = document.getElementById('prompt-start-timed-btn');
+      const promptFreeflowButton = document.getElementById('prompt-freeflow-btn');
+      const promptResumeButton = document.getElementById('prompt-resume-btn');
+      const promptStartNewButton = document.getElementById('prompt-start-new-btn');
+      const promptQuick15 = document.getElementById('prompt-quick-15');
+      const promptQuick25 = document.getElementById('prompt-quick-25');
+      const promptQuick45 = document.getElementById('prompt-quick-45');
+      const promptQuickCustom = document.getElementById('prompt-quick-custom');
+      const promptSnooze10 = document.getElementById('prompt-snooze-10');
+      const promptSnooze30 = document.getElementById('prompt-snooze-30');
+      const promptSnooze60 = document.getElementById('prompt-snooze-60');
+      const promptSnooze120 = document.getElementById('prompt-snooze-120');
+      const promptSnoozeReopen = document.getElementById('prompt-snooze-reopen');
       const dragThresholdPx = 6;
       const clickDelayMs = 220;
       const controlsHideMs = 3000;
@@ -276,6 +658,13 @@
       let controlsHideTimer = null;
       let currentMode = 'icon';
       let currentRunning = false;
+      let currentPromptKind = 'start';
+      let currentPromptStage = 'task-entry';
+      let promptStageBeforeSnooze = 'task-entry';
+      let currentPromptKey = null;
+      let currentResumeTaskName = '';
+      let localTaskText = '';
+      let localMinutes = '25';
 
       function getFloatingAPI() {
         return window.floatingAPI;
@@ -285,10 +674,13 @@
         getFloatingAPI()?.expand?.();
       }
 
+      function emitReentryAction(action, payload = {}) {
+        getFloatingAPI()?.reentryAction?.(action, payload);
+      }
+
       function triggerPulse() {
         iconButton.classList.remove('pulse');
         timerPill.classList.remove('pulse');
-        // Restart CSS animation reliably on repeated reminders.
         void iconButton.offsetWidth;
         iconButton.classList.add('pulse');
         void timerPill.offsetWidth;
@@ -330,8 +722,111 @@
         }, clickDelayMs);
       }
 
+      function clampMinutesValue(rawValue) {
+        const parsed = Number.parseInt(String(rawValue || '').trim(), 10);
+        if (!Number.isFinite(parsed)) return null;
+        return Math.min(Math.max(parsed, 1), 240);
+      }
+
+      function syncQuickChips() {
+        const safeMinutes = clampMinutesValue(localMinutes);
+        [
+          [promptQuick15, 15],
+          [promptQuick25, 25],
+          [promptQuick45, 45],
+        ].forEach(([button, value]) => {
+          button.classList.toggle('is-active', safeMinutes === value);
+        });
+      }
+
+      function focusPromptField(stage) {
+        requestAnimationFrame(() => {
+          if (stage === 'task-entry') {
+            promptTaskInput.focus();
+            promptTaskInput.setSelectionRange(promptTaskInput.value.length, promptTaskInput.value.length);
+            return;
+          }
+          if (stage === 'start-chooser') {
+            promptMinutesInput.focus();
+            promptMinutesInput.select();
+          }
+        });
+      }
+
+      function renderPrompt() {
+        promptShell.setAttribute('aria-hidden', currentMode === 'prompt' ? 'false' : 'true');
+        promptStartStep.classList.toggle('is-active', currentPromptStage === 'task-entry');
+        promptResumeStep.classList.toggle('is-active', currentPromptStage === 'resume-choice');
+        promptChooserStep.classList.toggle('is-active', currentPromptStage === 'start-chooser');
+        promptSnoozeStep.classList.toggle('is-active', currentPromptStage === 'snooze-options');
+
+        promptTaskInput.value = localTaskText;
+        promptMinutesInput.value = localMinutes;
+        promptResumeTaskName.textContent = currentResumeTaskName || 'this task';
+        promptChooserTaskValue.textContent = (currentPromptKind === 'resume-choice'
+          ? currentResumeTaskName
+          : localTaskText).trim() || 'Untitled task';
+
+        const trimmedTask = localTaskText.trim();
+        promptTaskNextButton.disabled = trimmedTask.length === 0;
+        const canGoBack = currentPromptStage === 'start-chooser' || currentPromptStage === 'snooze-options';
+        promptBackButton.style.visibility = canGoBack ? 'visible' : 'hidden';
+        promptDismissButton.style.visibility = currentPromptStage === 'snooze-options' ? 'hidden' : 'visible';
+        syncQuickChips();
+      }
+
+      function setPromptStage(stage, { notifyMain = true, focusField = true } = {}) {
+        currentPromptStage = stage;
+        if (stage !== 'snooze-options') {
+          promptStageBeforeSnooze = stage;
+        }
+        renderPrompt();
+        if (notifyMain) {
+          getFloatingAPI()?.setPromptStage?.(stage);
+        }
+        if (focusField) {
+          focusPromptField(stage);
+        }
+      }
+
+      function openSnoozeOptions() {
+        setPromptStage('snooze-options');
+      }
+
+      function submitTimedSession(kind) {
+        const safeMinutes = clampMinutesValue(localMinutes);
+        if (!safeMinutes) {
+          promptMinutesInput.focus();
+          return;
+        }
+
+        emitReentryAction('start-session', {
+          promptKind: kind,
+          mode: 'timed',
+          minutes: safeMinutes,
+          taskText: localTaskText.trim(),
+        });
+      }
+
+      function submitFreeflowSession(kind) {
+        emitReentryAction('start-session', {
+          promptKind: kind,
+          mode: 'freeflow',
+          minutes: 0,
+          taskText: localTaskText.trim(),
+        });
+      }
+
+      function dismissWithSnooze(kind) {
+        emitReentryAction('snooze', { kind });
+      }
+
       function applyState(state) {
-        const nextMode = state && state.mode === 'timer' ? 'timer' : 'icon';
+        const nextMode = state && typeof state === 'object' && state.mode === 'prompt'
+          ? 'prompt'
+          : state && state.mode === 'timer'
+            ? 'timer'
+            : 'icon';
         const nextTheme = state && state.theme === 'dark' ? 'dark' : 'light';
         currentRunning = state?.running !== false;
         currentMode = nextMode;
@@ -346,9 +841,27 @@
         timerToggleIcon.innerHTML = currentRunning
           ? '<path d="M8 5v14" /><path d="M16 5v14" />'
           : '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />';
-        if (nextMode !== 'timer') {
-          hideTimerControls();
+
+        if (nextMode === 'prompt') {
+          const promptKeyChanged = currentPromptKey !== state?.promptKey;
+          const promptKindChanged = currentPromptKind !== state?.promptKind;
+          currentPromptKind = state?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
+          currentResumeTaskName = typeof state?.resumeTaskName === 'string' ? state.resumeTaskName.trim() : '';
+          if (promptKeyChanged || promptKindChanged) {
+            currentPromptKey = state?.promptKey ?? null;
+            localTaskText = typeof state?.defaultTaskText === 'string' ? state.defaultTaskText : '';
+            localMinutes = String(clampMinutesValue(state?.defaultMinutes) || 25);
+            const initialStage = currentPromptKind === 'resume-choice' ? 'resume-choice' : 'task-entry';
+            promptStageBeforeSnooze = initialStage;
+            setPromptStage(initialStage, { notifyMain: true });
+            return;
+          }
+          renderPrompt();
+          return;
         }
+
+        currentPromptKey = null;
+        hideTimerControls();
         iconButton.setAttribute('aria-label', nextMode === 'timer' ? `Expand Focana timer ${nextTimeText}` : 'Expand Focana');
       }
 
@@ -383,11 +896,6 @@
         getFloatingAPI()?.dragEnd?.();
       }
 
-      // Use pointerdown + setPointerCapture so the element keeps receiving
-      // pointer events even when the cursor leaves this tiny window during
-      // a fast drag.  This mirrors the document-level capture pattern used
-      // by CompactMode.jsx and fixes the inability to drag the floating
-      // icon toward certain screen edges (left, top).
       iconButton.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
         if (timerControls.contains(event.target)) return;
@@ -395,8 +903,6 @@
         beginDrag(event.screenX, event.screenY, event.pointerId);
       });
 
-      // Document-level listeners ensure we track the cursor even when it
-      // escapes the small BrowserWindow bounds.
       document.addEventListener('pointermove', (event) => {
         if (!dragActive) return;
         moveDrag(event.screenX, event.screenY);
@@ -487,6 +993,110 @@
         event.stopPropagation();
         hideTimerControls();
         getFloatingAPI()?.timerAction?.('stop');
+      });
+
+      promptTaskInput.addEventListener('input', () => {
+        localTaskText = promptTaskInput.value;
+        renderPrompt();
+      });
+
+      promptTaskInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          const trimmedTask = promptTaskInput.value.trim();
+          if (!trimmedTask) return;
+          event.preventDefault();
+          localTaskText = promptTaskInput.value;
+          setPromptStage('start-chooser');
+        }
+      });
+
+      promptTaskNextButton.addEventListener('click', () => {
+        const trimmedTask = promptTaskInput.value.trim();
+        if (!trimmedTask) return;
+        localTaskText = promptTaskInput.value;
+        setPromptStage('start-chooser');
+      });
+
+      promptResumeButton.addEventListener('click', () => {
+        localTaskText = currentResumeTaskName || localTaskText;
+        setPromptStage('start-chooser');
+      });
+
+      promptStartNewButton.addEventListener('click', () => {
+        emitReentryAction('start-new-from-resume');
+      });
+
+      promptMinutesInput.addEventListener('input', () => {
+        localMinutes = promptMinutesInput.value;
+        renderPrompt();
+      });
+
+      promptMinutesInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        submitTimedSession(currentPromptKind);
+      });
+
+      promptStartTimedButton.addEventListener('click', () => {
+        submitTimedSession(currentPromptKind);
+      });
+
+      promptFreeflowButton.addEventListener('click', () => {
+        submitFreeflowSession(currentPromptKind);
+      });
+
+      promptQuick15.addEventListener('click', () => {
+        localMinutes = '15';
+        renderPrompt();
+      });
+
+      promptQuick25.addEventListener('click', () => {
+        localMinutes = '25';
+        renderPrompt();
+      });
+
+      promptQuick45.addEventListener('click', () => {
+        localMinutes = '45';
+        renderPrompt();
+      });
+
+      promptQuickCustom.addEventListener('click', () => {
+        promptMinutesInput.focus();
+        promptMinutesInput.select();
+      });
+
+      promptDismissButton.addEventListener('click', () => {
+        openSnoozeOptions();
+      });
+
+      promptBackButton.addEventListener('click', () => {
+        if (currentPromptStage === 'snooze-options') {
+          setPromptStage(promptStageBeforeSnooze);
+          return;
+        }
+        if (currentPromptStage === 'start-chooser') {
+          setPromptStage(currentPromptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
+        }
+      });
+
+      promptShell.addEventListener('click', (event) => {
+        if (currentMode !== 'prompt') return;
+        if (promptCard.contains(event.target)) return;
+        dismissWithSnooze('10m');
+      });
+
+      promptSnooze10.addEventListener('click', () => dismissWithSnooze('10m'));
+      promptSnooze30.addEventListener('click', () => dismissWithSnooze('30m'));
+      promptSnooze60.addEventListener('click', () => dismissWithSnooze('60m'));
+      promptSnooze120.addEventListener('click', () => dismissWithSnooze('120m'));
+      promptSnoozeReopen.addEventListener('click', () => dismissWithSnooze('reopen'));
+
+      document.addEventListener('keydown', (event) => {
+        if (currentMode !== 'prompt') return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          dismissWithSnooze('10m');
+        }
       });
 
       iconButton.setAttribute('title', 'Double-click for fullscreen. Right-click for Do Not Disturb.');

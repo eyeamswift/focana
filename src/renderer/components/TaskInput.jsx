@@ -16,6 +16,8 @@ const TaskInput = forwardRef(({
   checkInPromptActive = false,
   checkInCelebrating = false,
   checkInCelebrationType = 'none',
+  reentryPromptActive = false,
+  reentryStrongActive = false,
   onFocus,
   onBlur,
   onTaskSubmit,
@@ -102,8 +104,9 @@ const TaskInput = forwardRef(({
     `task-composer--${visualState}`,
     hasText ? 'task-composer--has-text' : '',
     isActive ? 'task-composer--active' : '',
-    checkInPromptActive ? 'task-composer--prompting' : '',
+    (checkInPromptActive || reentryPromptActive) ? 'task-composer--prompting' : '',
     checkInCelebrating ? `task-composer--celebrating task-composer--celebrating-${checkInCelebrationType}` : '',
+    reentryStrongActive ? 'task-composer--reentry-strong' : '',
   ].filter(Boolean).join(' ');
 
   return (
