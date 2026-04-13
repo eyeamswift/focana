@@ -1383,7 +1383,7 @@ export default function FocanaLanding() {
           }}>
             <div style={{ flex: "1 1 0", minWidth: "280px" }}>
               <p style={{
-                fontSize: "clamp(15px, 1.5vw, 18px)",
+                fontSize: "clamp(18px, 2vw, 22px)",
                 fontWeight: 500,
                 lineHeight: 1.6,
                 color: COLORS.coffeeBrown,
@@ -1392,7 +1392,7 @@ export default function FocanaLanding() {
                 7 ADHD coping mechanisms engineered into one calm desktop focus system.
               </p>
               <p style={{
-                fontSize: "clamp(15px, 1.5vw, 18px)",
+                fontSize: "clamp(18px, 2vw, 22px)",
                 fontWeight: 500,
                 lineHeight: 1.6,
                 color: COLORS.coffeeBrown,
