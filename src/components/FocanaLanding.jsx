@@ -1381,7 +1381,16 @@ export default function FocanaLanding() {
             margin: "0 auto",
             animation: "fadeUp 0.6s ease 0.2s both",
           }}>
-            <div style={{ flex: "1 1 0", minWidth: "280px" }}>
+            <div style={{ flex: "1 1 0", minWidth: "280px", textAlign: "center" }}>
+              <p style={{
+                fontSize: "clamp(15px, 1.5vw, 18px)",
+                fontWeight: 500,
+                lineHeight: 1.6,
+                color: COLORS.coffeeBrown,
+                marginBottom: "12px",
+              }}>
+                7 ADHD coping mechanisms engineered into one calm desktop focus system.
+              </p>
               <p style={{
                 fontSize: "clamp(15px, 1.5vw, 18px)",
                 fontWeight: 500,
@@ -1389,12 +1398,10 @@ export default function FocanaLanding() {
                 color: COLORS.coffeeBrown,
                 marginBottom: "28px",
               }}>
-                7 ADHD coping mechanisms engineered into one calm desktop focus system.
-                <br />
                 Always visible, always anchoring you back to what matters.
               </p>
 
-              <div>
+              <div style={{ display: "inline-block" }}>
                 <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
