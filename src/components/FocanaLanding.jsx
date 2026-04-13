@@ -1435,39 +1435,85 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* ANTI-HUSTLE CULTURE */}
+      {/* COMPETITOR COMPARISON */}
       <section style={{ padding: "72px 0 36px 0", background: COLORS.softCream }}>
         <div className="section">
-          <div style={{
-            maxWidth: "920px",
-            margin: "0 auto",
-            padding: "56px 40px",
-            textAlign: "center",
-            background: "white",
-            borderRadius: "28px",
-            border: `1px solid ${COLORS.beigeBorder}`,
-            boxShadow: "0 18px 40px rgba(92, 64, 51, 0.08)",
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+            textAlign: "center", marginBottom: "24px",
           }}>
+            Stop downloading productivity apps that don't work.
+          </h2>
+          <p style={{
+            fontSize: "19px",
+            lineHeight: 1.7,
+            color: COLORS.coffeeBrown,
+            maxWidth: "760px",
+            margin: "0 auto 48px",
+            textAlign: "center",
+          }}>
+            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need a system that helps you do the thing you already sat down to do.
+          </p>
+
+          <div style={{
+            display: "flex",
+            gap: "24px",
+            maxWidth: "960px",
+            margin: "0 auto 48px",
+            flexWrap: "wrap",
+            justifyContent: "center",
+          }}>
+            {[
+              { title: "Distraction Blockers", body: "Block apps you actually need. Fight your brain instead of working with it." },
+              { title: "Browser Extensions", body: "Disappear the moment you switch tabs. Out of sight, out of mind." },
+              { title: "Pomodoro Timers", body: "A countdown and nothing else. No check-ins, no thought capture, no context when you come back." },
+            ].map((card) => (
+              <div key={card.title} style={{
+                flex: "1 1 280px",
+                background: "white",
+                borderRadius: "20px",
+                border: `1px solid ${COLORS.beigeBorder}`,
+                boxShadow: "0 8px 24px rgba(92, 64, 51, 0.06)",
+                padding: "36px 28px",
+              }}>
+                <h3 style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: COLORS.warmBrown,
+                  marginBottom: "12px",
+                }}>{card.title}</h3>
+                <p style={{
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                  color: COLORS.coffeeBrown,
+                  margin: 0,
+                }}>{card.body}</p>
+              </div>
+            ))}
+          </div>
+
+          <p style={{
+            fontSize: "clamp(18px, 2vw, 22px)",
+            fontWeight: 600,
+            color: COLORS.warmBrown,
+            textAlign: "center",
+            marginBottom: "28px",
+          }}>
+            Focana replaces all three. 7 ADHD coping mechanisms. One calm system.
+          </p>
+
+          <div style={{ textAlign: "center" }}>
+            <button onClick={() => openCheckout("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Get Focana <span style={{ fontSize: "22px" }}>→</span>
+            </button>
             <p style={{
-              fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
-              textAlign: "center", marginBottom: "12px",
-              textTransform: "uppercase", letterSpacing: "2px",
-            }}>Anti-Hustle Culture</p>
-            <h2 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-              fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-              textAlign: "center", marginBottom: "24px",
-            }}>
-              Stop downloading productivity apps that don't work.
-            </h2>
-            <p style={{
-              fontSize: "19px",
-              lineHeight: 1.7,
+              fontSize: "15px",
               color: COLORS.coffeeBrown,
-              maxWidth: "760px",
-              margin: "0 auto",
+              marginTop: "14px",
             }}>
-              Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need one tool that helps you do the thing you already sat down to do. Focana keeps one task visible on your screen, helps you protect your time, and catches the stray thoughts that try to pull you away.
+              $29 lifetime · No subscription · macOS
             </p>
           </div>
         </div>
