@@ -7,6 +7,7 @@ const post = firstBlogPost;
 const title = 'Out of Sight, Out of Mind: Why ADHD Brains Need Visible Tools';
 const canonicalURL = `${SITE_ORIGIN}/blog/${post.slug}`;
 const publishedDateTime = '2026-04-14T09:00:00-05:00';
+const xProfileUrl = siteAuthor.sameAs.find((url) => url.includes('x.com')) || 'https://x.com/eyeamswift';
 
 const externalSourceLinks = [
   {
@@ -191,7 +192,22 @@ const breadcrumbSchema = {
 
           <div class="byline-row">
             <div class="author-block">
-              <span class="author-name">{siteAuthor.name}</span>
+              <span class="author-name">
+                <span class="author-inline">
+                  <span>{siteAuthor.name}</span>
+                  <a
+                    href={xProfileUrl}
+                    class="social-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Visit ${siteAuthor.name} on X`}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18.901 1.153h3.68l-8.04 9.188L24 22.847h-7.406l-5.8-7.584-6.636 7.584H.478l8.6-9.83L0 1.153h7.594l5.243 6.932 6.064-6.932Zm-1.291 19.492h2.039L6.486 3.24H4.298L17.61 20.645Z"></path>
+                    </svg>
+                  </a>
+                </span>
+              </span>
               <span class="author-role">{siteAuthor.role}</span>
             </div>
             <time class="publish-date" datetime={post.publishedDate}>{post.publishedLabel}</time>
@@ -266,7 +282,22 @@ const breadcrumbSchema = {
         <footer class="article-footer">
           <div class="author-note">
             <p class="author-note-label">Written by</p>
-            <p>Justin, Founder @ Focana</p>
+            <p>
+              <span class="author-inline">
+                <span>Justin, Founder @ Focana</span>
+                <a
+                  href={xProfileUrl}
+                  class="social-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Visit Justin on X"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18.901 1.153h3.68l-8.04 9.188L24 22.847h-7.406l-5.8-7.584-6.636 7.584H.478l8.6-9.83L0 1.153h7.594l5.243 6.932 6.064-6.932Zm-1.291 19.492h2.039L6.486 3.24H4.298L17.61 20.645Z"></path>
+                  </svg>
+                </a>
+              </span>
+            </p>
           </div>
 
           <div class="cta-card">
@@ -368,6 +399,37 @@ const breadcrumbSchema = {
     .author-name {
       font-weight: 700;
       color: var(--text);
+    }
+
+    .author-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .social-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(229, 212, 177, 0.88);
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--text);
+      transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .social-link:hover {
+      transform: translateY(-1px);
+      background: rgba(252, 211, 77, 0.18);
+      border-color: rgba(185, 78, 16, 0.22);
+    }
+
+    .social-link svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
     }
 
     .author-role,
