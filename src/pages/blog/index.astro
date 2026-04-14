@@ -1,0 +1,217 @@
+---
+import EditorialLayout from '../../layouts/EditorialLayout.astro';
+import { blogPosts } from '../../data/blog';
+import { SITE_ORIGIN } from '../../lib/siteOrigin';
+
+const title = 'Resources | Focana';
+const description =
+  'Articles and practical guides about ADHD focus, visible working memory, and staying anchored while you work.';
+const canonicalURL = `${SITE_ORIGIN}/blog`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Blog',
+  name: 'Focana Resources',
+  description,
+  url: canonicalURL,
+  publisher: {
+    '@type': 'Organization',
+    name: 'Focana',
+    url: SITE_ORIGIN,
+  },
+  blogPost: blogPosts.map((post) => ({
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.description,
+    url: `${SITE_ORIGIN}/blog/${post.slug}`,
+    datePublished: post.publishedDate,
+  })),
+};
+---
+
+<EditorialLayout title={title} description={description} canonicalURL={canonicalURL} jsonLd={jsonLd}>
+  <main class="resources-page">
+    <section class="resources-hero">
+      <span class="eyebrow">Resources</span>
+      <h1>Focus tools, ADHD-friendly strategies, and articles that stay practical.</h1>
+      <p>
+        This is the Focana resource library. We are starting with the patterns behind visible focus,
+        working memory, and why so many productivity systems break down the moment your task leaves
+        the screen.
+      </p>
+    </section>
+
+    <section class="resources-grid">
+      {blogPosts.map((post, index) => (
+        <article class="article-card">
+          <div class="card-topline">
+            <span class:list={['card-pill', index === 0 && 'card-pill--primary']}>
+              {index === 0 ? 'Start here' : 'Article'}
+            </span>
+            <time datetime={post.publishedDate}>{post.publishedLabel}</time>
+          </div>
+
+          <h2>
+            <a href={`/blog/${post.slug}`} class="article-link">{post.title}</a>
+          </h2>
+
+          <p class="article-excerpt">{post.excerpt}</p>
+
+          <div class="tag-row">
+            {post.tags.map((tag) => (
+              <span class="tag">{tag}</span>
+            ))}
+          </div>
+
+          <a href={`/blog/${post.slug}`} class="read-link">
+            Read article
+            <span aria-hidden="true">→</span>
+          </a>
+        </article>
+      ))}
+    </section>
+  </main>
+
+  <style>
+    .resources-page {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 72px 0 96px;
+    }
+
+    .resources-hero {
+      width: min(760px, 100%);
+      padding: 24px 0 54px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .resources-hero h1 {
+      margin-top: 20px;
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(42px, 7vw, 72px);
+      line-height: 1.04;
+      letter-spacing: -0.05em;
+    }
+
+    .resources-hero p {
+      margin-top: 18px;
+      font-size: clamp(17px, 2vw, 20px);
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .resources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .article-card {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .card-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted-soft);
+      font-size: 14px;
+    }
+
+    .card-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255, 249, 230, 0.92);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .card-pill--primary {
+      color: var(--text);
+      background: rgba(252, 211, 77, 0.18);
+    }
+
+    .article-card h2 {
+      margin-top: 20px;
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(28px, 4vw, 36px);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    .article-link {
+      text-decoration: none;
+    }
+
+    .article-excerpt {
+      margin-top: 16px;
+      font-size: 18px;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+
+    .tag-row {
+      margin-top: 22px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      font-size: 13px;
+      color: var(--muted-soft);
+    }
+
+    .read-link {
+      margin-top: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    @media (max-width: 720px) {
+      .resources-page {
+        width: min(100% - 32px, 1180px);
+        padding-top: 52px;
+        padding-bottom: 72px;
+      }
+
+      .article-card {
+        padding: 24px;
+      }
+    }
+  </style>
+</EditorialLayout>
