@@ -8,6 +8,74 @@ const title = 'Out of Sight, Out of Mind: Why ADHD Brains Need Visible Tools';
 const canonicalURL = `${SITE_ORIGIN}/blog/${post.slug}`;
 const publishedDateTime = '2026-04-14T09:00:00-05:00';
 
+const externalSourceLinks = [
+  {
+    phrase: 'Body doubling',
+    url: 'https://add.org/the-body-double/',
+  },
+  {
+    phrase: 'time blindness',
+    url: 'https://www.ucihealth.org/blog/2024/05/time-blindness-and-adhd',
+  },
+  {
+    phrase: 'Working memory',
+    url: 'https://www.thinkkids.com/post/how-adhd-contributes-to-memory-problems',
+  },
+  {
+    phrase: 'working memory',
+    url: 'https://www.thinkkids.com/post/how-adhd-contributes-to-memory-problems',
+  },
+  {
+    phrase: 'Object permanence',
+    url: 'https://www.verywellmind.com/what-is-object-permanence-2795405#:~:text=Key%20Takeaways%20*%20Object%20permanence%20is%20when,it%20usually%20goes%20away%20by%20age%203.',
+  },
+  {
+    phrase: 'object permanence',
+    url: 'https://www.verywellmind.com/what-is-object-permanence-2795405#:~:text=Key%20Takeaways%20*%20Object%20permanence%20is%20when,it%20usually%20goes%20away%20by%20age%203.',
+  },
+];
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function linkifyText(value: string) {
+  let html = escapeHtml(value);
+
+  for (const link of externalSourceLinks) {
+    const escapedPhrase = escapeHtml(link.phrase);
+    const anchor = `<a href="${link.url}" target="_blank" rel="noopener noreferrer">${escapedPhrase}</a>`;
+    html = html.replaceAll(escapedPhrase, anchor);
+  }
+
+  html = html.replaceAll(
+    'externalize your working memory',
+    '<span class="phrase-emphasis">externalize your working memory</span>'
+  );
+
+  return html;
+}
+
+function splitLeadLabel(value: string) {
+  const firstPeriodIndex = value.indexOf('.');
+  if (firstPeriodIndex === -1) {
+    return {
+      lead: value,
+      rest: '',
+    };
+  }
+
+  return {
+    lead: value.slice(0, firstPeriodIndex),
+    rest: value.slice(firstPeriodIndex + 1).trim(),
+  };
+}
+
 const faqSchema = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
@@ -141,12 +209,12 @@ const breadcrumbSchema = {
 
         <div class="article-body">
           {post.opening.map((paragraph) => (
-            <p>{paragraph}</p>
+            <p set:html={linkifyText(paragraph)} />
           ))}
 
           <ul>
             {post.examples.map((example) => (
-              <li>{example}</li>
+              <li set:html={linkifyText(example)} />
             ))}
           </ul>
 
@@ -154,20 +222,32 @@ const breadcrumbSchema = {
             <section class="article-section">
               <h2>{section.title}</h2>
               {section.paragraphs.map((paragraph) => (
-                <p>{paragraph}</p>
+                <p set:html={linkifyText(paragraph)} />
               ))}
               {section.bullets && (
                 <ul>
-                  {section.bullets.map((bullet) => (
-                    <li>{bullet}</li>
-                  ))}
+                  {section.bullets.map((bullet) => {
+                    const { lead, rest } = splitLeadLabel(bullet);
+
+                    return (
+                      <li>
+                        <strong set:html={linkifyText(lead)} />
+                        {rest && (
+                          <>
+                            {'. '}
+                            <span set:html={linkifyText(rest)} />
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
           ))}
 
           {post.closing.map((paragraph) => (
-            <p>{paragraph}</p>
+            <p set:html={linkifyText(paragraph)} />
           ))}
 
           <section class="faq-section" id="faq">
@@ -176,7 +256,7 @@ const breadcrumbSchema = {
               {post.faqs.map((faq) => (
                 <details class="faq-item">
                   <summary>{faq.question}</summary>
-                  <p>{faq.answer}</p>
+                  <p set:html={linkifyText(faq.answer)} />
                 </details>
               ))}
             </div>
@@ -186,9 +266,7 @@ const breadcrumbSchema = {
         <footer class="article-footer">
           <div class="author-note">
             <p class="author-note-label">Written by</p>
-            <p>
-              {siteAuthor.name}, {siteAuthor.role}. {siteAuthor.note}
-            </p>
+            <p>Justin, Founder @ Focana</p>
           </div>
 
           <div class="cta-card">
@@ -345,6 +423,29 @@ const breadcrumbSchema = {
       letter-spacing: -0.04em;
     }
 
+    .article-body a,
+    .faq-item a {
+      color: #b94e10;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+      font-weight: 600;
+    }
+
+    .article-body a:hover,
+    .faq-item a:hover {
+      color: #8f3d0d;
+    }
+
+    .article-body .phrase-emphasis,
+    .faq-item .phrase-emphasis {
+      font-weight: 700;
+      font-style: italic;
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 4px;
+      color: var(--text);
+    }
+
     .article-body ul {
       margin-top: 18px;
       padding-left: 24px;
@@ -355,6 +456,11 @@ const breadcrumbSchema = {
 
     .article-body li::marker {
       color: var(--accent);
+    }
+
+    .article-body li strong {
+      color: var(--text);
+      font-weight: 700;
     }
 
     .faq-list {

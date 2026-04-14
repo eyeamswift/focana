@@ -104,7 +104,6 @@ export const blogPosts: BlogPost[] = [
     ],
     closing: [
       `The common principle across all of these is simple: externalize your working memory. Do not ask your brain to hold the task by itself. Put it somewhere your eyes can keep finding it.`,
-      `ADHD brains do not need more guilt, more friction, or more "try harder" advice. They need visible anchors, softer returns, and tools that respect how attention actually works.`,
     ],
     faqs: [
       {
