@@ -5,6 +5,8 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LANDING_ROOT="$PROJECT_ROOT/../focana-landing"
 RELEASE_DIR="$PROJECT_ROOT/release"
 VERCEL_PROJECT_FILE="$LANDING_ROOT/.vercel/project.json"
+RELEASE_ENV_FILE="$PROJECT_ROOT/.env.release"
+RELEASE_ENV_LOCAL_FILE="$PROJECT_ROOT/.env.release.local"
 
 SKIP_BUILD=false
 DRY_RUN=false
@@ -13,6 +15,16 @@ info() { printf '\033[1;34m[ship]\033[0m %s\n' "$1"; }
 ok() { printf '\033[1;32m[ship]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[ship]\033[0m %s\n' "$1"; }
 fail() { printf '\033[1;31m[ship]\033[0m %s\n' "$1" >&2; exit 1; }
+
+load_release_env() {
+  local env_file
+  for env_file in "$RELEASE_ENV_FILE" "$RELEASE_ENV_LOCAL_FILE"; do
+    if [ -f "$env_file" ]; then
+      # shellcheck disable=SC1090
+      set -a; . "$env_file"; set +a
+    fi
+  done
+}
 
 usage() {
   cat <<'EOF'
@@ -46,6 +58,19 @@ require_tool() {
   command -v "$tool" >/dev/null 2>&1 || fail "Missing required tool: $tool"
 }
 
+require_github_auth() {
+  if gh auth status >/dev/null 2>&1; then
+    return
+  fi
+
+  if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
+    gh api user >/dev/null 2>&1 || fail "GitHub CLI could not authenticate with GH_TOKEN/GITHUB_TOKEN."
+    return
+  fi
+
+  fail "GitHub CLI is not authenticated. Run 'gh auth login' first or provide GH_TOKEN."
+}
+
 update_local_env() {
   local file="$1"
   local key="$2"
@@ -72,6 +97,8 @@ RELEASE_NOTES_SCRIPT="$PROJECT_ROOT/scripts/release-notes.js"
 RELEASE_NOTES_BODY_FILE=""
 
 trap cleanup_temp_files EXIT
+
+load_release_env
 
 ARM64_DMG="$PRODUCT-$VERSION-mac-arm64.dmg"
 X64_DMG="$PRODUCT-$VERSION-mac-x64.dmg"
@@ -197,7 +224,7 @@ for tool in node gh vercel curl git xcrun; do
   require_tool "$tool"
 done
 
-gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not authenticated. Run 'gh auth login' first."
+require_github_auth
 vercel whoami >/dev/null 2>&1 || fail "Vercel CLI is not authenticated. Run 'vercel login' first."
 
 [ -d "$LANDING_ROOT" ] || fail "Missing landing repo: $LANDING_ROOT"
