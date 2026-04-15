@@ -1,4 +1,8 @@
 import type { APIRoute } from 'astro';
+import {
+  claimFriendsAndFamilyInvite,
+  createSupabaseFriendsAndFamilyInviteStore,
+} from '../../../lib/friendsAndFamily';
 
 export const prerender = false;
 
@@ -44,6 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const payload = JSON.parse(rawBody);
   const eventName = payload.meta?.event_name;
+  const customData = payload.meta?.custom_data || {};
 
   // Only process order_created events
   if (eventName !== 'order_created') {
@@ -58,11 +63,19 @@ export const POST: APIRoute = async ({ request }) => {
   const email: string = attributes.user_email;
   const name: string = attributes.user_name;
   const customerIdLs = String(attributes.customer_id);
+  const creatorSlug = typeof customData.creator_slug === 'string'
+    ? customData.creator_slug.trim().toLowerCase()
+    : '';
+  const customSource = typeof customData.source === 'string'
+    ? customData.source.trim()
+    : '';
   const amountPaid = Number(attributes.total) / 100;
   const currency: string = attributes.currency;
 
   let supabaseOk = false;
   let loopsOk = false;
+  let inviteClaimOk = customSource !== 'friends_and_family';
+  let source = customSource === 'friends_and_family' ? 'friends_and_family' : 'founding_sale';
 
   // --- Supabase ---
   try {
@@ -89,7 +102,6 @@ export const POST: APIRoute = async ({ request }) => {
     if (!supabaseOk) {
       // Check if email exists in beta_downloads
       let betaUser = false;
-      let source = 'founding_sale';
 
       const betaCheck = await fetch(
         `${supabaseUrl}/rest/v1/Beta_Downloads?email=eq.${encodeURIComponent(email)}&select=email`,
@@ -105,7 +117,9 @@ export const POST: APIRoute = async ({ request }) => {
         const betaRows = await betaCheck.json();
         if (betaRows.length > 0) {
           betaUser = true;
-          source = 'beta_convert';
+          if (source !== 'friends_and_family') {
+            source = 'beta_convert';
+          }
         }
       }
 
@@ -128,6 +142,7 @@ export const POST: APIRoute = async ({ request }) => {
           amount_paid: amountPaid,
           currency,
           purchased_at: new Date().toISOString(),
+          creator_slug: creatorSlug || null,
           beta_user: betaUser,
           email_opted_in: true,
         }),
@@ -138,6 +153,35 @@ export const POST: APIRoute = async ({ request }) => {
         console.error(`[order_id=${orderId}] Supabase insert error:`, errText);
       } else {
         supabaseOk = true;
+      }
+    }
+
+    if (supabaseOk && customSource === 'friends_and_family') {
+      if (!creatorSlug) {
+        console.error(`[order_id=${orderId}] Missing creator slug for friends-and-family order`);
+      } else {
+        const inviteStore = createSupabaseFriendsAndFamilyInviteStore({
+          supabaseUrl,
+          supabaseServiceKey,
+        });
+        const claimResult = await claimFriendsAndFamilyInvite(
+          {
+            slug: creatorSlug,
+            purchaserEmail: email,
+            orderId,
+          },
+          {
+            store: inviteStore,
+          }
+        );
+
+        inviteClaimOk = claimResult.ok;
+
+        if (!claimResult.ok) {
+          console.error(
+            `[order_id=${orderId}] Friends-and-family invite claim failed for slug=${creatorSlug}: ${claimResult.status}`
+          );
+        }
       }
     }
   } catch (err) {
@@ -156,7 +200,7 @@ export const POST: APIRoute = async ({ request }) => {
         body: JSON.stringify({
           email,
           firstName: name,
-          source: 'founding_sale',
+          source,
           userGroup: 'customer',
         }),
       });
@@ -189,6 +233,16 @@ export const POST: APIRoute = async ({ request }) => {
     }
   } catch (err) {
     console.error(`[order_id=${orderId}] Loops error:`, err);
+  }
+
+  if (customSource === 'friends_and_family' && !inviteClaimOk) {
+    return new Response(
+      JSON.stringify({ error: 'Friends-and-family invite claim failed' }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   }
 
   // If both Supabase and Loops failed, return 500
