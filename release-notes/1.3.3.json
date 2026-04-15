@@ -1,0 +1,16 @@
+{
+  "version": "1.3.3",
+  "publishedAt": "2026-04-15",
+  "summary": "Focana now does a better job helping you re-enter work with intention instead of drifting back in automatically.",
+  "fixes": [
+    "Save for Later notes now save more reliably.",
+    "Prompt and window-state handoffs between full, compact, and floating modes are more stable.",
+    "Time's up and resume-later flows now preserve task state more reliably."
+  ],
+  "improvements": [
+    "Idle prompts now guide you back into focus across full, compact, and floating modes.",
+    "Resumable tasks now offer clearer choices to resume or start something new.",
+    "Floating prompts now resize more cleanly and keep key actions visible.",
+    "Snooze options are now more explicit and intentional."
+  ]
+}

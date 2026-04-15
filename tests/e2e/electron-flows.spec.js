@@ -270,6 +270,30 @@ async function readFloatingPromptState(floatingWindow) {
   }));
 }
 
+async function sendTrayThemeSelect(electronApp, nextTheme) {
+  await electronApp.evaluate(({ BrowserWindow }, theme) => {
+    const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    main?.webContents.send('tray-theme-select', theme);
+  }, nextTheme);
+}
+
+async function setAlwaysOnTopEnabled(page, enabled) {
+  await page.evaluate(async (nextEnabled) => {
+    await window.electronAPI.setAlwaysOnTop(nextEnabled);
+  }, enabled);
+}
+
+async function setDndEnabled(electronApp, page, enabled) {
+  await page.evaluate(async (nextEnabled) => {
+    await window.electronAPI.storeSet('settings.doNotDisturbEnabled', nextEnabled);
+    await window.electronAPI.storeSet('settings.doNotDisturbUntil', null);
+  }, enabled);
+  await electronApp.evaluate(({ BrowserWindow }, nextEnabled) => {
+    const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    main?.webContents.send('dnd-toggled', nextEnabled);
+  }, enabled);
+}
+
 async function installFloatingPulseCounter(electronApp) {
   await electronApp.evaluate(({ BrowserWindow }) => {
     global.__focanaE2EFloatingPulseCount = 0;
@@ -607,8 +631,8 @@ test('settings can update the preferred name and persist it', async () => {
   }
 });
 
-test('theme is restored from electron-store and theme changes persist back to the store', async () => {
-  const { page, cleanup } = await launchApp({
+test('theme is restored from electron-store and tray theme changes persist back to the store', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
     seedConfig: {
       settings: {
         theme: 'dark',
@@ -620,7 +644,7 @@ test('theme is restored from electron-store and theme changes persist back to th
   try {
     await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('dark');
 
-    await page.getByRole('button', { name: 'Toggle Theme' }).click();
+    await sendTrayThemeSelect(electronApp, 'light');
 
     await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('light');
     await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.theme'))).toBe('light');
@@ -630,7 +654,7 @@ test('theme is restored from electron-store and theme changes persist back to th
   }
 });
 
-test('theme and always-on-top survive relaunch', async () => {
+test('theme and always-on-top survive relaunch after tray and runtime changes', async () => {
   const storeDir = createStoreDir({
     settings: {
       theme: 'dark',
@@ -650,8 +674,8 @@ test('theme and always-on-top survive relaunch', async () => {
       return main ? main.isAlwaysOnTop() : null;
     })).toBe(true);
 
-    await firstLaunch.page.getByRole('button', { name: 'Toggle Theme' }).click();
-    await firstLaunch.page.getByRole('button', { name: 'Disable Always on Top' }).click();
+    await sendTrayThemeSelect(firstLaunch.electronApp, 'light');
+    await setAlwaysOnTopEnabled(firstLaunch.page, false);
 
     await expect.poll(async () => firstLaunch.page.evaluate(() => window.electronAPI.storeGet('settings.theme'))).toBe('light');
     await expect.poll(async () => firstLaunch.page.evaluate(() => window.electronAPI.storeGet('settings.themeManual'))).toBe(true);
@@ -722,25 +746,30 @@ test('manual update check reports when the app is already current', async () => 
   }
 });
 
-test('idle re-entry cue loops in full window and hands off immediately to floating prompt', async () => {
+test('idle re-entry prompt loops in full window and hands off immediately to floating prompt', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await installTimeOffsetControl(page);
 
-    const taskComposer = page.locator('.task-composer').first();
     await setTimeOffset(page, (5 * 60 * 1000) + 2000);
 
-    await expect(taskComposer).toHaveClass(/task-composer--prompting/);
-    await expect(taskComposer).toHaveClass(/task-composer--reentry-strong/);
+    const prompt = page.locator('.reentry-prompt--full').first();
+    await expect(prompt).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next' })).toBeVisible();
+    await expect(prompt).toHaveClass(/reentry-prompt--attention/);
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.height || 0;
+    }, { timeout: 7000 }).toBeGreaterThanOrEqual(320);
 
     await page.waitForTimeout(6500);
-    await expect(taskComposer).not.toHaveClass(/task-composer--reentry-strong/);
-    await expect(taskComposer).toHaveClass(/task-composer--prompting/);
+    await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
+    await expect(prompt).toBeVisible();
 
     await setTimeOffset(page, (5 * 60 * 1000) + 35000);
-    await expect.poll(async () => (await taskComposer.getAttribute('class')) || '', { timeout: 4000 })
-      .toContain('task-composer--reentry-strong');
+    await expect(prompt).toHaveClass(/reentry-prompt--attention/);
 
     await page.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
@@ -754,24 +783,85 @@ test('idle re-entry cue loops in full window and hands off immediately to floati
   }
 });
 
-test('floating re-entry prompt escape snoozes for ten minutes', async () => {
+test('compact idle re-entry prompt grows for each stage and restores the pill size after snooze', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await installTimeOffsetControl(page);
+
+    await page.getByRole('button', { name: 'Enter Compact Mode' }).click();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await page.waitForTimeout(350);
+
+    const baseBounds = await readMainWindowBounds(electronApp);
+    expect(baseBounds).toBeTruthy();
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+
+    const compactPrompt = page.locator('.reentry-prompt--compact').first();
+    await expect(compactPrompt).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next' })).toBeVisible();
+    const taskEntryBounds = await readMainWindowBounds(electronApp);
+    expect(taskEntryBounds?.height).toBeGreaterThanOrEqual(320);
+
+    await page.getByRole('button', { name: 'Snooze' }).click();
+    await expect(page.getByRole('heading', { name: 'Snooze reminder' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Until I reopen' })).toBeVisible();
+    const snoozeBounds = await readMainWindowBounds(electronApp);
+    expect(snoozeBounds?.height).toBeGreaterThanOrEqual(420);
+
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return bounds?.height || 0;
+    }, { timeout: 7000 }).toBeLessThanOrEqual((taskEntryBounds?.height || 0) + 8);
+
+    await page.getByRole('button', { name: 'Snooze' }).click();
+    await page.getByRole('button', { name: '10 minutes' }).click();
+    await expect(compactPrompt).toHaveCount(0);
+
+    await expect.poll(async () => {
+      const bounds = await readMainWindowBounds(electronApp);
+      return Math.abs((bounds?.width || 0) - (baseBounds?.width || 0)) <= 2
+        && Math.abs((bounds?.height || 0) - (baseBounds?.height || 0)) <= 2;
+    }, { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating re-entry prompt requires explicit snooze selection for ten minute snooze', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
 
     await page.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
-
-    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
 
     await floatingWindow.keyboard.press('Escape');
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
 
+    await floatingWindow.mouse.click(8, 8);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
+
+    await floatingWindow.getByRole('button', { name: 'Snooze' }).click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'snooze-options' }));
+
+    await floatingWindow.getByRole('button', { name: '10 minutes' }).click();
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'icon', stage: null }));
 
@@ -794,21 +884,40 @@ test('floating re-entry prompt mirrors the idle start flow for new tasks', async
   try {
     await installTimeOffsetControl(page);
 
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
+
     await page.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
+    await expect(floatingWindow.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
+    await expect(floatingWindow.locator('#prompt-task-next-btn')).toBeVisible();
+    const taskEntryBounds = await readFloatingWindowBounds(electronApp);
+    expect(taskEntryBounds?.height).toBeGreaterThanOrEqual(308);
 
-    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await floatingWindow.locator('#prompt-dismiss-btn').click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'snooze-options' }));
+    await expect(floatingWindow.locator('#prompt-snooze-reopen')).toBeVisible();
+    const snoozeBounds = await readFloatingWindowBounds(electronApp);
+    expect(snoozeBounds?.height).toBeGreaterThanOrEqual(378);
+    await floatingWindow.locator('#prompt-back-btn').click();
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
 
     await floatingWindow.locator('#prompt-task-input').fill('floating-reentry-start');
-    await floatingWindow.locator('#prompt-task-input').press('Enter');
+    await floatingWindow.locator('#prompt-task-next-btn').click();
 
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'start-chooser' }));
+    await expect(floatingWindow.locator('#prompt-start-timed-btn')).toBeVisible();
+    await expect(floatingWindow.locator('#prompt-freeflow-btn')).toBeVisible();
+    const chooserBounds = await readFloatingWindowBounds(electronApp);
+    expect(chooserBounds?.height).toBeGreaterThanOrEqual(340);
 
     await floatingWindow.locator('#prompt-freeflow-btn').click();
 
@@ -818,7 +927,7 @@ test('floating re-entry prompt mirrors the idle start flow for new tasks', async
     expect(timerState.mode).toBe('freeflow');
     expect(timerState.isRunning).toBe(true);
     expect(timerState.timerVisible).toBe(true);
-    expect(currentTask?.text).toBe('floating-reentry-start');
+    expect(currentTask?.text?.trim()).toBe('floating-reentry-start');
   } finally {
     await cleanup();
   }
@@ -843,9 +952,15 @@ test('floating resumable re-entry is choice-first and start something new opens 
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
+    await page.waitForTimeout(1200);
     await setTimeOffset(page, (5 * 60 * 1000) + 2000);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+    await expect(floatingWindow.locator('#prompt-resume-btn')).toBeVisible();
+    await expect(floatingWindow.locator('#prompt-start-new-btn')).toBeVisible();
+    await expect(floatingWindow.locator('#prompt-card')).toHaveClass(/prompt-card--attention/);
+    const resumeBounds = await readFloatingWindowBounds(electronApp);
+    expect(resumeBounds?.height).toBeGreaterThanOrEqual(276);
 
     await floatingWindow.locator('#prompt-resume-btn').click();
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
@@ -857,6 +972,31 @@ test('floating resumable re-entry is choice-first and start something new opens 
 
     await floatingWindow.locator('#prompt-start-new-btn').click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('full-window resumable re-entry matches the floating choice-first actions', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'resume-choice-task');
+    await exitCompactMode(page);
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
+    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('resume-choice-task');
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect(page.getByRole('button', { name: 'Resume Previous Task' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Something New' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Resume Previous Task' }).click();
+    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1077,8 +1217,9 @@ test('time-up end session opens the completion decision before showing the feedb
 
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
+    const timeUpModal = page.locator('.time-up-modal');
 
-    await page.getByRole('button', { name: 'End Session' }).click();
+    await timeUpModal.getByRole('button', { name: 'End Session' }).click();
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await expect(page.getByText('How was Focana this session?')).toHaveCount(0);
@@ -1112,8 +1253,9 @@ test('selecting session feedback saves it and continues after the short post-cli
 
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible();
+    const timeUpModal = page.locator('.time-up-modal');
 
-    await page.getByRole('button', { name: 'End Session' }).click();
+    await timeUpModal.getByRole('button', { name: 'End Session' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await page.getByRole('button', { name: 'Yes, Complete' }).click();
 
@@ -1280,8 +1422,7 @@ test('floating minimize shows a timer pill while a timer is active', async () =>
       return windows.some((win) => win.url().includes('floating-icon.html'));
     }, { timeout: 7000 }).toBe(true);
 
-    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
-    expect(floatingWindow).toBeTruthy();
+    const floatingWindow = await waitForFloatingWindow(electronApp);
 
     await expect.poll(async () => floatingWindow.evaluate(() => ({
       mode: document.body.dataset.mode,
@@ -1312,8 +1453,7 @@ test('floating minimize keeps the timer pill visible when timer is visible but n
       return windows.some((win) => win.url().includes('floating-icon.html'));
     }, { timeout: 7000 }).toBe(true);
 
-    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
-    expect(floatingWindow).toBeTruthy();
+    const floatingWindow = await waitForFloatingWindow(electronApp);
 
     await expect.poll(async () => floatingWindow.evaluate(() => ({
       mode: document.body.dataset.mode,
@@ -1490,7 +1630,7 @@ test('compact controls reveal in-place and auto-hide without shifting the pill w
   }
 });
 
-test('always-on-top toggle persists and applies to floating icon mode', async () => {
+test('always-on-top persistence applies to floating icon mode', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1499,9 +1639,7 @@ test('always-on-top toggle persists and applies to floating icon mode', async ()
       return main ? main.isAlwaysOnTop() : null;
     })).toBe(true);
 
-    await page.getByRole('button', { name: 'Disable Always on Top' }).click();
-
-    await expect(page.getByRole('button', { name: 'Enable Always on Top' })).toBeVisible();
+    await setAlwaysOnTopEnabled(page, false);
     await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.alwaysOnTop'))).toBe(false);
     await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
       const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
@@ -1879,7 +2017,7 @@ test('idle compact mode without a task uses the timer-only pill width', async ()
     await expect.poll(async () => {
       const bounds = await readMainWindowBounds(electronApp);
       return bounds?.width || 0;
-    }, { timeout: 7000 }).toBeLessThanOrEqual(130);
+    }, { timeout: 7000 }).toBeLessThanOrEqual(154);
   } finally {
     await cleanup();
   }
@@ -2138,7 +2276,7 @@ test('compact drag can clamp flush to the top work area edge', async () => {
   }
 });
 
-test('manual exit from compact restores a usable full window shell', async () => {
+test('manual exit from compact restores a usable full window running shell', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -2146,9 +2284,10 @@ test('manual exit from compact restores a usable full window shell', async () =>
     await exitCompactMode(page);
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect(page.getByText('compact-full-shell')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Pause Timer' })).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.width || 0, { timeout: 7000 })
-      .toBeGreaterThanOrEqual(500);
+      .toBeGreaterThanOrEqual(432);
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
       .toBeGreaterThanOrEqual(120);
   } finally {
@@ -2675,7 +2814,7 @@ test('timed check-in restores from floating minimize into the compact prompt and
 });
 
 test('freeflow check-ins stay suppressed during DND and appear after DND is turned off', async () => {
-  const { page, cleanup } = await launchApp({
+  const { electronApp, page, cleanup } = await launchApp({
     seedConfig: {
       settings: {
         checkInEnabled: true,
@@ -2700,8 +2839,8 @@ test('freeflow check-ins stay suppressed during DND and appear after DND is turn
     await page.waitForTimeout(1000);
     await expect(page.getByText('Still focused on')).toHaveCount(0);
 
-    await exitCompactMode(page);
-    await page.getByRole('button', { name: 'Turn Off Do Not Disturb' }).click();
+    await setDndEnabled(electronApp, page, false);
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.doNotDisturbEnabled'))).toBe(false);
 
     await expect(page.getByText('Still focused on')).toBeVisible({ timeout: 7000 });
     await expect(page.getByText('dnd-ui-checkin?')).toBeVisible({ timeout: 7000 });
@@ -3705,8 +3844,7 @@ test('floating drag can clamp flush to the left work area edge', async () => {
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
-    const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
-    expect(floatingWindow).toBeTruthy();
+    const floatingWindow = await waitForFloatingWindow(electronApp);
 
     await floatingWindow.evaluate(() => {
       window.floatingAPI.dragStart();

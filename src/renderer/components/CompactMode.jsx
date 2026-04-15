@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Pause, Square, ClipboardList, BellOff, Info } from 'lucide-react';
 import { formatTime } from '../utils/time';
+import ReentryPrompt from './ReentryPrompt';
 
 // ---------------------------------------------------------------------------
 // Pill width constants (px)
@@ -16,6 +17,12 @@ const TASK_MIN_W = 64;
 const TASK_MAX_W = 220; // max task width before wrapping
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
+const REENTRY_PROMPT_SIZES = {
+  'task-entry': { width: 440, height: 332 },
+  'resume-choice': { width: 440, height: 294 },
+  'start-chooser': { width: 440, height: 390 },
+  'snooze-options': { width: 440, height: 444 },
+};
 const COMPACT_PULSE_CYCLE_MS = 4500;
 const COMPACT_PULSE_REPEAT_COUNT = 1;
 const COMPACT_SUCCESS_CUE_MS = 820;
@@ -46,6 +53,19 @@ export default function CompactMode({
   pulseEnabled = true,
   dndActive = false,
   checkInState = 'idle',
+  reentryPromptVisible = false,
+  reentryPromptStrongActive = false,
+  reentryPromptKind = 'start',
+  reentryPromptStage = 'task-entry',
+  reentryPromptTaskText = '',
+  reentryPromptMinutes = '25',
+  reentryResumeTaskName = '',
+  onReentryTaskTextChange,
+  onReentryMinutesChange,
+  onReentryStageChange,
+  onReentryStartSession,
+  onReentryStartNewFromResume,
+  onReentrySnooze,
 }) {
   const [showControls, setShowControls] = useState(false);
   const [shouldPulse, setShouldPulse]   = useState(false);
@@ -107,6 +127,11 @@ export default function CompactMode({
     [],
   );
   const checkInPromptActive = checkInState === 'prompting';
+  const reentryPromptActive = reentryPromptVisible === true;
+  const activeReentryPromptSize = useMemo(
+    () => REENTRY_PROMPT_SIZES[reentryPromptStage] || REENTRY_PROMPT_SIZES['task-entry'],
+    [reentryPromptStage],
+  );
   const baseWinW = useMemo(() => {
     const baseWidth = basePillW + H_MARGIN;
     return checkInPromptActive ? Math.max(baseWidth, CHECKIN_POPUP_MIN_W) : baseWidth;
@@ -123,16 +148,19 @@ export default function CompactMode({
     [basePillW, visibleTaskWidth, checkInPromptActive],
   );
   const settledWinW = useMemo(
-    () => (isTaskVisible ? restWinW : baseWinW),
-    [isTaskVisible, restWinW, baseWinW],
+    () => (reentryPromptActive ? activeReentryPromptSize.width : (isTaskVisible ? restWinW : baseWinW)),
+    [activeReentryPromptSize.width, baseWinW, isTaskVisible, reentryPromptActive, restWinW],
   );
   const pillH = useMemo(
     () => (isTaskVisible ? taskMetrics.height : PILL_BASE_H),
     [isTaskVisible, taskMetrics.height],
   );
   const winH = useMemo(
-    () => (checkInPromptActive ? Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H) : pillH),
-    [checkInPromptActive, pillH],
+    () => {
+      if (reentryPromptActive) return activeReentryPromptSize.height;
+      return checkInPromptActive ? Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H) : pillH;
+    },
+    [activeReentryPromptSize.height, checkInPromptActive, pillH, reentryPromptActive],
   );
   const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive;
 
@@ -149,6 +177,22 @@ export default function CompactMode({
     window.electronAPI.endCompactTransient('checkin-prompt', 260);
     return undefined;
   }, [checkInPromptActive]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.beginCompactTransient || !window.electronAPI?.endCompactTransient) return undefined;
+
+    if (reentryPromptActive) {
+      setShowControls(false);
+      setShowHelpHint(false);
+      window.electronAPI.beginCompactTransient('reentry-prompt');
+      return () => {
+        window.electronAPI.endCompactTransient('reentry-prompt', 260);
+      };
+    }
+
+    window.electronAPI.endCompactTransient('reentry-prompt', 260);
+    return undefined;
+  }, [reentryPromptActive]);
 
   useEffect(() => {
     return () => {
@@ -195,7 +239,9 @@ export default function CompactMode({
       return () => clearTimeout(retryTimer);
     }
 
-    if (isTaskVisible) {
+    if (reentryPromptActive) {
+      pushPillSize(activeReentryPromptSize.width, activeReentryPromptSize.height);
+    } else if (isTaskVisible) {
       pushPillSize(restWinW, winH);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
@@ -204,7 +250,7 @@ export default function CompactMode({
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [isTaskVisible, restWinW, baseWinW, settledWinW, winH]);
+  }, [activeReentryPromptSize.height, activeReentryPromptSize.width, baseWinW, isTaskVisible, reentryPromptActive, restWinW, settledWinW, winH]);
 
   useEffect(() => {
     if (pulseSignal === lastPulseSignalRef.current) return;
@@ -367,6 +413,29 @@ export default function CompactMode({
     ? { boxShadow: '0 0 0 2px rgba(217, 119, 6, 0.35), var(--shadow-minimal)', borderColor: '#D97706' }
     : undefined;
   const pillStyle = { height: pillH, '--compact-dock-width': `${DOCK_W}px`, ...(pillGlowStyle || {}) };
+
+  if (reentryPromptActive) {
+    return (
+      <div className="compact-reentry-shell">
+        <ReentryPrompt
+          isOpen
+          surface="compact"
+          promptKind={reentryPromptKind}
+          stage={reentryPromptStage}
+          strongActive={reentryPromptStrongActive}
+          taskText={reentryPromptTaskText}
+          minutes={reentryPromptMinutes}
+          resumeTaskName={reentryResumeTaskName}
+          onTaskTextChange={onReentryTaskTextChange}
+          onMinutesChange={onReentryMinutesChange}
+          onStageChange={onReentryStageChange}
+          onStartSession={onReentryStartSession}
+          onStartNewFromResume={onReentryStartNewFromResume}
+          onSnooze={onReentrySnooze}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

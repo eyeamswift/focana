@@ -28,6 +28,7 @@ import QuickCaptureModal from './components/QuickCaptureModal';
 import ConfettiBurst from './components/ConfettiBurst';
 import CheckInPromptPopup from './components/CheckInPromptPopup';
 import PostSessionParkingLotModal from './components/PostSessionParkingLotModal';
+import ReentryPrompt from './components/ReentryPrompt';
 
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -56,6 +57,7 @@ const WINDOW_SIZES = {
   baseWidth: 460,
   runningWidth: 432,
   idleHeight: 124,
+  reentryPromptHeight: 348,
   startupCheckingHeight: 220,
   startupNameHeight: 380,
   startupActivationHeight: 460,
@@ -347,6 +349,9 @@ export default function App() {
   const [checkInCelebrationType, setCheckInCelebrationType] = useState('none'); // none | focused | completed
   const [reentryAttentionVisible, setReentryAttentionVisible] = useState(false);
   const [reentryStrongActive, setReentryStrongActive] = useState(false);
+  const [reentrySurfaceStage, setReentrySurfaceStage] = useState('task-entry');
+  const [reentrySurfaceTaskText, setReentrySurfaceTaskText] = useState('');
+  const [reentrySurfaceMinutes, setReentrySurfaceMinutes] = useState('25');
 
   // Pulse
   const [pulseSettings, setPulseSettings] = useState({
@@ -452,10 +457,12 @@ export default function App() {
   const reentrySnoozeUntilRef = useRef(0);
   const reentrySnoozeUntilReopenRef = useRef(false);
   const reentryStrongTimeoutRef = useRef(null);
+  const reentryStrongActiveRef = useRef(false);
   const reentryPromptKeyRef = useRef(0);
   const reentryFloatingPromptOpenRef = useRef(false);
   const reentryFloatingPromptSentRef = useRef('');
   const reentryResumeCandidateRef = useRef(null);
+  const reentrySurfaceSignatureRef = useRef('');
   const reentryStartNewAfterResolveRef = useRef(false);
   const prepareTaskForStartChooserRef = useRef(() => false);
   const windowModeDesiredRef = useRef('full');
@@ -597,6 +604,7 @@ export default function App() {
   timeRef.current = time;
   isRunningRef.current = isRunning;
   reentryAttentionVisibleRef.current = reentryAttentionVisible;
+  reentryStrongActiveRef.current = reentryStrongActive;
 
   useEffect(() => {
     return () => {
@@ -787,6 +795,43 @@ export default function App() {
       carryoverSeconds: Math.max(0, Math.round((Number(latestResumableSession.durationMinutes) || 0) * 60)),
     };
   }, [contextNotes, currentSessionId, getElapsedSeconds, isRunning, isTimerVisible, latestResumableSession, mode, task]);
+
+  const getDefaultReentryMinutes = useCallback(() => {
+    const parsed = Number.parseInt(String(sessionMinutes || '').trim(), 10);
+    return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 240) : 25;
+  }, [sessionMinutes]);
+
+  const reentryPromptKind = reentryResumeCandidate ? 'resume-choice' : 'start';
+  const showSurfaceReentryPrompt = reentryAttentionVisible
+    && startupGateState === 'ready'
+    && !isStartModalOpen
+    && !isRunning
+    && !isTimerVisible;
+
+  useEffect(() => {
+    if (!showSurfaceReentryPrompt) {
+      reentrySurfaceSignatureRef.current = '';
+      return;
+    }
+
+    const signature = `${reentryPromptKind}:${reentryResumeCandidate?.sessionId || reentryResumeCandidate?.taskText || 'draft'}`;
+    if (reentrySurfaceSignatureRef.current === signature) return;
+    reentrySurfaceSignatureRef.current = signature;
+
+    setReentrySurfaceStage(reentryPromptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
+    setReentrySurfaceTaskText(
+      clampTaskText(reentryPromptKind === 'resume-choice'
+        ? (reentryResumeCandidate?.taskText || task)
+        : task),
+    );
+    setReentrySurfaceMinutes(String(getDefaultReentryMinutes()));
+  }, [
+    getDefaultReentryMinutes,
+    reentryPromptKind,
+    reentryResumeCandidate,
+    showSurfaceReentryPrompt,
+    task,
+  ]);
 
   const pauseActiveTimer = useCallback(() => {
     const elapsedSeconds = getElapsedSeconds();
@@ -1402,6 +1447,7 @@ export default function App() {
       resumeTaskName: resumeCandidate?.taskText || '',
       defaultTaskText: resumeCandidate?.taskText || task,
       defaultMinutes,
+      strongActive: reentryStrongActiveRef.current === true,
     };
     const serialized = JSON.stringify(nextPromptState);
     if (reentryFloatingPromptSentRef.current === serialized) return;
@@ -1958,6 +2004,34 @@ export default function App() {
       currentSessionId,
     });
   }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, sessionStartTime, time, currentSessionId, sessionStateHydrated]);
+
+  const persistIdleTimerSnapshot = useCallback(({
+    taskText = task,
+    notesText = contextNotes,
+    nextMode = mode,
+    sessionId = null,
+  } = {}) => {
+    window.electronAPI.storeSet('currentTask', {
+      text: taskText,
+      contextNote: notesText,
+      startedAt: null,
+    });
+    window.electronAPI.storeSet('timerState', {
+      mode: nextMode === 'timed' ? 'timed' : 'freeflow',
+      seconds: 0,
+      timerVisible: false,
+      isRunning: false,
+      initialTime: 0,
+      elapsedSeconds: 0,
+      sessionStartedAt: null,
+      timedSegmentStartElapsed: 0,
+      timedSegmentDuration: 0,
+      checkInTimedIndex: 0,
+      checkInTimedPendingIndex: null,
+      compactPulseTimedIndex: 0,
+      currentSessionId: sessionId,
+    });
+  }, [contextNotes, mode, task]);
 
   useEffect(() => {
     if (!sessionStateHydrated) return undefined;
@@ -3248,8 +3322,9 @@ export default function App() {
 
   const getIdleScreenDefaultHeight = useCallback(() => {
     if (startupGateState !== 'ready') return getStartupGateFallbackHeight();
+    if (showSurfaceReentryPrompt) return WINDOW_SIZES.reentryPromptHeight;
     return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
-  }, [getStartupGateFallbackHeight, isStartModalOpen, startupGateState]);
+  }, [getStartupGateFallbackHeight, isStartModalOpen, showSurfaceReentryPrompt, startupGateState]);
 
   const getStartupTargetHeight = useCallback(() => {
     if (startupGateState !== 'ready') return measureStartupGateHeight();
@@ -3433,6 +3508,13 @@ export default function App() {
     if (isCompact) return;
     if (isRunning) return;
     if (isTimerVisible) return;
+    if (showSurfaceReentryPrompt) {
+      ensureWindowSizeForCurrentScreen(WINDOW_SIZES.reentryPromptHeight);
+      const promptTimer = setTimeout(() => {
+        ensureWindowSizeForCurrentScreen(WINDOW_SIZES.reentryPromptHeight);
+      }, 100);
+      return () => clearTimeout(promptTimer);
+    }
     if (isStartModalOpen) return;
     if (contextNotes.trim()) return;
     if (task.trim()) return;
@@ -3441,7 +3523,7 @@ export default function App() {
       ensureWindowSizeForCurrentScreen(WINDOW_SIZES.idleHeight);
     }, 100);
     return () => clearTimeout(t);
-  }, [ensureWindowSizeForCurrentScreen, startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
+  }, [ensureWindowSizeForCurrentScreen, showSurfaceReentryPrompt, startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, contextNotes, task]);
 
   const handlePlay = useCallback(() => {
     const trimmedTask = task.trim();
@@ -3576,6 +3658,19 @@ export default function App() {
     };
   }, [reconcilePausedTimerSnapshotFromStore]);
 
+  const openResumeCandidateInStartChooser = useCallback((candidate = reentryResumeCandidateRef.current) => {
+    if (!candidate?.taskText) return false;
+    const prepared = prepareTaskForStartChooserRef.current({
+      taskText: candidate.taskText,
+      notes: typeof candidate.notes === 'string' ? candidate.notes : '',
+      sessionId: candidate.sessionId || null,
+      carryoverSeconds: Math.max(0, Math.floor(Number(candidate.carryoverSeconds) || 0)),
+    });
+    if (!prepared) return false;
+    resetReentryAttention();
+    return true;
+  }, [resetReentryAttention]);
+
   const handleTaskSubmit = (submittedTask = task) => {
     const nextTask = clampTaskText(typeof submittedTask === 'string' ? submittedTask : task);
     const trimmedTask = nextTask.trim();
@@ -3593,6 +3688,17 @@ export default function App() {
       setIsStartModalOpen(false);
       handlePlay();
       return;
+    }
+
+    if (
+      !isTimerVisible
+      && !isRunning
+      && reentryAttentionVisibleRef.current
+      && reentryResumeCandidateRef.current
+    ) {
+      if (openResumeCandidateInStartChooser(reentryResumeCandidateRef.current)) {
+        return;
+      }
     }
 
     setIsStartModalOpen(true);
@@ -3731,7 +3837,7 @@ export default function App() {
     setShowNotesModal(true);
   }, [clearCompactSessionCues, closeFloatingReentryPrompt, resetSessionFeedbackFlow]);
 
-  const handleFloatingReentryStart = useCallback((payload = {}) => {
+  const startSessionFromReentryPrompt = useCallback((payload = {}, { bringToFront = false } = {}) => {
     const promptKind = payload?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
     const resumeCandidate = reentryResumeCandidateRef.current;
     const selectedMode = payload?.mode === 'timed' ? 'timed' : 'freeflow';
@@ -3766,7 +3872,9 @@ export default function App() {
     setContextNotes(nextNotes);
     setCurrentSessionId(nextSessionId);
     setSessionMinutes(String(selectedMode === 'timed' ? safeMinutes : 25));
-    window.electronAPI.bringToFront?.();
+    if (bringToFront) {
+      window.electronAPI.bringToFront?.();
+    }
     window.setTimeout(() => {
       void handleStartSession(selectedMode, safeMinutes, {
         taskText: nextTaskText,
@@ -3775,7 +3883,12 @@ export default function App() {
         carryoverSeconds: nextCarryoverSeconds,
       });
     }, 80);
+    return true;
   }, [closeFloatingReentryPrompt, handleStartSession]);
+
+  const handleFloatingReentryStart = useCallback((payload = {}) => {
+    startSessionFromReentryPrompt(payload, { bringToFront: true });
+  }, [startSessionFromReentryPrompt]);
 
   const handleFloatingReentryAction = useCallback((eventPayload = {}) => {
     const action = typeof eventPayload?.action === 'string' ? eventPayload.action : '';
@@ -3797,6 +3910,10 @@ export default function App() {
       handleFloatingReentryStart(payload);
     }
   }, [beginStartSomethingNewFromResumeCandidate, handleFloatingReentryStart, snoozeReentryAttention]);
+
+  const handleSurfaceReentryStart = useCallback((payload = {}) => {
+    startSessionFromReentryPrompt(payload);
+  }, [startSessionFromReentryPrompt]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onFloatingReentryAction?.((payload) => {
@@ -3823,6 +3940,7 @@ export default function App() {
       setIsCompact(false);
       setSessionStartTime(null);
       elapsedBeforeRunRef.current = 0;
+      persistIdleTimerSnapshot({ taskText: task, notesText: contextNotes, nextMode: mode, sessionId: null });
       resetSessionFeedbackFlow();
   
       return;
@@ -3851,6 +3969,7 @@ export default function App() {
       setIsCompact(false);
       setSessionStartTime(null);
       elapsedBeforeRunRef.current = 0;
+      persistIdleTimerSnapshot({ taskText: task, notesText: contextNotes, nextMode: mode, sessionId: null });
       resetSessionFeedbackFlow();
   
       return;
@@ -4567,7 +4686,8 @@ export default function App() {
       showQuickCapture;
 
     if (isCompact || hasModalOpen) return undefined;
-    if (isRunning || isTimerVisible || contextNotes.trim()) return undefined;
+    if (isRunning || isTimerVisible) return undefined;
+    if (!showSurfaceReentryPrompt && contextNotes.trim()) return undefined;
 
     const resizeTimer = setTimeout(() => {
       resizeToMainCardContent(getIdleScreenDefaultHeight());
@@ -4581,6 +4701,8 @@ export default function App() {
     task,
     contextNotes,
     isStartModalOpen,
+    showSurfaceReentryPrompt,
+    reentrySurfaceStage,
     getIdleScreenDefaultHeight,
     resizeToMainCardContent,
     showSettings,
@@ -4915,23 +5037,17 @@ export default function App() {
     : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
   const fullScreenTaskState = isRunning ? 'running' : (isTimerVisible ? 'paused' : 'draft');
   const isRunningFullWindow = fullScreenTaskState === 'running';
-  const showReentryTaskHint = reentryAttentionVisible && startupGateState === 'ready' && !isStartModalOpen;
+  const showReentryTaskHint = showSurfaceReentryPrompt && !isCompact;
   const fullScreenTaskEyebrow = fullScreenTaskState === 'paused'
     ? 'Paused session'
-    : (showReentryTaskHint && reentryResumeCandidate
-      ? 'Resume ready'
-      : 'Set your next focus');
+    : 'Set your next focus';
   const fullScreenTaskHelper = fullScreenTaskState === 'paused'
     ? (showReentryTaskHint
       ? 'Ready to continue? Press play to resume this session.'
       : 'Adjust the task if needed, then press play to continue.')
     : (isStartModalOpen
       ? 'Choose Freeflow or set a timer to begin.'
-      : (showReentryTaskHint
-        ? (reentryResumeCandidate
-          ? 'Ready to resume? Hit Enter, then choose a timer or Freeflow.'
-          : 'Ready to focus? Hit Enter, then choose a timer or Freeflow.')
-        : ''));
+      : '');
   const fullScreenTimerControls = (
     <>
       {!isRunning ? (
@@ -5027,6 +5143,19 @@ export default function App() {
           pulseEnabled={pulseSettings.compactEnabled}
           dndActive={dndEnabled}
           checkInState={checkInState}
+          reentryPromptVisible={showSurfaceReentryPrompt}
+          reentryPromptStrongActive={reentryStrongActive}
+          reentryPromptKind={reentryPromptKind}
+          reentryPromptStage={reentrySurfaceStage}
+          reentryPromptTaskText={reentrySurfaceTaskText}
+          reentryPromptMinutes={reentrySurfaceMinutes}
+          reentryResumeTaskName={reentryResumeCandidate?.taskText || ''}
+          onReentryTaskTextChange={(nextValue) => setReentrySurfaceTaskText(clampTaskText(nextValue))}
+          onReentryMinutesChange={setReentrySurfaceMinutes}
+          onReentryStageChange={setReentrySurfaceStage}
+          onReentryStartSession={handleSurfaceReentryStart}
+          onReentryStartNewFromResume={beginStartSomethingNewFromResumeCandidate}
+          onReentrySnooze={snoozeReentryAttention}
         />
         <CheckInPromptPopup
           isOpen={checkInState === 'prompting'}
@@ -5272,6 +5401,24 @@ export default function App() {
                   controls={fullScreenTimerControls}
                   onLockedInteraction={handleLockedTaskInputInteraction}
                 />
+              ) : (showSurfaceReentryPrompt ? (
+                <ReentryPrompt
+                  isOpen
+                  surface="full"
+                  promptKind={reentryPromptKind}
+                  stage={reentrySurfaceStage}
+                  strongActive={reentryStrongActive}
+                  taskText={reentrySurfaceTaskText}
+                  minutes={reentrySurfaceMinutes}
+                  maxTaskLength={TASK_CHARACTER_LIMIT}
+                  resumeTaskName={reentryResumeCandidate?.taskText || ''}
+                  onTaskTextChange={(nextValue) => setReentrySurfaceTaskText(clampTaskText(nextValue))}
+                  onMinutesChange={setReentrySurfaceMinutes}
+                  onStageChange={setReentrySurfaceStage}
+                  onStartSession={handleSurfaceReentryStart}
+                  onStartNewFromResume={beginStartSomethingNewFromResumeCandidate}
+                  onSnooze={snoozeReentryAttention}
+                />
               ) : (
                 <TaskInput
                   ref={taskInputRef}
@@ -5293,7 +5440,7 @@ export default function App() {
                   onLockedInteraction={handleLockedTaskInputInteraction}
                   onHeightChange={handleTaskInputHeightChange}
                 />
-              )}
+              ))}
 
               {isStartModalOpen && (
                 <div className="start-chooser">

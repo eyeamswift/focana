@@ -918,6 +918,371 @@ html[data-window-mode='pill'] #root {
   color: var(--text-primary);
 }
 
+.compact-reentry-shell {
+  width: 100%;
+  height: 100%;
+}
+
+.reentry-prompt {
+  width: min(100%, 34rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 26%, var(--border-strong));
+  background:
+    radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--brand-primary) 12%, transparent) 0%, transparent 54%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 97%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 94%, transparent) 100%);
+  box-shadow: 0 20px 38px rgba(46, 31, 24, 0.14);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.reentry-prompt--full {
+  margin-top: 0.2rem;
+}
+
+.reentry-prompt--compact {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.reentry-prompt--compact::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1.45rem;
+  background: rgba(28, 19, 13, 0.12);
+}
+
+.reentry-prompt--compact {
+  position: relative;
+  padding: 0.55rem;
+}
+
+.reentry-prompt--compact > * {
+  position: relative;
+  z-index: 1;
+}
+
+.reentry-prompt--compact {
+  background:
+    radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--brand-primary) 12%, transparent) 0%, transparent 54%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 97%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 94%, transparent) 100%);
+  border-radius: 1.45rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 26%, var(--border-strong));
+  box-shadow: 0 22px 42px rgba(46, 31, 24, 0.16);
+}
+
+.reentry-prompt__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0;
+}
+
+.reentry-prompt--compact .reentry-prompt__header {
+  -webkit-app-region: drag;
+}
+
+.reentry-prompt__header-spacer {
+  width: 4.8rem;
+  min-width: 4.8rem;
+  height: 1.95rem;
+}
+
+.reentry-prompt__header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.8rem;
+  height: 1.95rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 20%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  -webkit-app-region: no-drag;
+}
+
+.reentry-prompt__header-btn:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--brand-primary) 38%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+}
+
+.reentry-prompt__body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 0.65rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+.reentry-prompt__step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.82rem;
+}
+
+.reentry-prompt__title {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.reentry-prompt__copy {
+  margin: 0;
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.reentry-prompt__task-name {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+.reentry-prompt__textarea,
+.reentry-prompt__minutes-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 24%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.reentry-prompt__textarea {
+  min-height: 6.4rem;
+  max-height: 6.4rem;
+  padding: 0.85rem 0.95rem;
+  font: inherit;
+  font-size: 1.02rem;
+  line-height: 1.4;
+  resize: none;
+}
+
+.reentry-prompt__minutes-input {
+  height: 3.25rem;
+  padding: 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reentry-prompt__textarea:focus,
+.reentry-prompt__minutes-input:focus {
+  border-color: color-mix(in srgb, var(--brand-primary) 72%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+
+.reentry-prompt__actions {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.reentry-prompt__actions--column {
+  flex-direction: column;
+}
+
+.reentry-prompt__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.8rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid transparent;
+  font-size: 0.98rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.reentry-prompt__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.reentry-prompt__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.reentry-prompt__btn--primary {
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  box-shadow: 0 14px 24px rgba(180, 83, 9, 0.22);
+}
+
+.reentry-prompt__btn--ghost {
+  border-color: color-mix(in srgb, var(--brand-primary) 20%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  color: var(--text-primary);
+}
+
+.reentry-prompt__btn--soft {
+  border-color: color-mix(in srgb, var(--brand-primary) 16%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
+  color: var(--text-primary);
+}
+
+.reentry-prompt__task-card {
+  padding: 0.8rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 20%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+}
+
+.reentry-prompt__task-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.reentry-prompt__task-value {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.reentry-prompt__chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.reentry-prompt__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 20%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.reentry-prompt__chip:hover {
+  transform: translateY(-1px);
+}
+
+.reentry-prompt__chip.is-active {
+  background: var(--brand-primary);
+  border-color: transparent;
+  color: var(--text-on-brand);
+  box-shadow: 0 10px 18px rgba(180, 83, 9, 0.18);
+}
+
+.reentry-prompt__inline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 12rem);
+  gap: 0.7rem;
+  align-items: stretch;
+}
+
+.reentry-prompt--attention {
+  animation: reentryPromptAttention 1.45s ease-in-out infinite;
+}
+
+@keyframes reentryPromptAttention {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 20px 38px rgba(46, 31, 24, 0.14);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.008);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--brand-primary) 16%, transparent),
+      0 0 0 10px color-mix(in srgb, var(--brand-primary) 10%, transparent),
+      0 24px 48px rgba(46, 31, 24, 0.18);
+  }
+}
+
+.resume-choice-panel {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 42%, var(--border-strong));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 96%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 92%, transparent) 100%);
+  box-shadow: 0 16px 28px rgba(46, 31, 24, 0.1);
+}
+
+.resume-choice-panel__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.resume-choice-panel__eyebrow {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-action);
+}
+
+.resume-choice-panel__text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.resume-choice-panel__task {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.resume-choice-panel__actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.resume-choice-panel__btn {
+  flex: 1;
+  min-height: 2.35rem;
+  border-radius: 0.8rem;
+}
+
+.resume-choice-panel__btn--primary {
+  box-shadow: 0 10px 18px rgba(180, 83, 9, 0.18);
+}
+
 .focus-timer-panel {
   width: min(100%, 720px);
   padding: 0.82rem 0.9rem;

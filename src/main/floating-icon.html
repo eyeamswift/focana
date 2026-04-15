@@ -259,14 +259,17 @@
         flex: 1;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        padding: 0.7rem 0.95rem 1rem;
+        padding: 0.65rem 0.95rem 0.95rem;
+        overflow-y: auto;
       }
 
       .prompt-step {
         display: none;
+        flex: 1;
         flex-direction: column;
+        justify-content: center;
         gap: 0.8rem;
+        min-height: 100%;
       }
 
       .prompt-step.is-active {
@@ -442,12 +445,78 @@
       }
 
       .prompt-inline-row {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 0.55rem;
+        align-items: stretch;
       }
 
       .prompt-inline-row .prompt-input {
-        flex: 1;
+        min-width: 0;
+      }
+
+      .prompt-inline-row .prompt-btn {
+        min-width: 11rem;
+      }
+
+      #prompt-step-chooser {
+        justify-content: flex-start;
+        gap: 0.7rem;
+      }
+
+      #prompt-step-chooser .prompt-chooser-task {
+        padding: 0.62rem 0.78rem;
+      }
+
+      #prompt-step-chooser .prompt-chip-row {
+        row-gap: 0.4rem;
+      }
+
+      #prompt-step-chooser .prompt-actions {
+        margin-top: 0.05rem;
+      }
+
+      #prompt-step-chooser .prompt-actions .prompt-btn {
+        width: 100%;
+      }
+
+      #prompt-step-start {
+        justify-content: flex-start;
+        gap: 0.7rem;
+      }
+
+      #prompt-step-start .prompt-actions {
+        margin-top: 0.1rem;
+      }
+
+      #prompt-step-start .prompt-actions .prompt-btn {
+        width: 100%;
+      }
+
+      #prompt-step-resume {
+        justify-content: flex-start;
+        gap: 0.9rem;
+      }
+
+      #prompt-step-resume .prompt-actions {
+        margin-top: 0.1rem;
+      }
+
+      #prompt-step-snooze {
+        justify-content: flex-start;
+        gap: 0.7rem;
+      }
+
+      #prompt-step-snooze .prompt-actions {
+        margin-top: 0.05rem;
+      }
+
+      #prompt-step-snooze .prompt-actions .prompt-btn {
+        width: 100%;
+      }
+
+      .prompt-card--attention {
+        animation: promptCardAttention 1.4s ease-in-out infinite;
       }
 
       body[data-mode='timer'] #icon-image,
@@ -519,6 +588,21 @@
           opacity: 0;
         }
       }
+
+      @keyframes promptCardAttention {
+        0%,
+        100% {
+          transform: translateY(0) scale(1);
+          box-shadow: var(--prompt-shadow);
+        }
+        50% {
+          transform: translateY(-1px) scale(1.01);
+          box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--prompt-primary-bg) 16%, transparent),
+            0 0 0 8px color-mix(in srgb, var(--prompt-primary-bg) 10%, transparent),
+            0 26px 56px rgba(46, 31, 24, 0.28);
+        }
+      }
     </style>
   </head>
   <body>
@@ -548,7 +632,7 @@
         <div class="prompt-header">
           <button id="prompt-back-btn" class="prompt-header__btn" type="button">Back</button>
           <span class="prompt-header__spacer" id="prompt-header-spacer"></span>
-          <button id="prompt-dismiss-btn" class="prompt-header__btn" type="button">Dismiss</button>
+          <button id="prompt-dismiss-btn" class="prompt-header__btn" type="button">Snooze</button>
         </div>
         <div class="prompt-body">
           <section id="prompt-step-start" class="prompt-step" data-stage="task-entry">
@@ -662,6 +746,7 @@
       let currentPromptStage = 'task-entry';
       let promptStageBeforeSnooze = 'task-entry';
       let currentPromptKey = null;
+      let currentPromptStrongActive = false;
       let currentResumeTaskName = '';
       let localTaskText = '';
       let localMinutes = '25';
@@ -772,6 +857,7 @@
         const canGoBack = currentPromptStage === 'start-chooser' || currentPromptStage === 'snooze-options';
         promptBackButton.style.visibility = canGoBack ? 'visible' : 'hidden';
         promptDismissButton.style.visibility = currentPromptStage === 'snooze-options' ? 'hidden' : 'visible';
+        promptCard.classList.toggle('prompt-card--attention', currentMode === 'prompt' && currentPromptStrongActive);
         syncQuickChips();
       }
 
@@ -830,6 +916,7 @@
         const nextTheme = state && state.theme === 'dark' ? 'dark' : 'light';
         currentRunning = state?.running !== false;
         currentMode = nextMode;
+        currentPromptStrongActive = state?.strongActive === true;
         const nextTimeText = typeof state?.timeText === 'string' && state.timeText.trim()
           ? state.timeText.trim()
           : '00:00';
@@ -861,8 +948,10 @@
         }
 
         currentPromptKey = null;
+        currentPromptStrongActive = false;
         hideTimerControls();
         iconButton.setAttribute('aria-label', nextMode === 'timer' ? `Expand Focana timer ${nextTimeText}` : 'Expand Focana');
+        renderPrompt();
       }
 
       let activeDragPointerId = null;
@@ -1079,25 +1168,11 @@
         }
       });
 
-      promptShell.addEventListener('click', (event) => {
-        if (currentMode !== 'prompt') return;
-        if (promptCard.contains(event.target)) return;
-        dismissWithSnooze('10m');
-      });
-
       promptSnooze10.addEventListener('click', () => dismissWithSnooze('10m'));
       promptSnooze30.addEventListener('click', () => dismissWithSnooze('30m'));
       promptSnooze60.addEventListener('click', () => dismissWithSnooze('60m'));
       promptSnooze120.addEventListener('click', () => dismissWithSnooze('120m'));
       promptSnoozeReopen.addEventListener('click', () => dismissWithSnooze('reopen'));
-
-      document.addEventListener('keydown', (event) => {
-        if (currentMode !== 'prompt') return;
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          dismissWithSnooze('10m');
-        }
-      });
 
       iconButton.setAttribute('title', 'Double-click for fullscreen. Right-click for Do Not Disturb.');
       getFloatingAPI()?.onPulse?.(triggerPulse);

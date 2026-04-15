@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
@@ -21,10 +21,18 @@ export default function SessionNotesModal({
   feedbackPrompt = null,
 }) {
   const [notes, setNotes] = useState('');
+  const notesRef = useRef(null);
 
   useEffect(() => {
     setNotes('');
   }, [isOpen, sessionFlowKey]);
+
+  const getCurrentNotes = () => {
+    const liveValue = typeof notesRef.current?.value === 'string'
+      ? notesRef.current.value
+      : notes;
+    return liveValue.trim();
+  };
 
   const handleRequestClose = () => {
     setNotes('');
@@ -32,7 +40,7 @@ export default function SessionNotesModal({
   };
 
   const handleSave = () => {
-    onSave(notes.trim());
+    onSave(getCurrentNotes());
     setNotes('');
   };
 
@@ -41,12 +49,12 @@ export default function SessionNotesModal({
   };
 
   const handleComplete = () => {
-    onComplete?.(notes.trim());
+    onComplete?.(getCurrentNotes());
     setNotes('');
   };
 
   const handleIncomplete = () => {
-    onIncomplete?.(notes.trim());
+    onIncomplete?.(getCurrentNotes());
     setNotes('');
   };
 
@@ -146,6 +154,7 @@ export default function SessionNotesModal({
                   Where did you leave off? <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 400 }}>(optional)</span>
                 </p>
                 <Textarea
+                  ref={notesRef}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Quick note about where to pick up next time..."

@@ -174,7 +174,9 @@ async function runFreeflowSmoke(page, electronApp) {
   })
 
   info('Entering compact mode from fullscreen')
-  await page.getByRole('button', { name: 'Enter Compact Mode' }).click({ force: true })
+  const compactButton = page.locator('button[aria-label="Enter Compact Mode"]').first()
+  await compactButton.waitFor({ state: 'visible', timeout: 10000 })
+  await compactButton.click({ force: true })
   await poll(async () => (await readWindowMode(page)) === 'pill', {
     timeoutMs: 10000,
     description: 'compact mode after manual entry',
@@ -255,7 +257,9 @@ async function runFreeflowSmoke(page, electronApp) {
   })
 
   await page.locator('button[aria-label="Open Session History"]').click()
-  await page.getByText(taskName).waitFor({ state: 'visible', timeout: 10000 })
+  const historyDialog = page.locator('.dialog-content').filter({ hasText: 'Session History' }).first()
+  await historyDialog.waitFor({ state: 'visible', timeout: 10000 })
+  await historyDialog.getByText(taskName, { exact: true }).waitFor({ state: 'visible', timeout: 10000 })
   await page.locator('.dialog-close-btn').first().click()
 }
 

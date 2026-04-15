@@ -34,6 +34,7 @@ let floatingReentryState = {
   resumeTaskName: '',
   defaultTaskText: '',
   defaultMinutes: 25,
+  strongActive: false,
 };
 let floatingPromptStage = 'task-entry';
 let dndExpiryTimer = null;
@@ -52,7 +53,7 @@ const STARTUP_SAFE_HEIGHT = 520;
 const PILL_MIN_WIDTH = 100;
 const PILL_BASE_WIDTH = 124;
 const PILL_MIN_HEIGHT = 72;
-const PILL_MAX_HEIGHT = 260;
+const PILL_MAX_HEIGHT = 460;
 const PILL_EDGE_EPSILON = 2;
 const PILL_CLAMP_AREA = 'workArea';
 const DRAG_POLL_INTERVAL_MS = 16;
@@ -62,10 +63,10 @@ const FLOATING_TIMER_WIDTH = 116;
 const FLOATING_TIMER_HEIGHT = 48;
 const FLOATING_PROMPT_WIDTH = 420;
 const FLOATING_PROMPT_STAGE_HEIGHTS = {
-  'task-entry': 228,
-  'start-chooser': 256,
-  'resume-choice': 208,
-  'snooze-options': 286,
+  'task-entry': 308,
+  'start-chooser': 340,
+  'resume-choice': 276,
+  'snooze-options': 378,
 };
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
@@ -1017,6 +1018,7 @@ function getFloatingWindowState() {
       resumeTaskName: floatingReentryState.resumeTaskName,
       defaultTaskText: floatingReentryState.defaultTaskText,
       defaultMinutes: floatingReentryState.defaultMinutes,
+      strongActive: floatingReentryState.strongActive === true,
     };
   }
 
@@ -1061,6 +1063,7 @@ function sanitizeFloatingReentryState(nextState = {}) {
       ? safeState.defaultTaskText.slice(0, 160)
       : '',
     defaultMinutes: clampNumber(safeState.defaultMinutes, 1, 240, 25),
+    strongActive: safeState.strongActive === true,
   };
 }
 
