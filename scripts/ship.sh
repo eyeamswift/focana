@@ -145,6 +145,52 @@ sync_landing_release_notes() {
   fi
 }
 
+commit_landing_release_notes() {
+  local release_file="$LANDING_ROOT/src/data/releases.json"
+
+  if [ "$DRY_RUN" = true ]; then
+    info "Would commit and push $release_file on landing main if it changed"
+    return
+  fi
+
+  if [ ! -f "$release_file" ]; then
+    fail "Expected synced landing release data at $release_file"
+  fi
+
+  if git -C "$LANDING_ROOT" diff --quiet -- "$release_file" && git -C "$LANDING_ROOT" diff --cached --quiet -- "$release_file"; then
+    info "Landing release data already matches $VERSION"
+    return
+  fi
+
+  git -C "$LANDING_ROOT" add src/data/releases.json
+  git -C "$LANDING_ROOT" commit -m "Update release notes for $VERSION"
+  git -C "$LANDING_ROOT" push origin main
+  ok "Landing release notes committed and pushed"
+}
+
+verify_landing_production() {
+  if [ "$DRY_RUN" = true ]; then
+    info "Would verify focana.app/download, /next-steps, and /updates reflect $VERSION"
+    return
+  fi
+
+  local download_html
+  local next_steps_html
+  local updates_html
+
+  download_html="$(curl -fsSL "https://focana.app/download")" || fail "Could not fetch https://focana.app/download"
+  next_steps_html="$(curl -fsSL "https://focana.app/next-steps")" || fail "Could not fetch https://focana.app/next-steps"
+  updates_html="$(curl -fsSL "https://focana.app/updates")" || fail "Could not fetch https://focana.app/updates"
+
+  grep -Fq "$ARM64_URL" <<<"$download_html" || fail "/download does not reference the $VERSION arm64 DMG"
+  grep -Fq "$X64_URL" <<<"$download_html" || fail "/download does not reference the $VERSION x64 DMG"
+  grep -Fq "$ARM64_URL" <<<"$next_steps_html" || fail "/next-steps does not reference the $VERSION arm64 DMG"
+  grep -Fq "$X64_URL" <<<"$next_steps_html" || fail "/next-steps does not reference the $VERSION x64 DMG"
+  grep -Fq "Version $VERSION" <<<"$updates_html" || fail "/updates does not show Version $VERSION"
+
+  ok "Landing production routes reference the latest DMGs and release notes"
+}
+
 info "Preflight: checking local tooling, auth, and repo state"
 
 for tool in node gh vercel curl git xcrun; do
@@ -157,10 +203,20 @@ vercel whoami >/dev/null 2>&1 || fail "Vercel CLI is not authenticated. Run 'ver
 [ -d "$LANDING_ROOT" ] || fail "Missing landing repo: $LANDING_ROOT"
 [ -f "$VERCEL_PROJECT_FILE" ] || fail "Missing Vercel link file: $VERCEL_PROJECT_FILE"
 
+LANDING_BRANCH="$(git -C "$LANDING_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')"
+
 if [ "$SKIP_BUILD" = false ] && [ "$DRY_RUN" = false ]; then
   if [ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]; then
     fail "Git working tree is dirty. Commit or stash changes, or rerun with --skip-build."
   fi
+fi
+
+if [ "$DRY_RUN" = false ] && [ "$LANDING_BRANCH" != "main" ]; then
+  fail "Landing repo must be on main before shipping so production download links and the updates page stay in sync. Current branch: $LANDING_BRANCH"
+fi
+
+if [ "$DRY_RUN" = false ] && [ -n "$(git -C "$LANDING_ROOT" status --porcelain)" ]; then
+  fail "Landing repo is dirty. Commit or stash changes before shipping so production deploys stay reproducible."
 fi
 
 if [ "$DRY_RUN" = true ]; then
@@ -281,17 +337,23 @@ fi
 info "Step 7/11: Sync landing updates data"
 sync_landing_release_notes
 
-info "Step 8/11: Update Vercel env vars (preview only)"
-if [ "$DRY_RUN" = true ]; then
-  info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for preview branch codex/landing-preview"
-else
-  vercel env add PUBLIC_GITHUB_ARM64_DMG_URL preview codex/landing-preview --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
-  vercel env add PUBLIC_GITHUB_X64_DMG_URL preview codex/landing-preview --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
+info "Step 8/12: Commit and push landing release notes"
+commit_landing_release_notes
 
-  ok "Vercel env vars updated for codex/landing-preview"
+info "Step 9/12: Update Vercel env vars (production + preview)"
+if [ "$DRY_RUN" = true ]; then
+  info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for production"
+  info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for preview"
+else
+  vercel env add PUBLIC_GITHUB_ARM64_DMG_URL production --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
+  vercel env add PUBLIC_GITHUB_X64_DMG_URL production --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
+  vercel env add PUBLIC_GITHUB_ARM64_DMG_URL preview --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
+  vercel env add PUBLIC_GITHUB_X64_DMG_URL preview --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
+
+  ok "Vercel env vars updated for production and preview"
 fi
 
-info "Step 9/11: Update the local landing env file"
+info "Step 10/12: Update the local landing env file"
 if [ "$DRY_RUN" = true ]; then
   info "Would update $LANDING_ROOT/.env with the latest GitHub DMG URLs"
 else
@@ -300,20 +362,22 @@ else
   ok "Local landing .env updated"
 fi
 
-info "Step 10/11: Redeploy Vercel preview"
+info "Step 11/12: Redeploy Vercel preview and production"
 if [ "$DRY_RUN" = true ]; then
   info "Would trigger a preview deploy for $LANDING_ROOT"
+  info "Would trigger a production deploy for $LANDING_ROOT"
 else
-  LANDING_BRANCH="$(git -C "$LANDING_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')"
-  if [ "$LANDING_BRANCH" != "codex/landing-preview" ]; then
-    warn "Landing repo is on $LANDING_BRANCH, so the preview deploy will use that branch context."
-  fi
-
   vercel --cwd "$LANDING_ROOT" --yes
   ok "Vercel preview deploy triggered"
+
+  vercel --cwd "$LANDING_ROOT" --prod --yes
+  ok "Vercel production deploy triggered"
 fi
 
-info "Step 11/11: Summary"
+info "Step 12/12: Verify live landing pages"
+verify_landing_production
+
+info "Summary"
 printf '\n'
 ok "Release workflow ready for $PRODUCT $VERSION"
 info "GitHub release: https://github.com/$REPO/releases/tag/$TAG"
