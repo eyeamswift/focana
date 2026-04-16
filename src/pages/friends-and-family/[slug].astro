@@ -52,9 +52,7 @@ if (!creatorSlug) {
 }
 
 const isInviteReady = inviteState === 'ready';
-const inviteHeading = invite?.name?.trim()
-  ? `${invite.name.trim()}, welcome to Focana`
-  : 'Welcome to Focana';
+const inviteHeading = 'Welcome to the Focana family.';
 const inviteErrorMessage =
   invite?.status === 'claimed'
     ? 'This invite link has already been used.'
@@ -130,6 +128,7 @@ const features = [
         --soft-cream: #FFF9E6;
         --brown-muted: #8B6F47;
         --card-border: rgba(92, 64, 51, 0.14);
+        --founder-violet: #7657F6;
       }
 
       *, *::before, *::after { box-sizing: border-box; }
@@ -165,11 +164,7 @@ const features = [
       }
 
       .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 36px;
-        align-items: center;
-        margin-bottom: 56px;
+        margin-bottom: 24px;
       }
 
       .hero-copy,
@@ -223,18 +218,12 @@ const features = [
         max-width: 47rem;
       }
 
-      .hero-note {
+      .hero-cta {
         display: flex;
-        flex-direction: column;
-        justify-content: center;
         align-items: center;
-        justify-self: center;
-        text-align: center;
-        gap: 22px;
-        background: none;
-        border: none;
-        box-shadow: none;
-        backdrop-filter: none;
+        justify-content: center;
+        min-height: 132px;
+        margin: 0 0 56px;
       }
 
       .cta-group {
@@ -338,19 +327,73 @@ const features = [
         padding: 34px 32px;
       }
 
-      .closing h2 {
-        font-size: clamp(28px, 4vw, 40px);
-        line-height: 1.08;
-        margin: 0 0 14px;
-        max-width: 46rem;
+      .closing-label {
+        display: inline-flex;
+        align-items: center;
+        margin: 0 0 22px;
+        color: var(--founder-violet);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
       }
 
-      .closing p {
-        margin: 0 0 24px;
-        color: var(--brown-muted);
-        font-size: 17px;
-        line-height: 1.65;
-        max-width: 42rem;
+      .closing-grid {
+        display: grid;
+        grid-template-columns: 160px minmax(0, 1fr);
+        gap: 30px;
+        align-items: start;
+      }
+
+      .closing-portrait {
+        width: 160px;
+        height: 160px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.82) 42%, rgba(118, 87, 246, 0.2) 100%),
+          linear-gradient(160deg, rgba(118, 87, 246, 0.18), rgba(217, 119, 6, 0.16));
+        border: 6px solid white;
+        box-shadow: 0 18px 38px rgba(92, 64, 51, 0.14);
+      }
+
+      .closing-portrait span {
+        font-family: 'Outfit', sans-serif;
+        font-size: 46px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        color: var(--warm-brown);
+      }
+
+      .closing-copy {
+        max-width: 58rem;
+      }
+
+      .closing-copy p {
+        margin: 0 0 28px;
+        color: #24211f;
+        font-size: clamp(24px, 2.4vw, 32px);
+        line-height: 1.72;
+        letter-spacing: -0.02em;
+      }
+
+      .closing-copy p:last-of-type {
+        margin-bottom: 34px;
+      }
+
+      .closing-signoff {
+        margin: 0 0 30px;
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(24px, 2.1vw, 34px);
+        line-height: 1.2;
+        letter-spacing: -0.03em;
+        color: #6D7789;
+      }
+
+      .closing-signoff strong {
+        color: #24211f;
+        font-weight: 800;
       }
 
       .closing .microcopy {
@@ -358,7 +401,6 @@ const features = [
       }
 
       @media (max-width: 860px) {
-        .hero,
         .features-grid {
           grid-template-columns: 1fr;
         }
@@ -378,8 +420,39 @@ const features = [
           padding: 34px 24px;
         }
 
+        .hero-cta {
+          min-height: 104px;
+          margin-bottom: 48px;
+        }
+
         .closing {
           padding: 26px 22px;
+        }
+
+        .closing-grid {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+
+        .closing-portrait {
+          width: 132px;
+          height: 132px;
+          margin: 0 auto;
+        }
+
+        .closing-copy {
+          max-width: none;
+        }
+
+        .closing-copy p {
+          font-size: 21px;
+          line-height: 1.65;
+          margin-bottom: 24px;
+        }
+
+        .closing-signoff {
+          font-size: 22px;
+          margin-bottom: 26px;
         }
 
         .section-header {
@@ -402,6 +475,15 @@ const features = [
           font-size: 17px;
           line-height: 1.6;
         }
+
+        .closing-copy p {
+          font-size: 18px;
+          line-height: 1.7;
+        }
+
+        .closing-signoff {
+          font-size: 19px;
+        }
       }
     </style>
   </head>
@@ -421,21 +503,21 @@ const features = [
               100% free. No strings. The only cost is your honest feedback.
             </p>
           </div>
+        </section>
 
-          <aside class="hero-note">
-            <div class="cta-group">
-              <a
-                class="cta"
-                href={`${checkoutPath}?location=hero`}
-                data-friends-checkout-trigger
-                data-checkout-location="hero"
-                aria-disabled="false"
-              >
-                Get Focana Free <span aria-hidden="true">&rarr;</span>
-              </a>
-              <div class="microcopy">macOS · Instant download</div>
-            </div>
-          </aside>
+        <section class="hero-cta" aria-label="Friends and family checkout">
+          <div class="cta-group">
+            <a
+              class="cta"
+              href={`${checkoutPath}?location=hero`}
+              data-friends-checkout-trigger
+              data-checkout-location="hero"
+              aria-disabled="false"
+            >
+              Get Focana Free <span aria-hidden="true">&rarr;</span>
+            </a>
+            <div class="microcopy">macOS · Instant download</div>
+          </div>
         </section>
 
         <section aria-labelledby="friends-and-family-features">
@@ -454,21 +536,36 @@ const features = [
         </section>
 
         <section class="closing">
-          <h2>Built by a founder with ADHD who got tired of hacking together five different tools just to stay focused.</h2>
-          <p>
-            If it helps you lock in faster, stay anchored longer, or recover context after drifting, I
-            want to hear what landed and what still felt missing.
-          </p>
-          <a
-            class="cta"
-            href={`${checkoutPath}?location=footer`}
-            data-friends-checkout-trigger
-            data-checkout-location="footer"
-            aria-disabled="false"
-          >
-            Get Focana Free <span aria-hidden="true">&rarr;</span>
-          </a>
-          <div class="microcopy">macOS · Instant download · Your honest feedback is the only price</div>
+          <div class="closing-label">The Founder</div>
+          <div class="closing-grid">
+            <div class="closing-portrait" aria-hidden="true">
+              <span>JF</span>
+            </div>
+            <div class="closing-copy">
+              <p>
+                I was diagnosed with ADHD at 30 — after college, grad school, and nearly a decade into
+                my career. I showed flashes of what I was capable of, but mostly felt like a
+                high-potential underperformer. That led me down a dark path of shame, guilt, and
+                depression.
+              </p>
+              <p>I tried every productivity tool I could find, but none of them stuck.</p>
+              <p>
+                NeurDi Labs exists because I got tired of waiting for someone else to build what I
+                needed — what we needed. Tools designed specifically for neurodivergent brains.
+              </p>
+              <p class="closing-signoff"><strong>Justin</strong> — Founder, NeurDi Labs</p>
+              <a
+                class="cta"
+                href={`${checkoutPath}?location=footer`}
+                data-friends-checkout-trigger
+                data-checkout-location="footer"
+                aria-disabled="false"
+              >
+                Get Focana Free <span aria-hidden="true">&rarr;</span>
+              </a>
+              <div class="microcopy">macOS · Instant download</div>
+            </div>
+          </div>
           <div class="error" data-checkout-error aria-live="polite"></div>
         </section>
       </main>
