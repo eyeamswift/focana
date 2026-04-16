@@ -1,9 +1,9 @@
 # Product Backlog
 
-## In Progress
+## Blocked
 
 ### WIN-001 — Packaged macOS builds do not reliably stay above true fullscreen apps
-- Status: In Progress
+- Status: Blocked
 - Version: 1.2.1
 - Why it matters: Always on Top feels broken if Focana disappears behind native fullscreen apps.
 - Files: `src/main/main.js`
@@ -13,57 +13,57 @@
 
 ## Next Up
 
-### WIN-005 — Post-session flows should never restore to compact with no active task
+### UX-006 — No active session should trigger re-entry nudges after five minutes
 - Priority: High
 - Status: Next Up
 - Version: 1.3.2
-- Why it matters: Returning users to a blank compact shell after stop/completion feels broken and hides the next obvious action.
-- Files: `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
-- Related: `WIN-003`
-- Notes: Merge the duplicate blank-compact reports here and treat the compact/logo observation as part of the same issue unless a packaged-only repro proves otherwise. Desired rule: if stop/completion leaves no active task, restore the full idle shell instead of compact. Acceptance coverage should include `No, Save for Later`, `Yes, Complete`, and post-session parking-lot handoff paths.
+- Why it matters: Focana helps once a session is running, but it currently goes quiet between sessions and depends on the user to remember to restart focus on their own.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/TaskInput.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-007`
+- Notes: Start one shared re-entry timer whenever the app is ready, there is no active or resumable session, Do Not Disturb is off, and no blocking modal flow is open. Trigger after 5 minutes and vary the response by surface instead of building separate reminder systems: full-window idle should nudge the existing task input in place, while floating/logo state should hand off to the floating prompt flow. Startup counts as eligible time once the app is ready, and remaining time should carry across full-window and floating states instead of resetting on every surface change.
 - Commits: —
 
-### SES-002 — System sleep should auto-pause a running session
+### UX-007 — Floating logo should expand into a two-step start-session prompt
 - Priority: High
 - Status: Next Up
 - Version: 1.3.2
-- Why it matters: Counting sleep time as focused time breaks trust and corrupts session history.
-- Files: `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
-- Related: `SES-001`
-- Notes: Expected behavior is auto-pause on sleep and explicit resume after wake; this should not use wall-clock catch-up. Current code has no sleep/wake handling, so this starts as a behavior gap plus verification task. Acceptance coverage should verify pause on sleep, cleared `sessionStartedAt`, and explicit resume on wake.
-- Commits: —
-
-### UX-003 — Session history should support moving completed/discarded work back to Resume
-- Priority: High
-- Status: Next Up
-- Version: 1.3.2
-- Why it matters: Users need a reversible way to recover work without starting from scratch or losing context.
-- Files: `src/renderer/components/HistoryModal.jsx`, `src/renderer/components/TaskPreviewModal.jsx`, `src/renderer/App.jsx`
-- Related: `QA-001`
-- Notes: Add a recovery action for completed/discarded entries so they can become resumable again instead of being terminal states. Acceptance coverage should verify the item moves back to `Resume`, can be started again, and does not mutate historical records incorrectly.
-- Commits: —
-
-### QA-001 — Audit one-click destructive flows and remove unverified data-loss paths
-- Priority: High
-- Status: Next Up
-- Version: 1.3.2
-- Why it matters: Silent destructive actions are high-trust failures in a tool meant to reduce overwhelm.
-- Files: `src/renderer/components/ParkingLot.jsx`, `src/renderer/components/HistoryModal.jsx`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
-- Related: `UX-003`
-- Notes: Audit delete, clear, start-task, discard, and post-session parking-lot actions. Add confirmation, undo, or state-safe recovery wherever the action is currently one click and irreversible. Acceptance coverage should prove parking lot, history, and post-session flows are confirmable, undoable, or otherwise recoverable.
-- Commits: —
-
-### UX-004 — Hour-plus timer formatting should still look active
-- Priority: Medium
-- Status: Next Up
-- Version: 1.3.2
-- Why it matters: Switching from `MM:SS` to `1h 02m` reads like a paused timer even when the clock is still running.
-- Files: `src/renderer/utils/time.js`, `src/renderer/components/CompactMode.jsx`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
-- Related: `SES-002`
-- Notes: Treat this as a display/trust issue, not a timer-engine rewrite. Keep elapsed-time semantics intact while making hour-plus timers visibly feel live across full, compact, and floating surfaces. Acceptance coverage should preserve existing parsing and confirm the timer still appears active after one hour.
+- Why it matters: When the app is minimized and no session exists, the floating logo needs to become an active re-entry point rather than a passive brand mark the user has to remember to click.
+- Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-006`
+- Notes: Reuse the existing floating window rather than creating a new BrowserWindow. After the shared no-session timer expires in floating mode, expand the logo into a prompt that first asks what the user is working on and then offers `15m`, `25m`, `45m`, `Custom`, or `Freeflow`. Dismiss should snooze for `10 minutes`, `30 minutes`, `1 hour`, `2 hours`, or `Until I reopen`, with Escape and click-away defaulting to a 10-minute snooze. Starting from this prompt should reopen full Focana and route through the normal session-start flow.
 - Commits: —
 
 ## Later
+
+### UX-008 — Post-session feedback prompt should persist until dismissed and support optional written context
+- Priority: Medium
+- Status: Later
+- Version: 1.4.0
+- Why it matters: The current thumbs up/down prompt disappears too quickly, can fall back into `Did you finish?` before the user is done responding, and misses the qualitative context needed to understand why a session felt good or bad.
+- Files: `src/renderer/App.jsx`, post-session feedback UI, relevant modal/flow components, `tests/e2e/electron-flows.spec.js`
+- Related: `QA-001`
+- Notes: Keep the post-session feedback prompt locked in place until the user explicitly responds or dismisses it instead of auto-clearing too fast. After a thumbs-up or thumbs-down selection, reveal an optional text box for extra context before moving on. Acceptance should verify the prompt does not immediately fall back to `Did you finish?`, can be dismissed intentionally, and preserves a smooth path whether the user leaves only a thumb reaction or also adds written feedback.
+- Commits: —
+
+### UX-009 — Check-ins should support keyboard shortcuts for quick responses
+- Priority: Medium
+- Status: Later
+- Version: 1.4.0
+- Why it matters: When a check-in appears, reaching for the mouse adds friction and can break focus, especially in compact or floating mode.
+- Files: `src/renderer/App.jsx`, check-in prompt components, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-004`
+- Notes: Add clear, discoverable hotkeys for the main check-in actions across full-window, compact, and floating restore flows. First pass should cover the common responses (`Yes`, `No`, and `Finished` where available), avoid conflicting with existing global shortcuts, and make the shortcut affordance visible in the prompt copy or buttons. Acceptance coverage should verify keyboard responses work on every check-in surface and still return to the correct window mode afterward.
+- Commits: —
+
+### WIN-006 — Focana should support a temporary peek-through transparency mode
+- Priority: Medium
+- Status: Later
+- Version: 1.4.0
+- Why it matters: An always-on-top focus window sometimes blocks links, form fields, or reference material the user only needs to touch for a few seconds. They need a fast "let me reach what's behind this" escape hatch without dismissing or moving Focana.
+- Files: `src/main/main.js`, floating window plumbing, shortcut registration, context-menu affordances, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-001`
+- Notes: Recommendation is a dedicated shortcut-driven `Peek Through` mode rather than long-click or double-click. Long-click conflicts with dragging, and double-click is too easy to trigger accidentally while also overloading the current click model. First pass should use a shortcut such as `Cmd/Ctrl+Shift+T` to toggle a temporary low-opacity, click-through state for the active Focana window, with obvious visual feedback and easy restore by repeating the shortcut, clicking a restore affordance, or timing out after a short interval. Context-menu access can follow as a secondary affordance once the shortcut flow exists.
+- Commits: —
 
 ### UX-005 — Focus blocks should support a checklist of sub-tasks
 - Priority: Medium
@@ -85,7 +85,102 @@
 - Notes: Default new installs to launch at login, surface the control in Settings, and persist the user’s choice so the app never silently turns itself back on after they disable it. Acceptance coverage should verify first-run default enabled, toggle-off persists, toggle-on restores startup launch, and platform-specific login-item wiring matches the saved setting.
 - Commits: —
 
+### SES-003 — Running timers should support adding more time before time is up
+- Priority: Medium
+- Status: Later
+- Version: 1.4.0
+- Why it matters: Users often realize mid-session that they need a little more time and should be able to extend the current timer without waiting for the time-up interruption.
+- Files: `src/renderer/App.jsx`, active timer controls, compact/floating timer surfaces, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-002`
+- Notes: Scope this as an in-session add-time control for active timed sessions, not just the existing post-expiry time-up flow. First pass should make it easy to add a few common increments plus a custom amount, update the visible timer immediately across full, compact, and floating surfaces, and preserve check-in/pulse timing in a predictable way after the extension.
+- Commits: —
+
+### I18N-001 — Focana should support multiple languages across payments, site, and app
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: Focana should feel native from discovery through purchase and daily use, not English-only at the site, checkout, or in-product layers.
+- Files: `src/renderer/App.jsx`, shared UI copy/components, translation resource loading, licensing/checkout localization config, marketing site content system
+- Related: —
+- Notes: Scope this as end-to-end localization, not just translating in-app strings. First pass should support a shared translation framework, language detection plus a manual language selector, localized website copy, localized payment/checkout surfaces where supported, and app copy that stays aligned with the same language choice. Acceptance should verify a user can discover, buy, activate, and use Focana in a supported language without mixed-language seams.
+- Commits: —
+
+### ANA-001 — Goal tracking should roll up focus time by project or theme
+- Priority: Low
+- Status: Later
+- Version: TBD
+- Why it matters: Once session analytics ships, users should be able to see where their attention actually went, such as "I focused 3 hours this week on Project X."
+- Files: `src/main/store.js`, session history aggregation, future analytics surfaces
+- Related: `ANA-002`
+- Notes: Do not pull this into the current roadmap. Revisit after session analytics and pattern views ship as part of the planned Phase 2 premium work. First pass should read from existing session history rather than creating a separate manual tracking workflow.
+- Commits: —
+
+### TASK-001 — Recurring tasks should support reusable scheduled presets
+- Priority: Low
+- Status: Later
+- Version: TBD
+- Why it matters: Repeated obligations like weekly expense reports are easier to start when the task already exists as a preset instead of being recreated from scratch every time.
+- Files: `src/renderer/App.jsx`, `src/main/store.js`, future task scheduling UI
+- Related: —
+- Notes: Natural evolution for the task model, but not for the current cycle. Scope this as recurring task presets like "Every Monday I need to do expense reports," not as full calendar integration.
+- Commits: —
+
+### ANA-002 — Goal setting should support intentional focus targets
+- Priority: Low
+- Status: Later
+- Version: TBD
+- Why it matters: Some users want to set an explicit target, like "I want to focus 2 hours a day," and compare that intent against real focus time.
+- Files: `src/main/store.js`, goal configuration UI, future analytics surfaces
+- Related: `ANA-001`
+- Notes: Treat this as a later companion to analytics, not a standalone near-term feature. Revisit after the planned analytics dashboard exists so goals can be measured against actual session patterns instead of becoming a disconnected reminder system.
+- Commits: —
+
 ## Done
+
+### WIN-005 — Post-session flows should never restore to compact with no active task
+- Status: Done
+- Version: 1.3.2
+- Why it matters: Returning users to a blank compact shell after stop/completion feels broken and hides the next obvious action.
+- Files: `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-003`
+- Notes: Stop/completion flows now restore the full idle shell instead of falling back to a blank compact state when no active task remains. Regression coverage includes `No, Save for Later`, `Yes, Complete`, and the post-session parking-lot handoff path returning to the full idle shell.
+- Commits: `2bd92a9`
+
+### SES-002 — System sleep should auto-pause a running session
+- Status: Done
+- Version: 1.3.2
+- Why it matters: Counting sleep time as focused time breaks trust and corrupts session history.
+- Files: `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-001`
+- Notes: The app now pauses active sessions on system sleep, preserves the paused snapshot through wake, and requires explicit resume instead of counting slept time. Regression coverage verifies pause on sleep, cleared `sessionStartedAt`, and resume behavior after wake.
+- Commits: `2bd92a9`
+
+### UX-003 — Session history should support moving completed/discarded work back to Resume
+- Status: Done
+- Version: 1.3.2
+- Why it matters: Users need a reversible way to recover work without starting from scratch or losing context.
+- Files: `src/renderer/components/HistoryModal.jsx`, `src/renderer/components/TaskPreviewModal.jsx`, `src/renderer/App.jsx`
+- Related: `QA-001`
+- Notes: Completed and discarded sessions can now be restored back to `Resume` instead of remaining terminal history states. Regression coverage verifies the item moves back to `Resume`, can be started again, and preserves historical data correctly.
+- Commits: `2bd92a9`
+
+### QA-001 — Audit one-click destructive flows and remove unverified data-loss paths
+- Status: Done
+- Version: 1.3.2
+- Why it matters: Silent destructive actions are high-trust failures in a tool meant to reduce overwhelm.
+- Files: `src/renderer/components/ParkingLot.jsx`, `src/renderer/components/HistoryModal.jsx`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-003`
+- Notes: Destructive paths in parking lot, history, and post-session flows now require confirmation or preserve recoverable state instead of silently discarding user work. Regression coverage includes history delete confirmation, parking lot destructive confirmation, and the post-session parking-lot dismiss confirmation path.
+- Commits: `2bd92a9`
+
+### UX-004 — Hour-plus timer formatting should still look active
+- Status: Done
+- Version: 1.3.2
+- Why it matters: Switching from `MM:SS` to `1h 02m` reads like a paused timer even when the clock is still running.
+- Files: `src/renderer/utils/time.js`, `src/renderer/components/CompactMode.jsx`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-002`
+- Notes: Hour-plus timers now stay visibly active across full, compact, and floating surfaces without changing timer semantics. Regression coverage verifies the active presentation after one hour in each surface.
+- Commits: `2bd92a9`
 
 ### LIC-001 — Local packaged smoke builds can opt into `password` via explicit env flag
 - Status: Done
