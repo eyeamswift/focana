@@ -1414,14 +1414,21 @@ export default function FocanaLanding() {
                 {" "}HealthTech company building executive function tools for neurodivergent brains.
               </p>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-                <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "12px",
+                width: "100%",
+              }}>
+                <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
                 </button>
                 <p style={{
                   fontSize: "15px",
                   color: COLORS.coffeeBrown,
                   margin: 0,
+                  textAlign: "center",
                 }}>
                   $29 lifetime · No subscription · macOS
                 </p>
