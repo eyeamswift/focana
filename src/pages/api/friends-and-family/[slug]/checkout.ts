@@ -25,6 +25,16 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function redirect(location: string, status = 303) {
+  return new Response(null, {
+    status,
+    headers: {
+      'Location': location,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 async function createCheckoutResponse(request: Request, slug: string, location: string) {
   const apiKey = import.meta.env.LEMONSQUEEZY_API_KEY;
   const storeId = import.meta.env.LEMONSQUEEZY_STORE_ID;
@@ -72,7 +82,7 @@ export const GET: APIRoute = async ({ request, params }) => {
   try {
     const location = new URL(request.url).searchParams.get('location');
     const result = await createCheckoutResponse(request, params.slug || '', location || 'unknown');
-    return Response.redirect(result.checkoutUrl, 303);
+    return redirect(result.checkoutUrl);
   } catch (error) {
     if (error instanceof Response) return error;
 
