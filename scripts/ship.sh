@@ -172,6 +172,51 @@ sync_landing_release_notes() {
   fi
 }
 
+verify_friends_and_family_flow() {
+  local download_page="$LANDING_ROOT/src/pages/download.astro"
+  local next_steps_page="$LANDING_ROOT/src/pages/next-steps.astro"
+  local friends_page="$LANDING_ROOT/src/pages/friends-and-family/[slug].astro"
+  local friends_checkout_api="$LANDING_ROOT/src/pages/api/friends-and-family/[slug]/checkout.ts"
+  local friends_lib="$LANDING_ROOT/src/lib/friendsAndFamily.ts"
+  local production_envs
+  local preview_envs
+
+  if [ "$DRY_RUN" = true ]; then
+    info "Would verify the landing download pages still read the GitHub DMG env vars"
+    info "Would verify the friends-and-family checkout stays wired to LEMONSQUEEZY_FREE_VARIANT_ID"
+    info "Would verify the friends-and-family checkout and receipt flow still redirect through /download"
+    return
+  fi
+
+  [ -f "$download_page" ] || fail "Missing landing download page source at $download_page"
+  [ -f "$next_steps_page" ] || fail "Missing landing next-steps page source at $next_steps_page"
+  [ -f "$friends_page" ] || fail "Missing landing friends-and-family page source at $friends_page"
+  [ -f "$friends_checkout_api" ] || fail "Missing landing friends-and-family checkout API source at $friends_checkout_api"
+  [ -f "$friends_lib" ] || fail "Missing landing friends-and-family helper source at $friends_lib"
+
+  grep -Fq "PUBLIC_GITHUB_ARM64_DMG_URL" "$download_page" || fail "/download is no longer wired to PUBLIC_GITHUB_ARM64_DMG_URL"
+  grep -Fq "PUBLIC_GITHUB_X64_DMG_URL" "$download_page" || fail "/download is no longer wired to PUBLIC_GITHUB_X64_DMG_URL"
+  grep -Fq "PUBLIC_GITHUB_ARM64_DMG_URL" "$next_steps_page" || fail "/next-steps is no longer wired to PUBLIC_GITHUB_ARM64_DMG_URL"
+  grep -Fq "PUBLIC_GITHUB_X64_DMG_URL" "$next_steps_page" || fail "/next-steps is no longer wired to PUBLIC_GITHUB_X64_DMG_URL"
+  grep -Fq "const storeId = import.meta.env.LEMONSQUEEZY_STORE_ID;" "$friends_checkout_api" || fail "Friends-and-family checkout no longer reads LEMONSQUEEZY_STORE_ID"
+  grep -Fq "const variantId = import.meta.env.LEMONSQUEEZY_FREE_VARIANT_ID;" "$friends_checkout_api" || fail "Friends-and-family checkout no longer reads LEMONSQUEEZY_FREE_VARIANT_ID"
+  grep -Fq "enabled_variants: [Number(variantId)]," "$friends_lib" || fail "Friends-and-family checkout no longer constrains checkout to the free Lemon variant"
+  grep -Fq "const downloadUrl = new URL('/download', origin).toString();" "$friends_lib" || fail "Friends-and-family checkout no longer routes through /download"
+  grep -Fq "redirect_url: downloadUrl" "$friends_lib" || fail "Friends-and-family checkout redirect no longer points to /download"
+  grep -Fq "receipt_link_url: downloadUrl" "$friends_lib" || fail "Friends-and-family receipt CTA no longer points to /download"
+  grep -Fq "const redirectUrl = new URL('/download', window.location.origin);" "$friends_page" || fail "Friends-and-family success flow no longer sends purchasers to /download"
+
+  production_envs="$(vercel env ls production --cwd "$LANDING_ROOT")" || fail "Could not load Vercel production env vars for landing"
+  preview_envs="$(vercel env ls preview --cwd "$LANDING_ROOT")" || fail "Could not load Vercel preview env vars for landing"
+
+  grep -Fq "LEMONSQUEEZY_STORE_ID" <<<"$production_envs" || fail "Landing production env is missing LEMONSQUEEZY_STORE_ID"
+  grep -Fq "LEMONSQUEEZY_FREE_VARIANT_ID" <<<"$production_envs" || fail "Landing production env is missing LEMONSQUEEZY_FREE_VARIANT_ID"
+  grep -Fq "LEMONSQUEEZY_STORE_ID" <<<"$preview_envs" || fail "Landing preview env is missing LEMONSQUEEZY_STORE_ID"
+  grep -Fq "LEMONSQUEEZY_FREE_VARIANT_ID" <<<"$preview_envs" || fail "Landing preview env is missing LEMONSQUEEZY_FREE_VARIANT_ID"
+
+  ok "Friends-and-family flow stays wired to the free Lemon variant and the refreshed download pages"
+}
+
 commit_landing_release_notes() {
   local release_file="$LANDING_ROOT/src/data/releases.json"
 
@@ -198,12 +243,15 @@ commit_landing_release_notes() {
 verify_landing_production() {
   if [ "$DRY_RUN" = true ]; then
     info "Would verify focana.app/download, /next-steps, and /updates reflect $VERSION"
+    info "Would verify the friends-and-family flow still lands on the refreshed download CTAs"
     return
   fi
 
   local download_html
   local next_steps_html
   local updates_html
+
+  verify_friends_and_family_flow
 
   download_html="$(curl -fsSL "https://focana.app/download")" || fail "Could not fetch https://focana.app/download"
   next_steps_html="$(curl -fsSL "https://focana.app/next-steps")" || fail "Could not fetch https://focana.app/next-steps"
@@ -215,7 +263,7 @@ verify_landing_production() {
   grep -Fq "$X64_URL" <<<"$next_steps_html" || fail "/next-steps does not reference the $VERSION x64 DMG"
   grep -Fq "Version $VERSION" <<<"$updates_html" || fail "/updates does not show Version $VERSION"
 
-  ok "Landing production routes reference the latest DMGs and release notes"
+  ok "Landing production routes and the friends-and-family download flow reference the latest DMGs and release notes"
 }
 
 info "Preflight: checking local tooling, auth, and repo state"
