@@ -224,7 +224,14 @@ const features = [
         max-width: none;
       }
 
-      .hero-subtitle strong {
+      .hero-copy-text {
+        display: flex;
+        flex-direction: column;
+        gap: 34px;
+      }
+
+      .hero-subtitle strong,
+      .hero-brand-note strong {
         font-weight: 800;
         color: var(--warm-brown);
       }
@@ -552,7 +559,7 @@ const features = [
   <body>
     {isInviteReady ? (
       <main class="shell">
-        <a class="brand" href="/" aria-label="Focana - Home">
+        <a class="brand" href="/" target="_blank" rel="noreferrer" aria-label="Open the Focana home page in a new tab">
           <img src="/focana-nav-logo.svg" alt="Focana" class="brand-logo" width="150" height="40" />
         </a>
 
@@ -560,13 +567,18 @@ const features = [
           <div class="hero-copy">
             <div class="eyebrow">Private early access</div>
             <h1>{inviteHeading}</h1>
-            <p class="hero-subtitle">
-              You're getting early access to a desktop focus system built specifically for ADHD brains,
-              <span class="hero-emphasis">100% free</span> with no strings attached, and the only cost
-              is your honest feedback; <strong>Focana is the flagship product from NeurDi Labs</strong>,
-              a HealthTech company building executive function tools for neurodivergent brains, with
-              more on the way.
-            </p>
+            <div class="hero-copy-text">
+              <p class="hero-subtitle">
+                You're getting early access to a desktop focus system built specifically for ADHD brains.
+                <span class="hero-emphasis">100% free</span>. No strings. The only cost is your honest
+                feedback.
+              </p>
+              <p class="hero-brand-note">
+                <strong>And Focana is the flagship product from NeurDi Labs</strong>, a HealthTech
+                company building executive function tools for neurodivergent brains. More are on the
+                way.
+              </p>
+            </div>
             <div class="hero-actions">
               <div class="cta-group">
                 <a
