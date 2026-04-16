@@ -1635,54 +1635,62 @@ export default function FocanaLanding() {
       {/* FOUNDER STORY */}
       <section id="founder-story" style={{ padding: "100px 0", background: "white" }}>
         <div className="section">
-          <div style={{
-            background: COLORS.softCream,
-            borderRadius: "24px",
-            padding: "40px 24px",
-            border: `1px solid ${COLORS.beigeBorder}`,
-          }}>
-            <div style={{ maxWidth: "560px", margin: "0 auto", textAlign: "center" }}>
-              <h2 style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "clamp(28px, 3.5vw, 40px)",
-                fontWeight: 800,
-                color: COLORS.warmBrown,
-                margin: "0 0 28px",
-                lineHeight: 1.15,
-              }}>
-                Built by a busy brain.
-              </h2>
+          <div style={{ maxWidth: "980px", margin: "0 auto" }}>
+            <p style={{
+              fontSize: "13px",
+              fontWeight: 800,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: COLORS.deepAmber,
+              margin: "0 0 18px",
+              textAlign: "center",
+            }}>
+              The Founder
+            </p>
 
-              <p style={{
-                fontSize: "15px",
-                fontWeight: 700,
-                color: COLORS.warmBrown,
-                margin: "0 0 24px",
-              }}>
-                Justin, Founder @ Focana and NeurDi Labs
-              </p>
+            <div style={{
+              background: COLORS.softCream,
+              borderRadius: "24px",
+              padding: "32px",
+              border: `1px solid ${COLORS.beigeBorder}`,
+              display: "flex",
+              alignItems: "center",
+              gap: "32px",
+              flexWrap: "wrap",
+            }}>
+              <div style={{ flex: "0 0 180px", margin: "0 auto" }}>
+                <img
+                  src="/founder-story.jpeg"
+                  alt="Justin, founder of Focana and NeurDi Labs"
+                  width="180"
+                  height="180"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    maxWidth: "180px",
+                    aspectRatio: "1 / 1",
+                    objectFit: "cover",
+                    borderRadius: "24px",
+                    boxShadow: "0 18px 36px rgba(92, 64, 51, 0.12)",
+                  }}
+                />
+              </div>
 
-              <div style={{
-                background: "#FFFCF2",
-                borderRadius: "16px",
-                padding: "24px 28px",
-                borderLeft: `4px solid ${COLORS.sunshineYellow}`,
-                textAlign: "left",
-              }}>
-                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
-                  I built Focana because I have ADHD and every focus tool I tried disappeared the moment I switched tabs. Out of sight, out of mind, literally.
+              <div style={{ flex: "1 1 420px" }}>
+                <p style={{ fontSize: "17px", lineHeight: 1.8, color: COLORS.warmBrown, margin: "0 0 16px" }}>
+                  I was diagnosed with ADHD at 30 after college, grad school, and nearly a decade into my career. I showed flashes of what I was capable of, but mostly felt like a high-potential underperformer. That led me down a dark path of shame, guilt, and depression.
                 </p>
 
-                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
-                  So I built the tool I needed: one that stays visible while you work, never makes you feel bad, and never asks you to set up a workspace before you can start working.
+                <p style={{ fontSize: "17px", lineHeight: 1.8, color: COLORS.warmBrown, margin: "0 0 16px" }}>
+                  I tried every productivity tool I could find, but none of them stuck.
                 </p>
 
-                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
-                  Focana is the flagship product from NeurDi Labs, and it is the first of more calm, practical executive function tools I plan to build for neurodivergent brains.
+                <p style={{ fontSize: "17px", lineHeight: 1.8, color: COLORS.warmBrown, margin: "0 0 18px" }}>
+                  NeurDi Labs exists because I got tired of waiting for someone else to build what I needed and what we need. Focana is the flagship product from that mission: a calm desktop focus system designed specifically for neurodivergent brains.
                 </p>
 
-                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.coffeeBrown, margin: 0, fontStyle: "italic" }}>
-                  This is the focus buddy I wish I had years ago.
+                <p style={{ fontSize: "17px", lineHeight: 1.6, color: COLORS.coffeeBrown, margin: 0 }}>
+                  <strong>Justin</strong> {"\u2014"} Founder, Focana and NeurDi Labs
                 </p>
               </div>
             </div>
