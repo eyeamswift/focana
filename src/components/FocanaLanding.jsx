@@ -1403,6 +1403,17 @@ export default function FocanaLanding() {
                 Always visible, always anchoring you back to what matters.
               </p>
 
+              <p style={{
+                fontSize: "15px",
+                lineHeight: 1.7,
+                color: COLORS.coffeeBrown,
+                marginBottom: "28px",
+                maxWidth: "560px",
+              }}>
+                <strong style={{ color: COLORS.warmBrown }}>Focana is the flagship product from NeurDi Labs</strong>, a
+                {" "}HealthTech company building executive function tools for neurodivergent brains.
+              </p>
+
               <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
                 <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
                   Get Focana <span style={{ fontSize: "22px" }}>→</span>
@@ -1648,7 +1659,7 @@ export default function FocanaLanding() {
                 color: COLORS.warmBrown,
                 margin: "0 0 24px",
               }}>
-                Justin, Founder @ Focana
+                Justin, Founder @ Focana and NeurDi Labs
               </p>
 
               <div style={{
@@ -1664,6 +1675,10 @@ export default function FocanaLanding() {
 
                 <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
                   So I built the tool I needed: one that stays visible while you work, never makes you feel bad, and never asks you to set up a workspace before you can start working.
+                </p>
+
+                <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.warmBrown, margin: "0 0 12px" }}>
+                  Focana is the flagship product from NeurDi Labs, and it is the first of more calm, practical executive function tools I plan to build for neurodivergent brains.
                 </p>
 
                 <p style={{ fontSize: "16px", lineHeight: 1.75, color: COLORS.coffeeBrown, margin: 0, fontStyle: "italic" }}>
