@@ -145,7 +145,7 @@ const features = [
       }
 
       .shell {
-        width: min(1080px, calc(100% - 32px));
+        width: min(1180px, calc(100% - 32px));
         margin: 0 auto;
         padding: 28px 0 88px;
       }
@@ -166,14 +166,13 @@ const features = [
 
       .hero {
         display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-        gap: 24px;
-        align-items: stretch;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 36px;
+        align-items: center;
         margin-bottom: 56px;
       }
 
       .hero-copy,
-      .hero-note,
       .feature-card,
       .closing {
         background: rgba(255, 255, 255, 0.78);
@@ -221,17 +220,21 @@ const features = [
         line-height: 1.7;
         color: var(--brown-muted);
         margin: 0;
-        max-width: 36rem;
+        max-width: 47rem;
       }
 
       .hero-note {
-        padding: 30px 28px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        justify-self: center;
         text-align: center;
         gap: 22px;
+        background: none;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
       }
 
       .cta-group {
@@ -361,12 +364,11 @@ const features = [
         }
 
         .shell {
-          width: min(100% - 24px, 1080px);
+          width: min(100% - 24px, 1180px);
           padding-bottom: 64px;
         }
 
         .hero-copy,
-        .hero-note,
         .closing,
         .feature-card {
           border-radius: 22px;
@@ -376,7 +378,6 @@ const features = [
           padding: 34px 24px;
         }
 
-        .hero-note,
         .closing {
           padding: 26px 22px;
         }
@@ -388,6 +389,18 @@ const features = [
 
         .cta {
           width: 100%;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .hero h1 {
+          font-size: 34px;
+          line-height: 1.02;
+        }
+
+        .hero p {
+          font-size: 17px;
+          line-height: 1.6;
         }
       }
     </style>
