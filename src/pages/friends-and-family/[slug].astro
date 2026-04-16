@@ -153,24 +153,15 @@ const features = [
       .brand {
         display: inline-flex;
         align-items: center;
-        gap: 14px;
         margin-bottom: 48px;
         text-decoration: none;
         color: inherit;
       }
 
-      .brand-mark {
-        width: 46px;
-        height: 46px;
-        border-radius: 12px;
-        box-shadow: 0 12px 28px rgba(92, 64, 51, 0.14);
-      }
-
-      .brand-name {
-        font-family: 'Outfit', sans-serif;
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: -0.04em;
+      .brand-logo {
+        display: block;
+        width: 150px;
+        height: auto;
       }
 
       .hero {
@@ -237,29 +228,16 @@ const features = [
         padding: 30px 28px;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
         gap: 22px;
-      }
-
-      .hero-note strong {
-        display: block;
-        font-family: 'Outfit', sans-serif;
-        font-size: 24px;
-        line-height: 1.1;
-        margin-bottom: 10px;
-        color: var(--warm-brown);
-      }
-
-      .hero-note p {
-        margin: 0;
-        font-size: 16px;
-        line-height: 1.7;
-        color: var(--brown-muted);
       }
 
       .cta-group {
         display: flex;
         flex-direction: column;
+        align-items: center;
         gap: 12px;
       }
 
@@ -325,14 +303,6 @@ const features = [
 
       .section-title {
         font-size: clamp(30px, 4vw, 44px);
-        margin: 0;
-      }
-
-      .section-copy {
-        max-width: 30rem;
-        color: var(--brown-muted);
-        font-size: 16px;
-        line-height: 1.65;
         margin: 0;
       }
 
@@ -425,10 +395,9 @@ const features = [
   <body>
     {isInviteReady ? (
       <main class="shell">
-        <div class="brand" aria-label="Focana">
-          <img src="/favicon.png" alt="" class="brand-mark" width="46" height="46" />
-          <span class="brand-name">Focana</span>
-        </div>
+        <a class="brand" href="/" aria-label="Focana - Home">
+          <img src="/focana-nav-logo.svg" alt="Focana" class="brand-logo" width="150" height="40" />
+        </a>
 
         <section class="hero">
           <div class="hero-copy">
@@ -436,19 +405,11 @@ const features = [
             <h1>{inviteHeading}</h1>
             <p>
               You're getting early access to a desktop focus system built specifically for ADHD brains.
-              No cost, no strings — just honest feedback welcome.
+              100% free. No strings. The only cost is your honest feedback.
             </p>
           </div>
 
           <aside class="hero-note">
-            <div>
-              <strong>One calm system for the work your brain keeps dropping.</strong>
-              <p>
-                This page is private, unlisted, and only meant for ADHD creators I'm personally giving
-                access to.
-              </p>
-            </div>
-
             <div class="cta-group">
               <a
                 class="cta"
@@ -459,7 +420,7 @@ const features = [
               >
                 Get Focana Free <span aria-hidden="true">&rarr;</span>
               </a>
-              <div class="microcopy">macOS · Instant download · Your honest feedback is the only price</div>
+              <div class="microcopy">macOS · Instant download</div>
             </div>
           </aside>
         </section>
@@ -467,10 +428,6 @@ const features = [
         <section aria-labelledby="friends-and-family-features">
           <div class="section-header">
             <h2 id="friends-and-family-features" class="section-title">7 coping mechanisms. One calm system.</h2>
-            <p class="section-copy">
-              Focana was designed around the ADHD support patterns people end up cobbling together by
-              hand, except they all live in one place instead of five separate tools.
-            </p>
           </div>
 
           <div class="features-grid">
