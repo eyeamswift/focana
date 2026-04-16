@@ -334,14 +334,12 @@ const features = [
       }
 
       .closing-label {
-        display: inline-flex;
-        align-items: center;
-        margin: 0 0 22px;
-        color: var(--founder-violet);
-        font-size: 13px;
-        font-weight: 800;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
+        margin: 0 0 24px;
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(30px, 4vw, 44px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+        color: var(--warm-brown);
       }
 
       .closing-grid {
@@ -372,29 +370,32 @@ const features = [
       }
 
       .closing-copy p {
-        margin: 0 0 28px;
-        color: #24211f;
-        font-size: clamp(24px, 2.4vw, 32px);
-        line-height: 1.72;
-        letter-spacing: -0.02em;
+        margin: 0 0 18px;
+        color: var(--brown-muted);
+        font-size: 17px;
+        line-height: 1.65;
       }
 
       .closing-copy p:last-of-type {
-        margin-bottom: 34px;
+        margin-bottom: 26px;
       }
 
       .closing-signoff {
         margin: 0 0 30px;
-        font-family: 'Outfit', sans-serif;
-        font-size: clamp(24px, 2.1vw, 34px);
-        line-height: 1.2;
-        letter-spacing: -0.03em;
-        color: #6D7789;
+        font-size: 17px;
+        line-height: 1.65;
+        color: var(--warm-brown);
       }
 
       .closing-signoff strong {
-        color: #24211f;
         font-weight: 800;
+      }
+
+      .closing-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
       }
 
       .closing .microcopy {
@@ -446,14 +447,13 @@ const features = [
         }
 
         .closing-copy p {
-          font-size: 21px;
-          line-height: 1.65;
-          margin-bottom: 24px;
+          font-size: 17px;
+          margin-bottom: 18px;
         }
 
         .closing-signoff {
-          font-size: 22px;
-          margin-bottom: 26px;
+          font-size: 17px;
+          margin-bottom: 24px;
         }
 
         .section-header {
@@ -478,12 +478,7 @@ const features = [
         }
 
         .closing-copy p {
-          font-size: 18px;
-          line-height: 1.7;
-        }
-
-        .closing-signoff {
-          font-size: 19px;
+          font-size: 17px;
         }
       }
     </style>
@@ -501,6 +496,7 @@ const features = [
             <h1>{inviteHeading}</h1>
             <p>
               You're getting early access to a desktop focus system built specifically for ADHD brains.
+              <br />
               100% free. No strings. The only cost is your honest feedback.
             </p>
           </div>
@@ -555,16 +551,18 @@ const features = [
                 needed — what we needed. Tools designed specifically for neurodivergent brains.
               </p>
               <p class="closing-signoff"><strong>Justin</strong> — Founder, NeurDi Labs</p>
-              <a
-                class="cta"
-                href={`${checkoutPath}?location=footer`}
-                data-friends-checkout-trigger
-                data-checkout-location="footer"
-                aria-disabled="false"
-              >
-                Get Focana Free <span aria-hidden="true">&rarr;</span>
-              </a>
-              <div class="microcopy">macOS · Instant download</div>
+              <div class="closing-actions">
+                <a
+                  class="cta"
+                  href={`${checkoutPath}?location=footer`}
+                  data-friends-checkout-trigger
+                  data-checkout-location="footer"
+                  aria-disabled="false"
+                >
+                  Get Focana Free <span aria-hidden="true">&rarr;</span>
+                </a>
+                <div class="microcopy">macOS · Instant download</div>
+              </div>
             </div>
           </div>
           <div class="error" data-checkout-error aria-live="polite"></div>
