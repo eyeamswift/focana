@@ -185,7 +185,8 @@ const features = [
       }
 
       .eyebrow {
-        display: inline-flex;
+        display: flex;
+        width: fit-content;
         align-items: center;
         gap: 8px;
         padding: 8px 12px;
@@ -196,7 +197,7 @@ const features = [
         font-weight: 700;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        margin-bottom: 22px;
+        margin: 0 auto 22px;
       }
 
       .hero h1,
@@ -223,8 +224,12 @@ const features = [
         max-width: none;
       }
 
+      .hero-subtitle {
+        margin-bottom: 26px;
+      }
+
       .hero-brand-note {
-        margin-top: 16px;
+        margin-top: 0;
         max-width: none;
         font-size: 14px;
         line-height: 1.65;
@@ -236,10 +241,11 @@ const features = [
       }
 
       .hero-brand-link {
-        display: inline-flex;
+        display: flex;
+        width: fit-content;
         align-items: center;
         gap: 8px;
-        margin-top: 10px;
+        margin: 16px auto 0;
         color: var(--warm-brown);
         font-size: 14px;
         font-weight: 700;
@@ -576,15 +582,15 @@ const features = [
           <div class="hero-copy">
             <div class="eyebrow">Private early access</div>
             <h1>{inviteHeading}</h1>
-            <p>
+            <p class="hero-subtitle">
               You're getting early access to a desktop focus system built specifically for ADHD brains. <span class="hero-emphasis">100% free</span>. No strings. The only cost is your honest feedback.
             </p>
             <p class="hero-brand-note">
               <strong>Focana is the flagship product from NeurDi Labs</strong>, a HealthTech company
               building executive function tools for neurodivergent brains. More are on the way.
             </p>
-            <a class="hero-brand-link" href="/" aria-label="Visit the public Focana landing page">
-              Visit the public Focana landing page <span aria-hidden="true">&rarr;</span>
+            <a class="hero-brand-link" href="/" aria-label="Click here to visit the public Focana website">
+              Click here to visit the public Focana website <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
         </section>
