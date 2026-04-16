@@ -235,6 +235,21 @@ const features = [
         font-weight: 800;
       }
 
+      .hero-brand-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        color: var(--warm-brown);
+        font-size: 14px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .hero-brand-link:hover {
+        text-decoration: underline;
+      }
+
       .hero-emphasis {
         text-decoration: underline;
         text-decoration-thickness: 0.08em;
@@ -420,6 +435,46 @@ const features = [
         margin-top: 12px;
       }
 
+      .landing-bridge {
+        margin-top: 28px;
+        padding: 34px 32px;
+        background: var(--warm-brown);
+        border: 1px solid rgba(92, 64, 51, 0.22);
+        border-radius: 26px;
+        box-shadow: 0 22px 48px rgba(92, 64, 51, 0.14);
+      }
+
+      .landing-bridge h2 {
+        margin: 0 0 12px;
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(28px, 4vw, 40px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+        color: #FFF9E6;
+      }
+
+      .landing-bridge p {
+        margin: 0 0 22px;
+        max-width: 42rem;
+        color: rgba(255, 249, 230, 0.82);
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .landing-bridge-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: #FFF9E6;
+        font-size: 16px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .landing-bridge-link:hover {
+        text-decoration: underline;
+      }
+
       @media (max-width: 860px) {
         .features-grid {
           grid-template-columns: 1fr;
@@ -447,6 +502,11 @@ const features = [
 
         .closing {
           padding: 26px 22px;
+        }
+
+        .landing-bridge {
+          padding: 26px 22px;
+          border-radius: 22px;
         }
 
         .closing-grid {
@@ -523,6 +583,9 @@ const features = [
               <strong>Focana is built by NeurDi Labs</strong>, a HealthTech company building executive
               function tools for neurodivergent brains.
             </p>
+            <a class="hero-brand-link" href="/" aria-label="Visit the public Focana landing page">
+              Visit the public Focana landing page <span aria-hidden="true">&rarr;</span>
+            </a>
           </div>
         </section>
 
@@ -594,6 +657,18 @@ const features = [
             </div>
           </div>
           <div class="error" data-checkout-error aria-live="polite"></div>
+        </section>
+
+        <section class="landing-bridge" aria-labelledby="public-landing-bridge">
+          <h2 id="public-landing-bridge">Want to see the full public Focana story?</h2>
+          <p>
+            This invite page is the private short version. The main Focana landing page shows the full
+            product story, positioning, and feature walkthrough for people discovering it for the first
+            time.
+          </p>
+          <a class="landing-bridge-link" href="/" aria-label="Open the public Focana landing page">
+            Open the public landing page <span aria-hidden="true">&rarr;</span>
+          </a>
         </section>
       </main>
     ) : (
