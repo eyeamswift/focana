@@ -225,7 +225,7 @@ const features = [
       }
 
       .hero-subtitle {
-        margin-bottom: 26px;
+        margin-bottom: 40px;
       }
 
       .hero-brand-note {
@@ -354,6 +354,12 @@ const features = [
         padding: 24px 24px 22px;
       }
 
+      .features-grid .feature-card:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+        max-width: calc((100% - 18px) / 2);
+        justify-self: center;
+      }
+
       .feature-card h3 {
         font-family: 'Outfit', sans-serif;
         font-size: 22px;
@@ -442,7 +448,8 @@ const features = [
       }
 
       .landing-bridge {
-        margin-top: 28px;
+        width: min(100%, 920px);
+        margin: 28px auto 0;
         padding: 34px 32px;
         background: var(--warm-brown);
         border: 1px solid rgba(92, 64, 51, 0.22);
