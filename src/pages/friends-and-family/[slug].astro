@@ -167,7 +167,7 @@ const features = [
       }
 
       .hero {
-        margin-bottom: 24px;
+        margin-bottom: 56px;
       }
 
       .hero-copy,
@@ -225,7 +225,7 @@ const features = [
       }
 
       .hero-subtitle {
-        margin-bottom: 40px;
+        margin-bottom: 56px;
       }
 
       .hero-brand-note {
@@ -262,12 +262,11 @@ const features = [
         text-underline-offset: 0.12em;
       }
 
-      .hero-cta {
+      .hero-actions {
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 132px;
-        margin: 0 0 56px;
+        margin-top: 36px;
       }
 
       .cta-group {
@@ -508,8 +507,7 @@ const features = [
           padding: 34px 24px;
         }
 
-        .hero-cta {
-          min-height: 104px;
+        .hero {
           margin-bottom: 48px;
         }
 
@@ -599,21 +597,20 @@ const features = [
             <a class="hero-brand-link" href="/" aria-label="Click here to visit the public Focana website">
               Click here to visit the public Focana website <span aria-hidden="true">&rarr;</span>
             </a>
-          </div>
-        </section>
-
-        <section class="hero-cta" aria-label="Friends and family checkout">
-          <div class="cta-group">
-            <a
-              class="cta"
-              href={`${checkoutPath}?location=hero`}
-              data-friends-checkout-trigger
-              data-checkout-location="hero"
-              aria-disabled="false"
-            >
-              Get Focana Free <span aria-hidden="true">&rarr;</span>
-            </a>
-            <div class="microcopy">macOS · Instant download</div>
+            <div class="hero-actions">
+              <div class="cta-group">
+                <a
+                  class="cta"
+                  href={`${checkoutPath}?location=hero`}
+                  data-friends-checkout-trigger
+                  data-checkout-location="hero"
+                  aria-disabled="false"
+                >
+                  Get Focana Free <span aria-hidden="true">&rarr;</span>
+                </a>
+                <div class="microcopy">macOS · Instant download</div>
+              </div>
+            </div>
           </div>
         </section>
 
