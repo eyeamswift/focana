@@ -52,7 +52,10 @@ if (!creatorSlug) {
 }
 
 const isInviteReady = inviteState === 'ready';
-const inviteHeading = 'Welcome to the Focana family.';
+const inviteFirstName = invite?.name?.trim().split(/\s+/).filter(Boolean)[0] || null;
+const inviteHeading = inviteFirstName
+  ? `${inviteFirstName}, Welcome to the Focana family.`
+  : 'Welcome to the Focana family.';
 const inviteErrorMessage =
   invite?.status === 'claimed'
     ? 'This invite link has already been used.'
@@ -207,7 +210,9 @@ const features = [
       .hero h1 {
         font-size: clamp(40px, 6vw, 62px);
         line-height: 0.94;
-        margin: 0 0 18px;
+        margin: 0 auto 18px;
+        max-width: 14ch;
+        text-align: center;
       }
 
       .hero p {
@@ -287,8 +292,9 @@ const features = [
 
       .section-header {
         display: flex;
-        align-items: end;
-        justify-content: space-between;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
         gap: 18px;
         margin-bottom: 22px;
       }
@@ -522,7 +528,7 @@ const features = [
 
         <section aria-labelledby="friends-and-family-features">
           <div class="section-header">
-            <h2 id="friends-and-family-features" class="section-title">7 coping mechanisms. One calm system.</h2>
+            <h2 id="friends-and-family-features" class="section-title">7 Proven ADHD Coping Mechanisms. One calm desktop tool.</h2>
           </div>
 
           <div class="features-grid">
