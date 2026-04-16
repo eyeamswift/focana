@@ -1640,20 +1640,27 @@ export default function FocanaLanding() {
       </section>
 
       {/* FOUNDER STORY */}
-      <section id="founder-story" style={{ padding: "100px 0", background: "white" }}>
+      <section id="founder-story" style={{ padding: "88px 0 100px", background: "white" }}>
         <div className="section">
           <div style={{ maxWidth: "980px", margin: "0 auto" }}>
+            <h2 style={{
+              fontFamily: "'Outfit', sans-serif",
+              fontSize: "clamp(32px, 4vw, 48px)",
+              fontWeight: 800,
+              color: COLORS.warmBrown,
+              lineHeight: 1.15,
+              textAlign: "center",
+              marginBottom: "12px",
+            }}>Why We Exist</h2>
             <p style={{
               fontSize: "13px",
-              fontWeight: 800,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
+              fontWeight: 700,
               color: COLORS.deepAmber,
-              margin: "0 0 18px",
               textAlign: "center",
-            }}>
-              The Founder
-            </p>
+              marginBottom: "48px",
+              textTransform: "uppercase",
+              letterSpacing: "2px",
+            }}>Founder Story</p>
 
             <div style={{
               background: COLORS.softCream,

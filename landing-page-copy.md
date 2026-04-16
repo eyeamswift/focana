@@ -163,8 +163,11 @@ One click between any mode.
 
 ## FOUNDER STORY
 
-**Section label:**
-The Founder
+**Headline:**
+Why We Exist
+
+**Subtitle:**
+Founder Story
 
 **Founder block:**
 Founder photo
