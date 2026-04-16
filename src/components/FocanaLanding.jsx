@@ -1455,7 +1455,7 @@ export default function FocanaLanding() {
             margin: "0 auto 48px",
             textAlign: "center",
           }}>
-            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need a system that helps you do the thing you already sat down to do.
+            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need a system that anchors your attention.
           </p>
 
           <div style={{
