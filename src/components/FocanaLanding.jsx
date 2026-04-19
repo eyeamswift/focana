@@ -2555,10 +2555,10 @@ export default function FocanaLanding() {
         onClose={handleCheckoutModalClose}
         onSubmit={handleCheckoutSubmit}
         titleId="checkout-capture-title"
-        title="What email should we send your license key to?"
+        title="Enter your email to get your Focana details"
+        description="We'll use this to send your confirmation and access details."
         submitLabel="Continue to checkout →"
         loadingLabel="Continuing..."
-        footerNote="$29 lifetime · 7-day money-back guarantee"
         defaultEmail={submittedEmail}
       />
 
