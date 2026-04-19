@@ -1,5 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { buildSiteUrl } from "../lib/siteOrigin";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  EMAIL_CAPTURE_EMAIL_KEY,
+  EMAIL_CAPTURE_SUBMITTED_KEY,
+  EXIT_INTENT_DISABLED_KEY,
+  EXIT_INTENT_SESSION_KEY,
+  isValidEmail,
+  normalizeEmail,
+} from "../lib/emailCapture";
 
 const COLORS = {
   sunshineYellow: "#F59E0B",
@@ -19,6 +26,66 @@ function phCapture(event, props) {
   if (typeof window !== "undefined" && window.posthog) {
     window.posthog.capture(event, props);
   }
+}
+
+async function postEmailCapture({ email, source, keepalive = false }) {
+  const response = await fetch("/api/email-capture", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, source }),
+    keepalive,
+  });
+
+  if (!response.ok) {
+    throw new Error("Something went wrong. Please try again.");
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+function getStoredSubmittedEmail() {
+  if (typeof window === "undefined") return "";
+
+  try {
+    return window.localStorage.getItem(EMAIL_CAPTURE_EMAIL_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function hasStoredSubmittedEmail() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return Boolean(window.localStorage.getItem(EMAIL_CAPTURE_SUBMITTED_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function persistSubmittedEmailLocally(email) {
+  if (typeof window === "undefined") return;
+
+  const normalizedEmail = normalizeEmail(email);
+
+  try {
+    window.localStorage.setItem(EMAIL_CAPTURE_SUBMITTED_KEY, String(Date.now()));
+    window.localStorage.setItem(EMAIL_CAPTURE_EMAIL_KEY, normalizedEmail);
+  } catch {}
+}
+
+function buildCheckoutUrl(email) {
+  const url = new URL(CHECKOUT_URL, window.location.origin);
+  url.searchParams.set("checkout[email]", normalizeEmail(email));
+  return url.toString();
+}
+
+function isDesktopExitIntentCandidate() {
+  if (typeof window === "undefined") return false;
+  if (window.location.pathname !== "/") return false;
+  if (window.innerWidth < 768) return false;
+
+  return window.matchMedia?.("(hover: hover) and (pointer: fine)").matches ?? false;
 }
 
 // Video component supporting an interactive hero mode and ambient in-view playback.
@@ -172,11 +239,9 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
   );
 }
 
-// FAQ Item
-let faqCounter = 0;
 function FAQItem({ question, answer }) {
   const [open, setOpen] = useState(false);
-  const [id] = useState(() => `faq-${++faqCounter}`);
+  const id = useId();
   return (
     <div
       style={{
@@ -258,6 +323,267 @@ function SaasHubBadge({ location = "pricing" }) {
         }}
       />
     </a>
+  );
+}
+
+function EmailCaptureModal({
+  open,
+  onClose,
+  onSubmit,
+  titleId,
+  title,
+  description,
+  placeholder = "your@email.com",
+  submitLabel,
+  loadingLabel = "Saving...",
+  footerNote,
+  dismissLabel,
+  defaultEmail = "",
+}) {
+  const [email, setEmail] = useState(defaultEmail);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+      setTimeout(() => {
+        const input = modalRef.current?.querySelector("input");
+        if (input) input.focus();
+      }, 0);
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setEmail(defaultEmail || "");
+      setStatus("idle");
+      setErrorMsg("");
+      return;
+    }
+
+    setEmail(defaultEmail || "");
+    setStatus("idle");
+    setErrorMsg("");
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (status !== "loading") onClose("escape");
+      }
+
+      if (event.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll(
+          'button, input, [href], [tabindex]:not([tabindex="-1"])'
+        );
+
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [defaultEmail, onClose, open, status]);
+
+  const requestClose = (reason) => {
+    if (status === "loading") return;
+    onClose(reason);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!isValidEmail(normalizedEmail)) {
+      setStatus("error");
+      setErrorMsg("Please enter a valid email address.");
+      return;
+    }
+
+    setStatus("loading");
+    setErrorMsg("");
+
+    try {
+      await onSubmit(normalizedEmail);
+    } catch (error) {
+      setStatus("error");
+      setErrorMsg(error?.message || "Something went wrong. Please try again.");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div
+      onClick={() => requestClose("backdrop")}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(0,0,0,0.5)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        ref={modalRef}
+        className="modal-inner"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          position: "relative",
+          background: "white",
+          borderRadius: "20px",
+          padding: "40px",
+          maxWidth: "460px",
+          width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Close modal"
+          onClick={() => requestClose("x")}
+          style={{
+            position: "absolute",
+            top: "16px",
+            right: "16px",
+            width: "40px",
+            height: "40px",
+            borderRadius: "999px",
+            border: `1px solid ${COLORS.beigeBorder}`,
+            background: COLORS.warmVanilla,
+            color: COLORS.warmBrown,
+            cursor: "pointer",
+            fontSize: "20px",
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+
+        <h3
+          id={titleId}
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "26px",
+            fontWeight: 700,
+            color: COLORS.warmBrown,
+            marginBottom: description ? "10px" : "24px",
+            paddingRight: "40px",
+          }}
+        >
+          {title}
+        </h3>
+
+        {description ? (
+          <p
+            style={{
+              fontSize: "15px",
+              color: COLORS.coffeeBrown,
+              marginBottom: "24px",
+              lineHeight: 1.6,
+            }}
+          >
+            {description}
+          </p>
+        ) : null}
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="email"
+            placeholder={placeholder}
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="form-input"
+            style={{
+              width: "100%",
+              padding: "14px 16px",
+              fontSize: "16px",
+              border: `1.5px solid ${COLORS.beigeBorder}`,
+              borderRadius: "10px",
+              fontFamily: "'DM Sans', sans-serif",
+              color: COLORS.warmBrown,
+              marginBottom: "16px",
+            }}
+          />
+
+          {errorMsg ? (
+            <p style={{ color: "#DC2626", fontSize: "14px", marginBottom: "12px" }}>
+              {errorMsg}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            className="cta-btn"
+            disabled={status === "loading"}
+            style={{ width: "100%", justifyContent: "center", padding: "14px", fontSize: "16px" }}
+          >
+            {status === "loading" ? loadingLabel : submitLabel}
+          </button>
+        </form>
+
+        {footerNote ? (
+          <p
+            style={{
+              marginTop: "14px",
+              fontSize: "14px",
+              lineHeight: 1.5,
+              color: COLORS.coffeeBrown,
+              textAlign: "center",
+            }}
+          >
+            {footerNote}
+          </p>
+        ) : null}
+
+        {dismissLabel ? (
+          <button
+            type="button"
+            onClick={() => requestClose("dismiss-link")}
+            style={{
+              display: "block",
+              margin: "16px auto 0",
+              background: "none",
+              border: "none",
+              color: COLORS.coffeeBrown,
+              fontSize: "14px",
+              cursor: "pointer",
+              padding: "4px",
+              textDecoration: "underline",
+            }}
+          >
+            {dismissLabel}
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -638,12 +964,21 @@ export default function FocanaLanding() {
   const [productMenuOpen, setProductMenuOpen] = useState(false);
   const [mobileProductMenuOpen, setMobileProductMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
-  const [signupModalOpen, setSignupModalOpen] = useState(false);
-  const [signupLocation, setSignupLocation] = useState("hero");
-  const [checkoutError, setCheckoutError] = useState("");
+  const [exitIntentOpen, setExitIntentOpen] = useState(false);
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutLocation, setCheckoutLocation] = useState("hero");
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [hasSubmittedEmail, setHasSubmittedEmail] = useState(false);
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterStatus, setNewsletterStatus] = useState("idle");
+  const [newsletterError, setNewsletterError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
   const productMenuRef = useRef(null);
-  const checkoutReadyPromiseRef = useRef(null);
-  const checkoutErrorTimeoutRef = useRef(null);
+  const toastTimeoutRef = useRef(null);
+  const exitIntentSubmittedRef = useRef(false);
+  const checkoutSubmittedRef = useRef(false);
+  const exitIntentMouseRef = useRef({ y: null, time: 0, velocity: 0 });
+  const newsletterShownRef = useRef(false);
 
   useEffect(() => {
     let rafId = 0;
@@ -662,76 +997,25 @@ export default function FocanaLanding() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (checkoutErrorTimeoutRef.current) {
-        window.clearTimeout(checkoutErrorTimeoutRef.current);
-      }
-    };
+    const storedEmail = getStoredSubmittedEmail();
+    setSubmittedEmail(storedEmail);
+    setHasSubmittedEmail(hasStoredSubmittedEmail());
+    if (storedEmail) {
+      setNewsletterEmail(storedEmail);
+    }
   }, []);
 
-  // Lemon Squeezy checkout success → redirect to download page
   useEffect(() => {
-    const getCheckoutSuccessContext = (event) => {
-      const payload = event?.data || {};
-      const nestedOrder = payload.order || {};
-      const attributes = payload.attributes || nestedOrder.attributes || {};
+    if (!submittedEmail) return;
+    setNewsletterEmail((currentEmail) => currentEmail || submittedEmail);
+  }, [submittedEmail]);
 
-      const email =
-        payload.user_email ||
-        attributes.user_email ||
-        nestedOrder.user_email ||
-        "";
-
-      const orderId =
-        payload.id ||
-        payload.order_id ||
-        nestedOrder.id ||
-        nestedOrder.order_id ||
-        "";
-
-      return {
-        email: email ? String(email).trim() : "",
-        orderId: orderId ? String(orderId).trim() : "",
-      };
-    };
-
-    const setupLS = () => {
-      if (window.LemonSqueezy) {
-        window.LemonSqueezy.Setup({
-          eventHandler: (event) => {
-            if (event.event === "Checkout.Success") {
-              const { email, orderId } = getCheckoutSuccessContext(event);
-              phCapture("purchase_completed", { email, order_id: orderId });
-              try {
-                window.sessionStorage.setItem(
-                  "focana_purchase_context",
-                  JSON.stringify({ email, orderId })
-                );
-              } catch {}
-              window.location.href = buildSiteUrl("/download", {
-                email,
-                order_id: orderId,
-              }, window.location.origin).toString();
-            }
-            if (event.event === "Checkout.Open") {
-              phCapture("checkout_opened");
-            }
-          },
-        });
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        window.clearTimeout(toastTimeoutRef.current);
       }
     };
-    // LemonJS may already be loaded or may load later
-    if (window.LemonSqueezy) {
-      setupLS();
-    } else {
-      window.addEventListener("lemon:ready", setupLS);
-      // Fallback: poll briefly in case the ready event already fired
-      const t = setTimeout(setupLS, 2000);
-      return () => {
-        window.removeEventListener("lemon:ready", setupLS);
-        clearTimeout(t);
-      };
-    }
   }, []);
 
   // Scroll depth tracking (25%, 50%, 75%, 100%)
@@ -758,6 +1042,7 @@ export default function FocanaLanding() {
   useEffect(() => {
     const sections = {
       features: "Features",
+      "newsletter-cta": "Newsletter",
       pricing: "Pricing",
       faq: "FAQ",
       "who-its-for": "Who It's For",
@@ -778,6 +1063,27 @@ export default function FocanaLanding() {
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     }
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const section = document.getElementById("newsletter-cta");
+    if (!section || newsletterShownRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !newsletterShownRef.current) {
+            newsletterShownRef.current = true;
+            phCapture("newsletter_cta_shown");
+            observer.disconnect();
+          }
+        }
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(section);
     return () => observer.disconnect();
   }, []);
 
@@ -821,82 +1127,177 @@ export default function FocanaLanding() {
     };
   }, [productMenuOpen]);
 
+  useEffect(() => {
+    if (!isDesktopExitIntentCandidate()) return;
+    if (hasSubmittedEmail || exitIntentOpen || checkoutModalOpen) return;
+
+    try {
+      if (
+        window.sessionStorage.getItem(EXIT_INTENT_SESSION_KEY) ||
+        window.sessionStorage.getItem(EXIT_INTENT_DISABLED_KEY)
+      ) {
+        return;
+      }
+    } catch {}
+
+    const handleMouseMove = (event) => {
+      const now = Date.now();
+      const previous = exitIntentMouseRef.current;
+
+      if (typeof previous.y === "number") {
+        const deltaY = event.clientY - previous.y;
+        const deltaTime = Math.max(now - previous.time, 1);
+        exitIntentMouseRef.current.velocity = deltaY / deltaTime;
+      }
+
+      exitIntentMouseRef.current.y = event.clientY;
+      exitIntentMouseRef.current.time = now;
+    };
+
+    const handleMouseOut = (event) => {
+      if (event.relatedTarget || event.toElement) return;
+      if (hasStoredSubmittedEmail()) return;
+
+      try {
+        if (
+          window.sessionStorage.getItem(EXIT_INTENT_SESSION_KEY) ||
+          window.sessionStorage.getItem(EXIT_INTENT_DISABLED_KEY)
+        ) {
+          return;
+        }
+      } catch {}
+
+      const snapshot = exitIntentMouseRef.current;
+      const movedUpFast =
+        typeof snapshot.y === "number" &&
+        snapshot.y <= 72 &&
+        snapshot.velocity < -0.25;
+
+      if (event.clientY > 0 || !movedUpFast) return;
+
+      try {
+        window.sessionStorage.setItem(EXIT_INTENT_SESSION_KEY, String(Date.now()));
+      } catch {}
+
+      exitIntentSubmittedRef.current = false;
+      setExitIntentOpen(true);
+      phCapture("exit_intent_shown");
+    };
+
+    document.addEventListener("mousemove", handleMouseMove, { passive: true });
+    document.addEventListener("mouseout", handleMouseOut);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseout", handleMouseOut);
+    };
+  }, [checkoutModalOpen, exitIntentOpen, hasSubmittedEmail]);
+
   const navOpacity = Math.min(scrollY / 200, 1);
 
-  const showCheckoutError = (message) => {
-    if (checkoutErrorTimeoutRef.current) {
-      window.clearTimeout(checkoutErrorTimeoutRef.current);
+  const showToast = (message) => {
+    if (toastTimeoutRef.current) {
+      window.clearTimeout(toastTimeoutRef.current);
     }
 
-    setCheckoutError(message);
-    checkoutErrorTimeoutRef.current = window.setTimeout(() => {
-      setCheckoutError("");
-      checkoutErrorTimeoutRef.current = null;
+    setToastMessage(message);
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToastMessage("");
+      toastTimeoutRef.current = null;
     }, 5000);
   };
 
-  const waitForCheckoutOverlay = () => {
-    if (window.LemonSqueezy?.Url?.Open) {
-      return Promise.resolve(window.LemonSqueezy);
-    }
-
-    if (checkoutReadyPromiseRef.current) {
-      return checkoutReadyPromiseRef.current;
-    }
-
-    checkoutReadyPromiseRef.current = new Promise((resolve, reject) => {
-      let pollId = null;
-      let timeoutId = null;
-
-      const cleanup = () => {
-        window.removeEventListener("lemon:ready", handleReady);
-        if (pollId) window.clearInterval(pollId);
-        if (timeoutId) window.clearTimeout(timeoutId);
-        checkoutReadyPromiseRef.current = null;
-      };
-
-      const finish = (callback) => {
-        cleanup();
-        callback();
-      };
-
-      const tryResolve = () => {
-        if (!window.LemonSqueezy?.Url?.Open) return false;
-        finish(() => resolve(window.LemonSqueezy));
-        return true;
-      };
-
-      const handleReady = () => {
-        tryResolve();
-      };
-
-      window.addEventListener("lemon:ready", handleReady);
-      pollId = window.setInterval(() => {
-        tryResolve();
-      }, 100);
-      timeoutId = window.setTimeout(() => {
-        finish(() => reject(new Error("Lemon checkout overlay did not become available in time.")));
-      }, 4000);
-
-      tryResolve();
-    });
-
-    return checkoutReadyPromiseRef.current;
+  const rememberSubmittedEmail = (email) => {
+    persistSubmittedEmailLocally(email);
+    const normalizedEmail = normalizeEmail(email);
+    setSubmittedEmail(normalizedEmail);
+    setHasSubmittedEmail(true);
+    setNewsletterEmail((currentEmail) => currentEmail || normalizedEmail);
   };
 
-  const openCheckout = async (location) => {
-    phCapture("cta_clicked", { location });
-    setCheckoutError("");
+  const handleExitIntentClose = (reason) => {
+    setExitIntentOpen(false);
+
+    if (!exitIntentSubmittedRef.current) {
+      phCapture("exit_intent_dismissed", { reason });
+    }
+
+    exitIntentSubmittedRef.current = false;
+  };
+
+  const handleCheckoutModalClose = (reason) => {
+    setCheckoutModalOpen(false);
+
+    if (!checkoutSubmittedRef.current) {
+      phCapture("cta_modal_dismissed", { location: checkoutLocation, reason });
+    }
+
+    checkoutSubmittedRef.current = false;
+  };
+
+  const handleExitIntentSubmit = async (email) => {
+    await postEmailCapture({ email, source: "exit-intent" });
+    exitIntentSubmittedRef.current = true;
+    rememberSubmittedEmail(email);
+    phCapture("exit_intent_submitted");
+    setExitIntentOpen(false);
+    showToast("You're on the list. Check your inbox.");
+  };
+
+  const handleCheckoutSubmit = async (email) => {
+    checkoutSubmittedRef.current = true;
+    rememberSubmittedEmail(email);
+    phCapture("cta_modal_submitted", { location: checkoutLocation });
+    setCheckoutModalOpen(false);
+
+    void postEmailCapture({
+      email,
+      source: "checkout-started",
+      keepalive: true,
+    }).catch((error) => {
+      console.error("Checkout email capture failed:", error);
+    });
+
+    window.location.assign(buildCheckoutUrl(email));
+  };
+
+  const handleNewsletterSubmit = async (event) => {
+    event.preventDefault();
+
+    const normalizedEmail = normalizeEmail(newsletterEmail);
+
+    if (!isValidEmail(normalizedEmail)) {
+      setNewsletterStatus("error");
+      setNewsletterError("Please enter a valid email address.");
+      return;
+    }
+
+    setNewsletterStatus("loading");
+    setNewsletterError("");
 
     try {
-      const lemon = await waitForCheckoutOverlay();
-      lemon.Url.Open(CHECKOUT_URL);
-      phCapture("checkout_opened", { location });
+      await postEmailCapture({ email: normalizedEmail, source: "newsletter-cta" });
+      rememberSubmittedEmail(normalizedEmail);
+      setNewsletterStatus("success");
+      phCapture("newsletter_cta_submitted");
     } catch (error) {
-      console.error("Failed to open Lemon overlay:", error);
-      phCapture("checkout_open_failed", { location });
-      showCheckoutError("Checkout is still loading. Please try again.");
+      setNewsletterStatus("error");
+      setNewsletterError(error?.message || "Something went wrong. Please try again.");
     }
+  };
+
+  const openCheckout = (location) => {
+    phCapture("cta_clicked", { location });
+    checkoutSubmittedRef.current = false;
+    setCheckoutLocation(location);
+    setCheckoutModalOpen(true);
+    try {
+      window.sessionStorage.setItem(EXIT_INTENT_DISABLED_KEY, String(Date.now()));
+    } catch {}
+    phCapture("cta_modal_shown", {
+      location,
+      prefilled_email: Boolean(submittedEmail),
+    });
   };
 
   return (
@@ -964,6 +1365,18 @@ export default function FocanaLanding() {
           box-shadow: 0 12px 40px rgba(92, 64, 51, 0.1);
           border-color: ${COLORS.sunshineYellow};
         }
+        .newsletter-layout {
+          display: flex;
+          gap: 28px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .newsletter-copy {
+          flex: 1 1 320px;
+        }
+        .newsletter-form-wrap {
+          flex: 0 1 380px;
+        }
         .form-input {
           outline: none;
         }
@@ -1008,7 +1421,7 @@ export default function FocanaLanding() {
           .hamburger-btn { display: flex !important; }
           .sticky-note { display: none !important; }
           .floating-chip { display: none !important; }
-          .download-toast {
+          .capture-toast {
             left: 16px !important;
             right: 16px !important;
             bottom: 16px !important;
@@ -1021,6 +1434,13 @@ export default function FocanaLanding() {
           }
           .hero-split {
             flex-direction: column !important;
+          }
+          .newsletter-layout {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .newsletter-form-wrap {
+            width: 100% !important;
           }
           .cta-btn {
             padding: 14px 24px !important;
@@ -1055,8 +1475,9 @@ export default function FocanaLanding() {
         }
       `}</style>
 
-      {checkoutError ? (
+      {toastMessage ? (
         <div
+          className="capture-toast"
           role="status"
           aria-live="polite"
           style={{
@@ -1076,7 +1497,7 @@ export default function FocanaLanding() {
             lineHeight: 1.5,
           }}
         >
-          {checkoutError}
+          {toastMessage}
         </div>
       ) : null}
 
@@ -1829,6 +2250,132 @@ export default function FocanaLanding() {
         </div>
       </section>
 
+      {/* NEWSLETTER CTA */}
+      <section id="newsletter-cta" style={{ padding: "88px 0", background: COLORS.warmVanilla }}>
+        <div className="section" style={{ maxWidth: "980px" }}>
+          <div
+            style={{
+              background: `linear-gradient(135deg, ${COLORS.softCream}, rgba(254, 243, 199, 0.36))`,
+              border: `1px solid ${COLORS.beigeBorder}`,
+              borderRadius: "24px",
+              padding: "32px",
+              boxShadow: "0 14px 36px rgba(92, 64, 51, 0.08)",
+            }}
+          >
+            <div className="newsletter-layout">
+              <div className="newsletter-copy">
+                <p
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: COLORS.deepAmber,
+                    textTransform: "uppercase",
+                    letterSpacing: "2px",
+                    marginBottom: "14px",
+                  }}
+                >
+                  Weekly-ish updates
+                </p>
+                <h2
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "clamp(28px, 4vw, 40px)",
+                    fontWeight: 800,
+                    color: COLORS.warmBrown,
+                    lineHeight: 1.15,
+                    marginBottom: "14px",
+                  }}
+                >
+                  Still deciding?
+                </h2>
+                <p style={{ fontSize: "17px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
+                  I&apos;m an ADHD founder building Focana in public. Drop your email for weekly-ish
+                  updates on the work — honest, not pitchy.
+                </p>
+              </div>
+
+              <div className="newsletter-form-wrap">
+                {newsletterStatus === "success" ? (
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.72)",
+                      borderRadius: "18px",
+                      border: `1px solid ${COLORS.beigeBorder}`,
+                      padding: "24px",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "22px",
+                        fontWeight: 700,
+                        color: COLORS.warmBrown,
+                        marginBottom: "8px",
+                      }}
+                    >
+                      You&apos;re on the list.
+                    </p>
+                    <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
+                      Check your inbox.
+                    </p>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={handleNewsletterSubmit}
+                    style={{
+                      background: "rgba(255,255,255,0.72)",
+                      borderRadius: "18px",
+                      border: `1px solid ${COLORS.beigeBorder}`,
+                      padding: "24px",
+                    }}
+                  >
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      required
+                      value={newsletterEmail}
+                      onChange={(event) => {
+                        setNewsletterEmail(event.target.value);
+                        if (newsletterStatus === "error") {
+                          setNewsletterStatus("idle");
+                          setNewsletterError("");
+                        }
+                      }}
+                      className="form-input"
+                      style={{
+                        width: "100%",
+                        padding: "14px 16px",
+                        fontSize: "16px",
+                        border: `1.5px solid ${COLORS.beigeBorder}`,
+                        borderRadius: "10px",
+                        fontFamily: "'DM Sans', sans-serif",
+                        color: COLORS.warmBrown,
+                        marginBottom: "14px",
+                      }}
+                    />
+
+                    {newsletterError ? (
+                      <p style={{ color: "#DC2626", fontSize: "14px", marginBottom: "12px" }}>
+                        {newsletterError}
+                      </p>
+                    ) : null}
+
+                    <button
+                      type="submit"
+                      className="cta-btn"
+                      disabled={newsletterStatus === "loading"}
+                      style={{ width: "100%", justifyContent: "center" }}
+                    >
+                      {newsletterStatus === "loading" ? "Saving..." : "Keep me posted"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* PRICING */}
       <section id="pricing" style={{ padding: "100px 0", background: "white" }}>
         <div className="section" style={{ maxWidth: "720px" }}>
@@ -1991,7 +2538,29 @@ export default function FocanaLanding() {
       </section>
 
       <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
-      <WaitlistSignupModal open={signupModalOpen} onClose={() => setSignupModalOpen(false)} location={signupLocation} />
+      <EmailCaptureModal
+        open={exitIntentOpen}
+        onClose={handleExitIntentClose}
+        onSubmit={handleExitIntentSubmit}
+        titleId="exit-intent-title"
+        title="Stay in the loop"
+        description="Weekly-ish notes from the ADHD founder building Focana — honest updates, not pitches."
+        submitLabel="Keep me posted"
+        loadingLabel="Saving..."
+        dismissLabel="No thanks"
+        defaultEmail={submittedEmail}
+      />
+      <EmailCaptureModal
+        open={checkoutModalOpen}
+        onClose={handleCheckoutModalClose}
+        onSubmit={handleCheckoutSubmit}
+        titleId="checkout-capture-title"
+        title="What email should we send your license key to?"
+        submitLabel="Continue to checkout →"
+        loadingLabel="Continuing..."
+        footerNote="$29 lifetime · 7-day money-back guarantee"
+        defaultEmail={submittedEmail}
+      />
 
       {/* FOOTER */}
       <footer style={{ padding: "48px 0", background: COLORS.softBlack, borderTop: `1px solid ${COLORS.warmBrown}22` }}>

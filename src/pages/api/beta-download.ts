@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+
+import { createLoopsContact } from '../../lib/loops';
 import { hasJsonContentType, isTrustedOrigin } from '../../lib/requestSecurity';
 
 export const prerender = false;
@@ -76,16 +78,9 @@ export const POST: APIRoute = async ({ request }) => {
     // Post to Loops API
     if (loopsApiKey) {
       try {
-        await fetch('https://app.loops.so/api/v1/contacts/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${loopsApiKey}`,
-          },
-          body: JSON.stringify({
-            email,
-            source: 'beta_download',
-          }),
+        await createLoopsContact(loopsApiKey, {
+          email,
+          source: 'beta_download',
         });
       } catch (loopsErr) {
         // Log but don't fail the request if Loops fails
