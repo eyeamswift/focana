@@ -966,6 +966,7 @@ export default function FocanaLanding() {
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [exitIntentOpen, setExitIntentOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutRedirecting, setCheckoutRedirecting] = useState(false);
   const [checkoutLocation, setCheckoutLocation] = useState("hero");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [hasSubmittedEmail, setHasSubmittedEmail] = useState(false);
@@ -1249,6 +1250,7 @@ export default function FocanaLanding() {
     rememberSubmittedEmail(email);
     phCapture("cta_modal_submitted", { location: checkoutLocation });
     setCheckoutModalOpen(false);
+    setCheckoutRedirecting(true);
 
     void postEmailCapture({
       email,
@@ -1258,7 +1260,15 @@ export default function FocanaLanding() {
       console.error("Checkout email capture failed:", error);
     });
 
-    window.location.assign(buildCheckoutUrl(email));
+    const redirectUrl = buildCheckoutUrl(email);
+
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        window.setTimeout(resolve, 180);
+      });
+    });
+
+    window.location.assign(redirectUrl);
   };
 
   const handleNewsletterSubmit = async (event) => {
@@ -1310,6 +1320,7 @@ export default function FocanaLanding() {
         @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); } 70% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes headlineFade { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .section { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
         .cta-btn {
           background: ${COLORS.sunshineYellow};
@@ -1498,6 +1509,64 @@ export default function FocanaLanding() {
           }}
         >
           {toastMessage}
+        </div>
+      ) : null}
+
+      {checkoutRedirecting ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 140,
+            background: "rgba(31, 31, 31, 0.38)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "420px",
+              background: "rgba(255, 254, 248, 0.98)",
+              border: `1px solid ${COLORS.beigeBorder}`,
+              borderRadius: "24px",
+              padding: "28px",
+              boxShadow: "0 20px 60px rgba(31, 31, 31, 0.18)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                width: "42px",
+                height: "42px",
+                margin: "0 auto 18px",
+                borderRadius: "999px",
+                border: `3px solid ${COLORS.beigeBorder}`,
+                borderTopColor: COLORS.deepAmber,
+                animation: "spin 0.9s linear infinite",
+              }}
+            />
+            <p
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: "24px",
+                fontWeight: 700,
+                color: COLORS.warmBrown,
+                marginBottom: "10px",
+              }}
+            >
+              Opening secure checkout...
+            </p>
+            <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
+              Taking you to Lemon Squeezy now.
+            </p>
+          </div>
         </div>
       ) : null}
 
