@@ -520,11 +520,13 @@
       }
 
       body[data-mode='timer'] #icon-image,
+      body[data-mode='break-timer'] #icon-image,
       body[data-mode='prompt'] #icon-image {
         display: none;
       }
 
-      body[data-mode='timer'] #timer-pill {
+      body[data-mode='timer'] #timer-pill,
+      body[data-mode='break-timer'] #timer-pill {
         display: inline-flex;
       }
 
@@ -537,11 +539,13 @@
         display: block;
       }
 
-      body[data-mode='timer'] #icon-button {
+      body[data-mode='timer'] #icon-button,
+      body[data-mode='break-timer'] #icon-button {
         border-radius: 9999px;
       }
 
-      body[data-mode='timer'] #icon-button:hover #timer-pill {
+      body[data-mode='timer'] #icon-button:hover #timer-pill,
+      body[data-mode='break-timer'] #icon-button:hover #timer-pill {
         box-shadow: 0 14px 30px rgba(117, 74, 34, 0.24);
         border-color: color-mix(in srgb, var(--timer-pill-border) 55%, rgba(245, 158, 11, 0.45));
       }
@@ -918,7 +922,9 @@
           ? 'prompt'
           : state && state.mode === 'timer'
             ? 'timer'
-            : 'icon';
+            : state && state.mode === 'break-timer'
+              ? 'break-timer'
+              : 'icon';
         const nextTheme = state && state.theme === 'dark' ? 'dark' : 'light';
         currentRunning = state?.running !== false;
         currentMode = nextMode;
@@ -956,7 +962,14 @@
         currentPromptKey = null;
         currentPromptStrongActive = false;
         hideTimerControls();
-        iconButton.setAttribute('aria-label', nextMode === 'timer' ? `Expand Focana timer ${nextTimeText}` : 'Expand Focana');
+        iconButton.setAttribute(
+          'aria-label',
+          nextMode === 'timer'
+            ? `Expand Focana timer ${nextTimeText}`
+            : nextMode === 'break-timer'
+              ? `Expand Focana break timer ${nextTimeText}`
+              : 'Expand Focana',
+        );
         renderPrompt();
       }
 

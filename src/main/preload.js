@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkInAdd: (data) => ipcRenderer.invoke('checkin:add', data),
   checkInGetBySession: (sessionId) => ipcRenderer.invoke('checkin:getBySession', sessionId),
   checkInUpdate: (id, updates) => ipcRenderer.invoke('checkin:update', id, updates),
+  setCheckInShortcutState: (state) => ipcRenderer.send('set-checkin-shortcut-state', state),
+  onScopedCheckInShortcut: (callback) => {
+    const handler = (_event, action) => callback(action);
+    ipcRenderer.on('scoped-checkin-shortcut', handler);
+    return () => ipcRenderer.removeListener('scoped-checkin-shortcut', handler);
+  },
 
   // Do Not Disturb — tray ↔ renderer sync
   onDndToggle: (callback) => {
@@ -113,6 +119,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Floating pulse (renderer-driven timing)
   triggerFloatingPulse: () => ipcRenderer.send('trigger-floating-pulse'),
   setFloatingReentryState: (state) => ipcRenderer.send('set-floating-reentry-state', state),
+  setFloatingBreakState: (state) => ipcRenderer.send('set-floating-break-state', state),
 
   // Pill drag (JS-based — CSS drag regions block mouse events)
   pillDragStart: () => ipcRenderer.send('pill-drag-start'),

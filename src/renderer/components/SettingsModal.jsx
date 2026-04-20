@@ -12,7 +12,7 @@ const DEFAULT_SHORTCUTS = {
   newTask: 'CommandOrControl+N',
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
-  openParkingLot: 'CommandOrControl+Shift+L',
+  openParkingLot: 'CommandOrControl+Shift+N',
 };
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || '');

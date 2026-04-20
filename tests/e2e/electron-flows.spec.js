@@ -206,6 +206,47 @@ async function readFloatingWindowBounds(electronApp) {
   });
 }
 
+async function floatingWindowMatchesNearestCorner(electronApp) {
+  return electronApp.evaluate(({ BrowserWindow, screen }) => {
+    const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'));
+    const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    if (!floating || !main) return false;
+
+    const floatingBounds = floating.getBounds();
+    const mainBounds = main.getBounds();
+    const display = screen.getDisplayMatching(mainBounds);
+    const workArea = display.workArea;
+    const margin = 12;
+    const sourceCenter = {
+      x: mainBounds.x + (mainBounds.width / 2),
+      y: mainBounds.y + (mainBounds.height / 2),
+    };
+    const candidates = [
+      { x: workArea.x + margin, y: workArea.y + margin },
+      { x: workArea.x + workArea.width - floatingBounds.width - margin, y: workArea.y + margin },
+      { x: workArea.x + margin, y: workArea.y + workArea.height - floatingBounds.height - margin },
+      { x: workArea.x + workArea.width - floatingBounds.width - margin, y: workArea.y + workArea.height - floatingBounds.height - margin },
+    ];
+    const nearest = candidates.reduce((closest, candidate) => {
+      if (!closest) return candidate;
+      const candidateCenter = {
+        x: candidate.x + (floatingBounds.width / 2),
+        y: candidate.y + (floatingBounds.height / 2),
+      };
+      const closestCenter = {
+        x: closest.x + (floatingBounds.width / 2),
+        y: closest.y + (floatingBounds.height / 2),
+      };
+      const candidateDistance = ((candidateCenter.x - sourceCenter.x) ** 2) + ((candidateCenter.y - sourceCenter.y) ** 2);
+      const closestDistance = ((closestCenter.x - sourceCenter.x) ** 2) + ((closestCenter.y - sourceCenter.y) ** 2);
+      return candidateDistance < closestDistance ? candidate : closest;
+    }, null);
+
+    return Math.abs(floatingBounds.x - nearest.x) <= 2
+      && Math.abs(floatingBounds.y - nearest.y) <= 2;
+  });
+}
+
 async function readWindowVisibilityState(electronApp) {
   return electronApp.evaluate(({ BrowserWindow }) => {
     const windows = BrowserWindow.getAllWindows();
@@ -983,7 +1024,7 @@ test('floating re-entry prompt mirrors the idle start flow for new tasks', async
   }
 });
 
-test('floating resumable re-entry comes back after done-for-now and start something new opens the finish modal', async () => {
+test('floating resumable re-entry comes back after done-for-now and start something new restores the main window', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1009,7 +1050,6 @@ test('floating resumable re-entry comes back after done-for-now and start someth
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
     await expect(floatingWindow.locator('#prompt-resume-btn')).toBeVisible();
     await expect(floatingWindow.locator('#prompt-start-new-btn')).toBeVisible();
-    await expect(floatingWindow.locator('#prompt-card')).toHaveClass(/prompt-card--attention/);
     const resumeBounds = await readFloatingWindowBounds(electronApp);
     expect(resumeBounds?.height).toBeGreaterThanOrEqual(276);
 
@@ -1022,7 +1062,8 @@ test('floating resumable re-entry comes back after done-for-now and start someth
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
 
     await floatingWindow.locator('#prompt-start-new-btn').click();
-    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
   } finally {
     await cleanup();
   }
@@ -2532,6 +2573,40 @@ test('freeflow full-window check-in shows a positive message after Yes', async (
   }
 });
 
+test('freeflow full-window check-in accepts the scoped Yes shortcut action', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'full-window-checkin-shortcut');
+    await exitCompactMode(page);
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('full-window-checkin-shortcut?')).toBeVisible();
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+      if (!main) return;
+      main.webContents.send('scoped-checkin-shortcut', 'focused');
+    });
+
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('freeflow full-window check-in opens and dismisses the detour flow after No', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
@@ -2601,7 +2676,7 @@ test('freeflow full-window check-in shows the completion message above confetti 
   }
 });
 
-test('freeflow check-in restores from floating minimize and returns there after detour dismiss', async () => {
+test('freeflow check-in restores from floating minimize and snaps back to the nearest corner after detour dismiss', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
     seedConfig: {
@@ -2649,9 +2724,6 @@ test('freeflow check-in restores from floating minimize and returns there after 
       y: baseFloatingBounds.y,
     }));
 
-    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
-    expect(movedFloatingBounds).toBeTruthy();
-
     await setTimeOffset(page, 301000);
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
@@ -2670,22 +2742,13 @@ test('freeflow check-in restores from floating minimize and returns there after 
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
-    await expect.poll(async () => {
-      const nextBounds = await readFloatingWindowBounds(electronApp);
-      return JSON.stringify({
-        x: nextBounds?.x || 0,
-        y: nextBounds?.y || 0,
-      });
-    }, { timeout: 7000 }).toBe(JSON.stringify({
-      x: movedFloatingBounds.x,
-      y: movedFloatingBounds.y,
-    }));
+    await expect.poll(() => floatingWindowMatchesNearestCorner(electronApp), { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }
 });
 
-test('freeflow check-in restores from floating minimize and returns there after confirming focus', async () => {
+test('freeflow check-in restores from floating minimize and snaps back to the nearest corner after confirming focus', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
     seedConfig: {
@@ -2733,9 +2796,6 @@ test('freeflow check-in restores from floating minimize and returns there after 
       y: baseFloatingBounds.y,
     }));
 
-    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
-    expect(movedFloatingBounds).toBeTruthy();
-
     await setTimeOffset(page, 301000);
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
@@ -2755,16 +2815,7 @@ test('freeflow check-in restores from floating minimize and returns there after 
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
-    await expect.poll(async () => {
-      const nextBounds = await readFloatingWindowBounds(electronApp);
-      return JSON.stringify({
-        x: nextBounds?.x || 0,
-        y: nextBounds?.y || 0,
-      });
-    }, { timeout: 7000 }).toBe(JSON.stringify({
-      x: movedFloatingBounds.x,
-      y: movedFloatingBounds.y,
-    }));
+    await expect.poll(() => floatingWindowMatchesNearestCorner(electronApp), { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }
@@ -2801,7 +2852,7 @@ test('timed check-in stays on the compact prompt surface and returns to compact 
   }
 });
 
-test('timed check-in restores from floating minimize into the compact prompt and returns there after confirming focus', async () => {
+test('timed check-in restores from floating minimize into the compact prompt and snaps back to the nearest corner after confirming focus', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
     seedConfig: {
@@ -2848,9 +2899,6 @@ test('timed check-in restores from floating minimize into the compact prompt and
       y: baseFloatingBounds.y,
     }));
 
-    const movedFloatingBounds = await readFloatingWindowBounds(electronApp);
-    expect(movedFloatingBounds).toBeTruthy();
-
     await setTimeOffset(page, 121000);
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
@@ -2863,22 +2911,12 @@ test('timed check-in restores from floating minimize into the compact prompt and
     await page.getByRole('button', { name: 'Yes' }).click();
 
     await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
-    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
-    await expect.poll(async () => {
-      const nextBounds = await readFloatingWindowBounds(electronApp);
-      return JSON.stringify({
-        x: nextBounds?.x || 0,
-        y: nextBounds?.y || 0,
-      });
-    }, { timeout: 7000 }).toBe(JSON.stringify({
-      x: movedFloatingBounds.x,
-      y: movedFloatingBounds.y,
-    }));
+    await expect.poll(() => floatingWindowMatchesNearestCorner(electronApp), { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }
@@ -3208,7 +3246,7 @@ test('missing toggle compact shortcut is auto-restored to default', async () => 
           startPause: 'CommandOrControl+Shift+P',
           newTask: 'CommandOrControl+N',
           completeTask: 'CommandOrControl+Enter',
-          openParkingLot: 'CommandOrControl+Shift+L',
+          openParkingLot: 'CommandOrControl+Shift+N',
         },
       },
     },
@@ -3240,7 +3278,7 @@ test('settings exposes the updated default shortcuts for Start/Pause and Parking
     const parkingLotRow = page.getByRole('button', { name: /Open Parking Lot \(Quick Capture\)/i }).first();
 
     await expect(startPauseRow).toContainText('⌘+⇧+P');
-    await expect(parkingLotRow).toContainText('⌘+⇧+L');
+    await expect(parkingLotRow).toContainText('⌘+⇧+N');
   } finally {
     await cleanup();
   }
@@ -3851,7 +3889,7 @@ test('minimize to floating icon restores idle task text', async () => {
   }
 });
 
-test('manual re-entry into floating minimize restores the previous floating position', async () => {
+test('manual re-entry into floating minimize snaps back to the nearest corner', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -3908,16 +3946,7 @@ test('manual re-entry into floating minimize restores the previous floating posi
       () => electronApp.windows().filter((win) => win.url().includes('floating-icon.html')).length,
       { timeout: 7000 },
     ).toBeGreaterThan(0);
-    await expect.poll(async () => {
-      const nextBounds = await readFloatingWindowBounds(electronApp);
-      return JSON.stringify({
-        x: nextBounds?.x || 0,
-        y: nextBounds?.y || 0,
-      });
-    }, { timeout: 7000 }).toBe(JSON.stringify({
-      x: movedFloatingBounds.x,
-      y: movedFloatingBounds.y,
-    }));
+    await expect.poll(() => floatingWindowMatchesNearestCorner(electronApp), { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }

@@ -85,6 +85,16 @@
 - Notes: Complete the existing floating re-entry prompt behavior before adding new timer modes. Escape and click-away should snooze for `10 minutes`, choosing a snooze should collapse immediately back to the icon, and the window sizing/animation should feel clean through every prompt stage.
 - Commits: —
 
+### WIN-008 — Floating logo should not pulse while re-entry is snoozed
+- Priority: Medium
+- Status: Later
+- Version: 1.5.0
+- Why it matters: Snooze is supposed to buy quiet time. If the floating logo keeps pulsing anyway, the app feels like it ignored the user’s choice and the snooze becomes hard to trust.
+- Files: `src/renderer/App.jsx`, `src/main/main.js`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-006`, `UX-007A`
+- Notes: Treat this as a bug, not a new cue design. When re-entry is snoozed, suppress both the floating prompt and the floating logo pulse until the snooze expires or the user explicitly reopens the app. Acceptance should verify that choosing any snooze option collapses back to the icon without follow-up pulse animations during the snooze window.
+- Commits: —
+
 ### UX-007B — Floating re-entry should support Pomodoro as a first-class start mode
 - Priority: Medium
 - Status: Later
@@ -183,6 +193,16 @@
 - Files: `src/main/main.js`, `src/main/store.js`, `src/renderer/components/SettingsModal.jsx`, note/history surfaces
 - Related: `UX-011`, `NOTE-001`
 - Notes: First pass should support saving session notes and `Save for Later` notes as `.md` files in a user-chosen folder, with a predictable filename and enough metadata to be useful outside the app. Avoid silent duplicate exports, make the destination easy to find, and keep the export model simple before adding richer sync or external workspace integrations.
+- Commits: —
+
+### HIST-001 — Session history should auto-archive older entries locally
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: Long session history should stay useful without turning the live history view into a giant scroll or forcing users to manually delete old sessions just to keep the app feeling tidy.
+- Files: `src/main/store.js`, `src/renderer/adapters/store.js`, `src/renderer/components/HistoryModal.jsx`, `src/renderer/components/SettingsModal.jsx`
+- Related: `UX-003`, `ANA-001`
+- Notes: Treat this as local archiving, not silent destructive cleanup. First pass should keep a recent working set visible in Session History, move older entries into a locally stored archive, and give the user a simple retention rule they can understand and adjust later. Prioritize age/count-based archiving over hard deletion, make archived sessions recoverable/searchable when needed, and avoid asking the user to guess when they should clear history to save space.
 - Commits: —
 
 ### I18N-001 — Focana should support multiple languages across payments, site, and app
