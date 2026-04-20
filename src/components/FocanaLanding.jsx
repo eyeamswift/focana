@@ -294,6 +294,130 @@ function FAQItem({ question, answer }) {
   );
 }
 
+function EmailCaptureForm({
+  defaultEmail = "",
+  source,
+  trackingLocation = source,
+  submitLabel = "Keep me posted",
+  loadingLabel = "Saving...",
+  successTitle = "You're on the list.",
+  successBody = "Check your inbox.",
+  onSubmitted,
+}) {
+  const [email, setEmail] = useState(defaultEmail);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    setEmail((currentEmail) => currentEmail || defaultEmail);
+  }, [defaultEmail]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!isValidEmail(normalizedEmail)) {
+      setStatus("error");
+      setErrorMsg("Please enter a valid email address.");
+      return;
+    }
+
+    setStatus("loading");
+    setErrorMsg("");
+
+    try {
+      await postEmailCapture({ email: normalizedEmail, source });
+      onSubmitted?.(normalizedEmail);
+      setStatus("success");
+      phCapture("newsletter_cta_submitted", { location: trackingLocation, source });
+    } catch (error) {
+      setStatus("error");
+      setErrorMsg(error?.message || "Something went wrong. Please try again.");
+    }
+  };
+
+  if (status === "success") {
+    return (
+      <div
+        style={{
+          background: "rgba(255,255,255,0.72)",
+          borderRadius: "18px",
+          border: `1px solid ${COLORS.beigeBorder}`,
+          padding: "24px",
+        }}
+      >
+        <p
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "22px",
+            fontWeight: 700,
+            color: COLORS.warmBrown,
+            marginBottom: "8px",
+          }}
+        >
+          {successTitle}
+        </p>
+        <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
+          {successBody}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        background: "rgba(255,255,255,0.72)",
+        borderRadius: "18px",
+        border: `1px solid ${COLORS.beigeBorder}`,
+        padding: "24px",
+      }}
+    >
+      <input
+        type="email"
+        placeholder="your@email.com"
+        required
+        value={email}
+        onChange={(event) => {
+          setEmail(event.target.value);
+          if (status === "error") {
+            setStatus("idle");
+            setErrorMsg("");
+          }
+        }}
+        className="form-input"
+        style={{
+          width: "100%",
+          padding: "14px 16px",
+          fontSize: "16px",
+          border: `1.5px solid ${COLORS.beigeBorder}`,
+          borderRadius: "10px",
+          fontFamily: "'DM Sans', sans-serif",
+          color: COLORS.warmBrown,
+          marginBottom: "14px",
+        }}
+      />
+
+      {errorMsg ? (
+        <p style={{ color: "#DC2626", fontSize: "14px", marginBottom: "12px" }}>
+          {errorMsg}
+        </p>
+      ) : null}
+
+      <button
+        type="submit"
+        className="cta-btn"
+        disabled={status === "loading"}
+        style={{ width: "100%", justifyContent: "center" }}
+      >
+        {status === "loading" ? loadingLabel : submitLabel}
+      </button>
+    </form>
+  );
+}
+
 function SaasHubBadge({ location = "pricing" }) {
   return (
     <a
@@ -970,9 +1094,6 @@ export default function FocanaLanding() {
   const [checkoutLocation, setCheckoutLocation] = useState("hero");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [hasSubmittedEmail, setHasSubmittedEmail] = useState(false);
-  const [newsletterEmail, setNewsletterEmail] = useState("");
-  const [newsletterStatus, setNewsletterStatus] = useState("idle");
-  const [newsletterError, setNewsletterError] = useState("");
   const [toastMessage, setToastMessage] = useState("");
   const productMenuRef = useRef(null);
   const toastTimeoutRef = useRef(null);
@@ -1001,15 +1122,7 @@ export default function FocanaLanding() {
     const storedEmail = getStoredSubmittedEmail();
     setSubmittedEmail(storedEmail);
     setHasSubmittedEmail(hasStoredSubmittedEmail());
-    if (storedEmail) {
-      setNewsletterEmail(storedEmail);
-    }
   }, []);
-
-  useEffect(() => {
-    if (!submittedEmail) return;
-    setNewsletterEmail((currentEmail) => currentEmail || submittedEmail);
-  }, [submittedEmail]);
 
   useEffect(() => {
     return () => {
@@ -1269,31 +1382,6 @@ export default function FocanaLanding() {
     });
 
     window.location.assign(redirectUrl);
-  };
-
-  const handleNewsletterSubmit = async (event) => {
-    event.preventDefault();
-
-    const normalizedEmail = normalizeEmail(newsletterEmail);
-
-    if (!isValidEmail(normalizedEmail)) {
-      setNewsletterStatus("error");
-      setNewsletterError("Please enter a valid email address.");
-      return;
-    }
-
-    setNewsletterStatus("loading");
-    setNewsletterError("");
-
-    try {
-      await postEmailCapture({ email: normalizedEmail, source: "newsletter-cta" });
-      rememberSubmittedEmail(normalizedEmail);
-      setNewsletterStatus("success");
-      phCapture("newsletter_cta_submitted");
-    } catch (error) {
-      setNewsletterStatus("error");
-      setNewsletterError(error?.message || "Something went wrong. Please try again.");
-    }
   };
 
   const openCheckout = (location) => {
@@ -2197,6 +2285,62 @@ export default function FocanaLanding() {
                   <strong>Justin</strong> {"\u2014"} Founder, Focana and NeurDi Labs
                 </p>
               </div>
+
+              <div
+                style={{
+                  flex: "1 1 100%",
+                  marginTop: "28px",
+                  paddingTop: "28px",
+                  borderTop: `1px solid ${COLORS.beigeBorder}`,
+                }}
+              >
+                <div className="newsletter-layout" style={{ alignItems: "center" }}>
+                  <div className="newsletter-copy">
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: COLORS.deepAmber,
+                        textTransform: "uppercase",
+                        letterSpacing: "2px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      Build in public
+                    </p>
+                    <h3
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "clamp(24px, 3vw, 34px)",
+                        fontWeight: 800,
+                        color: COLORS.warmBrown,
+                        lineHeight: 1.15,
+                        marginBottom: "12px",
+                      }}
+                    >
+                      Follow the journey
+                    </h3>
+                    <p style={{ fontSize: "17px", lineHeight: 1.7, color: COLORS.coffeeBrown, margin: 0 }}>
+                      Stay up to date on Focana and NeurDi Labs updates as we build in public.
+                      Get weekly-ish notes on what we&apos;re shipping, what we&apos;re learning,
+                      and where this mission is headed.
+                    </p>
+                  </div>
+
+                  <div className="newsletter-form-wrap">
+                    <EmailCaptureForm
+                      defaultEmail={submittedEmail}
+                      source="founder-story-cta"
+                      trackingLocation="founder_story"
+                      submitLabel="Follow the journey"
+                      loadingLabel="Saving..."
+                      successBody="You'll get the next update in your inbox."
+                      onSubmitted={rememberSubmittedEmail}
+                    />
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -2364,81 +2508,12 @@ export default function FocanaLanding() {
               </div>
 
               <div className="newsletter-form-wrap">
-                {newsletterStatus === "success" ? (
-                  <div
-                    style={{
-                      background: "rgba(255,255,255,0.72)",
-                      borderRadius: "18px",
-                      border: `1px solid ${COLORS.beigeBorder}`,
-                      padding: "24px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "22px",
-                        fontWeight: 700,
-                        color: COLORS.warmBrown,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      You&apos;re on the list.
-                    </p>
-                    <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
-                      Check your inbox.
-                    </p>
-                  </div>
-                ) : (
-                  <form
-                    onSubmit={handleNewsletterSubmit}
-                    style={{
-                      background: "rgba(255,255,255,0.72)",
-                      borderRadius: "18px",
-                      border: `1px solid ${COLORS.beigeBorder}`,
-                      padding: "24px",
-                    }}
-                  >
-                    <input
-                      type="email"
-                      placeholder="your@email.com"
-                      required
-                      value={newsletterEmail}
-                      onChange={(event) => {
-                        setNewsletterEmail(event.target.value);
-                        if (newsletterStatus === "error") {
-                          setNewsletterStatus("idle");
-                          setNewsletterError("");
-                        }
-                      }}
-                      className="form-input"
-                      style={{
-                        width: "100%",
-                        padding: "14px 16px",
-                        fontSize: "16px",
-                        border: `1.5px solid ${COLORS.beigeBorder}`,
-                        borderRadius: "10px",
-                        fontFamily: "'DM Sans', sans-serif",
-                        color: COLORS.warmBrown,
-                        marginBottom: "14px",
-                      }}
-                    />
-
-                    {newsletterError ? (
-                      <p style={{ color: "#DC2626", fontSize: "14px", marginBottom: "12px" }}>
-                        {newsletterError}
-                      </p>
-                    ) : null}
-
-                    <button
-                      type="submit"
-                      className="cta-btn"
-                      disabled={newsletterStatus === "loading"}
-                      style={{ width: "100%", justifyContent: "center" }}
-                    >
-                      {newsletterStatus === "loading" ? "Saving..." : "Keep me posted"}
-                    </button>
-                  </form>
-                )}
+                <EmailCaptureForm
+                  defaultEmail={submittedEmail}
+                  source="newsletter-cta"
+                  trackingLocation="newsletter"
+                  onSubmitted={rememberSubmittedEmail}
+                />
               </div>
             </div>
           </div>
