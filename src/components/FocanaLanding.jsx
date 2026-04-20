@@ -1326,7 +1326,6 @@ export default function FocanaLanding() {
     const normalizedEmail = normalizeEmail(email);
     setSubmittedEmail(normalizedEmail);
     setHasSubmittedEmail(true);
-    setNewsletterEmail((currentEmail) => currentEmail || normalizedEmail);
   };
 
   const handleExitIntentClose = (reason) => {
