@@ -101,7 +101,7 @@ test('buildFriendsAndFamilyCheckoutPayload carries creator attribution and check
   assert.equal(payload.data.attributes.checkout_data.custom.creator_slug, 'justin');
   assert.equal(payload.data.attributes.checkout_data.custom.checkout_location, 'hero');
   assert.equal(payload.data.attributes.checkout_data.custom.source, 'friends_and_family');
-  assert.equal(payload.data.attributes.product_options.redirect_url, 'https://focana.app/download');
+  assert.equal(payload.data.attributes.product_options.redirect_url, 'https://www.focana.app/download');
   assert.equal(payload.data.attributes.checkout_options.embed, true);
   assert.equal(payload.data.attributes.checkout_options.button_color, '#D97706');
 });

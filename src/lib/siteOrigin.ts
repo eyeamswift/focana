@@ -1,4 +1,4 @@
-const DEFAULT_SITE_ORIGIN = 'https://focana.app';
+const DEFAULT_SITE_ORIGIN = 'https://www.focana.app';
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0']);
 const metaEnv = ((import.meta as { env?: Record<string, string | undefined> }).env) || {};
 
@@ -6,7 +6,13 @@ function normalizeSiteOrigin(rawOrigin?: string) {
   if (!rawOrigin) return DEFAULT_SITE_ORIGIN;
 
   try {
-    return new URL(rawOrigin).origin;
+    const url = new URL(rawOrigin);
+
+    if (url.hostname === 'focana.app') {
+      url.hostname = 'www.focana.app';
+    }
+
+    return url.origin;
   } catch {
     return DEFAULT_SITE_ORIGIN;
   }

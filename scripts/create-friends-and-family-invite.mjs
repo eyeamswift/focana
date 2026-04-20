@@ -5,7 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_SITE_ORIGIN = 'https://focana.app';
+const DEFAULT_SITE_ORIGIN = 'https://www.focana.app';
 const CREATOR_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITE_SELECT =
@@ -112,7 +112,13 @@ function normalizeSiteOrigin(rawOrigin) {
   if (!rawOrigin) return DEFAULT_SITE_ORIGIN;
 
   try {
-    return new URL(rawOrigin).origin;
+    const url = new URL(rawOrigin);
+
+    if (url.hostname === 'focana.app') {
+      url.hostname = 'www.focana.app';
+    }
+
+    return url.origin;
   } catch {
     return DEFAULT_SITE_ORIGIN;
   }

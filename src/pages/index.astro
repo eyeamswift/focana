@@ -2,26 +2,84 @@
 import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
 import FocanaLanding from '../components/FocanaLanding.jsx';
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_OG_IMAGE,
+  siteFounder,
+  siteOrganization,
+} from '../data/site';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
 
-const title = "Focana | Floating focus app for Mac";
-const description = "Focana is a floating focus app for macOS that keeps your task and timer visible while you work across apps. Built for ADHD and busy brains.";
-const canonicalURL = "https://focana.app";
-const ogImage = `${canonicalURL}/og-image.png`;
+const title = 'Focana | Focus app for ADHD and busy brains on Mac';
+const description = SITE_DESCRIPTION;
+const canonicalURL = SITE_ORIGIN;
+const ogImage = SITE_OG_IMAGE;
+const googleSiteVerification = import.meta.env.PUBLIC_GOOGLE_SITE_VERIFICATION;
+const bingSiteVerification = import.meta.env.PUBLIC_BING_SITE_VERIFICATION;
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "Focana",
-  "applicationCategory": "ProductivityApplication",
-  "operatingSystem": "macOS",
-  "description": description,
-  "url": canonicalURL,
-  "offers": {
-    "@type": "Offer",
-    "price": "29",
-    "priceCurrency": "USD",
-    "availability": "https://schema.org/OnlineOnly"
-  }
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE_NAME,
+  url: canonicalURL,
+  description,
+};
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: siteOrganization.legalName,
+  url: canonicalURL,
+  email: siteOrganization.email,
+  logo: siteOrganization.logo,
+  description,
+  founder: {
+    '@type': 'Person',
+    name: siteFounder.name,
+  },
+  brand: {
+    '@type': 'Brand',
+    name: SITE_NAME,
+  },
+};
+
+const personSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: siteFounder.name,
+  description: siteFounder.bio,
+  jobTitle: siteFounder.role,
+  worksFor: {
+    '@type': 'Organization',
+    name: siteOrganization.legalName,
+  },
+  sameAs: siteFounder.sameAs,
+};
+
+const softwareSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: SITE_NAME,
+  applicationCategory: 'ProductivityApplication',
+  operatingSystem: 'macOS',
+  description,
+  url: canonicalURL,
+  brand: {
+    '@type': 'Brand',
+    name: SITE_NAME,
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: siteOrganization.legalName,
+    url: canonicalURL,
+  },
+  offers: {
+    '@type': 'Offer',
+    price: '29',
+    priceCurrency: 'USD',
+    availability: 'https://schema.org/OnlineOnly',
+  },
 };
 ---
 
@@ -52,6 +110,7 @@ const jsonLd = {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content={SITE_NAME} />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -61,7 +120,13 @@ const jsonLd = {
     <meta name="twitter:image" content={ogImage} />
 
     <!-- Structured Data -->
-    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(organizationSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(personSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(softwareSchema)} />
+
+    {googleSiteVerification && <meta name="google-site-verification" content={googleSiteVerification} />}
+    {bingSiteVerification && <meta name="msvalidate.01" content={bingSiteVerification} />}
 
     <meta name="generator" content={Astro.generator} />
 

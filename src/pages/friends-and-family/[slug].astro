@@ -13,8 +13,8 @@ const creatorSlug = normalizeCreatorSlug(Astro.params.slug);
 const title = 'Welcome to Focana';
 const description = 'Private early access to Focana for ADHD creators.';
 const canonicalURL = creatorSlug
-  ? `https://focana.app/friends-and-family/${creatorSlug}`
-  : 'https://focana.app/friends-and-family';
+  ? `${SITE_ORIGIN}/friends-and-family/${creatorSlug}`
+  : `${SITE_ORIGIN}/friends-and-family`;
 
 const checkoutPath = creatorSlug
   ? `/api/friends-and-family/${creatorSlug}/checkout`

@@ -5,9 +5,11 @@ import react from '@astrojs/react';
 import vercel from '@astrojs/vercel';
 import sitemap from '@astrojs/sitemap';
 
+const EXCLUDED_SITEMAP_PATHS = new Set(['/download/', '/next-steps/', '/survey/']);
+
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://focana.app',
+  site: 'https://www.focana.app',
   output: 'static',
   security: {
     checkOrigin: false,
@@ -16,7 +18,16 @@ export default defineConfig({
       { protocol: 'https', hostname: 'www.focana.app' },
     ],
   },
-  integrations: [react(), sitemap()],
+  integrations: [
+    react(),
+    sitemap({
+      filter(page) {
+        const pathname = new URL(page).pathname;
+        const normalizedPath = pathname.endsWith('/') ? pathname : `${pathname}/`;
+        return !EXCLUDED_SITEMAP_PATHS.has(normalizedPath);
+      },
+    }),
+  ],
   adapter: vercel({
     webAnalytics: {
       enabled: true,

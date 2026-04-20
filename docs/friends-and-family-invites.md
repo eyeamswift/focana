@@ -35,7 +35,7 @@ npm run invite:create -- --name "Justin Franklin" --email "justin@example.com" -
 - Prints the final share link
 
 ## Link Format
-`https://focana.app/friends-and-family/<slug>`
+`https://www.focana.app/friends-and-family/<slug>`
 
 ## Important Rule
 The recipient must use the same email at checkout that was stored on the invite. The webhook uses that email to claim the invite.

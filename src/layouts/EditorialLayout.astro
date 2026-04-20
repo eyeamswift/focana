@@ -1,6 +1,7 @@
 ---
 import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
+import { SITE_NAME } from '../data/site';
 import { SITE_ORIGIN } from '../lib/siteOrigin';
 
 interface Props {
@@ -54,6 +55,7 @@ const checkoutUrl =
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content={SITE_NAME} />
     {ogImageAlt && <meta property="og:image:alt" content={ogImageAlt} />}
 
     <meta name="twitter:card" content="summary_large_image" />
@@ -434,8 +436,10 @@ const checkoutUrl =
       <p>&copy; 2026 Focana. The desktop focus buddy for busy brains.</p>
       <div class="footer-links">
         <a href="/" class="footer-link">Home</a>
+        <a href="/about" class="footer-link">About</a>
         <a href="/blog/" class="footer-link">Resources</a>
         <a href={checkoutUrl} class="footer-link" data-checkout-trigger data-checkout-location="editorial_footer_download">Download</a>
+        <a href="/privacy" class="footer-link">Privacy</a>
         <a href="mailto:hello@focana.app" class="footer-link">Contact</a>
       </div>
     </footer>

@@ -7,6 +7,7 @@ import {
   isValidEmail,
   normalizeEmail,
 } from "../lib/emailCapture";
+import { siteFounder } from "../data/site";
 
 const COLORS = {
   sunshineYellow: "#F59E0B",
@@ -21,6 +22,13 @@ const COLORS = {
   beigeBorder: "#E5D4B1",
   warmGray: "#7A6548",
 };
+
+const founderProfiles = [
+  { label: "About Justin", href: siteFounder.aboutHref },
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/justinfranklin90" },
+  { label: "Substack", href: "https://adhdfounder.substack.com" },
+  { label: "X", href: "https://x.com/eyeamswift" },
+];
 
 function phCapture(event, props) {
   if (typeof window !== "undefined" && window.posthog) {
@@ -1983,9 +1991,19 @@ export default function FocanaLanding() {
                 fontWeight: 500,
                 lineHeight: 1.6,
                 color: COLORS.coffeeBrown,
-                marginBottom: "28px",
+                marginBottom: "18px",
               }}>
                 Always visible, always anchoring you back to what matters.
+              </p>
+
+              <p style={{
+                fontSize: "16px",
+                lineHeight: 1.8,
+                color: COLORS.coffeeBrown,
+                marginBottom: "20px",
+                maxWidth: "560px",
+              }}>
+                <strong style={{ color: COLORS.warmBrown }}>What is Focana?</strong> Focana is a native Mac focus app for ADHD and busy brains that keeps your task, timer, and session notes visible while you switch between apps. Instead of asking you to build a whole productivity system, it gives you one calm attention anchor you can keep in sight.
               </p>
 
               <p style={{
@@ -2048,7 +2066,7 @@ export default function FocanaLanding() {
             fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
             textAlign: "center", marginBottom: "24px",
           }}>
-            Stop downloading productivity apps that don't work.
+            Why don't most productivity apps work for ADHD brains?
           </h2>
           <p style={{
             fontSize: "19px",
@@ -2131,7 +2149,7 @@ export default function FocanaLanding() {
             fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
             fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
             textAlign: "center", marginBottom: "12px",
-          }}>The Focana Focus System</h2>
+          }}>How does Focana help you stay focused when you switch apps?</h2>
           <p style={{
             fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
             textAlign: "center", marginBottom: "48px",
@@ -2236,7 +2254,7 @@ export default function FocanaLanding() {
               lineHeight: 1.15,
               textAlign: "center",
               marginBottom: "12px",
-            }}>Why We Exist</h2>
+            }}>Who built Focana, and why does it exist?</h2>
             <p style={{
               fontSize: "13px",
               fontWeight: 700,
@@ -2276,6 +2294,42 @@ export default function FocanaLanding() {
               </div>
 
               <div style={{ flex: "1 1 420px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "10px",
+                    marginBottom: "18px",
+                  }}
+                >
+                  {[
+                    siteFounder.shortRole,
+                    siteFounder.note,
+                    "Built from first-hand ADHD experience",
+                  ].map((chip) => (
+                    <span
+                      key={chip}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "8px 12px",
+                        borderRadius: "999px",
+                        background: "rgba(255,255,255,0.78)",
+                        border: `1px solid ${COLORS.beigeBorder}`,
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: COLORS.coffeeBrown,
+                      }}
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+
+                <p style={{ fontSize: "17px", lineHeight: 1.6, color: COLORS.coffeeBrown, margin: "0 0 16px" }}>
+                  <strong style={{ color: COLORS.warmBrown }}>{siteFounder.name}</strong> is the founder of Focana and NeurDi Labs. He built Focana after years of trying productivity tools that created more setup, more guilt, and more room to lose the thread.
+                </p>
+
                 <p style={{ fontSize: "17px", lineHeight: 1.8, color: COLORS.warmBrown, margin: "0 0 16px" }}>
                   I was diagnosed with ADHD at 30 after college, grad school, and nearly a decade into my career. I showed flashes of what I was capable of, but mostly felt like a high-potential underperformer. That led me down a dark path of shame, guilt, and depression.
                 </p>
@@ -2289,8 +2343,36 @@ export default function FocanaLanding() {
                 </p>
 
                 <p style={{ fontSize: "17px", lineHeight: 1.6, color: COLORS.coffeeBrown, margin: 0 }}>
-                  <strong>Justin</strong> {"\u2014"} Founder, Focana and NeurDi Labs
+                  <strong>{siteFounder.name}</strong> {"\u2014"} Founder, Focana and NeurDi Labs
                 </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "16px",
+                    marginTop: "20px",
+                  }}
+                >
+                  {founderProfiles.map((profile) => (
+                    <a
+                      key={profile.label}
+                      href={profile.href}
+                      target={profile.href.startsWith("http") ? "_blank" : undefined}
+                      rel={profile.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        color: COLORS.warmBrown,
+                        textDecoration: "underline",
+                        textDecorationColor: COLORS.deepAmber,
+                        textUnderlineOffset: "4px",
+                      }}
+                    >
+                      {profile.label}
+                    </a>
+                  ))}
+                </div>
               </div>
 
               <div
@@ -2368,7 +2450,7 @@ export default function FocanaLanding() {
               lineHeight: 1.15,
               marginBottom: "18px",
             }}>
-              Why Focana feels different
+              What makes Focana different from a browser extension or timer?
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#F6E7C7" }}>
               Most productivity tools ask you to build a system. Focana helps you protect the focus you already have.
@@ -2733,6 +2815,8 @@ export default function FocanaLanding() {
           </a>
           <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
             <SaasHubBadge location="footer" />
+            <a href="/about" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>About</a>
+            <a href="/blog/" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Resources</a>
             <a href="mailto:hello@focana.app" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Contact</a>
             <a href="/privacy" style={{ fontSize: "13px", color: COLORS.warmGray, textDecoration: "none", transition: "color 0.2s ease" }}>Privacy Policy</a>
             <p style={{ fontSize: "13px", color: COLORS.warmGray }}>

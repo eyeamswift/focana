@@ -1,0 +1,260 @@
+---
+import EditorialLayout from '../layouts/EditorialLayout.astro';
+import {
+  SITE_CONTACT_EMAIL,
+  SITE_NAME,
+  SITE_OG_IMAGE,
+  siteFounder,
+  siteOrganization,
+} from '../data/site';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = `About ${SITE_NAME}`;
+const description =
+  'Learn who built Focana, why it exists, and how NeurDi Labs approaches focus tools for neurodivergent brains.';
+const canonicalURL = `${SITE_ORIGIN}/about`;
+
+const aboutPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  name: title,
+  description,
+  url: canonicalURL,
+};
+
+const personSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: siteFounder.name,
+  description: siteFounder.bio,
+  jobTitle: siteFounder.role,
+  sameAs: siteFounder.sameAs,
+  worksFor: {
+    '@type': 'Organization',
+    name: siteOrganization.legalName,
+  },
+};
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: siteOrganization.legalName,
+  url: SITE_ORIGIN,
+  email: SITE_CONTACT_EMAIL,
+  logo: `${SITE_ORIGIN}/favicon.png`,
+  brand: {
+    '@type': 'Brand',
+    name: SITE_NAME,
+  },
+};
+---
+
+<EditorialLayout
+  title={title}
+  description={description}
+  canonicalURL={canonicalURL}
+  ogImage={SITE_OG_IMAGE}
+  jsonLd={[aboutPageSchema, personSchema, organizationSchema]}
+>
+  <main class="about-page">
+    <section class="hero-card">
+      <span class="eyebrow">About</span>
+      <h1>Focana exists because focus support should survive real work, not disappear behind it.</h1>
+      <p>
+        Focana is the flagship product from NeurDi Labs. We build calm executive-function tools for
+        neurodivergent brains, starting with the most basic problem many productivity apps miss:
+        if your task leaves the screen, it often leaves active awareness too.
+      </p>
+    </section>
+
+    <section class="content-grid">
+      <article class="content-card" id="justin-franklin">
+        <p class="section-label">Founder</p>
+        <h2>{siteFounder.name}</h2>
+        <p>
+          {siteFounder.name} is the founder of Focana and NeurDi Labs. He built Focana from
+          first-hand ADHD experience after years of trying productivity systems that created more
+          setup, more guilt, and more room to lose the thread.
+        </p>
+        <p>
+          He was diagnosed with ADHD at 30 after college, grad school, and years into his career.
+          That diagnosis helped reframe a pattern he already knew well: flashes of strong work,
+          followed by long stretches of friction, shame, and the feeling of underperforming despite
+          caring deeply.
+        </p>
+        <p>
+          Focana started as a personal attempt to build the tool he could not find: something fast
+          to start, always visible while switching apps, and gentle enough to support focus without
+          turning into another management system.
+        </p>
+
+        <div class="chip-row">
+          {siteFounder.credentials.map((credential) => <span class="chip">{credential}</span>)}
+        </div>
+
+        <div class="link-row">
+          <a href="https://www.linkedin.com/in/justinfranklin90" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          <a href="https://adhdfounder.substack.com" target="_blank" rel="noopener noreferrer">Substack</a>
+          <a href="https://x.com/eyeamswift" target="_blank" rel="noopener noreferrer">X</a>
+        </div>
+      </article>
+
+      <article class="content-card">
+        <p class="section-label">Principles</p>
+        <h2>What we are trying to build</h2>
+        <ul>
+          <li>Visible support that stays in view when work gets messy and attention gets pulled around.</li>
+          <li>Fast-start tools that do not demand a 30-minute setup before delivering value.</li>
+          <li>Calm product design that replaces guilt and over-management with simpler re-entry.</li>
+          <li>Systems built from lived experience, not just abstract productivity advice.</li>
+        </ul>
+      </article>
+
+      <article class="content-card">
+        <p class="section-label">Contact</p>
+        <h2>Get in touch</h2>
+        <p>
+          The best contact for product questions, press, partnerships, and support is{' '}
+          <a href={`mailto:${SITE_CONTACT_EMAIL}`}>{SITE_CONTACT_EMAIL}</a>.
+        </p>
+        <p>
+          If you want the product itself, head back to <a href="/">the homepage</a>. If you want
+          the thinking behind it, start with the <a href="/blog/">resources library</a>.
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <style>
+    .about-page {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 72px 0 96px;
+    }
+
+    .hero-card,
+    .content-card {
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-card {
+      padding: 32px;
+    }
+
+    .eyebrow,
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero-card h1 {
+      margin-top: 18px;
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(38px, 5vw, 62px);
+      line-height: 1.04;
+      letter-spacing: -0.05em;
+    }
+
+    .hero-card p,
+    .content-card p,
+    .content-card li {
+      margin-top: 18px;
+      font-size: 18px;
+      line-height: 1.8;
+      color: var(--muted-soft);
+    }
+
+    .content-grid {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+
+    .content-card {
+      padding: 28px;
+    }
+
+    .content-card:first-child {
+      grid-column: span 2;
+    }
+
+    .content-card h2 {
+      margin-top: 18px;
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(30px, 3vw, 40px);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .content-card ul {
+      margin-top: 20px;
+      padding-left: 22px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .chip-row,
+    .link-row {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 249, 230, 0.86);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    .link-row a,
+    .content-card a {
+      color: var(--text);
+      text-decoration-color: rgba(217, 119, 6, 0.45);
+      text-decoration-thickness: 1.5px;
+      text-underline-offset: 3px;
+    }
+
+    @media (max-width: 820px) {
+      .content-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .content-card:first-child {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .about-page {
+        width: min(100% - 32px, 1180px);
+        padding-top: 52px;
+        padding-bottom: 72px;
+      }
+
+      .hero-card,
+      .content-card {
+        padding: 24px;
+      }
+    }
+  </style>
+</EditorialLayout>

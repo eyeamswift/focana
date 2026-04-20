@@ -45,6 +45,7 @@ const heroSummary = latestRelease?.summary || fallbackSummary;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content="Focana" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content={canonicalURL} />
@@ -700,6 +701,8 @@ const heroSummary = latestRelease?.summary || fallbackSummary;
         <a href="/" class="footer-link">Home</a>
         <a href="/blog/" class="footer-link">Resources</a>
         <a href={checkoutUrl} class="footer-link" data-checkout-trigger data-checkout-location="updates_footer_download">Download</a>
+        <a href="/about" class="footer-link">About</a>
+        <a href="/privacy" class="footer-link">Privacy</a>
         <a href="mailto:hello@focana.app" class="footer-link">Contact</a>
       </div>
     </footer>
