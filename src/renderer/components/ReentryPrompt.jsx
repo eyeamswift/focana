@@ -66,6 +66,21 @@ export default function ReentryPrompt({
     return () => window.clearTimeout(timer);
   }, [isOpen, stage]);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      const primaryHeld = /Mac/i.test(navigator.platform || '') ? event.metaKey : event.ctrlKey;
+      const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+      if (!primaryHeld || !event.shiftKey || event.altKey || key !== 's') return;
+      event.preventDefault();
+      onSnooze?.('10m');
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onSnooze]);
+
   if (!isOpen) return null;
 
   const handleBack = () => {

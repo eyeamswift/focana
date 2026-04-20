@@ -8,11 +8,11 @@ import { Settings, Keyboard, RotateCcw, AlertTriangle, X, PanelTop, Pin, Sun, Mo
 import { track } from '../utils/analytics';
 
 const DEFAULT_SHORTCUTS = {
-  startPause: 'CommandOrControl+Shift+S',
+  startPause: 'CommandOrControl+Shift+P',
   newTask: 'CommandOrControl+N',
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
-  openParkingLot: 'CommandOrControl+Shift+P',
+  openParkingLot: 'CommandOrControl+Shift+L',
 };
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || '');
@@ -948,7 +948,7 @@ export default function SettingsModal({
                 border: '1px solid var(--info-border)',
               }}>
                 <p style={{ fontWeight: 500, marginBottom: '0.25rem' }}>macOS Note:</p>
-                <p>If Cmd+Space conflicts with Spotlight, consider using Cmd+Shift+S for Start/Pause Timer.</p>
+                <p>If Cmd+Space conflicts with Spotlight, keep Start/Pause on Cmd+Shift+P or choose another combo that does not overlap with system shortcuts.</p>
               </div>
             </div>
           </TabsContent>

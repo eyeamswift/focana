@@ -6,9 +6,11 @@ const schema = {
     properties: {
       text: { type: 'string', default: '' },
       contextNote: { type: 'string', default: '' },
+      recap: { type: 'string', default: '' },
+      nextSteps: { type: 'string', default: '' },
       startedAt: { type: ['string', 'null'], default: null },
     },
-    default: { text: '', contextNote: '', startedAt: null },
+    default: { text: '', contextNote: '', recap: '', nextSteps: '', startedAt: null },
   },
   timerState: {
     type: 'object',
@@ -121,11 +123,11 @@ const schema = {
       shortcuts: {
         type: 'object',
         default: {
-          startPause: 'CommandOrControl+Shift+S',
+          startPause: 'CommandOrControl+Shift+P',
           newTask: 'CommandOrControl+N',
           toggleCompact: 'CommandOrControl+Shift+I',
           completeTask: 'CommandOrControl+Enter',
-          openParkingLot: 'CommandOrControl+Shift+P',
+          openParkingLot: 'CommandOrControl+Shift+L',
         },
       },
       pulseSettings: {

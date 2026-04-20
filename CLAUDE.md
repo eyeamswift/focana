@@ -28,7 +28,7 @@ Focana is not one ADHD coping mechanism turned into software. It is **6 coping m
 
 1. **Body Doubling** → Always-on-top presence. The persistent visible window acts as a digital body double.
 2. **Externalized Working Memory** → Task stays visible. Holds the user's primary intention on-screen so their brain doesn't have to.
-3. **Thought Offloading** → Parking Lot (Cmd+Shift+P). Captures intrusive secondary thoughts during a focus session.
+3. **Thought Offloading** → Parking Lot (Cmd+Shift+L). Captures intrusive secondary thoughts during a focus session.
 4. **Self-Monitoring** → Focus check-ins ("Still focused?"). Automates the metacognitive work that ADHD brains struggle with.
 5. **Time Blindness Support** → Visible timer. Makes the invisible passage of time visible.
 6. **Context Continuity** → Session History preserves context across task switches, reduces re-initiation cost.

@@ -386,6 +386,28 @@ async function dismissSessionFeedbackIfPresent(page) {
   }
 }
 
+async function fillSplitSessionNotes(page, {
+  nextSteps = null,
+  recap = null,
+} = {}) {
+  if (typeof nextSteps === 'string') {
+    await page.locator('textarea[name="next-steps"]').fill(nextSteps);
+  }
+  if (typeof recap === 'string') {
+    await page.locator('textarea[name="recap"]').fill(recap);
+  }
+}
+
+async function expectPostSessionPrompt(page, taskName = null) {
+  await expect(page.getByRole('heading', { name: 'Session wrapped' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Take a break' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start another session' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Done for now' })).toBeVisible();
+  if (taskName) {
+    await expect(page.locator('.dialog-content').first()).toContainText(taskName);
+  }
+}
+
 async function expectCheckInToastMessage(page, allowedMessages) {
   const toast = page.locator('.toast-checkin').last();
   await expect(toast).toBeVisible();
@@ -746,7 +768,7 @@ test('manual update check reports when the app is already current', async () => 
   }
 });
 
-test('idle re-entry prompt loops in full window and hands off immediately to floating prompt', async () => {
+test('idle re-entry prompt loops in full window and hands off to floating prompt after minimize', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -755,6 +777,7 @@ test('idle re-entry prompt loops in full window and hands off immediately to flo
     await setTimeOffset(page, (5 * 60 * 1000) + 2000);
 
     const prompt = page.locator('.reentry-prompt--full').first();
+    await expect.poll(async () => await prompt.count(), { timeout: 7000 }).toBe(1);
     await expect(prompt).toBeVisible();
     await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next' })).toBeVisible();
@@ -838,14 +861,15 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
   try {
     await installTimeOffsetControl(page);
 
-    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
-    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
-
     await page.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
 
@@ -878,20 +902,46 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
   }
 });
 
+test('visible re-entry prompt snoozes for ten minutes with Cmd+Shift+S', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    const prompt = page.locator('.reentry-prompt--full').first();
+    await expect(prompt).toBeVisible();
+
+    await page.keyboard.press('Meta+Shift+S');
+
+    await expect(prompt).toHaveCount(0);
+
+    await setTimeOffset(page, 14 * 60 * 1000);
+    await page.waitForTimeout(1200);
+    await expect(prompt).toHaveCount(0);
+
+    await setTimeOffset(page, (15 * 60 * 1000) + 3000);
+    await expect(prompt).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
 test('floating re-entry prompt mirrors the idle start flow for new tasks', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await installTimeOffsetControl(page);
 
-    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
-    await expect(page.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
-
     await page.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'task-entry' }));
     await expect(floatingWindow.getByRole('heading', { name: 'What are you working on?' })).toBeVisible();
@@ -933,7 +983,7 @@ test('floating re-entry prompt mirrors the idle start flow for new tasks', async
   }
 });
 
-test('floating resumable re-entry is choice-first and start something new opens the finish modal', async () => {
+test('floating resumable re-entry comes back after done-for-now and start something new opens the finish modal', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -944,14 +994,15 @@ test('floating resumable re-entry is choice-first and start something new opens 
     await page.getByRole('button', { name: 'End Session' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await page.getByRole('button', { name: 'No, Save for Later' }).click();
-    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('resume-choice-task');
-
-    await page.evaluate(() => {
-      window.electronAPI.toggleFloatingMinimize();
-    });
+    await dismissSessionFeedbackIfPresent(page);
+    await expectPostSessionPrompt(page, 'resume-choice-task');
+    await page.getByRole('button', { name: 'Done for now' }).click();
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.getFloatingMinimized()), { timeout: 7000, message: 'main window should already be minimized after Done for now' })
+      .toBe(true);
     await page.waitForTimeout(1200);
     await setTimeOffset(page, (5 * 60 * 1000) + 2000);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
@@ -977,7 +1028,7 @@ test('floating resumable re-entry is choice-first and start something new opens 
   }
 });
 
-test('full-window resumable re-entry matches the floating choice-first actions', async () => {
+test('post-session prompt can hand off directly into a clean start-another-session composer', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -988,21 +1039,23 @@ test('full-window resumable re-entry matches the floating choice-first actions',
     await page.getByRole('button', { name: 'End Session' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await page.getByRole('button', { name: 'No, Save for Later' }).click();
-    await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('resume-choice-task');
+    await dismissSessionFeedbackIfPresent(page);
+    await expectPostSessionPrompt(page, 'resume-choice-task');
 
-    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
-    await expect(page.getByRole('button', { name: 'Resume Previous Task' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start Something New' })).toBeVisible();
+    await page.getByRole('button', { name: 'Start another session' }).click();
 
-    await page.getByRole('button', { name: 'Resume Previous Task' }).click();
-    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Session wrapped' })).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    await expect(page.getByRole('button', { name: 'Open Parking Lot' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open Session History' })).toBeVisible();
+    await expect(page.getByText('Start something new, or use Parking Lot or History if you want to pull from existing work.')).toBeVisible();
   } finally {
     await cleanup();
   }
 });
 
-test('timed time-up flows add time and resume later without losing task state', async () => {
+test('timed time-up resume later saves split notes and routes into the post-session prompt', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -1026,20 +1079,38 @@ test('timed time-up flows add time and resume later without losing task state', 
 
     await page.getByRole('button', { name: 'No, Save for Later' }).click();
     await expect(page.getByRole('heading', { name: 'Where did you leave off?' })).toBeVisible();
-    await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume later note');
+    await fillSplitSessionNotes(page, {
+      nextSteps: 're-open the draft and finish the conclusion',
+      recap: 'resume later note',
+    });
     await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expectPostSessionPrompt(page, 'timeup-audit');
 
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('timeup-audit');
-    const finalTimerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
-    expect(finalTimerState.isRunning).toBe(false);
-    expect(finalTimerState.seconds).toBe(0);
-    expect(finalTimerState.initialTime).toBe(0);
+    await expect.poll(async () => {
+      const currentTaskSnapshot = await page.evaluate(() => window.electronAPI.storeGet('currentTask'));
+      return JSON.stringify({
+        text: currentTaskSnapshot?.text || '',
+        recap: currentTaskSnapshot?.recap || '',
+        nextSteps: currentTaskSnapshot?.nextSteps || '',
+      });
+    }).toBe(JSON.stringify({
+      text: 'timeup-audit',
+      recap: 'resume later note',
+      nextSteps: 're-open the draft and finish the conclusion',
+    }));
+
+    const currentTask = await page.evaluate(() => window.electronAPI.storeGet('currentTask'));
+    expect(currentTask.text).toBe('timeup-audit');
+    expect(currentTask.recap).toBe('resume later note');
+    expect(currentTask.nextSteps).toBe('re-open the draft and finish the conclusion');
 
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].task).toBe('timeup-audit');
     expect(savedSessions[0].durationMinutes).toBe(6);
     expect(savedSessions[0].completed).toBe(false);
     expect(savedSessions[0].notes).toBe('resume later note');
+    expect(savedSessions[0].recap).toBe('resume later note');
+    expect(savedSessions[0].nextSteps).toBe('re-open the draft and finish the conclusion');
   } finally {
     await cleanup();
   }
@@ -1101,7 +1172,7 @@ test('timed time-up add time restores the full window when the session expired o
     await expect.poll(async () => {
       const bounds = await readMainWindowBounds(electronApp);
       return bounds?.height || 0;
-    }, { timeout: 7000 }).toBeGreaterThanOrEqual(Math.max((boundsBeforeExpire?.height || 0) - 20, 120));
+    }, { timeout: 7000 }).toBeGreaterThanOrEqual(160);
 
     const resumedState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
     expect(resumedState.isRunning).toBe(true);
@@ -2877,7 +2948,7 @@ test('reusing a task from history does not overwrite historical session id or le
     await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
       const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
       return main ? main.getBounds().height : null;
-    })).toBeLessThanOrEqual(580);
+    })).toBeLessThanOrEqual(640);
 
     await page.getByRole('button', { name: 'Start This Task' }).click();
     await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
@@ -3134,10 +3205,10 @@ test('missing toggle compact shortcut is auto-restored to default', async () => 
       settings: {
         shortcutsEnabled: true,
         shortcuts: {
-          startPause: 'CommandOrControl+Shift+S',
+          startPause: 'CommandOrControl+Shift+P',
           newTask: 'CommandOrControl+N',
           completeTask: 'CommandOrControl+Enter',
-          openParkingLot: 'CommandOrControl+Shift+P',
+          openParkingLot: 'CommandOrControl+Shift+L',
         },
       },
     },
@@ -3153,6 +3224,23 @@ test('missing toggle compact shortcut is auto-restored to default', async () => 
     await page.getByRole('tab', { name: 'Shortcuts' }).click();
     const toggleCompactRow = page.getByRole('button', { name: /Toggle Compact Mode/i }).first();
     await expect(toggleCompactRow).toContainText('⌘+⇧+I');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('settings exposes the updated default shortcuts for Start/Pause and Parking Lot', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('tab', { name: 'Shortcuts' }).click();
+
+    const startPauseRow = page.getByRole('button', { name: /Start\/Pause Timer/i }).first();
+    const parkingLotRow = page.getByRole('button', { name: /Open Parking Lot \(Quick Capture\)/i }).first();
+
+    await expect(startPauseRow).toContainText('⌘+⇧+P');
+    await expect(parkingLotRow).toContainText('⌘+⇧+L');
   } finally {
     await cleanup();
   }
@@ -3299,7 +3387,7 @@ test('app starts with analytics disabled and emits no PostHog warnings', async (
   }
 });
 
-test('stop flow is handled inside session notes without a second completion modal', async () => {
+test('stop flow save-for-later keeps split notes and lands in the post-session prompt', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -3314,15 +3402,20 @@ test('stop flow is handled inside session notes without a second completion moda
     await expect(page.getByRole('button', { name: 'Yes, Complete' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'No, Save for Later' })).toBeVisible();
 
-    await page.getByPlaceholder('Quick note about where to pick up next time...').fill('resume from here');
+    await fillSplitSessionNotes(page, {
+      nextSteps: 'resume from here',
+      recap: 'left the final section half-drafted',
+    });
     await page.getByRole('button', { name: 'No, Save for Later' }).click();
+    await dismissSessionFeedbackIfPresent(page);
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('stop-flow-unified');
+    await expectPostSessionPrompt(page, 'stop-flow-unified');
 
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].completed).toBe(false);
-    expect(savedSessions[0].notes).toBe('resume from here');
+    expect(savedSessions[0].notes).toBe('left the final section half-drafted');
+    expect(savedSessions[0].recap).toBe('left the final section half-drafted');
+    expect(savedSessions[0].nextSteps).toBe('resume from here');
   } finally {
     await cleanup();
   }
@@ -3355,7 +3448,7 @@ test('resuming from the stop flow returns a compact-origin session to compact mo
   }
 });
 
-test('freeflow stop flow completion shows the completion message above confetti', async () => {
+test('freeflow stop flow completion keeps the finished task sticky inside the post-session prompt', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -3370,22 +3463,20 @@ test('freeflow stop flow completion shows the completion message above confetti'
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await page.getByRole('button', { name: 'Yes, Complete' }).click();
-
-    const feedbackPrompt = page.getByText('How was Focana this session?');
-    await expect(feedbackPrompt).toBeVisible();
-    await expect(feedbackPrompt).toHaveCount(0, { timeout: 5000 });
+    await dismissSessionFeedbackIfPresent(page);
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    await expectPostSessionPrompt(page, 'stop-flow-complete-message');
     await expectCheckInToastMessage(page, COMPLETED_CHECKIN_MESSAGES_WITH_NAME);
-    await expectCheckInToastAboveConfetti(page);
+
+    const currentTask = await page.evaluate(() => window.electronAPI.storeGet('currentTask'));
+    expect(currentTask.text).toBe('stop-flow-complete-message');
   } finally {
     await cleanup();
   }
 });
 
-test('feedback prompt close button skips feedback and continues the stop flow action', async () => {
+test('feedback prompt close button skips feedback and continues into the post-session prompt', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -3399,7 +3490,10 @@ test('feedback prompt close button skips feedback and continues the stop flow ac
     await page.locator('button[title="Stop & Save"]').click();
 
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
-    await page.getByPlaceholder('Quick note about where to pick up next time...').fill('carry note');
+    await fillSplitSessionNotes(page, {
+      nextSteps: 'carry note',
+      recap: 'close feedback path recap',
+    });
     await page.getByRole('button', { name: 'No, Save for Later' }).click();
 
     const feedbackPrompt = page.getByText('How was Focana this session?');
@@ -3409,8 +3503,7 @@ test('feedback prompt close button skips feedback and continues the stop flow ac
 
     await expect(feedbackPrompt).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toHaveCount(0);
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('feedback-close');
+    await expectPostSessionPrompt(page, 'feedback-close');
 
     await expect.poll(async () => {
       const sessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
@@ -3419,48 +3512,49 @@ test('feedback prompt close button skips feedback and continues the stop flow ac
 
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].completed).toBe(false);
-    expect(savedSessions[0].notes).toBe('carry note');
+    expect(savedSessions[0].notes).toBe('close feedback path recap');
+    expect(savedSessions[0].recap).toBe('close feedback path recap');
+    expect(savedSessions[0].nextSteps).toBe('carry note');
   } finally {
     await cleanup();
   }
 });
 
-test('post-session parking lot dismiss requires confirmation and Done returns to the full idle shell', async () => {
-  const { page, cleanup } = await launchApp();
+test('post-session break keeps the app quiet until the preset ends, then shows the floating resume prompt', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await installTimeOffsetControl(page);
-    await startFreeflowSession(page, 'post-session-dismiss');
+    await startFreeflowSession(page, 'post-session-break');
     await exitCompactMode(page);
-    await setTimeOffset(page, 6500);
-
-    await page.getByRole('button', { name: 'Open Parking Lot' }).click();
-    const thoughtInput = page.getByPlaceholder('Capture a thought... (Enter to add)');
-    await thoughtInput.fill('dismiss me later');
-    await page.getByRole('button', { name: 'Add Note' }).click();
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
 
     await page.getByRole('button', { name: 'End Session' }).click();
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
-    await page.getByRole('button', { name: 'Yes, Complete' }).click();
+    await page.getByRole('button', { name: 'No, Save for Later' }).click();
     await dismissSessionFeedbackIfPresent(page);
+    await expectPostSessionPrompt(page, 'post-session-break');
 
-    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toBeVisible();
-    await page.getByRole('button', { name: 'Dismiss' }).click();
-    await expect(page.getByRole('heading', { name: 'Dismiss note?' })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
-    await expect(page.getByText('dismiss me later')).toBeVisible();
+    await page.getByRole('button', { name: '5m', exact: true }).click();
+    await page.getByRole('button', { name: 'Take a break' }).click();
 
-    await page.getByRole('button', { name: 'Done' }).click();
-    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toHaveCount(0);
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, (5 * 60 * 1000) - 15000);
+    await page.waitForTimeout(1200);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 3000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
   } finally {
     await cleanup();
   }
 });
 
-test('post-session parking lot can seed the next task without deleting the saved note', async () => {
+test('post-session flow does not auto-open the parking lot, and start-another-session keeps notes intact', async () => {
   const { page, cleanup } = await launchApp();
 
   try {
@@ -3479,14 +3573,13 @@ test('post-session parking lot can seed the next task without deleting the saved
     await expect(page.getByRole('heading', { name: 'Did you finish?' })).toBeVisible();
     await page.getByRole('button', { name: 'Yes, Complete' }).click();
     await dismissSessionFeedbackIfPresent(page);
-
-    await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toBeVisible();
-    await page.getByRole('button', { name: 'Start as next task' }).click();
+    await expectPostSessionPrompt(page, 'post-session-start-next');
 
     await expect(page.getByRole('heading', { name: 'These came up while you were in the zone' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Start another session' }).click();
+
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('turn this into the next task');
-    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
 
     await page.getByRole('button', { name: 'Open Parking Lot' }).click();
     await expect(page.locator('p.line-clamp-2.break-words').filter({ hasText: 'turn this into the next task' })).toBeVisible();

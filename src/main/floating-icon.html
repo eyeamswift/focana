@@ -813,6 +813,12 @@
         return Math.min(Math.max(parsed, 1), 240);
       }
 
+      function isPrimaryShiftShortcut(event, keyValue) {
+        const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+        const primaryHeld = navigator.platform.includes('Mac') ? event.metaKey : event.ctrlKey;
+        return primaryHeld && event.shiftKey && !event.altKey && key === keyValue;
+      }
+
       function syncQuickChips() {
         const safeMinutes = clampMinutesValue(localMinutes);
         [
@@ -1173,6 +1179,13 @@
       promptSnooze60.addEventListener('click', () => dismissWithSnooze('60m'));
       promptSnooze120.addEventListener('click', () => dismissWithSnooze('120m'));
       promptSnoozeReopen.addEventListener('click', () => dismissWithSnooze('reopen'));
+
+      document.addEventListener('keydown', (event) => {
+        if (currentMode !== 'prompt') return;
+        if (!isPrimaryShiftShortcut(event, 's')) return;
+        event.preventDefault();
+        dismissWithSnooze('10m');
+      });
 
       iconButton.setAttribute('title', 'Double-click for fullscreen. Right-click for Do Not Disturb.');
       getFloatingAPI()?.onPulse?.(triggerPulse);

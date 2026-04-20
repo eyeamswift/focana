@@ -69,11 +69,11 @@ const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'snooze-options': 378,
 };
 const DEFAULT_SHORTCUTS = {
-  startPause: 'CommandOrControl+Shift+S',
+  startPause: 'CommandOrControl+Shift+P',
   newTask: 'CommandOrControl+N',
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
-  openParkingLot: 'CommandOrControl+Shift+P',
+  openParkingLot: 'CommandOrControl+Shift+L',
 };
 const LEGACY_DEFAULT_WINDOW_STATE = {
   x: 100,
@@ -547,6 +547,10 @@ function sanitizeStoreValue(key, value) {
       return {
         text: typeof value.text === 'string' ? value.text : '',
         contextNote: typeof value.contextNote === 'string' ? value.contextNote : '',
+        recap: typeof value.recap === 'string'
+          ? value.recap
+          : (typeof value.contextNote === 'string' ? value.contextNote : ''),
+        nextSteps: typeof value.nextSteps === 'string' ? value.nextSteps : '',
         startedAt: sanitizeOptionalIsoTimestamp(value.startedAt),
       };
     case 'timerState':

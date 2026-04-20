@@ -1,9 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { FileText, Edit3, Undo2, X } from 'lucide-react';
+
+function getSessionRecap(session) {
+  if (!session || typeof session !== 'object') return '';
+  if (typeof session.recap === 'string') return session.recap;
+  if (typeof session.notes === 'string') return session.notes;
+  if (typeof session.contextNote === 'string') return session.contextNote;
+  return '';
+}
+
+function getSessionNextSteps(session) {
+  if (!session || typeof session !== 'object') return '';
+  return typeof session.nextSteps === 'string' ? session.nextSteps : '';
+}
 
 export default function TaskPreviewModal({
   isOpen,
@@ -16,11 +29,14 @@ export default function TaskPreviewModal({
   canUseTask = true,
   canRestore = false,
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedNotes, setEditedNotes] = useState('');
+  const [editingField, setEditingField] = useState(null);
+  const [editedRecap, setEditedRecap] = useState('');
+  const [editedNextSteps, setEditedNextSteps] = useState('');
 
   useEffect(() => {
-    setEditedNotes(session?.notes || '');
+    setEditedRecap(getSessionRecap(session));
+    setEditedNextSteps(getSessionNextSteps(session));
+    setEditingField(null);
   }, [session]);
 
   const normalizeTask = (value) => (value || '').trim().toLowerCase();
@@ -35,6 +51,9 @@ export default function TaskPreviewModal({
 
   const lastSession = relatedSessions[0] || session || { durationMinutes: 0 };
   const totalWorkMinutes = relatedSessions.reduce((sum, item) => sum + (item.durationMinutes || 0), 0);
+  const recap = getSessionRecap(session);
+  const nextSteps = getSessionNextSteps(session);
+  const hasContext = Boolean(recap.trim() || nextSteps.trim());
 
   const formatMinutes = (minutes) => {
     if (minutes < 1) return 'less than a minute';
@@ -59,26 +78,87 @@ export default function TaskPreviewModal({
     onRestoreSession?.(session);
   };
 
-  const handleSaveNotes = () => {
-    if (!session) return;
-    onUpdateNotes(session.id, editedNotes.trim());
-    setIsEditing(false);
+  const handleSaveField = () => {
+    if (!session || !editingField) return;
+    onUpdateNotes(session.id, {
+      recap: editedRecap.trim(),
+      nextSteps: editedNextSteps.trim(),
+    });
+    setEditingField(null);
   };
 
   const handleCancelEdit = () => {
-    setEditedNotes(session?.notes || '');
-    setIsEditing(false);
+    setEditedRecap(recap);
+    setEditedNextSteps(nextSteps);
+    setEditingField(null);
   };
 
   if (!session) return null;
+
+  const renderField = ({
+    key,
+    label,
+    value,
+    editedValue,
+    onChange,
+    placeholder,
+    maxLength = 500,
+  }) => {
+    const isEditing = editingField === key;
+    const hasValue = value.trim().length > 0;
+
+    return (
+      <div className="space-y-3">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <p style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.02em', textTransform: 'uppercase', margin: 0 }}>
+            {label}
+          </p>
+          {!isEditing ? (
+            <Button
+              onClick={() => setEditingField(key)}
+              variant="outline"
+              size="sm"
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              <Edit3 style={{ width: 14, height: 14, marginRight: '0.25rem' }} />
+              {hasValue ? 'Edit' : 'Add'}
+            </Button>
+          ) : null}
+        </div>
+
+        {isEditing ? (
+          <>
+            <Textarea
+              value={editedValue}
+              onChange={onChange}
+              maxLength={maxLength}
+              placeholder={placeholder}
+              style={{ minHeight: key === 'next-steps' ? 90 : 110, borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+            />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right', margin: 0 }}>
+              {editedValue.length}/{maxLength} characters
+            </p>
+          </>
+        ) : hasValue ? (
+          <div style={{ padding: '0.8rem', background: 'var(--bg-card)', borderRadius: '0.6rem', border: '1px solid var(--border-subtle)' }}>
+            <p style={{ color: 'var(--text-primary)', fontSize: '0.89rem', lineHeight: 1.6, margin: 0 }}>{value}</p>
+          </div>
+        ) : (
+          <div style={{ padding: '0.8rem', background: 'var(--bg-card)', borderRadius: '0.6rem', border: '1px dashed var(--border-default)' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>No saved text yet</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent style={{
         background: 'var(--bg-surface)',
         borderColor: 'var(--brand-action)',
-        maxWidth: '32rem',
-        maxHeight: 'min(calc(100vh - 2rem), 720px)',
+        maxWidth: '34rem',
+        maxHeight: 'min(calc(100vh - 2rem), 760px)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -107,43 +187,32 @@ export default function TaskPreviewModal({
           </div>
         </DialogHeader>
 
-        <div style={{ padding: '1rem 0.25rem 0.5rem 0', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-          {session.notes && !isEditing ? (
-            <div className="space-y-3">
-              <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                Last notes:
+        <div style={{ padding: '1rem 0.25rem 0.5rem 0', overflowY: 'auto', flex: 1, minHeight: 0, display: 'grid', gap: '1rem' }}>
+          {renderField({
+            key: 'next-steps',
+            label: 'Immediate next step',
+            value: nextSteps,
+            editedValue: editedNextSteps,
+            onChange: (event) => setEditedNextSteps(event.target.value),
+            placeholder: 'What should you do first when you come back?',
+          })}
+
+          {renderField({
+            key: 'recap',
+            label: 'Additional details',
+            value: recap,
+            editedValue: editedRecap,
+            onChange: (event) => setEditedRecap(event.target.value),
+            placeholder: 'Completed pieces, links, and context worth remembering...',
+          })}
+
+          {!hasContext && !editingField ? (
+            <div style={{ textAlign: 'center', paddingTop: '0.25rem' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
+                Add context here if you want this task ready to resume later.
               </p>
-              <div style={{ padding: '0.75rem', background: 'var(--bg-card)', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                <p style={{ color: 'var(--text-primary)', fontSize: '0.875rem', lineHeight: 1.6 }}>{session.notes}</p>
-              </div>
             </div>
-          ) : isEditing ? (
-            <div className="space-y-3">
-              <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Edit your notes:</p>
-              <Textarea
-                value={editedNotes}
-                onChange={(e) => setEditedNotes(e.target.value)}
-                maxLength={500}
-                placeholder="Where did you leave off?"
-                style={{ minHeight: 100, borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
-              />
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
-                {editedNotes.length}/500 characters
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button onClick={handleSaveNotes} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                  Save Changes
-                </Button>
-                <Button onClick={handleCancelEdit} size="sm" variant="outline" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>No notes from your last session</p>
-            </div>
-          )}
+          ) : null}
         </div>
 
         <DialogFooter style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-default)' }}>
@@ -151,18 +220,22 @@ export default function TaskPreviewModal({
             Cancel
           </Button>
 
-          {!isEditing && (
-            <Button
-              onClick={() => setIsEditing(true)}
-              variant="outline"
-              style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}
-            >
-              <Edit3 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
-              {session.notes ? 'Edit Notes' : 'Add Notes'}
-            </Button>
-          )}
+          {editingField ? (
+            <>
+              <Button
+                onClick={handleCancelEdit}
+                variant="outline"
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+              >
+                Cancel Edit
+              </Button>
+              <Button onClick={handleSaveField} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                Save Changes
+              </Button>
+            </>
+          ) : null}
 
-          {!isEditing && canRestore && (
+          {!editingField && canRestore ? (
             <Button
               onClick={handleRestoreSession}
               variant="outline"
@@ -171,13 +244,13 @@ export default function TaskPreviewModal({
               <Undo2 style={{ width: 16, height: 16, marginRight: '0.25rem' }} />
               Restore to Resume
             </Button>
-          )}
+          ) : null}
 
-          {!isEditing && canUseTask && (
+          {!editingField && canUseTask ? (
             <Button onClick={handleUseTask} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
               Start This Task
             </Button>
-          )}
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
