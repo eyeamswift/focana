@@ -76,6 +76,7 @@ function persistSubmittedEmailLocally(email) {
 
 function buildCheckoutUrl(email) {
   const url = new URL(CHECKOUT_URL, window.location.origin);
+  url.searchParams.delete("embed");
   url.searchParams.set("checkout[email]", normalizeEmail(email));
   return url.toString();
 }
@@ -1080,7 +1081,7 @@ function getIsAppleSilicon() {
   return null;
 }
 
-const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d?embed=1";
+const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d";
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
