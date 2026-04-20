@@ -1132,6 +1132,15 @@ export default function FocanaLanding() {
     };
   }, []);
 
+  useEffect(() => {
+    const handlePageShow = () => {
+      setCheckoutRedirecting(false);
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   // Scroll depth tracking (25%, 50%, 75%, 100%)
   useEffect(() => {
     const thresholds = [25, 50, 75, 100];
@@ -1648,7 +1657,7 @@ export default function FocanaLanding() {
                 marginBottom: "10px",
               }}
             >
-              Opening secure checkout...
+              Almost there...
             </p>
             <p style={{ fontSize: "15px", lineHeight: 1.6, color: COLORS.coffeeBrown }}>
               Taking you to Lemon Squeezy now.
