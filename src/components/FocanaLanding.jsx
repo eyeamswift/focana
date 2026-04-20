@@ -2708,7 +2708,7 @@ export default function FocanaLanding() {
         titleId="checkout-capture-title"
         title="Enter your email to get your Focana details"
         description="We'll use this to send your confirmation and access details."
-        submitLabel="Continue to checkout →"
+        submitLabel="Get Focana →"
         loadingLabel="Continuing..."
         defaultEmail={submittedEmail}
       />
