@@ -5,6 +5,7 @@ export const EXIT_INTENT_DISABLED_KEY = 'focana_exit_intent_disabled';
 
 export const EMAIL_CAPTURE_SOURCES = [
   'exit-intent',
+  'founder-story-cta',
   'newsletter-cta',
   'checkout-started',
 ] as const;

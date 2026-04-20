@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 
 import {
   buildEmailCaptureJourney,
+  type EmailCaptureSource,
   isEmailCaptureSource,
   isValidEmail,
   normalizeEmail,
@@ -112,7 +113,7 @@ async function persistEmailCapture(
   supabaseUrl: string | undefined,
   supabaseKey: string | undefined,
   email: string,
-  source: 'exit-intent' | 'newsletter-cta' | 'checkout-started'
+  source: EmailCaptureSource
 ) {
   if (!supabaseUrl || !supabaseKey) {
     console.error('[email-capture] Missing Supabase server configuration');
