@@ -1684,6 +1684,14 @@ ipcMain.handle('show-main-window-after-startup', (_, width = FULL_MIN_WIDTH, hei
     startupRevealFallbackTimer = null;
   }
 
+  // If the user already minimized into the floating shell during startup,
+  // treat the reveal handshake as complete without yanking focus back to the
+  // main window.
+  if (isFloatingMinimized) {
+    awaitingInitialMainWindowShow = false;
+    return true;
+  }
+
   if (awaitingInitialMainWindowShow && !mainWindow.isVisible() && !isPillMode && !isModalExpanded) {
     const nextBounds = getSizedMainWindowBounds(width, height);
     if (nextBounds && !boundsEqual(mainWindow.getBounds(), nextBounds)) {

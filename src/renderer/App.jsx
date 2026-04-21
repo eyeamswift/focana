@@ -2918,10 +2918,12 @@ export default function App() {
       }
 
       if (!Number.isFinite(reentryNextCueAtRef.current)) {
+        const idleSince = Math.max(0, Number(lastInteractionTimeRef.current) || now);
+        const idleElapsed = Math.max(0, now - idleSince);
         const pausedRemaining = Number.isFinite(reentryRemainingMsRef.current)
           ? Math.max(0, reentryRemainingMsRef.current)
-          : REENTRY_DELAY_MS;
-        reentryEligibleSinceRef.current = now;
+          : Math.max(0, REENTRY_DELAY_MS - idleElapsed);
+        reentryEligibleSinceRef.current = now - (REENTRY_DELAY_MS - pausedRemaining);
         reentryNextCueAtRef.current = now + pausedRemaining;
         reentryRemainingMsRef.current = null;
       }
