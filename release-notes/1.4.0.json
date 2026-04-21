@@ -1,0 +1,17 @@
+{
+  "version": "1.4.0",
+  "publishedAt": "2026-04-21",
+  "summary": "Focana now helps you maintain momentum after a session ends and resume work with less friction.",
+  "fixes": [
+    "Floating re-entry prompts now stay in the floating flow more reliably instead of unexpectedly restoring the main window.",
+    "Save for Later, break, and done-for-now handoffs now preserve task continuity more reliably across full, compact, and floating windows.",
+    "The new post-session and notes screens now size more cleanly so actions and text fields stay visible."
+  ],
+  "improvements": [
+    "Ending a session now opens a guided post-session flow with Take a break, Start another session, and Done for now.",
+    "Session notes are now split into Immediate next step and Additional details so restart cues stay separate from background context.",
+    "Starting another session after a wrap-up now drops you into a clean composer with Parking Lot and Session History close by.",
+    "Keep for Later is now available as a global shortcut with Cmd/Ctrl+Shift+K for quick Parking Lot capture.",
+    "Focused check-ins now support Cmd/Ctrl+Shift+Y for a quick Yes response when Focana is frontmost."
+  ]
+}

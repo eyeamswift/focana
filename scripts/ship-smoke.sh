@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RELEASE_DIR="$PROJECT_ROOT/release"
+RELEASE_NOTES_SCRIPT="$PROJECT_ROOT/scripts/release-notes.js"
 
 SKIP_BUILD=false
 DRY_RUN=false
@@ -48,6 +49,28 @@ done
 require_tool() {
   local tool="$1"
   command -v "$tool" >/dev/null 2>&1 || fail "Missing required tool: $tool"
+}
+
+check_release_notes_status() {
+  if [ "$DRY_RUN" = true ]; then
+    info "Would validate release notes for $VERSION and print the scaffold command if missing"
+    return
+  fi
+
+  if [ ! -f "$RELEASE_NOTES_SCRIPT" ]; then
+    warn "Missing release notes helper at $RELEASE_NOTES_SCRIPT"
+    warn "Publishing will fail until release notes tooling is restored."
+    return
+  fi
+
+  if node "$RELEASE_NOTES_SCRIPT" validate --version "$VERSION" >/dev/null 2>&1; then
+    ok "Release notes are ready for $VERSION"
+    return
+  fi
+
+  warn "Release notes for $VERSION are missing or malformed."
+  warn "Smoke can continue, but publish will fail until you create and finish release-notes/$VERSION.json."
+  warn "Scaffold a draft with: node scripts/release-notes.js init --version $VERSION"
 }
 
 VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
@@ -107,6 +130,9 @@ fi
 if [ "$SKIP_BUILD" = true ]; then
   warn "Skip build enabled: existing release artifacts will be reused."
 fi
+
+info "Preflight: checking release note readiness"
+check_release_notes_status
 
 info "Step 1/3: Build, sign, notarize, and staple the mac release"
 if [ "$DRY_RUN" = true ]; then

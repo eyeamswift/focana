@@ -7,6 +7,7 @@ const notesRoot = path.join(projectRoot, 'release-notes');
 const defaultLandingRoot = path.resolve(projectRoot, '../focana-landing');
 const packageJsonPath = path.join(projectRoot, 'package.json');
 const defaultVersion = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version;
+const todayIso = new Date().toISOString().slice(0, 10);
 
 function info(message) {
   process.stdout.write(`[release-notes] ${message}\n`);
@@ -236,6 +237,24 @@ function renderGitHubNotes(release) {
   return `${lines.join('\n')}\n`;
 }
 
+function initReleaseNote(version) {
+  const filePath = getNotePath(version);
+  if (fs.existsSync(filePath)) {
+    fail(`Release notes file already exists: ${path.relative(projectRoot, filePath)}`);
+  }
+
+  fs.mkdirSync(notesRoot, { recursive: true });
+  const draft = {
+    version,
+    publishedAt: todayIso,
+    fixes: [],
+    improvements: [],
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(draft, null, 2)}\n`);
+  info(`Created draft release notes at ${path.relative(projectRoot, filePath)}`);
+  info('Add a summary plus at least one fix or improvement before publishing.');
+}
+
 function syncLandingData(landingRoot) {
   const { releases, warnings } = loadAllReleaseNotes();
   warnings.forEach(warn);
@@ -254,6 +273,7 @@ function syncLandingData(landingRoot) {
 function usage() {
   process.stdout.write([
     'Usage:',
+    '  node scripts/release-notes.js init [--version 1.3.2]',
     '  node scripts/release-notes.js validate [--version 1.3.2]',
     '  node scripts/release-notes.js render-github [--version 1.3.2]',
     '  node scripts/release-notes.js sync-landing [--landing-root ../focana-landing]',
@@ -268,6 +288,11 @@ async function main() {
 
   if (!command || command === '--help' || command === '-h') {
     usage();
+    return;
+  }
+
+  if (command === 'init') {
+    initReleaseNote(version);
     return;
   }
 

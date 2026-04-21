@@ -134,21 +134,24 @@ prepare_release_notes() {
   fi
 
   if [ ! -f "$RELEASE_NOTES_SCRIPT" ]; then
-    warn "Missing release notes helper at $RELEASE_NOTES_SCRIPT. GitHub release body and landing updates sync will be skipped."
-    return
+    fail "Missing release notes helper at $RELEASE_NOTES_SCRIPT"
   fi
 
   if ! node "$RELEASE_NOTES_SCRIPT" validate --version "$VERSION" >/dev/null 2>&1; then
-    warn "Release notes for $VERSION are missing or malformed. GitHub release body and landing updates sync will be skipped."
-    return
+    fail "Release notes for $VERSION are missing or malformed. Create or update release-notes/$VERSION.json before publishing."
   fi
 
   RELEASE_NOTES_BODY_FILE="$(mktemp -t focana-release-notes.XXXXXX)"
   if ! node "$RELEASE_NOTES_SCRIPT" render-github --version "$VERSION" >"$RELEASE_NOTES_BODY_FILE"; then
-    warn "Could not render GitHub release notes for $VERSION. The GitHub release body will be skipped."
     rm -f "$RELEASE_NOTES_BODY_FILE"
     RELEASE_NOTES_BODY_FILE=""
-    return
+    fail "Could not render GitHub release notes for $VERSION."
+  fi
+
+  if [ ! -s "$RELEASE_NOTES_BODY_FILE" ]; then
+    rm -f "$RELEASE_NOTES_BODY_FILE"
+    RELEASE_NOTES_BODY_FILE=""
+    fail "Rendered GitHub release notes for $VERSION were empty."
   fi
 
   ok "Release notes loaded for $VERSION"
@@ -161,14 +164,13 @@ sync_landing_release_notes() {
   fi
 
   if [ ! -f "$RELEASE_NOTES_SCRIPT" ]; then
-    warn "Missing release notes helper at $RELEASE_NOTES_SCRIPT. Landing updates sync will be skipped."
-    return
+    fail "Missing release notes helper at $RELEASE_NOTES_SCRIPT"
   fi
 
   if node "$RELEASE_NOTES_SCRIPT" sync-landing --landing-root "$LANDING_ROOT"; then
     ok "Landing updates data synced"
   else
-    warn "Landing updates sync skipped because the release notes are missing or malformed."
+    fail "Landing updates sync failed because the release notes are missing, malformed, or could not be processed."
   fi
 }
 
