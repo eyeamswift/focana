@@ -58,6 +58,29 @@ require_tool() {
   command -v "$tool" >/dev/null 2>&1 || fail "Missing required tool: $tool"
 }
 
+upsert_vercel_env() {
+  local key="$1"
+  local environment="$2"
+  local value="$3"
+  local allow_branch_collision="${4:-false}"
+  local output=""
+
+  if output="$(vercel env add "$key" "$environment" --cwd "$LANDING_ROOT" --value "$value" --force --yes 2>&1)"; then
+    printf '%s\n' "$output"
+    return 0
+  fi
+
+  printf '%s\n' "$output"
+
+  if [ "$allow_branch_collision" = true ] && grep -Fq '"reason": "git_branch_required"' <<<"$output"; then
+    warn "Skipping preview env update for $key because Vercel found branch-scoped Preview overrides and now requires an explicit branch."
+    warn "Production deploys will still use the correct GitHub DMG URLs."
+    return 0
+  fi
+
+  fail "Could not update $key for $environment in Vercel."
+}
+
 require_github_auth() {
   if gh auth status >/dev/null 2>&1; then
     return
@@ -422,10 +445,10 @@ if [ "$DRY_RUN" = true ]; then
   info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for production"
   info "Would upsert PUBLIC_GITHUB_ARM64_DMG_URL and PUBLIC_GITHUB_X64_DMG_URL for preview"
 else
-  vercel env add PUBLIC_GITHUB_ARM64_DMG_URL production --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
-  vercel env add PUBLIC_GITHUB_X64_DMG_URL production --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
-  vercel env add PUBLIC_GITHUB_ARM64_DMG_URL preview --cwd "$LANDING_ROOT" --value "$ARM64_URL" --force --yes
-  vercel env add PUBLIC_GITHUB_X64_DMG_URL preview --cwd "$LANDING_ROOT" --value "$X64_URL" --force --yes
+  upsert_vercel_env PUBLIC_GITHUB_ARM64_DMG_URL production "$ARM64_URL"
+  upsert_vercel_env PUBLIC_GITHUB_X64_DMG_URL production "$X64_URL"
+  upsert_vercel_env PUBLIC_GITHUB_ARM64_DMG_URL preview "$ARM64_URL" true
+  upsert_vercel_env PUBLIC_GITHUB_X64_DMG_URL preview "$X64_URL" true
 
   ok "Vercel env vars updated for production and preview"
 fi
