@@ -163,23 +163,14 @@ async function runFreeflowSmoke(page, electronApp) {
   await taskInput.press('Enter')
   await page.getByRole('button', { name: 'Freeflow' }).click()
 
-  await poll(async () => (await readWindowMode(page)) === 'full', {
+  await poll(async () => (await readWindowMode(page)) === 'pill', {
     timeoutMs: 10000,
-    description: 'full mode after freeflow start',
+    description: 'compact mode after freeflow start',
   })
 
   await poll(async () => (await readDisplayedTaskText(page)).includes(taskName), {
     timeoutMs: 10000,
-    description: 'task to appear in the fullscreen running view',
-  })
-
-  info('Entering compact mode from fullscreen')
-  const compactButton = page.locator('button[aria-label="Enter Compact Mode"]').first()
-  await compactButton.waitFor({ state: 'visible', timeout: 10000 })
-  await compactButton.click({ force: true })
-  await poll(async () => (await readWindowMode(page)) === 'pill', {
-    timeoutMs: 10000,
-    description: 'compact mode after manual entry',
+    description: 'task to appear in the compact running view',
   })
 
   info('Returning from compact to full window')
@@ -255,7 +246,7 @@ async function runFreeflowSmoke(page, electronApp) {
   await page.getByRole('button', { name: 'Take a break' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByRole('button', { name: 'Start another session' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByRole('button', { name: 'Done for now' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByText(taskName, { exact: true }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.locator('.dialog-content').first().filter({ hasText: taskName }).waitFor({ state: 'visible', timeout: 10000 })
 
   await page.getByRole('button', { name: 'Start another session' }).click()
   await taskInput.waitFor({ state: 'visible', timeout: 10000 })
