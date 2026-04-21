@@ -9,7 +9,7 @@ const EXCLUDED_SITEMAP_PATHS = new Set(['/download/', '/next-steps/', '/survey/'
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://www.focana.app',
+  site: 'https://focana.app',
   output: 'static',
   security: {
     checkOrigin: false,

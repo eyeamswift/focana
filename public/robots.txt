@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.focana.app/sitemap.xml
+Sitemap: https://focana.app/sitemap.xml

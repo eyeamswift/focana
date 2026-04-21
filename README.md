@@ -1,6 +1,6 @@
 # Focana Landing Page
 
-Landing page for [www.focana.app](https://www.focana.app) — the desktop focus app for distracted minds.
+Landing page for [focana.app](https://focana.app) — the desktop focus app for distracted minds.
 
 ## Tech Stack
 
