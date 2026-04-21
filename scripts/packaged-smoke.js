@@ -240,21 +240,31 @@ async function runFreeflowSmoke(page, electronApp) {
     description: 'task text to survive floating round-trip',
   })
 
-  info('Stopping session via Save for Later and verifying History')
+  info('Stopping session via Save for Later and verifying split notes + post-session handoff')
   await page.locator(STOP_BUTTON_SELECTOR).first().click()
   await page.getByRole('heading', { name: 'Did you finish?' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByPlaceholder('Quick note about where to pick up next time...').fill('packaged smoke note')
+  await page.locator('textarea[name="next-steps"]').fill('Restart with the packaging follow-up')
+  await page.locator('textarea[name="recap"]').fill('Dragged floating bubble, returned to full view, and saved for later')
   await page.getByRole('button', { name: 'No, Save for Later' }).click()
-  await page.getByText('How was Focana this session?').waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Close feedback prompt' }).click()
+  const closeFeedbackPrompt = page.getByRole('button', { name: 'Close feedback prompt' })
+  if (await closeFeedbackPrompt.isVisible().catch(() => false)) {
+    await closeFeedbackPrompt.click()
+  }
 
-  await poll(async () => {
-    const currentTask = await page.locator(TASK_INPUT_SELECTOR).inputValue().catch(() => '')
-    return currentTask === taskName
-  }, {
+  await page.getByRole('heading', { name: 'Session wrapped' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Take a break' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Start another session' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Done for now' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByText(taskName, { exact: true }).waitFor({ state: 'visible', timeout: 10000 })
+
+  await page.getByRole('button', { name: 'Start another session' }).click()
+  await taskInput.waitFor({ state: 'visible', timeout: 10000 })
+  await poll(async () => (await taskInput.inputValue().catch(() => '')) === '', {
     timeoutMs: 10000,
-    description: 'task text to remain after Save for Later',
+    description: 'clean composer after starting another session',
   })
+  await page.getByRole('button', { name: 'Open Parking Lot' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Open Session History' }).waitFor({ state: 'visible', timeout: 10000 })
 
   await page.locator('button[aria-label="Open Session History"]').click()
   const historyDialog = page.locator('.dialog-content').filter({ hasText: 'Session History' }).first()
@@ -266,6 +276,7 @@ async function runFreeflowSmoke(page, electronApp) {
 async function runTimedSmoke(page) {
   info('Starting timed session and forcing Time\'s up flow')
   const taskInput = page.locator(TASK_INPUT_SELECTOR).first()
+  await taskInput.fill('Packaged timed smoke task')
   await taskInput.press('Enter')
 
   const minutesInput = page.locator('input[type="number"]').first()

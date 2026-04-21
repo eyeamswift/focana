@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const store = require('./store');
-const { registerShortcuts, unregisterAll } = require('./shortcuts');
+const { registerKeepForLaterShortcut, unregisterAll } = require('./shortcuts');
 const { createTray, popupCompactContextMenu, popupFloatingContextMenu, popupMainContextMenu, refreshTrayMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 const { createFeedbackSyncService } = require('./feedbackSync');
@@ -36,6 +36,14 @@ let floatingReentryState = {
   defaultMinutes: 25,
   strongActive: false,
 };
+let floatingBreakState = {
+  open: false,
+  endsAt: 0,
+  showTimer: false,
+};
+let checkInShortcutState = {
+  visible: false,
+};
 let floatingPromptStage = 'task-entry';
 let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
@@ -62,6 +70,7 @@ const FLOATING_ICON_SIZE = 64;
 const FLOATING_TIMER_WIDTH = 116;
 const FLOATING_TIMER_HEIGHT = 48;
 const FLOATING_PROMPT_WIDTH = 420;
+const FLOATING_CORNER_MARGIN = 12;
 const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'task-entry': 308,
   'start-chooser': 340,
@@ -547,6 +556,10 @@ function sanitizeStoreValue(key, value) {
       return {
         text: typeof value.text === 'string' ? value.text : '',
         contextNote: typeof value.contextNote === 'string' ? value.contextNote : '',
+        recap: typeof value.recap === 'string'
+          ? value.recap
+          : (typeof value.contextNote === 'string' ? value.contextNote : ''),
+        nextSteps: typeof value.nextSteps === 'string' ? value.nextSteps : '',
         startedAt: sanitizeOptionalIsoTimestamp(value.startedAt),
       };
     case 'timerState':
@@ -798,25 +811,81 @@ function isToggleFloatingShortcut(input) {
   return !!hasPrimary && !input.alt;
 }
 
+function isCheckInYesShortcut(input) {
+  if (!input || input.type !== 'keyDown') return false;
+  const key = typeof input.key === 'string' ? input.key.toLowerCase() : '';
+  const code = typeof input.code === 'string' ? input.code : '';
+  const hasPrimary = process.platform === 'darwin' ? input.meta : input.control;
+  return !!hasPrimary && !!input.shift && !input.alt && (key === 'y' || code === 'KeyY');
+}
+
 function wireToggleFloatingShortcut(window) {
   if (!window || window.isDestroyed()) return;
   window.webContents.on('before-input-event', (event, input) => {
-    if (!isToggleFloatingShortcut(input)) return;
-    event.preventDefault();
-    toggleFloatingMinimize();
+    if (isToggleFloatingShortcut(input)) {
+      event.preventDefault();
+      toggleFloatingMinimize();
+      return;
+    }
+
+    if (
+      window === mainWindow
+      && checkInShortcutState.visible
+      && isCheckInYesShortcut(input)
+      && mainWindow
+      && !mainWindow.isDestroyed()
+    ) {
+      event.preventDefault();
+      mainWindow.webContents.send('scoped-checkin-shortcut', 'focused');
+    }
   });
 }
 
 function getFloatingBoundsNearMain(mainBounds, state = floatingWindowDisplayState) {
   const fallback = { x: 100, y: 100, width: FULL_MIN_WIDTH, height: FULL_MIN_HEIGHT };
   const source = mainBounds && typeof mainBounds === 'object' ? mainBounds : fallback;
+  const display = screen.getDisplayMatching(source);
+  const workArea = display?.workArea || screen.getPrimaryDisplay().workArea;
   const size = getFloatingSizeForState(state);
-  const target = {
-    x: Math.round(source.x + source.width - size.width - 8),
-    y: Math.round(source.y + 8),
-    width: size.width,
-    height: size.height,
-  };
+  const sourceCenter = getBoundsCenter(source) || getBoundsCenter(workArea);
+  const candidateBounds = [
+    {
+      x: Math.round(workArea.x + FLOATING_CORNER_MARGIN),
+      y: Math.round(workArea.y + FLOATING_CORNER_MARGIN),
+      width: size.width,
+      height: size.height,
+    },
+    {
+      x: Math.round(workArea.x + workArea.width - size.width - FLOATING_CORNER_MARGIN),
+      y: Math.round(workArea.y + FLOATING_CORNER_MARGIN),
+      width: size.width,
+      height: size.height,
+    },
+    {
+      x: Math.round(workArea.x + FLOATING_CORNER_MARGIN),
+      y: Math.round(workArea.y + workArea.height - size.height - FLOATING_CORNER_MARGIN),
+      width: size.width,
+      height: size.height,
+    },
+    {
+      x: Math.round(workArea.x + workArea.width - size.width - FLOATING_CORNER_MARGIN),
+      y: Math.round(workArea.y + workArea.height - size.height - FLOATING_CORNER_MARGIN),
+      width: size.width,
+      height: size.height,
+    },
+  ];
+  const target = candidateBounds.reduce((closest, candidate) => {
+    if (!closest) return candidate;
+
+    const candidateCenter = getBoundsCenter(candidate);
+    const closestCenter = getBoundsCenter(closest);
+    const candidateDistance = ((candidateCenter?.x || 0) - (sourceCenter?.x || 0)) ** 2
+      + ((candidateCenter?.y || 0) - (sourceCenter?.y || 0)) ** 2;
+    const closestDistance = ((closestCenter?.x || 0) - (sourceCenter?.x || 0)) ** 2
+      + ((closestCenter?.y || 0) - (sourceCenter?.y || 0)) ** 2;
+
+    return candidateDistance < closestDistance ? candidate : closest;
+  }, null);
   return clampBounds(target, 'workArea');
 }
 
@@ -1022,6 +1091,16 @@ function getFloatingWindowState() {
     };
   }
 
+  const breakRemainingSeconds = getFloatingBreakRemainingSeconds();
+  if (breakRemainingSeconds > 0) {
+    return {
+      mode: floatingBreakState.showTimer ? 'break-timer' : 'icon',
+      timeText: formatFloatingTime(breakRemainingSeconds),
+      theme,
+      running: false,
+    };
+  }
+
   return {
     mode: timerVisible ? 'timer' : 'icon',
     timeText: formatFloatingTime(totalSeconds),
@@ -1067,6 +1146,21 @@ function sanitizeFloatingReentryState(nextState = {}) {
   };
 }
 
+function sanitizeFloatingBreakState(nextState = {}) {
+  const safeState = nextState && typeof nextState === 'object' ? nextState : {};
+  const endsAt = Math.max(0, Math.floor(Number(safeState.endsAt) || 0));
+  return {
+    open: safeState.open === true && endsAt > 0,
+    endsAt,
+    showTimer: safeState.showTimer === true,
+  };
+}
+
+function getFloatingBreakRemainingSeconds(state = floatingBreakState) {
+  if (!state?.open) return 0;
+  return Math.max(0, Math.ceil((Math.max(0, Number(state.endsAt) || 0) - Date.now()) / 1000));
+}
+
 function getFloatingSizeForState(state = floatingWindowDisplayState) {
   if (state?.mode === 'prompt') {
     const promptStage = sanitizeFloatingPromptStage(state?.promptStage, {
@@ -1077,7 +1171,7 @@ function getFloatingSizeForState(state = floatingWindowDisplayState) {
       height: FLOATING_PROMPT_STAGE_HEIGHTS[promptStage] || FLOATING_PROMPT_STAGE_HEIGHTS['task-entry'],
     };
   }
-  if (state?.mode === 'timer') {
+  if (state?.mode === 'timer' || state?.mode === 'break-timer') {
     return { width: FLOATING_TIMER_WIDTH, height: FLOATING_TIMER_HEIGHT };
   }
   return { width: FLOATING_ICON_SIZE, height: FLOATING_ICON_SIZE };
@@ -1090,7 +1184,7 @@ function stopFloatingStateSync() {
   }
 }
 
-function syncFloatingWindowState({ preservePosition = true } = {}) {
+function syncFloatingWindowState({ preservePosition = true, anchorBounds = null } = {}) {
   const previousState = floatingWindowDisplayState;
   const nextState = getFloatingWindowState();
   floatingWindowDisplayState = nextState;
@@ -1113,7 +1207,7 @@ function syncFloatingWindowState({ preservePosition = true } = {}) {
         height: size.height,
       }, 'workArea');
     })()
-    : getFloatingBoundsNearMain(mainWindow?.getBounds(), nextState);
+    : getFloatingBoundsNearMain(anchorBounds || mainWindow?.getBounds(), nextState);
 
   setFloatingIconBoundsClamped(nextBounds);
   floatingIconWindow.webContents.send('floating-state', nextState);
@@ -1121,9 +1215,9 @@ function syncFloatingWindowState({ preservePosition = true } = {}) {
   return nextState;
 }
 
-function startFloatingStateSync({ preservePosition = false } = {}) {
+function startFloatingStateSync({ preservePosition = false, anchorBounds = null } = {}) {
   stopFloatingStateSync();
-  syncFloatingWindowState({ preservePosition });
+  syncFloatingWindowState({ preservePosition, anchorBounds });
   floatingStateInterval = setInterval(() => {
     syncFloatingWindowState({ preservePosition: true });
   }, 1000);
@@ -1194,11 +1288,10 @@ function createFloatingIconWindow() {
 function enterFloatingIconMode() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  const hasExistingFloatingWindow = Boolean(floatingIconWindow && !floatingIconWindow.isDestroyed());
   createFloatingIconWindow();
   if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
 
-  startFloatingStateSync({ preservePosition: hasExistingFloatingWindow });
+  startFloatingStateSync({ preservePosition: false, anchorBounds: mainWindow.getBounds() });
   mainWindow.hide();
   floatingIconWindow.show();
   floatingIconWindow.focus();
@@ -1427,12 +1520,10 @@ function createWindow() {
   // Register shortcuts from stored settings
   const settings = store.get('settings', {});
   const normalizedShortcuts = normalizeShortcuts(settings.shortcuts);
-  if (settings.shortcutsEnabled !== false) {
-    registerShortcuts(normalizedShortcuts, mainWindow);
-  }
   if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
     store.set('settings.shortcuts', normalizedShortcuts);
   }
+  registerKeepForLaterShortcut(mainWindow);
 }
 
 // IPC Handlers
@@ -1593,6 +1684,14 @@ ipcMain.handle('show-main-window-after-startup', (_, width = FULL_MIN_WIDTH, hei
     startupRevealFallbackTimer = null;
   }
 
+  // If the user already minimized into the floating shell during startup,
+  // treat the reveal handshake as complete without yanking focus back to the
+  // main window.
+  if (isFloatingMinimized) {
+    awaitingInitialMainWindowShow = false;
+    return true;
+  }
+
   if (awaitingInitialMainWindowShow && !mainWindow.isVisible() && !isPillMode && !isModalExpanded) {
     const nextBounds = getSizedMainWindowBounds(width, height);
     if (nextBounds && !boundsEqual(mainWindow.getBounds(), nextBounds)) {
@@ -1674,15 +1773,8 @@ ipcMain.on('floating-icon-drag-end', () => {
 
 // Shortcuts
 ipcMain.on('register-shortcuts', (_event, shortcuts) => {
-  if (!mainWindow) return;
-
-  const settings = store.get('settings', {});
-  if (settings.shortcutsEnabled === false) {
-    unregisterAll();
-    return;
-  }
-
-  registerShortcuts(sanitizeShortcutsPayload(shortcuts), mainWindow);
+  sanitizeShortcutsPayload(shortcuts);
+  unregisterAll();
 });
 
 ipcMain.on('unregister-shortcuts', () => {
@@ -1745,6 +1837,18 @@ ipcMain.on('set-floating-reentry-state', (_event, payload = {}) => {
     ? getDefaultFloatingPromptStage(floatingReentryState)
     : sanitizeFloatingPromptStage(floatingPromptStage, floatingReentryState);
   syncFloatingWindowState({ preservePosition: true });
+});
+
+ipcMain.on('set-floating-break-state', (_event, payload = {}) => {
+  floatingBreakState = sanitizeFloatingBreakState(payload);
+  syncFloatingWindowState({ preservePosition: true });
+});
+
+ipcMain.on('set-checkin-shortcut-state', (_event, payload = {}) => {
+  const safePayload = payload && typeof payload === 'object' ? payload : {};
+  checkInShortcutState = {
+    visible: safePayload.visible === true,
+  };
 });
 
 ipcMain.on('floating-reentry-stage', (_event, stage) => {

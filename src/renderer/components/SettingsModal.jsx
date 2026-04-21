@@ -876,45 +876,39 @@ export default function SettingsModal({
 
           <TabsContent value="shortcuts" className="space-y-4" style={{ marginTop: '1.25rem' }}>
             <div className="space-y-4">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Global Shortcuts</h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Click the action to set shortcut</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Enable All</span>
-                  <Switch checked={shortcutsEnabled} onCheckedChange={setShortcutsEnabled} />
-                </div>
-              </div>
-
-              {Object.entries(SHORTCUT_DESCRIPTIONS).map(([key, description]) => (
-                <button
-                  type="button"
-                  key={key}
-                  onClick={() => handleShortcutRecord(key)}
-                  disabled={!shortcutsEnabled}
-                  style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  width: '100%',
-                  padding: '0.5rem 0.75rem',
+              <div
+                style={{
+                  padding: '1rem',
                   background: 'var(--bg-card)',
-                  borderRadius: '0.5rem',
+                  borderRadius: '0.75rem',
                   border: '1px solid var(--border-subtle)',
-                  cursor: shortcutsEnabled ? 'pointer' : 'not-allowed',
-                  opacity: shortcutsEnabled ? 1 : 0.65,
-                  textAlign: 'left',
                 }}
+                className="space-y-3"
+              >
+                <div>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h3>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.5 }}>
+                    Focana is using a narrow shortcut model so it can help in the moment without hijacking a bunch of common Mac commands while you work in other apps.
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.85rem 0.9rem',
+                    background: 'var(--bg-surface)',
+                    borderRadius: '0.65rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{description}</p>
-                    {conflicts[key] && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
-                        <AlertTriangle style={{ width: 12, height: 12, color: '#DC2626' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#DC2626' }}>{conflicts[key]}</span>
-                      </div>
-                    )}
+                  <div>
+                    <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>Keep for Later</p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', lineHeight: 1.45 }}>
+                      Global shortcut for quick Parking Lot capture from anywhere.
+                    </p>
                   </div>
                   <span
                     style={{
@@ -929,26 +923,68 @@ export default function SettingsModal({
                       alignItems: 'center',
                       justifyContent: 'center',
                       whiteSpace: 'nowrap',
-                      background: recordingKey === key ? 'var(--brand-primary)' : 'var(--pause-bg)',
-                      color: recordingKey === key ? 'var(--text-on-brand)' : 'var(--pause-fg)',
-                      border: recordingKey === key ? '1px solid var(--brand-primary)' : '1px solid var(--border-strong)',
+                      background: 'var(--pause-bg)',
+                      color: 'var(--pause-fg)',
+                      border: '1px solid var(--border-strong)',
                     }}
                   >
-                    {recordingKey === key ? 'Press keys...' : formatShortcutDisplay(tempShortcuts[key])}
+                    {IS_MAC ? '⌘+⇧+K' : 'Ctrl+Shift+K'}
                   </span>
-                </button>
-              ))}
+                </div>
 
-              <div style={{
-                fontSize: '0.75rem',
-                color: 'var(--info-text)',
-                padding: '0.75rem',
-                background: 'var(--info-bg)',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--info-border)',
-              }}>
-                <p style={{ fontWeight: 500, marginBottom: '0.25rem' }}>macOS Note:</p>
-                <p>If Cmd+Space conflicts with Spotlight, consider using Cmd+Shift+S for Start/Pause Timer.</p>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.85rem 0.9rem',
+                    background: 'var(--bg-surface)',
+                    borderRadius: '0.65rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div>
+                    <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>Check-in: Yes</p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', lineHeight: 1.45 }}>
+                      Works only when the first check-in menu is visible and Focana is frontmost.
+                    </p>
+                  </div>
+                  <span
+                    style={{
+                      minWidth: 120,
+                      marginLeft: '0.75rem',
+                      fontFamily: 'ui-monospace, monospace',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      borderRadius: '0.375rem',
+                      padding: '0.375rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      whiteSpace: 'nowrap',
+                      background: 'var(--pause-bg)',
+                      color: 'var(--pause-fg)',
+                      border: '1px solid var(--border-strong)',
+                    }}
+                  >
+                    {IS_MAC ? '⌘+⇧+Y' : 'Ctrl+Shift+Y'}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--info-text)',
+                    padding: '0.75rem',
+                    background: 'var(--info-bg)',
+                    borderRadius: '0.5rem',
+                    border: '1px solid var(--info-border)',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Today Focana uses one intentional global shortcut for capture and keeps the check-in response shortcut focused-only. That keeps the system helpful without trampling the shortcuts you already use in other apps.
+                </div>
               </div>
             </div>
           </TabsContent>

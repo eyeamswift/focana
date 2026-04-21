@@ -6,9 +6,11 @@ const schema = {
     properties: {
       text: { type: 'string', default: '' },
       contextNote: { type: 'string', default: '' },
+      recap: { type: 'string', default: '' },
+      nextSteps: { type: 'string', default: '' },
       startedAt: { type: ['string', 'null'], default: null },
     },
-    default: { text: '', contextNote: '', startedAt: null },
+    default: { text: '', contextNote: '', recap: '', nextSteps: '', startedAt: null },
   },
   timerState: {
     type: 'object',

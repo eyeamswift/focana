@@ -1,6 +1,7 @@
 const { globalShortcut } = require('electron');
 
 let registeredShortcuts = [];
+const KEEP_FOR_LATER_ACCELERATOR = 'CommandOrControl+Shift+K';
 
 function unregisterAll() {
   registeredShortcuts.forEach((accelerator) => {
@@ -50,4 +51,22 @@ function registerShortcuts(shortcuts, mainWindow) {
   });
 }
 
-module.exports = { registerShortcuts, unregisterAll };
+function registerKeepForLaterShortcut(mainWindow) {
+  unregisterAll();
+
+  try {
+    const success = globalShortcut.register(KEEP_FOR_LATER_ACCELERATOR, () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('shortcut-triggered', 'openParkingLot');
+      }
+    });
+
+    if (success) {
+      registeredShortcuts.push(KEEP_FOR_LATER_ACCELERATOR);
+    }
+  } catch (e) {
+    console.warn(`Failed to register shortcut ${KEEP_FOR_LATER_ACCELERATOR} for Keep for Later:`, e.message);
+  }
+}
+
+module.exports = { registerShortcuts, registerKeepForLaterShortcut, unregisterAll };

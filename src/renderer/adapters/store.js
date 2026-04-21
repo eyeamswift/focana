@@ -49,6 +49,8 @@ export const SessionStore = {
       completed: data?.completed ?? false,
       kept: data?.kept ?? false,
       notes: typeof data?.notes === 'string' ? data.notes : '',
+      recap: typeof data?.recap === 'string' ? data.recap : (typeof data?.notes === 'string' ? data.notes : ''),
+      nextSteps: typeof data?.nextSteps === 'string' ? data.nextSteps : '',
       sessionFeedback: data?.sessionFeedback === 'down' ? 'down' : (data?.sessionFeedback === 'up' ? 'up' : null),
       createdAt: new Date().toISOString(),
     };

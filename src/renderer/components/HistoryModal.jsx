@@ -16,7 +16,11 @@ const formatSessionDate = (createdAt) => {
 };
 
 const getNormalizedNotes = (session) => (
-  typeof session?.notes === 'string' ? session.notes.trim() : ''
+  typeof session?.nextSteps === 'string' && session.nextSteps.trim()
+    ? session.nextSteps.trim()
+    : (typeof session?.recap === 'string' && session.recap.trim()
+      ? session.recap.trim()
+      : (typeof session?.notes === 'string' ? session.notes.trim() : ''))
 );
 
 const EMPTY_STATE_COPY = {
@@ -41,7 +45,6 @@ export default function HistoryModal({
   const [pendingDelete, setPendingDelete] = useState(null);
 
   const filteredSessions = useMemo(() => sessions.filter((session) => {
-    const hasNotes = getNormalizedNotes(session).length > 0;
     if (activeTab === 'completed') return Boolean(session?.completed);
     if (activeTab === 'discarded') return !session?.completed && !session?.kept;
     return !session?.completed && Boolean(session?.kept);
