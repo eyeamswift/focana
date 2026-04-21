@@ -123,11 +123,11 @@ const schema = {
       shortcuts: {
         type: 'object',
         default: {
-          startPause: 'CommandOrControl+Shift+P',
+          startPause: 'CommandOrControl+Shift+S',
           newTask: 'CommandOrControl+N',
           toggleCompact: 'CommandOrControl+Shift+I',
           completeTask: 'CommandOrControl+Enter',
-          openParkingLot: 'CommandOrControl+Shift+N',
+          openParkingLot: 'CommandOrControl+Shift+P',
         },
       },
       pulseSettings: {

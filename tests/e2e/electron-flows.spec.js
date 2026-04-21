@@ -943,31 +943,6 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
   }
 });
 
-test('visible re-entry prompt snoozes for ten minutes with Cmd+Shift+S', async () => {
-  const { page, cleanup } = await launchApp({ background: false });
-
-  try {
-    await installTimeOffsetControl(page);
-
-    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
-    const prompt = page.locator('.reentry-prompt--full').first();
-    await expect(prompt).toBeVisible();
-
-    await page.keyboard.press('Meta+Shift+S');
-
-    await expect(prompt).toHaveCount(0);
-
-    await setTimeOffset(page, 14 * 60 * 1000);
-    await page.waitForTimeout(1200);
-    await expect(prompt).toHaveCount(0);
-
-    await setTimeOffset(page, (15 * 60 * 1000) + 3000);
-    await expect(prompt).toBeVisible();
-  } finally {
-    await cleanup();
-  }
-});
-
 test('floating re-entry prompt mirrors the idle start flow for new tasks', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
@@ -2573,40 +2548,6 @@ test('freeflow full-window check-in shows a positive message after Yes', async (
   }
 });
 
-test('freeflow full-window check-in accepts the scoped Yes shortcut action', async () => {
-  const { electronApp, page, cleanup } = await launchApp({
-    seedConfig: {
-      settings: {
-        checkInEnabled: true,
-        checkInIntervalFreeflow: 5,
-      },
-    },
-  });
-
-  try {
-    await installTimeOffsetControl(page);
-    await startFreeflowSession(page, 'full-window-checkin-shortcut');
-    await exitCompactMode(page);
-
-    await setTimeOffset(page, 301000);
-
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expect(page.getByText('Still focused on')).toBeVisible();
-    await expect(page.getByText('full-window-checkin-shortcut?')).toBeVisible();
-
-    await electronApp.evaluate(({ BrowserWindow }) => {
-      const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
-      if (!main) return;
-      main.webContents.send('scoped-checkin-shortcut', 'focused');
-    });
-
-    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES_WITH_NAME);
-    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-  } finally {
-    await cleanup();
-  }
-});
-
 test('freeflow full-window check-in opens and dismisses the detour flow after No', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
@@ -3195,104 +3136,53 @@ test('history can restore completed and discarded sessions back to Resume', asyn
   }
 });
 
-test('shortcut recorder handles modifier and escape without lockup', async () => {
+test('shortcuts tab explains the keep-for-later global shortcut and focused-only check-in response', async () => {
   const { page, cleanup } = await launchApp();
   try {
     await page.getByRole('button', { name: 'Open Settings' }).click();
     await page.getByRole('tab', { name: 'Shortcuts' }).click();
 
-    const row = page.getByRole('button', { name: /Start\/Pause Timer/i }).first();
-    await row.click();
-    await expect(page.getByText('Press keys...')).toBeVisible();
-
-    await page.keyboard.press('Shift');
-    await expect(page.getByText('Press keys...')).toBeVisible();
-
-    await page.keyboard.press('A');
-    await expect(page.getByText('Use Cmd/Ctrl or Alt with another key')).toBeVisible();
-    await expect(page.getByText('Press keys...')).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await expect(page.getByText('Press keys...')).toHaveCount(0);
-
-    const conflictCombo = await page.evaluate(() => (/Mac/i.test(navigator.platform) ? 'Meta+N' : 'Control+N'));
-    await row.click();
-    await expect(page.getByText('Press keys...')).toBeVisible();
-    await page.keyboard.press(conflictCombo);
-    await expect(page.getByText('Conflicts with New/Edit Task')).toBeVisible();
-    const recordingStillActive = await page.getByText('Press keys...').count();
-    if (recordingStillActive > 0) {
-      await page.keyboard.press('Escape');
-      await expect(page.getByText('Press keys...')).toHaveCount(0);
-    }
-
-    await row.click();
-    await page.keyboard.press('Control+Shift+Y');
-    await expect(page.getByText('Press keys...')).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Save Settings' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Settings' })).toHaveCount(0);
+    await expect(page.getByText('Keyboard Shortcuts')).toBeVisible();
+    await expect(page.getByText('Keep for Later')).toBeVisible();
+    await expect(page.getByText('Global shortcut for quick Parking Lot capture from anywhere.')).toBeVisible();
+    await expect(page.getByText('Check-in: Yes')).toBeVisible();
+    await expect(page.getByText('Works only when the first check-in menu is visible and Focana is frontmost.')).toBeVisible();
+    await expect(page.getByText('Today Focana uses one intentional global shortcut for capture and keeps the check-in response shortcut focused-only.')).toBeVisible();
   } finally {
     await cleanup();
   }
 });
 
-test('missing toggle compact shortcut is auto-restored to default', async () => {
-  const { page, cleanup } = await launchApp({
-    seedConfig: {
-      settings: {
-        shortcutsEnabled: true,
-        shortcuts: {
-          startPause: 'CommandOrControl+Shift+P',
-          newTask: 'CommandOrControl+N',
-          completeTask: 'CommandOrControl+Enter',
-          openParkingLot: 'CommandOrControl+Shift+N',
-        },
-      },
-    },
-  });
-
+test('keep-for-later is the only registered global shortcut on launch', async () => {
+  const { electronApp, cleanup } = await launchApp();
   try {
-    await expect.poll(async () => {
-      const saved = await page.evaluate(() => window.electronAPI.storeGet('settings.shortcuts'));
-      return saved?.toggleCompact || '';
-    }).toBe('CommandOrControl+Shift+I');
+    const registrationState = await electronApp.evaluate(({ globalShortcut }) => ({
+      keepForLater: globalShortcut.isRegistered('CommandOrControl+Shift+K'),
+      startPause: globalShortcut.isRegistered('CommandOrControl+Shift+S'),
+      newTask: globalShortcut.isRegistered('CommandOrControl+N'),
+      toggleCompact: globalShortcut.isRegistered('CommandOrControl+Shift+I'),
+      completeTask: globalShortcut.isRegistered('CommandOrControl+Enter'),
+      openParkingLotLegacy: globalShortcut.isRegistered('CommandOrControl+Shift+P'),
+    }));
 
-    await page.getByRole('button', { name: 'Open Settings' }).click();
-    await page.getByRole('tab', { name: 'Shortcuts' }).click();
-    const toggleCompactRow = page.getByRole('button', { name: /Toggle Compact Mode/i }).first();
-    await expect(toggleCompactRow).toContainText('⌘+⇧+I');
+    expect(registrationState).toEqual({
+      keepForLater: true,
+      startPause: false,
+      newTask: false,
+      toggleCompact: false,
+      completeTask: false,
+      openParkingLotLegacy: false,
+    });
   } finally {
     await cleanup();
   }
 });
 
-test('settings exposes the updated default shortcuts for Start/Pause and Parking Lot', async () => {
-  const { page, cleanup } = await launchApp();
-
-  try {
-    await page.getByRole('button', { name: 'Open Settings' }).click();
-    await page.getByRole('tab', { name: 'Shortcuts' }).click();
-
-    const startPauseRow = page.getByRole('button', { name: /Start\/Pause Timer/i }).first();
-    const parkingLotRow = page.getByRole('button', { name: /Open Parking Lot \(Quick Capture\)/i }).first();
-
-    await expect(startPauseRow).toContainText('⌘+⇧+P');
-    await expect(parkingLotRow).toContainText('⌘+⇧+N');
-  } finally {
-    await cleanup();
-  }
-});
-
-test('closing settings while recording shortcuts does not leave keyboard lock', async () => {
+test('closing settings from the shortcuts tab leaves the task input usable', async () => {
   const { page, cleanup } = await launchApp();
   try {
     await page.getByRole('button', { name: 'Open Settings' }).click();
     await page.getByRole('tab', { name: 'Shortcuts' }).click();
-
-    const row = page.getByRole('button', { name: /Start\/Pause Timer/i }).first();
-    await row.click();
-    await expect(page.getByText('Press keys...')).toBeVisible();
 
     await page.locator('.dialog-content-lg .dialog-close-btn').click();
     await expect(page.getByRole('heading', { name: 'Settings' })).toHaveCount(0);

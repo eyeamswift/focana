@@ -132,7 +132,7 @@
 - Why it matters: When a check-in appears, reaching for the mouse adds friction and can break focus, especially in compact or floating mode.
 - Files: `src/renderer/App.jsx`, check-in prompt components, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `WIN-004`
-- Notes: Keep the first pass intentionally narrow. Only enable shortcuts while the first check-in menu is visible, and only for `Yes` and `No` using `Cmd/Ctrl+Shift+Y` and `Cmd/Ctrl+Shift+N`. Do not turn this into a broader global shortcut system, and do not keep the shortcuts active on follow-up detour/finished states.
+- Notes: Keep the first pass intentionally narrow. Only enable a `Yes` shortcut while the first check-in menu is visible, using `Cmd/Ctrl+Shift+Y`. Do not add a `No` shortcut, do not turn this into a broader global shortcut system, and do not keep the shortcut active on follow-up detour/finished states.
 - Commits: —
 
 ### WIN-006 — Focana should support a temporary peek-through transparency mode
@@ -172,7 +172,17 @@
 - Why it matters: Helpful features like keyboard shortcuts are easy to miss if users never stumble into them. A lightweight post-session teaching moment can help users get more out of Focana without interrupting active focus.
 - Files: `src/renderer/App.jsx`, post-session acknowledgment/feedback UI, shortcut copy source, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-008`, `UX-009`
-- Notes: Use the positive post-session acknowledgement as the education surface rather than creating a separate tutorial system. First pass should support short rotating `Did you know?` tips inside or immediately after the `Good job` message, including after `Save for Later`, with concrete examples such as check-in shortcuts like `Cmd/Ctrl+Shift+Y` for `Yes` and `Cmd/Ctrl+Shift+N` for `No`. Tips should feel optional, upbeat, and skimmable, and the system should avoid repeating the same hint too often.
+- Notes: Use the positive post-session acknowledgement as the education surface rather than creating a separate tutorial system. First pass should support short rotating `Did you know?` tips inside or immediately after the `Good job` message, including after `Save for Later`, with concrete examples such as the check-in shortcut `Cmd/Ctrl+Shift+Y` for `Yes` and the global `Keep for Later` shortcut `Cmd/Ctrl+Shift+K` for Parking Lot capture. Teach the shortcut with behavior-first copy like `If something comes up, give it to Focana to keep for later.` Tips should feel optional, upbeat, and skimmable, and the system should avoid repeating the same hint too often.
+- Commits: —
+
+### TST-001 — Playwright E2E coverage should be split for parallel workers
+- Priority: Medium
+- Status: Later
+- Version: 1.5.0
+- Why it matters: The current monolithic Electron E2E file makes every regression pass slow, which discourages broader coverage right when more flow combinations are landing. Splitting the suite will make it practical to run more tests without turning every release candidate into a long serialized wait.
+- Files: `playwright.config.js`, `tests/e2e/electron-flows.spec.js`, future `tests/e2e/*.spec.js`
+- Related: `QA-001`
+- Notes: Break the current all-in-one Playwright spec into domain files such as startup/settings, check-ins, post-session, windowing/floating, history/parking-lot, and timer regressions. Start with `3-4` workers, keep the most fragile window-position/relaunch cases in serial groups, and preserve the per-test temp store isolation that already exists. Acceptance should verify the split suite still passes reliably while materially reducing wall-clock time enough to support broader E2E coverage by default.
 - Commits: —
 
 ### NOTE-001 — Notes should support optional reminder timers

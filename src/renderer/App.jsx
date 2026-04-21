@@ -32,11 +32,11 @@ import ReentryPrompt from './components/ReentryPrompt';
 import PostSessionPrompt from './components/PostSessionPrompt';
 
 const DEFAULT_SHORTCUTS = {
-  startPause: 'CommandOrControl+Shift+P',
+  startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
-  openParkingLot: 'CommandOrControl+Shift+N',
+  openParkingLot: 'CommandOrControl+Shift+P',
 };
 const mergeShortcutsWithDefaults = (rawShortcuts) => {
   const merged = { ...DEFAULT_SHORTCUTS };
@@ -2039,21 +2039,6 @@ export default function App() {
     });
     return () => { if (cleanup) cleanup(); };
   }, [handleShortcutAction]);
-
-  // Register/unregister global shortcuts based on settings
-  useEffect(() => {
-    if (!shortcutsHydrated) return undefined;
-
-    if (shortcutsEnabled) {
-      window.electronAPI.registerGlobalShortcuts(shortcuts);
-    } else {
-      window.electronAPI.unregisterGlobalShortcuts();
-    }
-
-    return () => {
-      window.electronAPI.unregisterGlobalShortcuts();
-    };
-  }, [shortcuts, shortcutsEnabled, shortcutsHydrated]);
 
   // Save thoughts to electron-store (guarded: skip the initial mount render
   // before the async load resolves, which would otherwise wipe persisted data)

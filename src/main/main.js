@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const store = require('./store');
-const { registerShortcuts, unregisterAll } = require('./shortcuts');
+const { registerKeepForLaterShortcut, unregisterAll } = require('./shortcuts');
 const { createTray, popupCompactContextMenu, popupFloatingContextMenu, popupMainContextMenu, refreshTrayMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 const { createFeedbackSyncService } = require('./feedbackSync');
@@ -78,11 +78,11 @@ const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'snooze-options': 378,
 };
 const DEFAULT_SHORTCUTS = {
-  startPause: 'CommandOrControl+Shift+P',
+  startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
   toggleCompact: 'CommandOrControl+Shift+I',
   completeTask: 'CommandOrControl+Enter',
-  openParkingLot: 'CommandOrControl+Shift+N',
+  openParkingLot: 'CommandOrControl+Shift+P',
 };
 const LEGACY_DEFAULT_WINDOW_STATE = {
   x: 100,
@@ -1520,12 +1520,10 @@ function createWindow() {
   // Register shortcuts from stored settings
   const settings = store.get('settings', {});
   const normalizedShortcuts = normalizeShortcuts(settings.shortcuts);
-  if (settings.shortcutsEnabled !== false) {
-    registerShortcuts(normalizedShortcuts, mainWindow);
-  }
   if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
     store.set('settings.shortcuts', normalizedShortcuts);
   }
+  registerKeepForLaterShortcut(mainWindow);
 }
 
 // IPC Handlers
@@ -1767,15 +1765,8 @@ ipcMain.on('floating-icon-drag-end', () => {
 
 // Shortcuts
 ipcMain.on('register-shortcuts', (_event, shortcuts) => {
-  if (!mainWindow) return;
-
-  const settings = store.get('settings', {});
-  if (settings.shortcutsEnabled === false) {
-    unregisterAll();
-    return;
-  }
-
-  registerShortcuts(sanitizeShortcutsPayload(shortcuts), mainWindow);
+  sanitizeShortcutsPayload(shortcuts);
+  unregisterAll();
 });
 
 ipcMain.on('unregister-shortcuts', () => {
