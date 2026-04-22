@@ -1,4 +1,6 @@
 const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor } = require('electron');
+const fs = require('fs/promises');
+const http = require('http');
 const path = require('path');
 const store = require('./store');
 const { registerKeepForLaterShortcut, unregisterAll } = require('./shortcuts');
@@ -41,6 +43,7 @@ let floatingBreakState = {
   endsAt: 0,
   showTimer: false,
 };
+let floatingBreakPeekUntil = 0;
 let checkInShortcutState = {
   visible: false,
 };
@@ -49,6 +52,17 @@ let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
 const licenseService = createLicenseService({ app, store });
 const feedbackSyncService = createFeedbackSyncService({ store });
+const RENDERER_DIST_DIR = path.join(__dirname, '../../dist/renderer');
+const MIME_TYPES = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+};
+let rendererServer = null;
+let rendererServerUrl = null;
+let rendererServerPromise = null;
 
 const isDev = (process.env.FOCANA_DEV === '1' || !app.isPackaged) && process.env.FOCANA_E2E !== '1';
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
@@ -69,10 +83,11 @@ const DRAG_OVERRIDE_TTL_MS = 120;
 const FLOATING_ICON_SIZE = 64;
 const FLOATING_TIMER_WIDTH = 116;
 const FLOATING_TIMER_HEIGHT = 48;
+const FLOATING_BREAK_PEEK_MS = 3200;
 const FLOATING_PROMPT_WIDTH = 420;
 const FLOATING_CORNER_MARGIN = 12;
 const FLOATING_PROMPT_STAGE_HEIGHTS = {
-  'task-entry': 308,
+  'task-entry': 372,
   'start-chooser': 340,
   'resume-choice': 276,
   'snooze-options': 378,
@@ -120,8 +135,81 @@ const ALLOWED_STORE_KEYS = new Set([
   'settings.checkInEnabled',
   'settings.checkInIntervalFreeflow',
   'settings.checkInIntervalTimed',
+  'settings.postSessionFeedbackSkippedStreak',
+  'settings.postSessionFeedbackSuppressedUntil',
   'windowState',
 ]);
+
+function resolveRendererAssetPath(relativePath) {
+  const safeRelativePath = typeof relativePath === 'string' ? relativePath : 'index.html';
+  const absolutePath = path.resolve(RENDERER_DIST_DIR, safeRelativePath);
+  if (!absolutePath.startsWith(RENDERER_DIST_DIR)) {
+    return null;
+  }
+  return absolutePath;
+}
+
+function stopRendererServer() {
+  if (rendererServer) {
+    rendererServer.close();
+  }
+  rendererServer = null;
+  rendererServerUrl = null;
+  rendererServerPromise = null;
+}
+
+async function ensureRendererServer() {
+  if (rendererServerUrl) return rendererServerUrl;
+  if (rendererServerPromise) return rendererServerPromise;
+
+  rendererServerPromise = new Promise((resolve, reject) => {
+    const server = http.createServer(async (request, response) => {
+      try {
+        const requestUrl = new URL(request.url || '/', 'http://127.0.0.1');
+        const requestPath = decodeURIComponent(requestUrl.pathname || '/').replace(/^\/+/, '') || 'index.html';
+        const absolutePath = resolveRendererAssetPath(requestPath);
+
+        if (!absolutePath) {
+          response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          response.end('Not found');
+          return;
+        }
+
+        const file = await fs.readFile(absolutePath);
+        const extension = path.extname(absolutePath).toLowerCase();
+        response.writeHead(200, {
+          'Content-Type': MIME_TYPES[extension] || 'application/octet-stream',
+          'Cache-Control': 'no-cache',
+        });
+        response.end(file);
+      } catch (error) {
+        response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        response.end('Internal server error');
+      }
+    });
+
+    server.once('error', (error) => {
+      rendererServerPromise = null;
+      reject(error);
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close();
+        rendererServerPromise = null;
+        reject(new Error('Renderer server failed to bind to a local port.'));
+        return;
+      }
+
+      rendererServer = server;
+      rendererServerUrl = `http://127.0.0.1:${address.port}/index.html`;
+      resolve(rendererServerUrl);
+    });
+  });
+
+  return rendererServerPromise;
+}
 
 function boundsEqual(a, b) {
   if (!a || !b) return false;
@@ -609,7 +697,10 @@ function sanitizeStoreValue(key, value) {
     case 'settings.doNotDisturbEnabled':
     case 'settings.checkInEnabled':
       return Boolean(value);
+    case 'settings.postSessionFeedbackSkippedStreak':
+      return clampNumber(Number(value), 0, 999, 0);
     case 'settings.doNotDisturbUntil':
+    case 'settings.postSessionFeedbackSuppressedUntil':
       return sanitizeOptionalIsoTimestamp(value);
     case 'settings.theme':
       return value === 'dark' ? 'dark' : 'light';
@@ -1093,11 +1184,14 @@ function getFloatingWindowState() {
 
   const breakRemainingSeconds = getFloatingBreakRemainingSeconds();
   if (breakRemainingSeconds > 0) {
+    const breakTimerVisible = floatingBreakState.showTimer === true || floatingBreakPeekUntil > Date.now();
     return {
-      mode: floatingBreakState.showTimer ? 'break-timer' : 'icon',
+      mode: breakTimerVisible ? 'break-timer' : 'icon',
       timeText: formatFloatingTime(breakRemainingSeconds),
       theme,
       running: false,
+      breakActive: true,
+      breakTimerVisible,
     };
   }
 
@@ -1106,6 +1200,8 @@ function getFloatingWindowState() {
     timeText: formatFloatingTime(totalSeconds),
     theme,
     running: isRunning,
+    breakActive: false,
+    breakTimerVisible: false,
   };
 }
 
@@ -1388,7 +1484,14 @@ function createWindow() {
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
+    ensureRendererServer()
+      .then((url) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.loadURL(url);
+      })
+      .catch((error) => {
+        console.error('Failed to start packaged renderer server:', error);
+      });
   }
   mainWindow.webContents.on('context-menu', () => {
     popupMainContextMenu(mainWindow);
@@ -1841,7 +1944,27 @@ ipcMain.on('set-floating-reentry-state', (_event, payload = {}) => {
 
 ipcMain.on('set-floating-break-state', (_event, payload = {}) => {
   floatingBreakState = sanitizeFloatingBreakState(payload);
+  floatingBreakPeekUntil = 0;
   syncFloatingWindowState({ preservePosition: true });
+});
+
+ipcMain.on('floating-break-action', (_event, action) => {
+  const normalizedAction = typeof action === 'string' ? action.trim() : '';
+  const breakRemainingSeconds = getFloatingBreakRemainingSeconds();
+  if (breakRemainingSeconds <= 0) return;
+
+  if (normalizedAction === 'peek-timer') {
+    if (floatingBreakState.showTimer === true) return;
+    floatingBreakPeekUntil = Date.now() + FLOATING_BREAK_PEEK_MS;
+    syncFloatingWindowState({ preservePosition: true });
+    return;
+  }
+
+  if (normalizedAction === 'resume-now') {
+    floatingBreakPeekUntil = 0;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('floating-break-action', { action: 'resume-now' });
+  }
 });
 
 ipcMain.on('set-checkin-shortcut-state', (_event, payload = {}) => {
@@ -2107,6 +2230,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  stopRendererServer();
   updater.stop();
   feedbackSyncService.stop();
   clearDndExpiryTimer();
@@ -2115,6 +2239,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  stopRendererServer();
   powerMonitor.removeListener('suspend', handleSystemSuspend);
   powerMonitor.removeListener('resume', handleSystemResume);
   if (pendingSystemResumeSyncTimer) {

@@ -335,6 +335,12 @@
         gap: 0.55rem;
       }
 
+      .prompt-source-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+      }
+
       .prompt-actions--column {
         flex-direction: column;
       }
@@ -361,6 +367,12 @@
       .prompt-btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+      }
+
+      .prompt-btn--shortcut {
+        min-height: 2.35rem;
+        font-size: 0.78rem;
+        box-shadow: none;
       }
 
       .prompt-btn--primary {
@@ -640,14 +652,18 @@
         </div>
         <div class="prompt-body">
           <section id="prompt-step-start" class="prompt-step" data-stage="task-entry">
-            <h2 id="prompt-title" class="prompt-title">What are you working on?</h2>
-            <p class="prompt-copy">Enter your next focus, then choose a timer or Freeflow.</p>
+            <h2 id="prompt-title" class="prompt-title">What's next?</h2>
+            <p class="prompt-copy">Start something new, or pull from Parking Lot or History.</p>
             <textarea
               id="prompt-task-input"
               class="prompt-textarea"
               rows="2"
-              placeholder="Type your task here..."
+              placeholder="What are we focusing on next?"
             ></textarea>
+            <div class="prompt-source-row">
+              <button id="prompt-open-parking-btn" class="prompt-btn prompt-btn--ghost prompt-btn--shortcut" type="button">Parking Lot</button>
+              <button id="prompt-open-history-btn" class="prompt-btn prompt-btn--ghost prompt-btn--shortcut" type="button">Session History</button>
+            </div>
             <div class="prompt-actions">
               <button id="prompt-task-next-btn" class="prompt-btn prompt-btn--primary" type="button">Next</button>
             </div>
@@ -719,6 +735,8 @@
       const promptSnoozeStep = document.getElementById('prompt-step-snooze');
       const promptTaskInput = document.getElementById('prompt-task-input');
       const promptTaskNextButton = document.getElementById('prompt-task-next-btn');
+      const promptOpenParkingButton = document.getElementById('prompt-open-parking-btn');
+      const promptOpenHistoryButton = document.getElementById('prompt-open-history-btn');
       const promptResumeTaskName = document.getElementById('prompt-resume-task-name');
       const promptChooserTaskValue = document.getElementById('prompt-chooser-task-value');
       const promptMinutesInput = document.getElementById('prompt-minutes-input');
@@ -738,6 +756,7 @@
       const dragThresholdPx = 6;
       const clickDelayMs = 220;
       const controlsHideMs = 3000;
+      const breakPromptCooldownMs = 320;
       let dragActive = false;
       let dragMoved = false;
       let dragStartScreenX = 0;
@@ -746,6 +765,7 @@
       let controlsHideTimer = null;
       let currentMode = 'icon';
       let currentRunning = false;
+      let currentBreakActive = false;
       let currentPromptKind = 'start';
       let currentPromptStage = 'task-entry';
       let promptStageBeforeSnooze = 'task-entry';
@@ -754,6 +774,7 @@
       let currentResumeTaskName = '';
       let localTaskText = '';
       let localMinutes = '25';
+      let lastBreakPromptAt = 0;
 
       function getFloatingAPI() {
         return window.floatingAPI;
@@ -761,6 +782,27 @@
 
       function expandMainWindow() {
         getFloatingAPI()?.expand?.();
+      }
+
+      function peekBreakTimer() {
+        getFloatingAPI()?.breakAction?.('peek-timer');
+      }
+
+      function queueBreakPeek() {
+        clearPendingClick();
+        clickTimer = setTimeout(() => {
+          peekBreakTimer();
+          clickTimer = null;
+        }, clickDelayMs);
+      }
+
+      function promptBreakIsOver() {
+        const now = Date.now();
+        if ((now - lastBreakPromptAt) < breakPromptCooldownMs) return;
+        lastBreakPromptAt = now;
+        clearPendingClick();
+        hideTimerControls();
+        getFloatingAPI()?.breakAction?.('resume-now');
       }
 
       function emitReentryAction(action, payload = {}) {
@@ -927,6 +969,7 @@
               : 'icon';
         const nextTheme = state && state.theme === 'dark' ? 'dark' : 'light';
         currentRunning = state?.running !== false;
+        currentBreakActive = state?.breakActive === true;
         currentMode = nextMode;
         currentPromptStrongActive = state?.strongActive === true;
         const nextTimeText = typeof state?.timeText === 'string' && state.timeText.trim()
@@ -962,14 +1005,17 @@
         currentPromptKey = null;
         currentPromptStrongActive = false;
         hideTimerControls();
-        iconButton.setAttribute(
-          'aria-label',
-          nextMode === 'timer'
-            ? `Expand Focana timer ${nextTimeText}`
-            : nextMode === 'break-timer'
-              ? `Expand Focana break timer ${nextTimeText}`
-              : 'Expand Focana',
-        );
+        const iconLabel = currentBreakActive && nextMode === 'icon'
+          ? 'Show Focana break timer'
+          : currentBreakActive && nextMode === 'break-timer'
+            ? `Break timer ${nextTimeText}. End break early.`
+            : nextMode === 'timer'
+              ? `Expand Focana timer ${nextTimeText}`
+              : nextMode === 'break-timer'
+                ? `Expand Focana break timer ${nextTimeText}`
+                : 'Expand Focana';
+        iconButton.setAttribute('aria-label', iconLabel);
+        iconButton.setAttribute('title', iconLabel);
         renderPrompt();
       }
 
@@ -1032,6 +1078,16 @@
           event.preventDefault();
           return;
         }
+        if (currentBreakActive && currentMode === 'icon') {
+          event.preventDefault();
+          queueBreakPeek();
+          return;
+        }
+        if (currentBreakActive && currentMode === 'break-timer') {
+          event.preventDefault();
+          promptBreakIsOver();
+          return;
+        }
         if (currentMode === 'timer') {
           event.preventDefault();
           showTimerControls();
@@ -1044,6 +1100,10 @@
         event.preventDefault();
         dragMoved = false;
         clearPendingClick();
+        if (currentBreakActive) {
+          promptBreakIsOver();
+          return;
+        }
         expandMainWindow();
       });
 
@@ -1065,7 +1125,11 @@
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           clearPendingClick();
-          if (currentMode === 'timer') {
+          if (currentBreakActive && currentMode === 'icon') {
+            peekBreakTimer();
+          } else if (currentBreakActive && currentMode === 'break-timer') {
+            promptBreakIsOver();
+          } else if (currentMode === 'timer') {
             showTimerControls();
           } else {
             expandMainWindow();
@@ -1123,6 +1187,14 @@
         if (!trimmedTask) return;
         localTaskText = promptTaskInput.value;
         setPromptStage('start-chooser');
+      });
+
+      promptOpenParkingButton.addEventListener('click', () => {
+        emitReentryAction('open-parking');
+      });
+
+      promptOpenHistoryButton.addEventListener('click', () => {
+        emitReentryAction('open-history');
       });
 
       promptResumeButton.addEventListener('click', () => {
@@ -1200,7 +1272,7 @@
         dismissWithSnooze('10m');
       });
 
-      iconButton.setAttribute('title', 'Double-click for fullscreen. Right-click for Do Not Disturb.');
+      iconButton.setAttribute('title', 'Expand Focana');
       getFloatingAPI()?.onPulse?.(triggerPulse);
       getFloatingAPI()?.onState?.(applyState);
     </script>

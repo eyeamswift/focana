@@ -4,7 +4,7 @@ const os = require('os')
 const path = require('path')
 const { _electron: electron } = require('@playwright/test')
 
-const TASK_INPUT_SELECTOR = 'textarea[placeholder*="Type your task here"]'
+const TASK_INPUT_SELECTOR = '[data-testid="task-input"]'
 const RUNNING_TASK_SELECTOR = '.focus-hero__task'
 const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text'
 const ACTIVATION_HEADING = 'Activate Focana on this Mac'
@@ -105,6 +105,19 @@ async function readFloatingWindowBounds(electronApp) {
     const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'))
     return floating ? floating.getBounds() : null
   })
+}
+
+async function expectPostSessionPrompt(page, taskName = null) {
+  await page.getByRole('region', { name: 'Session Wrap' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-eyebrow').waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-heading').filter({ hasText: 'Nice work.' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-primary').waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-break').waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-new-task').waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-done').waitFor({ state: 'visible', timeout: 10000 })
+  if (taskName) {
+    await page.getByTestId('post-session-body').filter({ hasText: taskName }).waitFor({ state: 'visible', timeout: 10000 })
+  }
 }
 
 async function installTimeOffsetControl(page) {
@@ -231,28 +244,21 @@ async function runFreeflowSmoke(page, electronApp) {
     description: 'task text to survive floating round-trip',
   })
 
-  info('Stopping session via Save for Later and verifying split notes + post-session handoff')
+  info('Stopping session and verifying Session Wrap plus save-for-later notes handoff')
   await page.locator(STOP_BUTTON_SELECTOR).first().click()
-  await page.getByRole('heading', { name: 'Did you finish?' }).waitFor({ state: 'visible', timeout: 10000 })
+  await expectPostSessionPrompt(page, taskName)
+
+  await page.getByTestId('post-session-new-task').click()
+  await page.getByRole('heading', { name: 'Start a new task' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Save for later' }).click()
+  await page.getByRole('heading', { name: `Save “${taskName}” for later` }).waitFor({ state: 'visible', timeout: 10000 })
   await page.locator('textarea[name="next-steps"]').fill('Restart with the packaging follow-up')
   await page.locator('textarea[name="recap"]').fill('Dragged floating bubble, returned to full view, and saved for later')
-  await page.getByRole('button', { name: 'No, Save for Later' }).click()
-  const closeFeedbackPrompt = page.getByRole('button', { name: 'Close feedback prompt' })
-  if (await closeFeedbackPrompt.isVisible().catch(() => false)) {
-    await closeFeedbackPrompt.click()
-  }
-
-  await page.getByRole('heading', { name: 'Session wrapped' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Take a break' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Start another session' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Done for now' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.locator('.dialog-content').first().filter({ hasText: taskName }).waitFor({ state: 'visible', timeout: 10000 })
-
-  await page.getByRole('button', { name: 'Start another session' }).click()
+  await page.getByRole('button', { name: 'Save and continue' }).click()
   await taskInput.waitFor({ state: 'visible', timeout: 10000 })
   await poll(async () => (await taskInput.inputValue().catch(() => '')) === '', {
     timeoutMs: 10000,
-    description: 'clean composer after starting another session',
+    description: 'clean composer after save-for-later handoff',
   })
   await page.getByRole('button', { name: 'Open Parking Lot' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByRole('button', { name: 'Open Session History' }).waitFor({ state: 'visible', timeout: 10000 })
@@ -265,9 +271,10 @@ async function runFreeflowSmoke(page, electronApp) {
 }
 
 async function runTimedSmoke(page) {
-  info('Starting timed session and forcing Time\'s up flow')
+  info('Starting timed session and forcing Session Wrap expiry handoff')
   const taskInput = page.locator(TASK_INPUT_SELECTOR).first()
-  await taskInput.fill('Packaged timed smoke task')
+  const taskName = 'Packaged timed smoke task'
+  await taskInput.fill(taskName)
   await taskInput.press('Enter')
 
   const minutesInput = page.locator('input[type="number"]').first()
@@ -283,18 +290,22 @@ async function runTimedSmoke(page) {
   })
 
   await setTimeOffset(page, 65000)
-  await page.getByRole('heading', { name: "Time's up" }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Add 5 minutes' }).click()
+  await expectPostSessionPrompt(page, taskName)
+  await page.getByTestId('post-session-primary').click()
+  await page.getByRole('heading', { name: `Keep working on ${taskName}.` }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-keep-working-minutes').fill('6')
+  await page.getByTestId('post-session-keep-working-minutes').press('Enter')
 
   await poll(async () => {
     const mode = await readWindowMode(page)
     const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'))
     return (mode === 'pill' || mode === 'full')
       && Boolean(timerState?.isRunning)
+      && timerState?.mode === 'timed'
       && Number(timerState?.initialTime) >= 360
   }, {
     timeoutMs: 10000,
-    description: 'timed session to keep running after extension',
+    description: 'timed session to restart from Session Wrap keep working',
   })
 }
 

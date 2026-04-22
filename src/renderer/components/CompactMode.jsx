@@ -18,7 +18,7 @@ const TASK_MAX_W = 220; // max task width before wrapping
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
 const REENTRY_PROMPT_SIZES = {
-  'task-entry': { width: 440, height: 332 },
+  'task-entry': { width: 440, height: 386 },
   'resume-choice': { width: 440, height: 294 },
   'start-chooser': { width: 440, height: 390 },
   'snooze-options': { width: 440, height: 444 },
@@ -65,6 +65,8 @@ export default function CompactMode({
   onReentryStageChange,
   onReentryStartSession,
   onReentryStartNewFromResume,
+  onReentryOpenParkingLot,
+  onReentryOpenSessionHistory,
   onReentrySnooze,
 }) {
   const [showControls, setShowControls] = useState(false);
@@ -431,6 +433,8 @@ export default function CompactMode({
           onStageChange={onReentryStageChange}
           onStartSession={onReentryStartSession}
           onStartNewFromResume={onReentryStartNewFromResume}
+          onOpenParkingLot={onReentryOpenParkingLot}
+          onOpenSessionHistory={onReentryOpenSessionHistory}
           onSnooze={onReentrySnooze}
         />
       </div>

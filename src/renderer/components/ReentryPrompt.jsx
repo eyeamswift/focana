@@ -23,6 +23,8 @@ export default function ReentryPrompt({
   onStageChange,
   onStartSession,
   onStartNewFromResume,
+  onOpenParkingLot,
+  onOpenSessionHistory,
   onSnooze,
 }) {
   const textareaRef = useRef(null);
@@ -144,8 +146,8 @@ export default function ReentryPrompt({
       <div className="reentry-prompt__body electron-no-drag">
         {stage === 'task-entry' ? (
           <section className="reentry-prompt__step reentry-prompt__step--task-entry">
-            <h2 className="reentry-prompt__title">What are you working on?</h2>
-            <p className="reentry-prompt__copy">Enter your next focus, then choose a timer or Freeflow.</p>
+            <h2 className="reentry-prompt__title">What&apos;s next?</h2>
+            <p className="reentry-prompt__copy">Start something new, or pull from Parking Lot or History.</p>
             <textarea
               ref={textareaRef}
               className="reentry-prompt__textarea"
@@ -158,8 +160,26 @@ export default function ReentryPrompt({
                 event.preventDefault();
                 handleAdvanceToChooser();
               }}
-              placeholder="Type your task here..."
+              placeholder="What are we focusing on next?"
             />
+            <div className="reentry-prompt__source-row">
+              <button
+                type="button"
+                className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
+                onClick={() => onOpenParkingLot?.()}
+                data-testid="reentry-open-parking"
+              >
+                Parking Lot
+              </button>
+              <button
+                type="button"
+                className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
+                onClick={() => onOpenSessionHistory?.()}
+                data-testid="reentry-open-history"
+              >
+                Session History
+              </button>
+            </div>
             <div className="reentry-prompt__actions">
               <button
                 type="button"

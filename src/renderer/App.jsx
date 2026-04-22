@@ -58,7 +58,7 @@ const WINDOW_SIZES = {
   baseWidth: 460,
   runningWidth: 432,
   idleHeight: 124,
-  reentryPromptHeight: 348,
+  reentryPromptHeight: 404,
   startupCheckingHeight: 220,
   startupNameHeight: 380,
   startupActivationHeight: 460,
@@ -76,7 +76,7 @@ const WINDOW_SIZES = {
     taskPreview: [540, 640],
     parkingLot: [420, 500],
     postSessionParkingLot: [520, 560],
-    postSessionPrompt: [560, 560],
+    postSessionPrompt: [560, 280],
     timeUp: [540, 460],
     notes: [440, 620],
     quickCapture: [420, 340],
@@ -86,6 +86,11 @@ const TASK_CHARACTER_LIMIT = 96;
 const clampTaskText = (value) => {
   if (typeof value !== 'string') return '';
   return value.slice(0, TASK_CHARACTER_LIMIT);
+};
+const clampSessionMinutes = (value, fallback = 25) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), 240);
 };
 const isEditableShortcutTarget = (target) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -100,11 +105,6 @@ const CHECKIN_MESSAGES = [
   'Great. You got this.',
   "You're doing good 👍🏾",
 ];
-const CHECKIN_COMPLETED_MESSAGES = [
-  'Done! What a win',
-  'Checked off, nice work',
-  "That's a wrap",
-];
 const CHECKIN_DETOUR_MESSAGES = [
   "No worries, let's get back to it",
   'Happens to everyone, you caught it',
@@ -116,8 +116,6 @@ const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60 + 3; // +3s offset to avoid check-in collision
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
 const COMPACT_SUCCESS_CUE_MS = 800;
-const SESSION_FEEDBACK_AUTO_ADVANCE_MS = 3000;
-const SESSION_FEEDBACK_CONTINUE_DELAY_MS = 200;
 const REENTRY_DELAY_MS = 5 * 60 * 1000;
 const REENTRY_LOOP_MS = 30 * 1000;
 const REENTRY_STRONG_MS = 6000;
@@ -127,7 +125,6 @@ const REENTRY_SNOOZE_MS = {
   '60m': 60 * 60 * 1000,
   '120m': 2 * 60 * 60 * 1000,
 };
-const POST_SESSION_BREAK_PRESETS = [5, 15, 25];
 const PINNED_CONTROLS_DEFAULT = {
   alwaysOnTop: false,
   dnd: false,
@@ -162,24 +159,7 @@ function normalizePreferredName(value) {
 }
 
 function getFocusedCheckInMessages(preferredName) {
-  const safeName = normalizePreferredName(preferredName);
-  if (!safeName) return CHECKIN_MESSAGES;
-  return [
-    `Nice, ${safeName}. Keep going.`,
-    `Good Job ${safeName} 🍊`,
-    `${safeName}, you got this`,
-    `You're doing good, ${safeName}`,
-  ];
-}
-
-function getCompletedCheckInMessages(preferredName) {
-  const safeName = normalizePreferredName(preferredName);
-  if (!safeName) return CHECKIN_COMPLETED_MESSAGES;
-  return [
-    `Done, ${safeName}. What a win`,
-    `Checked off, nice work, ${safeName}`,
-    `That's a wrap, ${safeName}`,
-  ];
+  return CHECKIN_MESSAGES;
 }
 
 function getLicenseGateCopy(status) {
@@ -355,15 +335,13 @@ export default function App() {
   const [postSessionParkingLotSessionId, setPostSessionParkingLotSessionId] = useState(null);
   const [postSessionParkingLotHiddenIds, setPostSessionParkingLotHiddenIds] = useState([]);
   const [showPostSessionPrompt, setShowPostSessionPrompt] = useState(false);
-  const [postSessionBreakMinutes, setPostSessionBreakMinutes] = useState(null);
-  const [postSessionBreakHasSelection, setPostSessionBreakHasSelection] = useState(false);
-  const [postSessionBreakShowTimer, setPostSessionBreakShowTimer] = useState(false);
+  const [postSessionLayoutVersion, setPostSessionLayoutVersion] = useState(0);
   const [postSessionResumeCandidate, setPostSessionResumeCandidate] = useState(null);
+  const [postSessionFeedbackEnabled, setPostSessionFeedbackEnabled] = useState(false);
   const [postSessionStartAssist, setPostSessionStartAssist] = useState(false);
   const [parkingLotTaskSwitchConfirm, setParkingLotTaskSwitchConfirm] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
-  const [sessionFeedbackPrompt, setSessionFeedbackPrompt] = useState(null);
   const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | name | ready
   const [startupRevealComplete, setStartupRevealComplete] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState(null);
@@ -479,6 +457,10 @@ export default function App() {
   const timeUpReturnToCompactRef = useRef(false);
   const timeUpReturnToFloatingRef = useRef(false);
   const timeUpTriggerKeyRef = useRef('');
+  const timeUpHandledRef = useRef(false);
+  const postSessionReturnToCompactRef = useRef(false);
+  const postSessionReturnToFloatingRef = useRef(false);
+  const openPostSessionTransitionRef = useRef(() => {});
   const sessionFeedbackFlowRef = useRef({ id: 0, captured: false });
   const sessionFeedbackPendingActionRef = useRef(null);
   const lastInteractionTimeRef = useRef(Date.now());
@@ -695,18 +677,9 @@ export default function App() {
     setToast({ type, message, duration, ...options });
   }, []);
 
-  const showCompletedSessionMessage = useCallback(() => {
-    const completedMessages = getCompletedCheckInMessages(preferredName);
-    const completedMessage = completedMessages[Math.floor(Math.random() * completedMessages.length)];
-    showToast('success', completedMessage, 2000, {
-      showIcon: false,
-      showCloseButton: false,
-      placement: 'window-center',
-      source: 'checkin-success',
-      zIndex: 180,
-    });
-    return completedMessage;
-  }, [preferredName, showToast]);
+  const handlePostSessionLayoutChange = useCallback(() => {
+    setPostSessionLayoutVersion((prev) => prev + 1);
+  }, []);
 
   const handleCheckForUpdates = useCallback(async () => {
     try {
@@ -1147,7 +1120,6 @@ export default function App() {
       setPreferredName(savedPreferredName);
       setPreferredNameInput(savedPreferredName);
       setStartupGateState('ready');
-      showToast('success', `Nice to meet you, ${savedPreferredName}.`);
     } catch (error) {
       console.error('Failed to save preferred name:', error);
       setPreferredNameError('Could not save your name right now. Please try again.');
@@ -1390,7 +1362,6 @@ export default function App() {
       id: sessionFeedbackFlowRef.current.id + 1,
       captured: false,
     };
-    setSessionFeedbackPrompt(null);
   }, []);
 
   const resetSessionFeedbackFlow = useCallback(() => {
@@ -1399,27 +1370,19 @@ export default function App() {
       ...sessionFeedbackFlowRef.current,
       captured: false,
     };
-    setSessionFeedbackPrompt(null);
   }, []);
 
   const continueSessionFeedbackFlow = useCallback(() => {
     const nextAction = sessionFeedbackPendingActionRef.current;
     sessionFeedbackPendingActionRef.current = null;
-    setSessionFeedbackPrompt(null);
     if (typeof nextAction === 'function') {
       nextAction();
     }
   }, []);
 
-  const captureSessionFeedback = useCallback(async (feedback) => {
-    const prompt = sessionFeedbackPrompt;
+  const captureSessionFeedback = useCallback(async (feedback, promptOverride = null) => {
+    const prompt = promptOverride;
     if (!prompt) return;
-    if (prompt.flowId !== sessionFeedbackFlowRef.current.id || sessionFeedbackFlowRef.current.captured) return;
-
-    sessionFeedbackFlowRef.current = {
-      ...sessionFeedbackFlowRef.current,
-      captured: true,
-    };
 
     const sessionId = prompt.sessionId || await ensureCurrentSessionId('session feedback');
     const queueItem = {
@@ -1470,25 +1433,11 @@ export default function App() {
     } catch (error) {
       console.error('Failed to capture session feedback:', error);
     }
-  }, [ensureCurrentSessionId, licenseStatus?.installId, licenseStatus?.instanceId, runtimeInfo?.channel, runtimeInfo?.osVersion, runtimeInfo?.version, sessionFeedbackPrompt]);
+  }, [ensureCurrentSessionId, licenseStatus?.installId, licenseStatus?.instanceId, runtimeInfo?.channel, runtimeInfo?.osVersion, runtimeInfo?.version]);
 
   const maybePromptSessionFeedback = useCallback(({ modal, surface, completionType, onContinue }) => {
-    if (sessionFeedbackFlowRef.current.captured) {
-      onContinue?.();
-      return;
-    }
-
-    sessionFeedbackPendingActionRef.current = onContinue;
-    setSessionFeedbackPrompt({
-      modal,
-      surface,
-      completionType,
-      flowId: sessionFeedbackFlowRef.current.id,
-      sessionId: currentSessionId || sessionToSave.current?.sessionId || null,
-      sessionDurationMinutes: Number((sessionToSave.current?.duration || 0).toFixed(2)),
-      sessionMode: mode,
-    });
-  }, [currentSessionId, mode]);
+    onContinue?.();
+  }, []);
 
   // Pulse animation
   const triggerPulse = useCallback((type = 'gentle', repeats = 2) => {
@@ -1609,6 +1558,7 @@ export default function App() {
     setReentryStrongActive(false);
     setReentryAttentionVisible(false);
     closeFloatingReentryPrompt();
+    void window.electronAPI.enterFloatingMinimize?.();
   }, [closeFloatingReentryPrompt]);
 
   const pauseReentryAttention = useCallback((now = Date.now()) => {
@@ -1732,22 +1682,33 @@ export default function App() {
     setDistractionJarOpen(true);
   }, [exitCompactForReturnDetour, isCompact]);
 
+  const openHistoryFromReentry = useCallback(({ bringToFront = false } = {}) => {
+    if (bringToFront) {
+      window.electronAPI.bringToFront?.();
+    }
+    openHistoryModal();
+  }, [openHistoryModal]);
+
+  const openParkingLotFromReentry = useCallback(({ bringToFront = false } = {}) => {
+    if (bringToFront) {
+      window.electronAPI.bringToFront?.();
+    }
+    handleOpenParkingLot();
+  }, [handleOpenParkingLot]);
+
   // Shortcut handlers
   const handleShortcutStartPause = useCallback(() => {
     if (task.trim()) {
       if (isRunning) {
         pauseActiveTimer();
-        showToast('success', 'Session paused');
       } else {
         resumeActiveTimer('shortcut start');
-        showToast('success', 'Session started');
       }
     } else {
       if (isCompact) handleExitCompact();
       setTimeout(() => { taskInputRef.current?.focus(); }, 100);
-      showToast('info', 'Enter a task to start timer');
     }
-  }, [task, isRunning, isCompact, handleExitCompact, pauseActiveTimer, resumeActiveTimer, showToast]);
+  }, [task, isRunning, isCompact, handleExitCompact, pauseActiveTimer, resumeActiveTimer]);
 
   const handleShortcutNewTask = useCallback(() => {
     if (isCompact) handleExitCompact();
@@ -1775,8 +1736,7 @@ export default function App() {
     } else {
       handleExitCompact();
     }
-    showToast('info', newCompact ? 'Compact Mode On' : 'Compact Mode Off');
-  }, [handleExitCompact, isCompact, requestCompactEntry, showToast]);
+  }, [handleExitCompact, isCompact, requestCompactEntry]);
 
   const handleShortcutCompleteTask = useCallback(async () => {
     if (task.trim()) {
@@ -1806,19 +1766,19 @@ export default function App() {
         setSessionNotesMode('complete');
         setShowNotesModal(true);
       } else {
-        showCompletedSessionMessage();
-        triggerConfetti();
-        await saveSessionWithNotes({ recap: contextNotes, nextSteps: nextStepsNotes });
-        openPostSessionTransition({
+        const completedSessionId = await saveSessionWithNotes({ recap: contextNotes, nextSteps: nextStepsNotes });
+        openPostSessionTransitionRef.current({
           taskText: task,
           recap: contextNotes,
           nextSteps: nextStepsNotes,
-          sessionId: null,
+          sessionId: completedSessionId,
           carryoverSeconds: 0,
+          completedMinutes: durationMin,
+          completedMode: mode,
         });
       }
     }
-  }, [task, isRunning, getElapsedSeconds, pauseActiveTimer, mode, saveSessionWithNotes, isCompact, handleExitCompact, showCompletedSessionMessage, triggerConfetti, contextNotes, nextStepsNotes]);
+  }, [task, isRunning, getElapsedSeconds, pauseActiveTimer, mode, saveSessionWithNotes, isCompact, handleExitCompact, contextNotes, nextStepsNotes]);
 
   const handleShortcutAction = useCallback((action) => {
     (async () => {
@@ -2451,10 +2411,8 @@ export default function App() {
     setSessionNotesMode('complete');
     setSessionStartTime(null);
     setPostSessionResumeCandidate(null);
+    setPostSessionFeedbackEnabled(false);
     setPostSessionStartAssist(false);
-    setPostSessionBreakMinutes(null);
-    setPostSessionBreakHasSelection(false);
-    setPostSessionBreakShowTimer(false);
     setParkingLotTaskSwitchConfirm(null);
     invalidatePendingSessionCreation();
     resetSessionFeedbackFlow();
@@ -2780,24 +2738,18 @@ export default function App() {
     track('checkin_responded', { response: 'completed' });
 
     setIsRunning(false);
-    const completedMessage = showCompletedSessionMessage();
-    setCheckInState('resolved');
-    setCheckInMessage(completedMessage);
-    setCheckInCelebrating(true);
-    setCheckInCelebrationType('completed');
-    triggerConfetti(2200);
-
-    checkInResolveTimeoutRef.current = setTimeout(async () => {
-      await completeSessionFromCheckIn(elapsedSec);
-      openPostSessionTransition({
-        taskText: task,
-        recap: contextNotes,
-        nextSteps: nextStepsNotes,
-        sessionId: null,
-        carryoverSeconds: 0,
-      });
-    }, 2000);
-  }, [completeSessionFromCheckIn, contextNotes, getElapsedSeconds, logCheckIn, nextStepsNotes, showCompletedSessionMessage, task, triggerConfetti]);
+    clearCheckInUi();
+    const completedSessionId = await completeSessionFromCheckIn(elapsedSec);
+    openPostSessionTransitionRef.current({
+      taskText: task,
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+      sessionId: completedSessionId,
+      carryoverSeconds: 0,
+      completedMinutes: elapsedSec / 60,
+      completedMode: mode,
+    });
+  }, [clearCheckInUi, completeSessionFromCheckIn, contextNotes, getElapsedSeconds, logCheckIn, mode, nextStepsNotes, task]);
 
   const handleCheckInDetour = useCallback(async () => {
     if (checkInStateRef.current !== 'detour-choice') return;
@@ -3314,13 +3266,16 @@ export default function App() {
   useEffect(() => {
     if (mode !== 'timed' || initialTime <= 0) {
       timeUpTriggerKeyRef.current = '';
+      timeUpHandledRef.current = false;
       return undefined;
     }
     if (time !== 0) {
       timeUpTriggerKeyRef.current = '';
+      timeUpHandledRef.current = false;
       return undefined;
     }
     if (showTimeUpModal || showNotesModal) return undefined;
+    if (timeUpHandledRef.current) return undefined;
 
     const triggerKey = [
       currentSessionId || 'no-session',
@@ -3331,44 +3286,61 @@ export default function App() {
 
     if (timeUpTriggerKeyRef.current === triggerKey) return undefined;
     timeUpTriggerKeyRef.current = triggerKey;
+    timeUpHandledRef.current = true;
 
-    let cancelled = false;
     const wasCompact = isCompact;
 
     const showTimeUpFlow = async () => {
       const restoredFromFloating = await window.electronAPI.restoreFromFloatingForTimeUp?.() || false;
-      if (cancelled) return;
 
       if (wasCompact) {
         captureCompactReturnBounds();
       }
 
+      const returnToFloating = Boolean(restoredFromFloating);
+      const returnToCompact = returnToFloating ? false : wasCompact;
+      const durationMin = initialTime / 60;
+
       elapsedBeforeRunRef.current = Math.max(0, initialTime);
-      timeUpReturnToFloatingRef.current = Boolean(restoredFromFloating);
-      timeUpReturnToCompactRef.current = restoredFromFloating ? false : wasCompact;
+      timeUpReturnToFloatingRef.current = false;
+      timeUpReturnToCompactRef.current = false;
       logMissedCheckInIfPrompting(initialTime);
       setIsRunning(false);
       setIsCompact(false);
       setShowNotesModal(false);
       setSessionNotesMode('complete');
-      setIsTimerVisible(true);
       setSessionStartTime(null);
       clearCompactSessionCues();
-      beginSessionFeedbackFlow();
+      stopFlowResumeStateRef.current = {
+        canResume: false,
+        returnToCompact: false,
+        returnToFloating: false,
+      };
       sessionToSave.current = {
-        duration: initialTime / 60,
-        completed: true,
+        duration: durationMin,
+        completed: false,
+        kept: false,
         sessionId: currentSessionId,
       };
-      setShowTimeUpModal(true);
+      const endedSessionId = await saveSessionWithNotes({
+        recap: contextNotes,
+        nextSteps: nextStepsNotes,
+      });
+      openPostSessionTransitionRef.current({
+        taskText: task,
+        recap: contextNotes,
+        nextSteps: nextStepsNotes,
+        sessionId: endedSessionId,
+        carryoverSeconds: 0,
+        completedMinutes: durationMin,
+        completedMode: 'timed',
+        returnToCompact,
+        returnToFloating,
+      });
     };
 
     void showTimeUpFlow();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, time, initialTime, beginSessionFeedbackFlow, captureCompactReturnBounds, clearCompactSessionCues, currentSessionId, isCompact, logMissedCheckInIfPrompting, showNotesModal, showTimeUpModal]);
+  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, logMissedCheckInIfPrompting, nextStepsNotes, saveSessionWithNotes, showNotesModal, showTimeUpModal, task]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -3475,14 +3447,32 @@ export default function App() {
     window.electronAPI.ensureMainWindowSize?.(targetWidth, targetHeight);
   }, [measureStartupGateHeight, startupGateState]);
 
-  const resizeToMainCardContent = useCallback((minHeight) => {
+  const measureMainCardContentHeight = useCallback(() => {
     const card = mainCardRef.current;
-    const measuredHeight = card
-      ? Math.ceil(card.scrollHeight || card.getBoundingClientRect().height || 0)
-      : 0;
+    if (!card) return 0;
+
+    const cardRect = card.getBoundingClientRect();
+    const computedStyles = window.getComputedStyle(card);
+    const paddingBottom = Number.parseFloat(computedStyles.paddingBottom || '0') || 0;
+    const childElements = Array.from(card.children).filter((child) => child instanceof HTMLElement);
+
+    if (childElements.length === 0) {
+      return Math.ceil(cardRect.height || 0);
+    }
+
+    const contentBottom = childElements.reduce((maxBottom, child) => {
+      const childRect = child.getBoundingClientRect();
+      return Math.max(maxBottom, childRect.bottom);
+    }, cardRect.top);
+
+    return Math.ceil(Math.max(0, (contentBottom - cardRect.top) + paddingBottom));
+  }, []);
+
+  const resizeToMainCardContent = useCallback((minHeight) => {
+    const measuredHeight = measureMainCardContentHeight();
     const targetHeight = Math.max(minHeight, measuredHeight);
     ensureWindowSizeForCurrentScreen(targetHeight);
-  }, [ensureWindowSizeForCurrentScreen]);
+  }, [ensureWindowSizeForCurrentScreen, measureMainCardContentHeight]);
 
   const resizeToStartupGateContent = useCallback(() => {
     if (!startupRevealComplete) return;
@@ -3504,8 +3494,9 @@ export default function App() {
   const getIdleScreenDefaultHeight = useCallback(() => {
     if (startupGateState !== 'ready') return getStartupGateFallbackHeight();
     if (showSurfaceReentryPrompt) return WINDOW_SIZES.reentryPromptHeight;
+    if (showPostSessionPrompt) return WINDOW_SIZES.modal.postSessionPrompt[1];
     return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
-  }, [getStartupGateFallbackHeight, isStartModalOpen, showSurfaceReentryPrompt, startupGateState]);
+  }, [getStartupGateFallbackHeight, isStartModalOpen, showPostSessionPrompt, showSurfaceReentryPrompt, startupGateState]);
 
   const getStartupTargetHeight = useCallback(() => {
     if (startupGateState !== 'ready') return measureStartupGateHeight();
@@ -3624,6 +3615,24 @@ export default function App() {
     }
   }, []);
 
+  useLayoutEffect(() => {
+    if (!showPostSessionPrompt) return undefined;
+    if (!startupRevealComplete) return undefined;
+    if (isCompact) return undefined;
+
+    const syncNow = window.setTimeout(() => {
+      resyncFullWindowSize();
+    }, 0);
+    const syncSettled = window.setTimeout(() => {
+      resyncFullWindowSize();
+    }, 120);
+
+    return () => {
+      window.clearTimeout(syncNow);
+      window.clearTimeout(syncSettled);
+    };
+  }, [isCompact, postSessionLayoutVersion, resyncFullWindowSize, showPostSessionPrompt, startupRevealComplete]);
+
   useEffect(() => {
     if (isCompact || compactTransitioning || !didJustExitCompactRef.current) return undefined;
 
@@ -3721,7 +3730,8 @@ export default function App() {
     pauseActiveTimer();
   }, [isRunning, pauseActiveTimer]);
 
-  const handleStop = useCallback((options = {}) => {
+  const handleStop = useCallback(async (options = {}) => {
+    if (!task.trim()) return;
     const explicitReturnToFloating = options?.returnToFloating;
     const explicitReturnToCompact = options?.returnToCompact;
     const returnToFloating = explicitReturnToFloating === true;
@@ -3738,19 +3748,54 @@ export default function App() {
       returnToFloating,
     };
     const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
+    const durationMinutes = elapsedSeconds / 60;
+    const splitNotes = normalizeSplitNotes({
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+    });
     clearCompactSessionCues();
     if (isCompact) {
       handleExitCompact();
     }
-    beginSessionFeedbackFlow();
+
+    if (pendingParkingLotTaskSwitchRef.current?.taskText) {
+      sessionToSave.current = {
+        duration: durationMinutes,
+        completed: false,
+        kept: true,
+        sessionId: currentSessionId,
+      };
+      await saveSessionWithNotes(splitNotes);
+      elapsedBeforeRunRef.current = 0;
+      setIsRunning(false);
+      setTime(0);
+      setInitialTime(0);
+      setIsTimerVisible(false);
+      setIsCompact(false);
+      setSessionStartTime(null);
+      startPendingParkingLotTaskSwitch();
+      return;
+    }
+
     sessionToSave.current = {
-      duration: elapsedSeconds / 60,
+      duration: durationMinutes,
       completed: false,
+      kept: false,
       sessionId: currentSessionId,
     };
-    setSessionNotesMode('stop-decision');
-    setShowNotesModal(true);
-  }, [clearCompactSessionCues, currentSessionId, getElapsedSeconds, handleExitCompact, isCompact, isRunning, pauseActiveTimer]);
+    const endedSessionId = await saveSessionWithNotes(splitNotes);
+    openPostSessionTransitionRef.current({
+      taskText: task,
+      recap: splitNotes.recap,
+      nextSteps: splitNotes.nextSteps,
+      sessionId: endedSessionId,
+      carryoverSeconds: 0,
+      completedMinutes: durationMinutes,
+      completedMode: mode,
+      returnToCompact,
+      returnToFloating,
+    });
+  }, [clearCompactSessionCues, contextNotes, currentSessionId, getElapsedSeconds, handleExitCompact, isCompact, isRunning, mode, nextStepsNotes, pauseActiveTimer, saveSessionWithNotes, startPendingParkingLotTaskSwitch, task]);
 
   const handleConfirmParkingLotTaskSwitch = useCallback(() => {
     if (!parkingLotTaskSwitchConfirm?.taskText) return;
@@ -3892,6 +3937,12 @@ export default function App() {
     const hasNotesOverride = Object.prototype.hasOwnProperty.call(options, 'notes');
     const hasSessionIdOverride = Object.prototype.hasOwnProperty.call(options, 'sessionId');
     const hasCarryoverOverride = Object.prototype.hasOwnProperty.call(options, 'carryoverSeconds');
+    const shouldReturnToFloating = options?.returnToFloating === true;
+    const shouldReturnToCompact = shouldReturnToFloating
+      ? false
+      : options?.returnToCompact === false
+        ? false
+        : true;
     const rawTaskText = hasTaskOverride ? options.taskText : task;
     const nextTaskText = clampTaskText(typeof rawTaskText === 'string' ? rawTaskText : task).trim();
     if (!nextTaskText) return;
@@ -3991,7 +4042,16 @@ export default function App() {
     resetCompactPulseSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
     historyResumeCarryoverSecondsRef.current = 0;
     setIsStartModalOpen(false);
-    requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
+    if (shouldReturnToFloating) {
+      window.setTimeout(() => {
+        void window.electronAPI.enterFloatingMinimize?.();
+      }, 80);
+      return;
+    }
+
+    if (shouldReturnToCompact) {
+      requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
+    }
   };
 
   const openFreshTaskComposer = useCallback(({ bringToFront = false } = {}) => {
@@ -4006,6 +4066,9 @@ export default function App() {
     };
     postSessionBreakUntilRef.current = 0;
     postSessionBreakPromptPendingRef.current = false;
+    postSessionReturnToCompactRef.current = false;
+    postSessionReturnToFloatingRef.current = false;
+    timeUpHandledRef.current = false;
     reentryEligibleSinceRef.current = null;
     reentryNextCueAtRef.current = null;
     reentryRemainingMsRef.current = null;
@@ -4025,12 +4088,6 @@ export default function App() {
   const beginStartSomethingNewFromResumeCandidate = useCallback(() => {
     openFreshTaskComposer({ bringToFront: true });
   }, [openFreshTaskComposer]);
-
-  const handlePostSessionBreakMinutesChange = useCallback((minutes) => {
-    const safeMinutes = POST_SESSION_BREAK_PRESETS.includes(minutes) ? minutes : null;
-    setPostSessionBreakMinutes(safeMinutes);
-    setPostSessionBreakHasSelection(safeMinutes !== null);
-  }, []);
 
   const startSessionFromReentryPrompt = useCallback((payload = {}, { bringToFront = false } = {}) => {
     const promptKind = payload?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
@@ -4092,6 +4149,30 @@ export default function App() {
     startSessionFromReentryPrompt(payload, { bringToFront: true });
   }, [startSessionFromReentryPrompt]);
 
+  const handleFloatingBreakAction = useCallback((eventPayload = {}) => {
+    const action = typeof eventPayload?.action === 'string' ? eventPayload.action : '';
+    if (action !== 'resume-now') return;
+
+    const now = Date.now();
+    postSessionBreakUntilRef.current = 0;
+    postSessionBreakPromptPendingRef.current = false;
+    reentrySnoozeUntilRef.current = 0;
+    reentrySnoozeUntilReopenRef.current = false;
+    reentryEligibleSinceRef.current = now;
+    reentryNextCueAtRef.current = now + REENTRY_LOOP_MS;
+    reentryRemainingMsRef.current = null;
+
+    if (reentryStrongTimeoutRef.current) {
+      clearTimeout(reentryStrongTimeoutRef.current);
+      reentryStrongTimeoutRef.current = null;
+    }
+
+    setFloatingBreakState({ open: false });
+    setReentryStrongActive(false);
+    setReentryAttentionVisible(true);
+    showFloatingReentryPrompt();
+  }, [setFloatingBreakState, showFloatingReentryPrompt]);
+
   const handleFloatingReentryAction = useCallback((eventPayload = {}) => {
     const action = typeof eventPayload?.action === 'string' ? eventPayload.action : '';
     const payload = eventPayload?.payload && typeof eventPayload.payload === 'object'
@@ -4108,10 +4189,20 @@ export default function App() {
       return;
     }
 
+    if (action === 'open-history') {
+      openHistoryFromReentry({ bringToFront: true });
+      return;
+    }
+
+    if (action === 'open-parking') {
+      openParkingLotFromReentry({ bringToFront: true });
+      return;
+    }
+
     if (action === 'start-session') {
       handleFloatingReentryStart(payload);
     }
-  }, [beginStartSomethingNewFromResumeCandidate, handleFloatingReentryStart, snoozeReentryAttention]);
+  }, [beginStartSomethingNewFromResumeCandidate, handleFloatingReentryStart, openHistoryFromReentry, openParkingLotFromReentry, snoozeReentryAttention]);
 
   const handleSurfaceReentryStart = useCallback((payload = {}) => {
     startSessionFromReentryPrompt(payload);
@@ -4124,15 +4215,26 @@ export default function App() {
     return () => { if (cleanup) cleanup(); };
   }, [handleFloatingReentryAction]);
 
+  useEffect(() => {
+    const cleanup = window.electronAPI.onFloatingBreakAction?.((payload) => {
+      handleFloatingBreakAction(payload);
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [handleFloatingBreakAction]);
+
   const buildPostSessionResumeCandidate = useCallback(({
     taskText,
     recap = '',
     nextSteps = '',
     sessionId = null,
     carryoverSeconds = 0,
+    completedMinutes = 0,
+    completedMode = mode,
   }) => {
     const nextTaskText = clampTaskText(typeof taskText === 'string' ? taskText : '').trim();
     if (!nextTaskText) return null;
+    const safeCompletedMode = completedMode === 'timed' ? 'timed' : 'freeflow';
+    const safeCompletedMinutes = Math.max(1, Math.round(Number(completedMinutes) || 0));
 
     return {
       source: 'post-session',
@@ -4141,8 +4243,10 @@ export default function App() {
       nextSteps: typeof nextSteps === 'string' ? nextSteps : '',
       notes: typeof recap === 'string' ? recap : '',
       sessionId: typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : null,
-      mode,
+      mode: safeCompletedMode,
       carryoverSeconds: Math.max(0, Math.floor(Number(carryoverSeconds) || 0)),
+      completedMinutes: safeCompletedMinutes,
+      completedMode: safeCompletedMode,
     };
   }, [mode]);
 
@@ -4152,6 +4256,10 @@ export default function App() {
     nextSteps = '',
     sessionId = null,
     carryoverSeconds = 0,
+    completedMinutes = 0,
+    completedMode = mode,
+    returnToCompact = false,
+    returnToFloating = false,
   }) => {
     const candidate = buildPostSessionResumeCandidate({
       taskText,
@@ -4159,17 +4267,19 @@ export default function App() {
       nextSteps,
       sessionId,
       carryoverSeconds,
+      completedMinutes,
+      completedMode,
     });
     if (!candidate) return;
 
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     setPostSessionResumeCandidate(candidate);
-    setPostSessionBreakMinutes(null);
-    setPostSessionBreakHasSelection(false);
-    setPostSessionBreakShowTimer(false);
+    setPostSessionFeedbackEnabled(false);
     setPostSessionStartAssist(false);
     setShowPostSessionPrompt(true);
+    postSessionReturnToCompactRef.current = returnToFloating ? false : returnToCompact === true;
+    postSessionReturnToFloatingRef.current = returnToFloating === true;
     postSessionBreakUntilRef.current = 0;
     postSessionBreakPromptPendingRef.current = false;
     setFloatingBreakState({ open: false });
@@ -4204,49 +4314,286 @@ export default function App() {
       nextMode: 'freeflow',
       sessionId: null,
     });
-  }, [buildPostSessionResumeCandidate, clearCompactSessionCues, closeFloatingReentryPrompt, persistIdleTimerSnapshot, setFloatingBreakState]);
+  }, [buildPostSessionResumeCandidate, clearCompactSessionCues, closeFloatingReentryPrompt, mode, persistIdleTimerSnapshot, setFloatingBreakState]);
+  openPostSessionTransitionRef.current = openPostSessionTransition;
 
-  const handleTakePostSessionBreak = useCallback(() => {
-    if (!postSessionResumeCandidate?.taskText) return;
-    if (!postSessionBreakHasSelection || !POST_SESSION_BREAK_PRESETS.includes(postSessionBreakMinutes)) return;
-
-    const breakMinutes = postSessionBreakMinutes;
-    const breakEndsAt = Date.now() + (breakMinutes * 60 * 1000);
-
+  const closePostSessionSurface = useCallback(({ keepFloatingBreakOpen = false } = {}) => {
     setShowPostSessionPrompt(false);
+    setPostSessionFeedbackEnabled(false);
     setPostSessionStartAssist(false);
+    postSessionReturnToCompactRef.current = false;
+    postSessionReturnToFloatingRef.current = false;
     reentryEligibleSinceRef.current = null;
     reentryNextCueAtRef.current = null;
     reentryRemainingMsRef.current = null;
-    postSessionBreakUntilRef.current = breakEndsAt;
-    postSessionBreakPromptPendingRef.current = true;
     setReentryAttentionVisible(false);
     setReentryStrongActive(false);
     closeFloatingReentryPrompt();
+    if (!keepFloatingBreakOpen) {
+      setFloatingBreakState({ open: false });
+    }
+  }, [closeFloatingReentryPrompt, setFloatingBreakState]);
+
+  const ensurePostSessionSessionId = useCallback(async () => {
+    if (postSessionResumeCandidate?.sessionId) {
+      return postSessionResumeCandidate.sessionId;
+    }
+    if (!postSessionResumeCandidate?.taskText) {
+      return null;
+    }
+
+    try {
+      const created = await SessionStore.create({
+        task: postSessionResumeCandidate.taskText,
+        duration_minutes: postSessionResumeCandidate.completedMinutes || 0,
+        mode: postSessionResumeCandidate.completedMode || 'freeflow',
+        completed: false,
+        kept: false,
+        notes: postSessionResumeCandidate.recap || '',
+        recap: postSessionResumeCandidate.recap || '',
+        nextSteps: postSessionResumeCandidate.nextSteps || '',
+      });
+      const nextSessionId = created?.id || null;
+      if (nextSessionId) {
+        setPostSessionResumeCandidate((prev) => (
+          prev ? { ...prev, sessionId: nextSessionId } : prev
+        ));
+        await loadSessions();
+      }
+      return nextSessionId;
+    } catch (error) {
+      console.error('Failed to create a post-session record:', error);
+      return null;
+    }
+  }, [loadSessions, postSessionResumeCandidate]);
+
+  const updatePostSessionSession = useCallback(async ({
+    completed,
+    kept,
+    recap,
+    nextSteps,
+  }) => {
+    const sessionId = await ensurePostSessionSessionId();
+    if (!sessionId) return null;
+
+    const splitNotes = normalizeSplitNotes({ recap, nextSteps }, {
+      recap: postSessionResumeCandidate?.recap,
+      nextSteps: postSessionResumeCandidate?.nextSteps,
+    });
+
+    try {
+      const updated = await SessionStore.update(sessionId, {
+        completed,
+        kept,
+        notes: splitNotes.recap,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+      });
+      setPostSessionResumeCandidate((prev) => (
+        prev ? {
+          ...prev,
+          sessionId,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+          notes: splitNotes.recap,
+        } : prev
+      ));
+      await loadSessions();
+      return updated?.id || sessionId;
+    } catch (error) {
+      console.error('Failed to update a post-session record:', error);
+      return sessionId;
+    }
+  }, [ensurePostSessionSessionId, loadSessions, postSessionResumeCandidate]);
+
+  const handleTakePostSessionBreak = useCallback(async (payload = {}) => {
+    if (!postSessionResumeCandidate?.taskText) return;
+
+    const requestedBreakMinutes = typeof payload === 'object' && payload !== null
+      ? payload.minutes
+      : payload;
+    const showTimer = typeof payload === 'object' && payload !== null
+      ? payload.showTimer !== false
+      : true;
+    const breakMinutes = [5, 15, 25].includes(requestedBreakMinutes) ? requestedBreakMinutes : 5;
+    const breakEndsAt = Date.now() + (breakMinutes * 60 * 1000);
+
+    await updatePostSessionSession({
+      completed: false,
+      kept: true,
+      recap: postSessionResumeCandidate.recap,
+      nextSteps: postSessionResumeCandidate.nextSteps,
+    });
+
+    postSessionBreakUntilRef.current = breakEndsAt;
+    postSessionBreakPromptPendingRef.current = true;
     setFloatingBreakState({
       open: true,
       endsAt: breakEndsAt,
-      showTimer: postSessionBreakShowTimer,
+      showTimer,
     });
+    closePostSessionSurface({ keepFloatingBreakOpen: true });
     void window.electronAPI.enterFloatingMinimize?.();
-  }, [closeFloatingReentryPrompt, postSessionBreakHasSelection, postSessionBreakMinutes, postSessionBreakShowTimer, postSessionResumeCandidate, setFloatingBreakState]);
+  }, [closePostSessionSurface, postSessionResumeCandidate, setFloatingBreakState, updatePostSessionSession]);
 
-  const handlePostSessionStartAnother = useCallback(() => {
+  const handlePostSessionKeepWorking = useCallback(async ({ mode: nextMode, minutes = 25 } = {}) => {
+    if (!postSessionResumeCandidate?.taskText) return;
+
+    const selectedMode = nextMode === 'freeflow' ? 'freeflow' : 'timed';
+    const safeMinutes = selectedMode === 'timed'
+      ? clampSessionMinutes(minutes, postSessionResumeCandidate.completedMode === 'timed'
+        ? postSessionResumeCandidate.completedMinutes
+        : 25)
+      : 0;
+    const returnToFloating = postSessionReturnToFloatingRef.current;
+    const returnToCompact = returnToFloating ? false : postSessionReturnToCompactRef.current;
+
+    closePostSessionSurface();
+    await handleStartSession(selectedMode, safeMinutes, {
+      taskText: postSessionResumeCandidate.taskText,
+      notes: postSessionResumeCandidate.recap,
+      nextSteps: postSessionResumeCandidate.nextSteps,
+      sessionId: null,
+      carryoverSeconds: 0,
+      returnToCompact,
+      returnToFloating,
+    });
+  }, [closePostSessionSurface, handleStartSession, postSessionResumeCandidate]);
+
+  const handlePostSessionStartNewTaskMarkComplete = useCallback(async () => {
+    if (postSessionResumeCandidate?.taskText) {
+      await updatePostSessionSession({
+        completed: true,
+        kept: false,
+        recap: postSessionResumeCandidate.recap,
+        nextSteps: postSessionResumeCandidate.nextSteps,
+      });
+      track('session_completed', {
+        mode: postSessionResumeCandidate.completedMode || mode,
+        duration_minutes: Math.round((postSessionResumeCandidate.completedMinutes || 0) * 10) / 10,
+        source: 'post_session_new_task',
+      });
+    }
+    closePostSessionSurface();
     openFreshTaskComposer();
-  }, [openFreshTaskComposer]);
+  }, [closePostSessionSurface, mode, openFreshTaskComposer, postSessionResumeCandidate, updatePostSessionSession]);
 
-  const handlePostSessionDoneForNow = useCallback(() => {
-    setShowPostSessionPrompt(false);
-    setPostSessionStartAssist(false);
-    reentryEligibleSinceRef.current = null;
-    reentryNextCueAtRef.current = null;
-    reentryRemainingMsRef.current = null;
-    setReentryAttentionVisible(false);
-    setReentryStrongActive(false);
-    closeFloatingReentryPrompt();
-    setFloatingBreakState({ open: false });
+  const handlePostSessionStartNewTaskSaveForLater = useCallback(async (notes = {}) => {
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: postSessionResumeCandidate?.recap,
+      nextSteps: postSessionResumeCandidate?.nextSteps,
+    });
+    await updatePostSessionSession({
+      completed: false,
+      kept: true,
+      recap: splitNotes.recap,
+      nextSteps: splitNotes.nextSteps,
+    });
+    closePostSessionSurface();
+    openFreshTaskComposer();
+  }, [closePostSessionSurface, openFreshTaskComposer, postSessionResumeCandidate, updatePostSessionSession]);
+
+  const handlePostSessionDoneForNow = useCallback(async (notes = {}) => {
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: postSessionResumeCandidate?.recap,
+      nextSteps: postSessionResumeCandidate?.nextSteps,
+    });
+    await updatePostSessionSession({
+      completed: false,
+      kept: true,
+      recap: splitNotes.recap,
+      nextSteps: splitNotes.nextSteps,
+    });
+    setPostSessionResumeCandidate((prev) => (
+      prev ? {
+        ...prev,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+        notes: splitNotes.recap,
+      } : prev
+    ));
+    closePostSessionSurface();
     void window.electronAPI.enterFloatingMinimize?.();
-  }, [closeFloatingReentryPrompt, setFloatingBreakState]);
+  }, [closePostSessionSurface, postSessionResumeCandidate, updatePostSessionSession]);
+
+  useEffect(() => {
+    if (!showPostSessionPrompt) return;
+    triggerConfetti(1200);
+  }, [showPostSessionPrompt, triggerConfetti]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showPostSessionPrompt || !postSessionResumeCandidate?.sessionId) {
+      setPostSessionFeedbackEnabled(false);
+      return undefined;
+    }
+
+    void (async () => {
+      try {
+        const settings = await window.electronAPI.storeGet('settings') || {};
+        const suppressedUntil = settings.postSessionFeedbackSuppressedUntil
+          ? new Date(settings.postSessionFeedbackSuppressedUntil).getTime()
+          : 0;
+        const sessionCount = Array.isArray(sessions) ? sessions.length : 0;
+        const matchingSession = sessions.find((session) => session.id === postSessionResumeCandidate.sessionId) || null;
+        const nextEnabled = sessionCount >= 2
+          && (!suppressedUntil || suppressedUntil <= Date.now())
+          && !matchingSession?.sessionFeedback;
+        if (!cancelled) {
+          setPostSessionFeedbackEnabled(nextEnabled);
+        }
+      } catch (error) {
+        console.error('Failed to load post-session feedback eligibility:', error);
+        if (!cancelled) {
+          setPostSessionFeedbackEnabled(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [postSessionResumeCandidate?.sessionId, sessions, showPostSessionPrompt]);
+
+  const handlePostSessionFeedbackDismiss = useCallback(async () => {
+    try {
+      const settings = await window.electronAPI.storeGet('settings') || {};
+      const currentStreak = Math.max(0, Number(settings.postSessionFeedbackSkippedStreak) || 0);
+      const nextStreak = currentStreak + 1;
+      let suppressedUntil = null;
+      if (nextStreak >= 4) {
+        suppressedUntil = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString();
+      } else if (nextStreak >= 3) {
+        suppressedUntil = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000)).toISOString();
+      }
+      await Promise.all([
+        window.electronAPI.storeSet('settings.postSessionFeedbackSkippedStreak', nextStreak),
+        window.electronAPI.storeSet('settings.postSessionFeedbackSuppressedUntil', suppressedUntil),
+      ]);
+    } catch (error) {
+      console.error('Failed to persist post-session feedback dismissal:', error);
+    }
+  }, []);
+
+  const handlePostSessionFeedbackSelect = useCallback(async (feedback) => {
+    const sessionId = await ensurePostSessionSessionId();
+    await captureSessionFeedback(feedback, {
+      surface: 'post_session_wrap',
+      completionType: 'wrap',
+      sessionId,
+      sessionDurationMinutes: postSessionResumeCandidate?.completedMinutes || 0,
+      sessionMode: postSessionResumeCandidate?.completedMode || mode,
+    });
+    try {
+      await Promise.all([
+        window.electronAPI.storeSet('settings.postSessionFeedbackSkippedStreak', 0),
+        window.electronAPI.storeSet('settings.postSessionFeedbackSuppressedUntil', null),
+      ]);
+    } catch (error) {
+      console.error('Failed to reset post-session feedback suppression state:', error);
+    }
+  }, [captureSessionFeedback, ensurePostSessionSessionId, mode, postSessionResumeCandidate]);
 
   const handleSaveSessionNotes = async (notes) => {
     const postAction = postSessionNotesActionRef.current;
@@ -4258,7 +4605,6 @@ export default function App() {
     });
 
     if (postAction === 'resume-later') {
-      const carryoverSeconds = Math.max(0, Math.round(Number((sessionToSave.current?.duration || 0) * 60) || 0));
       const endedSessionId = await saveSessionWithNotes(splitNotes);
       setShowNotesModal(false);
       setSessionNotesMode('complete');
@@ -4268,7 +4614,9 @@ export default function App() {
         recap: splitNotes.recap,
         nextSteps: splitNotes.nextSteps,
         sessionId: endedSessionId,
-        carryoverSeconds,
+        carryoverSeconds: 0,
+        completedMinutes: pendingSession?.duration || 0,
+        completedMode: mode,
       });
       resetSessionFeedbackFlow();
       return;
@@ -4278,14 +4626,14 @@ export default function App() {
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     sessionToSave.current = null;
-    showCompletedSessionMessage();
-    triggerConfetti();
     openPostSessionTransition({
       taskText: task,
       recap: splitNotes.recap,
       nextSteps: splitNotes.nextSteps,
-      sessionId: pendingSession?.kept ? endedSessionId : null,
-      carryoverSeconds: pendingSession?.kept ? Math.max(0, Math.round(Number((pendingSession.duration || 0) * 60) || 0)) : 0,
+      sessionId: endedSessionId,
+      carryoverSeconds: 0,
+      completedMinutes: pendingSession?.duration || 0,
+      completedMode: mode,
     });
     resetSessionFeedbackFlow();
   };
@@ -4296,7 +4644,6 @@ export default function App() {
     const pendingSession = sessionToSave.current;
 
     if (postAction === 'resume-later') {
-      const carryoverSeconds = Math.max(0, Math.round(Number((sessionToSave.current?.duration || 0) * 60) || 0));
       const endedSessionId = await saveSessionWithNotes({ recap: '', nextSteps: '' });
       setShowNotesModal(false);
       setSessionNotesMode('complete');
@@ -4306,7 +4653,9 @@ export default function App() {
         recap: '',
         nextSteps: '',
         sessionId: endedSessionId,
-        carryoverSeconds,
+        carryoverSeconds: 0,
+        completedMinutes: pendingSession?.duration || 0,
+        completedMode: mode,
       });
       resetSessionFeedbackFlow();
       return;
@@ -4324,14 +4673,14 @@ export default function App() {
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     sessionToSave.current = null;
-    showCompletedSessionMessage();
-    triggerConfetti();
     openPostSessionTransition({
       taskText: task,
       recap: '',
       nextSteps: '',
-      sessionId: pendingSession?.kept ? endedSessionId : null,
-      carryoverSeconds: pendingSession?.kept ? Math.max(0, Math.round(Number((pendingSession.duration || 0) * 60) || 0)) : 0,
+      sessionId: endedSessionId,
+      carryoverSeconds: 0,
+      completedMinutes: pendingSession?.duration || 0,
+      completedMode: mode,
     });
     resetSessionFeedbackFlow();
   };
@@ -4387,15 +4736,17 @@ export default function App() {
       resetSessionFeedbackFlow();
       return;
     }
-    openPostSessionTransition({
+    openPostSessionTransitionRef.current({
       taskText: task,
       recap: splitNotes.recap,
       nextSteps: splitNotes.nextSteps,
       sessionId: endedSessionId,
-      carryoverSeconds: Math.max(0, Math.round(durationMin * 60)),
+      carryoverSeconds: 0,
+      completedMinutes: durationMin,
+      completedMode: mode,
     });
     resetSessionFeedbackFlow();
-  }, [handleClear, mode, nextStepsNotes, openPostSessionTransition, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch, task, contextNotes]);
+  }, [handleClear, mode, nextStepsNotes, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch, task, contextNotes]);
 
   const finalizeStopFlowComplete = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
@@ -4442,14 +4793,14 @@ export default function App() {
       return;
     }
 
-    showCompletedSessionMessage();
-    triggerConfetti();
     openPostSessionTransition({
       taskText: task,
       recap: splitNotes.recap,
       nextSteps: splitNotes.nextSteps,
-      sessionId: null,
+      sessionId: completedSessionId,
       carryoverSeconds: 0,
+      completedMinutes: durationMin,
+      completedMode: mode,
     });
     resetSessionFeedbackFlow();
 
@@ -4458,11 +4809,14 @@ export default function App() {
       const streak = computeStreak(allSessions);
       if (streak >= 2) track('session_streak', { streak_count: streak });
     } catch (_) { /* non-critical */ }
-  }, [contextNotes, handleClear, mode, nextStepsNotes, openPostSessionTransition, resetSessionFeedbackFlow, saveSessionWithNotes, showCompletedSessionMessage, startPendingParkingLotTaskSwitch, task, triggerConfetti]);
+  }, [contextNotes, handleClear, mode, nextStepsNotes, openPostSessionTransition, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch, task]);
 
-  const finalizeTimeUpEndSession = useCallback(() => {
-    track('post_session_choice', { choice: 'end_session' });
+  const finalizeTimeUpEndSession = useCallback(async () => {
+    track('post_session_choice', { choice: 'wrap_here' });
+    const returnToCompact = timeUpReturnToCompactRef.current;
+    const returnToFloating = timeUpReturnToFloatingRef.current;
     setShowTimeUpModal(false);
+    timeUpHandledRef.current = true;
     timeUpReturnToCompactRef.current = false;
     timeUpReturnToFloatingRef.current = false;
     setSessionStartTime(null);
@@ -4473,9 +4827,29 @@ export default function App() {
     };
 
     clearCompactSessionCues();
-    setSessionNotesMode('stop-decision');
-    setShowNotesModal(true);
-  }, [clearCompactSessionCues]);
+    const durationMin = sessionToSave.current?.duration || (initialTime / 60);
+    sessionToSave.current = {
+      duration: durationMin,
+      completed: false,
+      kept: false,
+      sessionId: currentSessionId,
+    };
+    const endedSessionId = await saveSessionWithNotes({
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+    });
+    openPostSessionTransition({
+      taskText: task,
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+      sessionId: endedSessionId,
+      carryoverSeconds: 0,
+      completedMinutes: durationMin,
+      completedMode: 'timed',
+      returnToCompact,
+      returnToFloating,
+    });
+  }, [clearCompactSessionCues, contextNotes, currentSessionId, initialTime, nextStepsNotes, openPostSessionTransition, saveSessionWithNotes, task]);
 
   const handleStopFlowComplete = useCallback((notes = '') => {
     maybePromptSessionFeedback({
@@ -4500,7 +4874,7 @@ export default function App() {
   }, [finalizeIncompleteStop, maybePromptSessionFeedback]);
 
   const handleTimeUpEndSession = useCallback(() => {
-    finalizeTimeUpEndSession();
+    void finalizeTimeUpEndSession();
   }, [finalizeTimeUpEndSession]);
 
   const handleTimeUpAddTime = (extraMinutes) => {
@@ -4554,27 +4928,6 @@ export default function App() {
     void checkpointActiveSession('time-up-freeflow-switch');
     restoreTimeUpWindowShell({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
   }, [checkpointActiveSession, clearCompactSessionCues, initialTime, resetCheckInSchedule, resetCompactPulseSchedule, resetSessionFeedbackFlow, restoreTimeUpWindowShell]);
-
-  // Phase 3.5 — "Resume Later" from TimeUpModal
-  const handleTimeUpResumeLater = () => {
-    track('post_session_choice', { choice: 'resume_later' });
-    setShowTimeUpModal(false);
-    timeUpReturnToCompactRef.current = false;
-    timeUpReturnToFloatingRef.current = false;
-    setSessionStartTime(null);
-
-    clearCompactSessionCues();
-    // Override completed flag — task is not finished, mark as kept for Resume tab
-    sessionToSave.current = {
-      ...sessionToSave.current,
-      completed: false,
-      kept: true,
-    };
-    postSessionNotesActionRef.current = 'resume-later';
-    setSessionNotesMode('resume-later');
-    setShowNotesModal(true);
-    resetSessionFeedbackFlow();
-  };
 
   const prepareTaskForStartChooser = useCallback(({
     taskText,
@@ -5068,7 +5421,6 @@ export default function App() {
       [showTaskPreview, ...WINDOW_SIZES.modal.taskPreview],
       [distractionJarOpen, ...WINDOW_SIZES.modal.parkingLot],
       [Boolean(postSessionParkingLotSessionId), ...WINDOW_SIZES.modal.postSessionParkingLot],
-      [showPostSessionPrompt, ...WINDOW_SIZES.modal.postSessionPrompt],
       [showTimeUpModal, ...WINDOW_SIZES.modal.timeUp],
       [showNotesModal, ...WINDOW_SIZES.modal.notes],
       [showQuickCapture, ...WINDOW_SIZES.modal.quickCapture],
@@ -5097,7 +5449,7 @@ export default function App() {
       return () => clearTimeout(settleTimer);
     }
     return undefined;
-  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, postSessionParkingLotSessionId, showPostSessionPrompt, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, postSessionParkingLotSessionId, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);
 
   // No active timer: keep full view tightly fit to content.
   // Base height matches the compact no-timer layout, then grows with
@@ -5109,7 +5461,6 @@ export default function App() {
       showTaskPreview ||
       distractionJarOpen ||
       Boolean(postSessionParkingLotSessionId) ||
-      showPostSessionPrompt ||
       showTimeUpModal ||
       showNotesModal ||
       showQuickCapture;
@@ -5139,7 +5490,6 @@ export default function App() {
     showTaskPreview,
     distractionJarOpen,
     postSessionParkingLotSessionId,
-    showPostSessionPrompt,
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
@@ -5154,7 +5504,6 @@ export default function App() {
       showTaskPreview ||
       distractionJarOpen ||
       Boolean(postSessionParkingLotSessionId) ||
-      showPostSessionPrompt ||
       showTimeUpModal ||
       showNotesModal ||
       showQuickCapture;
@@ -5180,7 +5529,6 @@ export default function App() {
     showTaskPreview,
     distractionJarOpen,
     postSessionParkingLotSessionId,
-    showPostSessionPrompt,
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
@@ -5477,11 +5825,9 @@ export default function App() {
     ? (showReentryTaskHint
       ? 'Ready to continue? Press play to resume this session.'
       : 'Adjust the task if needed, then press play to continue.')
-    : (postSessionStartAssist
-      ? 'Start something new, or use Parking Lot or History if you want to pull from existing work.'
-      : (isStartModalOpen
+    : (isStartModalOpen
       ? 'Choose Freeflow or set a timer to begin.'
-      : ''));
+      : 'Start something new, or pull from Parking Lot or History.');
   const fullScreenTimerControls = (
     <>
       {!isRunning ? (
@@ -5589,6 +5935,8 @@ export default function App() {
           onReentryStageChange={setReentrySurfaceStage}
           onReentryStartSession={handleSurfaceReentryStart}
           onReentryStartNewFromResume={beginStartSomethingNewFromResumeCandidate}
+          onReentryOpenParkingLot={openParkingLotFromReentry}
+          onReentryOpenSessionHistory={openHistoryFromReentry}
           onReentrySnooze={snoozeReentryAttention}
         />
         <CheckInPromptPopup
@@ -5623,34 +5971,13 @@ export default function App() {
           flow={sessionNotesMode}
           initialRecap={contextNotes}
           initialNextSteps={nextStepsNotes}
-          feedbackPrompt={sessionFeedbackPrompt?.modal === 'session-notes' ? {
-            isOpen: true,
-            onSelect: captureSessionFeedback,
-            onContinue: continueSessionFeedbackFlow,
-            onDismiss: continueSessionFeedbackFlow,
-            autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
-            continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
-          } : null}
-        />
-        <PostSessionPrompt
-          isOpen={showPostSessionPrompt}
-          taskName={postSessionResumeCandidate?.taskText || task}
-          selectedBreakMinutes={postSessionBreakMinutes}
-          hasBreakSelection={postSessionBreakHasSelection}
-          showTimerDuringBreak={postSessionBreakShowTimer}
-          onBreakMinutesChange={handlePostSessionBreakMinutesChange}
-          onBreakTimerVisibilityChange={setPostSessionBreakShowTimer}
-          onTakeBreak={handleTakePostSessionBreak}
-          onStartAnotherSession={handlePostSessionStartAnother}
-          onDoneForNow={handlePostSessionDoneForNow}
         />
         <TimeUpModal
-          isOpen={showTimeUpModal}
+          isOpen={showTimeUpModal && !showPostSessionPrompt}
           taskName={task}
           onEndSession={handleTimeUpEndSession}
           onAddTime={handleTimeUpAddTime}
           onSwitchToFreeflow={handleTimeUpSwitchToFreeflow}
-          onResumeLater={handleTimeUpResumeLater}
         />
         <TaskPreviewModal
           isOpen={showTaskPreview}
@@ -5839,9 +6166,9 @@ export default function App() {
         )}
 
         {/* Content */}
-        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState} ${getPulseClassName()}`}>
-          <div className={`focus-stage focus-stage--${fullScreenTaskState}`}>
-            <div className="focus-stage__surface">
+        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState}${showPostSessionPrompt ? ' full-view-content--post-session' : ''} ${getPulseClassName()}`}>
+          <div className={`focus-stage focus-stage--${fullScreenTaskState}${showPostSessionPrompt ? ' focus-stage--post-session' : ''}`}>
+            <div className={`focus-stage__surface${showPostSessionPrompt ? ' focus-stage__surface--post-session' : ''}`}>
               {fullScreenTaskState === 'running' ? (
                 <FocusHeroCard
                   task={activeTaskLabel}
@@ -5849,7 +6176,7 @@ export default function App() {
                   controls={fullScreenTimerControls}
                   onLockedInteraction={handleLockedTaskInputInteraction}
                 />
-              ) : (showSurfaceReentryPrompt ? (
+              ) : showSurfaceReentryPrompt ? (
                 <ReentryPrompt
                   isOpen
                   surface="full"
@@ -5865,8 +6192,26 @@ export default function App() {
                   onStageChange={setReentrySurfaceStage}
                   onStartSession={handleSurfaceReentryStart}
                   onStartNewFromResume={beginStartSomethingNewFromResumeCandidate}
+                  onOpenParkingLot={openParkingLotFromReentry}
+                  onOpenSessionHistory={openHistoryFromReentry}
                   onSnooze={snoozeReentryAttention}
                 />
+              ) : showPostSessionPrompt ? (
+                <div className="post-session-stage">
+                  <PostSessionPrompt
+                    isOpen={showPostSessionPrompt}
+                    candidate={postSessionResumeCandidate}
+                    feedbackEnabled={postSessionFeedbackEnabled}
+                    onLayoutChange={handlePostSessionLayoutChange}
+                    onKeepWorking={handlePostSessionKeepWorking}
+                    onTakeBreak={handleTakePostSessionBreak}
+                    onStartNewTaskMarkComplete={handlePostSessionStartNewTaskMarkComplete}
+                    onStartNewTaskSaveForLater={handlePostSessionStartNewTaskSaveForLater}
+                    onDoneForNow={handlePostSessionDoneForNow}
+                    onFeedbackSelect={handlePostSessionFeedbackSelect}
+                    onFeedbackDismiss={handlePostSessionFeedbackDismiss}
+                  />
+                </div>
               ) : (
                 <TaskInput
                   ref={taskInputRef}
@@ -5888,9 +6233,9 @@ export default function App() {
                   onLockedInteraction={handleLockedTaskInputInteraction}
                   onHeightChange={handleTaskInputHeightChange}
                 />
-              ))}
+              )}
 
-              {isStartModalOpen && (
+              {isStartModalOpen && !showPostSessionPrompt && (
                 <div className="start-chooser">
                   <div className="start-chooser__timer">
                     <span className="start-chooser__label">Set timer</span>
@@ -6050,7 +6395,7 @@ export default function App() {
               </div>
             )}
 
-            {hasSavedContext && (
+            {!showPostSessionPrompt && hasSavedContext && (
               <ContextBox
                 recap={contextNotes}
                 nextSteps={nextStepsNotes}
@@ -6061,7 +6406,7 @@ export default function App() {
               />
             )}
 
-            {isTimerVisible && fullScreenTaskState !== 'running' && (
+            {!showPostSessionPrompt && isTimerVisible && fullScreenTaskState !== 'running' && (
               <div className={`focus-timer-panel focus-timer-panel--${fullScreenTaskState}${isShortFullWindow ? ' focus-timer-panel--compact' : ''}`}>
                 <div className="focus-timer-panel__body">
                   <div className="focus-timer-panel__clock">{formatTime(time)}</div>
@@ -6133,34 +6478,13 @@ export default function App() {
         flow={sessionNotesMode}
         initialRecap={contextNotes}
         initialNextSteps={nextStepsNotes}
-        feedbackPrompt={sessionFeedbackPrompt?.modal === 'session-notes' ? {
-          isOpen: true,
-          onSelect: captureSessionFeedback,
-          onContinue: continueSessionFeedbackFlow,
-          onDismiss: continueSessionFeedbackFlow,
-          autoAdvanceMs: SESSION_FEEDBACK_AUTO_ADVANCE_MS,
-          continueDelayMs: SESSION_FEEDBACK_CONTINUE_DELAY_MS,
-        } : null}
-      />
-      <PostSessionPrompt
-        isOpen={showPostSessionPrompt}
-        taskName={postSessionResumeCandidate?.taskText || task}
-        selectedBreakMinutes={postSessionBreakMinutes}
-        hasBreakSelection={postSessionBreakHasSelection}
-        showTimerDuringBreak={postSessionBreakShowTimer}
-        onBreakMinutesChange={handlePostSessionBreakMinutesChange}
-        onBreakTimerVisibilityChange={setPostSessionBreakShowTimer}
-        onTakeBreak={handleTakePostSessionBreak}
-        onStartAnotherSession={handlePostSessionStartAnother}
-        onDoneForNow={handlePostSessionDoneForNow}
       />
       <TimeUpModal
-        isOpen={showTimeUpModal}
+        isOpen={showTimeUpModal && !showPostSessionPrompt}
         taskName={task}
         onEndSession={handleTimeUpEndSession}
         onAddTime={handleTimeUpAddTime}
         onSwitchToFreeflow={handleTimeUpSwitchToFreeflow}
-        onResumeLater={handleTimeUpResumeLater}
       />
       <TaskPreviewModal
         isOpen={showTaskPreview}

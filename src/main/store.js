@@ -157,6 +157,8 @@ const schema = {
         type: 'array',
         default: [0.4, 0.8],
       },
+      postSessionFeedbackSkippedStreak: { type: 'number', default: 0 },
+      postSessionFeedbackSuppressedUntil: { type: ['string', 'null'], default: null },
       doNotDisturbEnabled: { type: 'boolean', default: false },
       doNotDisturbUntil: { type: ['string', 'null'], default: null },
       launchOnStartup: { type: 'boolean', default: false },

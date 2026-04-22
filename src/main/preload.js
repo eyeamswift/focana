@@ -104,6 +104,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('floating-reentry-action', handler);
     return () => ipcRenderer.removeListener('floating-reentry-action', handler);
   },
+  onFloatingBreakAction: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('floating-break-action', handler);
+    return () => ipcRenderer.removeListener('floating-break-action', handler);
+  },
   onSystemSuspendPaused: (callback) => {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on('system-suspend-paused', handler);

@@ -4,7 +4,6 @@ import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { CheckCircle, CircleDot, X } from 'lucide-react';
-import SessionFeedbackPrompt from './SessionFeedbackPrompt';
 
 export default function SessionNotesModal({
   isOpen,
@@ -18,7 +17,6 @@ export default function SessionNotesModal({
   taskName,
   sessionFlowKey,
   flow = 'complete',
-  feedbackPrompt = null,
   initialRecap = '',
   initialNextSteps = '',
 }) {
@@ -107,11 +105,9 @@ export default function SessionNotesModal({
         background: 'var(--brand-primary)',
       };
 
-  const feedbackPromptActive = Boolean(feedbackPrompt?.isOpen);
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (open || feedbackPromptActive) return;
+      if (open) return;
       handleRequestClose();
     }}>
       <DialogContent
@@ -123,11 +119,9 @@ export default function SessionNotesModal({
           padding: '1.25rem 1.25rem 1.1rem',
         }}
       >
-        {!feedbackPromptActive && (
-          <button className="dialog-close-btn" onClick={handleRequestClose} aria-label="Close">
-            <X style={{ width: 16, height: 16 }} />
-          </button>
-        )}
+        <button className="dialog-close-btn" onClick={handleRequestClose} aria-label="Close">
+          <X style={{ width: 16, height: 16 }} />
+        </button>
         <DialogHeader style={{ textAlign: 'center', paddingBottom: '0.35rem' }}>
           <div style={{
             margin: '0 auto',
@@ -154,18 +148,8 @@ export default function SessionNotesModal({
           </p>
         </DialogHeader>
 
-        {feedbackPromptActive ? (
-          <SessionFeedbackPrompt
-            isOpen={feedbackPromptActive}
-            onSelect={feedbackPrompt.onSelect}
-            onContinue={feedbackPrompt.onContinue}
-            onDismiss={feedbackPrompt.onDismiss}
-            autoAdvanceMs={feedbackPrompt.autoAdvanceMs}
-            continueDelayMs={feedbackPrompt.continueDelayMs}
-          />
-        ) : (
-          <>
-            <div className="space-y-4" style={{ padding: '0.3rem 0 0' }}>
+        <>
+          <div className="space-y-4" style={{ padding: '0.3rem 0 0' }}>
               <div>
                 <label htmlFor="session-next-steps" style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>
                   Immediate next step <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 400 }}>(optional)</span>
@@ -208,80 +192,79 @@ export default function SessionNotesModal({
                   {recap.length}/500 characters
                 </p>
               </div>
-            </div>
+          </div>
 
-            <DialogFooter style={{ marginTop: '0.85rem', flexDirection: 'column', alignItems: 'stretch', gap: '0.65rem' }}>
-              {isStopDecisionFlow ? (
-                <>
-                  {showResumeAction ? (
-                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            onClick={handleResume}
-                            variant="outline"
-                            size="sm"
-                            style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-                          >
-                            Resume
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Close this prompt and continue the current session</p></TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ) : null}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <DialogFooter style={{ marginTop: '0.85rem', flexDirection: 'column', alignItems: 'stretch', gap: '0.65rem' }}>
+            {isStopDecisionFlow ? (
+              <>
+                {showResumeAction ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          onClick={handleIncomplete}
+                          onClick={handleResume}
                           variant="outline"
                           size="sm"
                           style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                         >
-                          No, Save for Later
+                          Resume
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button onClick={handleComplete} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                          Yes, Complete
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Save notes and mark the task complete</p></TooltipContent>
+                      <TooltipContent><p>Close this prompt and continue the current session</p></TooltipContent>
                     </Tooltip>
                   </div>
-                </>
-              ) : (
+                ) : null}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        onClick={handleSkip}
+                        onClick={handleIncomplete}
                         variant="outline"
                         size="sm"
                         style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                       >
-                        Skip
+                        Save for Later
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent><p>Finish session without saving notes</p></TooltipContent>
+                    <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button onClick={handleSave} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                        Save
+                      <Button onClick={handleComplete} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                        Yes, Complete
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent><p>Save notes and finish session</p></TooltipContent>
+                    <TooltipContent><p>Save notes and mark the task complete</p></TooltipContent>
                   </Tooltip>
                 </div>
-              )}
-            </DialogFooter>
-          </>
-        )}
+              </>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleSkip}
+                      variant="outline"
+                      size="sm"
+                      style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                    >
+                      Skip
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Finish session without saving notes</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button onClick={handleSave} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+                      Save
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Save notes and finish session</p></TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+          </DialogFooter>
+        </>
       </DialogContent>
     </Dialog>
   );

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { AlarmClock, Plus, Play, Pause, X } from 'lucide-react';
+import { AlarmClock, Plus, Play, X } from 'lucide-react';
 
 export default function TimeUpModal({
   isOpen,
@@ -11,7 +11,6 @@ export default function TimeUpModal({
   onAddTime,
   onSwitchToFreeflow,
   onEndSession,
-  onResumeLater,
 }) {
   const [extraMinutes, setExtraMinutes] = useState('5');
   const parsedMinutes = parseInt(extraMinutes, 10);
@@ -102,22 +101,6 @@ export default function TimeUpModal({
           <span className="time-up-section-label">Or stop</span>
 
           <div className="time-up-stop-row">
-            {onResumeLater && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={onResumeLater}
-                    variant="outline"
-                    className="time-up-btn-secondary"
-                  >
-                    <Pause style={{ width: 13, height: 13 }} />
-                    No, Save for Later
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Take a break — your task stays ready</p></TooltipContent>
-              </Tooltip>
-            )}
-
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -125,10 +108,10 @@ export default function TimeUpModal({
                   variant="outline"
                   className="time-up-btn-secondary"
                 >
-                  End Session
+                  Wrap here
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p>Save and close this session</p></TooltipContent>
+              <TooltipContent><p>Move into Session Wrap</p></TooltipContent>
             </Tooltip>
           </div>
         </div>
