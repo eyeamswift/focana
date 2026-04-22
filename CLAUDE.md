@@ -132,6 +132,7 @@ Call these out proactively if they appear in proposed features:
 - If the task touches release, packaging, signing, or shipping -> read `RELEASE_RUNBOOK.md`, `scripts/ship.sh`, and `electron-builder.config.js` first.
 - If the user asks to track product work -> update `product-backlog.md` in place, reuse stable IDs, and dedupe before adding anything.
 - If you cannot tell which layer owns a behavior -> search `tests/e2e/electron-flows.spec.js` first, then follow the implementation from the failing path.
+- If Electron launches blank or E2E cannot find `[data-testid="task-input"]` on startup -> check `reference/debug-log.md` before deeper debugging.
 
 ## Pointers
 - App flow owner: `src/renderer/App.jsx`
@@ -139,6 +140,7 @@ Call these out proactively if they appear in proposed features:
 - Store schema owner: `src/main/store.js`
 - Styling + brand implementation: `src/renderer/styles/main.css`
 - Read-only legacy reference: `reference/`
+- Incident/debug log: `reference/debug-log.md`
 
 ## Rules for all agents
 1. Search relevant docs before advising.

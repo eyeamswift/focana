@@ -1103,6 +1103,11 @@ html[data-window-mode='pill'] #root {
   resize: none;
 }
 
+.reentry-prompt__textarea--notes {
+  min-height: 7rem;
+  max-height: 7rem;
+}
+
 .reentry-prompt__minutes-input {
   height: 3.25rem;
   padding: 0 0.9rem;
@@ -1120,6 +1125,18 @@ html[data-window-mode='pill'] #root {
 .reentry-prompt__actions {
   display: flex;
   gap: 0.65rem;
+}
+
+.reentry-prompt__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.reentry-prompt__field-label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .reentry-prompt__source-row {

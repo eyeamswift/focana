@@ -20,6 +20,7 @@ const CHECKIN_POPUP_EXTRA_H = 148;
 const REENTRY_PROMPT_SIZES = {
   'task-entry': { width: 440, height: 386 },
   'resume-choice': { width: 440, height: 294 },
+  'save-for-later': { width: 440, height: 620 },
   'start-chooser': { width: 440, height: 390 },
   'snooze-options': { width: 440, height: 444 },
 };
@@ -60,11 +61,13 @@ export default function CompactMode({
   reentryPromptTaskText = '',
   reentryPromptMinutes = '25',
   reentryResumeTaskName = '',
+  reentryResumeRecap = '',
+  reentryResumeNextSteps = '',
   onReentryTaskTextChange,
   onReentryMinutesChange,
   onReentryStageChange,
   onReentryStartSession,
-  onReentryStartNewFromResume,
+  onReentrySaveForLaterFromResume,
   onReentryOpenParkingLot,
   onReentryOpenSessionHistory,
   onReentrySnooze,
@@ -428,11 +431,13 @@ export default function CompactMode({
           taskText={reentryPromptTaskText}
           minutes={reentryPromptMinutes}
           resumeTaskName={reentryResumeTaskName}
+          resumeRecap={reentryResumeRecap}
+          resumeNextSteps={reentryResumeNextSteps}
           onTaskTextChange={onReentryTaskTextChange}
           onMinutesChange={onReentryMinutesChange}
           onStageChange={onReentryStageChange}
           onStartSession={onReentryStartSession}
-          onStartNewFromResume={onReentryStartNewFromResume}
+          onSaveForLaterFromResume={onReentrySaveForLaterFromResume}
           onOpenParkingLot={onReentryOpenParkingLot}
           onOpenSessionHistory={onReentryOpenSessionHistory}
           onSnooze={onReentrySnooze}

@@ -851,11 +851,24 @@ export default function App() {
   }, [sessionMinutes]);
 
   const reentryPromptKind = reentryResumeCandidate ? 'resume-choice' : 'start';
-  const showSurfaceReentryPrompt = reentryAttentionVisible
+  const hasActiveResumeCandidate = Boolean(reentryResumeCandidate?.taskText);
+  const resumePromptAvailableByDefault = hasActiveResumeCandidate
     && startupGateState === 'ready'
+    && !showPostSessionPrompt
     && !isStartModalOpen
     && !isRunning
-    && !isTimerVisible;
+    && !isTimerVisible
+    && !reentrySnoozeUntilReopenRef.current
+    && reentrySnoozeUntilRef.current <= Date.now()
+    && postSessionBreakUntilRef.current <= Date.now();
+  const showSurfaceReentryPrompt = resumePromptAvailableByDefault || (
+    reentryAttentionVisible
+      && startupGateState === 'ready'
+      && !showPostSessionPrompt
+      && !isStartModalOpen
+      && !isRunning
+      && !isTimerVisible
+  );
 
   useEffect(() => {
     if (!showSurfaceReentryPrompt) {
@@ -4054,7 +4067,7 @@ export default function App() {
     }
   };
 
-  const openFreshTaskComposer = useCallback(({ bringToFront = false } = {}) => {
+  const openFreshTaskComposer = useCallback(({ bringToFront = false, promptTone = 'first' } = {}) => {
     reentryStartNewAfterResolveRef.current = false;
     postSessionNotesActionRef.current = null;
     sessionToSave.current = null;
@@ -4075,7 +4088,7 @@ export default function App() {
     closeFloatingReentryPrompt();
     setFloatingBreakState({ open: false });
     handleClear();
-    setPostSessionStartAssist(true);
+    setPostSessionStartAssist(promptTone === 'next');
 
     if (bringToFront) {
       window.electronAPI.bringToFront?.();
@@ -4086,8 +4099,13 @@ export default function App() {
   }, [closeFloatingReentryPrompt, handleClear, setFloatingBreakState]);
 
   const beginStartSomethingNewFromResumeCandidate = useCallback(() => {
-    openFreshTaskComposer({ bringToFront: true });
-  }, [openFreshTaskComposer]);
+    closeFloatingReentryPrompt();
+    setReentryAttentionVisible(true);
+    setReentryStrongActive(false);
+    setReentrySurfaceStage('save-for-later');
+    setIsCompact(false);
+    window.electronAPI.bringToFront?.();
+  }, [closeFloatingReentryPrompt]);
 
   const startSessionFromReentryPrompt = useCallback((payload = {}, { bringToFront = false } = {}) => {
     const promptKind = payload?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
@@ -4406,6 +4424,71 @@ export default function App() {
     }
   }, [ensurePostSessionSessionId, loadSessions, postSessionResumeCandidate]);
 
+  const saveResumeCandidateForLater = useCallback(async (notes = {}, candidate = reentryResumeCandidateRef.current) => {
+    if (!candidate?.taskText) return null;
+
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: candidate.recap,
+      nextSteps: candidate.nextSteps,
+    });
+
+    if (candidate.source === 'post-session') {
+      return updatePostSessionSession({
+        completed: false,
+        kept: true,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+      });
+    }
+
+    let sessionId = typeof candidate.sessionId === 'string' && candidate.sessionId.trim()
+      ? candidate.sessionId.trim()
+      : null;
+
+    try {
+      if (!sessionId) {
+        const created = await SessionStore.create({
+          task: candidate.taskText,
+          duration_minutes: Math.round((Math.max(0, Number(candidate.carryoverSeconds) || 0) / 60) * 10) / 10,
+          mode: candidate.mode === 'timed' ? 'timed' : 'freeflow',
+          completed: false,
+          kept: true,
+          notes: splitNotes.recap,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+        });
+        sessionId = created?.id || null;
+      } else {
+        await SessionStore.update(sessionId, {
+          completed: false,
+          kept: true,
+          notes: splitNotes.recap,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+        });
+      }
+
+      if (candidate.source === 'paused-current') {
+        setContextNotes(splitNotes.recap);
+        setNextStepsNotes(splitNotes.nextSteps);
+        if (sessionId && sessionId !== currentSessionId) {
+          setCurrentSessionId(sessionId);
+        }
+      }
+
+      await loadSessions();
+      return sessionId;
+    } catch (error) {
+      console.error('Failed to save resumable notes before starting something new:', error);
+      return sessionId;
+    }
+  }, [currentSessionId, loadSessions, updatePostSessionSession]);
+
+  const handleSaveForLaterFromResumeCandidate = useCallback(async (notes = {}) => {
+    await saveResumeCandidateForLater(notes);
+    openFreshTaskComposer({ bringToFront: true, promptTone: 'first' });
+  }, [openFreshTaskComposer, saveResumeCandidateForLater]);
+
   const handleTakePostSessionBreak = useCallback(async (payload = {}) => {
     if (!postSessionResumeCandidate?.taskText) return;
 
@@ -4475,7 +4558,7 @@ export default function App() {
       });
     }
     closePostSessionSurface();
-    openFreshTaskComposer();
+    openFreshTaskComposer({ promptTone: 'next' });
   }, [closePostSessionSurface, mode, openFreshTaskComposer, postSessionResumeCandidate, updatePostSessionSession]);
 
   const handlePostSessionStartNewTaskSaveForLater = useCallback(async (notes = {}) => {
@@ -4490,7 +4573,7 @@ export default function App() {
       nextSteps: splitNotes.nextSteps,
     });
     closePostSessionSurface();
-    openFreshTaskComposer();
+    openFreshTaskComposer({ promptTone: 'first' });
   }, [closePostSessionSurface, openFreshTaskComposer, postSessionResumeCandidate, updatePostSessionSession]);
 
   const handlePostSessionDoneForNow = useCallback(async (notes = {}) => {
@@ -5828,6 +5911,9 @@ export default function App() {
     : (isStartModalOpen
       ? 'Choose Freeflow or set a timer to begin.'
       : 'Start something new, or pull from Parking Lot or History.');
+  const draftTaskPlaceholder = postSessionStartAssist
+    ? 'What are we focusing on next?'
+    : 'Where are we focusing first?';
   const fullScreenTimerControls = (
     <>
       {!isRunning ? (
@@ -5930,11 +6016,13 @@ export default function App() {
           reentryPromptTaskText={reentrySurfaceTaskText}
           reentryPromptMinutes={reentrySurfaceMinutes}
           reentryResumeTaskName={reentryResumeCandidate?.taskText || ''}
+          reentryResumeRecap={reentryResumeCandidate?.recap || ''}
+          reentryResumeNextSteps={reentryResumeCandidate?.nextSteps || ''}
           onReentryTaskTextChange={(nextValue) => setReentrySurfaceTaskText(clampTaskText(nextValue))}
           onReentryMinutesChange={setReentrySurfaceMinutes}
           onReentryStageChange={setReentrySurfaceStage}
           onReentryStartSession={handleSurfaceReentryStart}
-          onReentryStartNewFromResume={beginStartSomethingNewFromResumeCandidate}
+          onReentrySaveForLaterFromResume={handleSaveForLaterFromResumeCandidate}
           onReentryOpenParkingLot={openParkingLotFromReentry}
           onReentryOpenSessionHistory={openHistoryFromReentry}
           onReentrySnooze={snoozeReentryAttention}
@@ -6187,11 +6275,13 @@ export default function App() {
                   minutes={reentrySurfaceMinutes}
                   maxTaskLength={TASK_CHARACTER_LIMIT}
                   resumeTaskName={reentryResumeCandidate?.taskText || ''}
+                  resumeRecap={reentryResumeCandidate?.recap || ''}
+                  resumeNextSteps={reentryResumeCandidate?.nextSteps || ''}
                   onTaskTextChange={(nextValue) => setReentrySurfaceTaskText(clampTaskText(nextValue))}
                   onMinutesChange={setReentrySurfaceMinutes}
                   onStageChange={setReentrySurfaceStage}
                   onStartSession={handleSurfaceReentryStart}
-                  onStartNewFromResume={beginStartSomethingNewFromResumeCandidate}
+                  onSaveForLaterFromResume={handleSaveForLaterFromResumeCandidate}
                   onOpenParkingLot={openParkingLotFromReentry}
                   onOpenSessionHistory={openHistoryFromReentry}
                   onSnooze={snoozeReentryAttention}
@@ -6222,6 +6312,7 @@ export default function App() {
                   visualState={fullScreenTaskState}
                   eyebrowText={fullScreenTaskEyebrow}
                   helperText={fullScreenTaskHelper}
+                  placeholderText={draftTaskPlaceholder}
                   checkInPromptActive={checkInState === 'prompting' || checkInState === 'detour-choice'}
                   checkInCelebrating={checkInCelebrating}
                   checkInCelebrationType={checkInCelebrationType}

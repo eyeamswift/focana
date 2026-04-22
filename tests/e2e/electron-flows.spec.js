@@ -884,6 +884,16 @@ test('idle re-entry prompt loops in full window and hands off to floating prompt
   }
 });
 
+test('manual startup shows the first-focus prompt copy', async () => {
+  const { page, cleanup } = await launchApp();
+
+  try {
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'Where are we focusing first?');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('compact idle re-entry prompt grows for each stage and restores the pill size after snooze', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
@@ -1085,7 +1095,41 @@ test('floating idle re-entry prompt can open Session History from the task-entry
   }
 });
 
-test('floating resumable re-entry comes back after done-for-now and start something new restores the main window', async () => {
+test('done-for-now reopens into the resume screen by default', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'done-for-now-default-resume');
+    await exitCompactMode(page);
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+    await expectPostSessionPrompt(page, 'done-for-now-default-resume');
+    await page.getByTestId('post-session-done').click();
+    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
+    await fillSplitSessionNotes(page, {
+      nextSteps: 'pick this up tomorrow',
+      recap: 'final QA pass still open',
+    });
+    await page.getByRole('button', { name: 'Done for now' }).click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await page.evaluate(() => {
+      window.electronAPI.bringToFront?.();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByText('done-for-now-default-resume')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating resumable re-entry comes back after done-for-now and start something new captures save-for-later notes first', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1124,12 +1168,20 @@ test('floating resumable re-entry comes back after done-for-now and start someth
     await floatingWindow.locator('#prompt-start-new-btn').click();
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Save “resume-choice-task” for later' })).toBeVisible();
+    await fillSplitSessionNotes(page, {
+      nextSteps: 'restart with the handoff checklist',
+      recap: 'latest notes captured from the floating resume prompt',
+    });
+    await page.getByRole('button', { name: 'Save and continue' }).click();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'Where are we focusing first?');
   } finally {
     await cleanup();
   }
 });
 
-test('post-session prompt can hand off directly into a clean start-another-session composer', async () => {
+test('post-session prompt can mark complete and hand off directly into a clean start-another-session composer', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1140,13 +1192,12 @@ test('post-session prompt can hand off directly into a clean start-another-sessi
     await page.getByRole('button', { name: 'End Session' }).click();
     await expectPostSessionPrompt(page, 'resume-choice-task');
 
-    await page.getByTestId('post-session-new-task').click();
-    await expect(page.getByRole('heading', { name: 'Start a new task' })).toBeVisible();
-    await page.getByRole('button', { name: 'Mark complete' }).click();
+    await page.getByTestId('post-session-mark-complete').click();
 
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'What are we focusing on next?');
     await expect(page.getByRole('button', { name: 'Open Parking Lot' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open Session History' })).toBeVisible();
     await expect(page.getByText('Start something new, or pull from Parking Lot or History.')).toBeVisible();
@@ -3451,6 +3502,7 @@ test('start-a-new-task mark-complete records completion and returns to the idle 
     await page.getByRole('button', { name: 'Mark complete' }).click();
 
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'What are we focusing on next?');
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].task).toBe('stop-flow-complete-message');
     expect(savedSessions[0].completed).toBe(true);

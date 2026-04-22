@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const QUICK_MINUTES = [15, 25, 45];
 
@@ -18,27 +18,40 @@ export default function ReentryPrompt({
   minutes = '25',
   maxTaskLength = 96,
   resumeTaskName = '',
+  resumeRecap = '',
+  resumeNextSteps = '',
   onTaskTextChange,
   onMinutesChange,
   onStageChange,
   onStartSession,
-  onStartNewFromResume,
+  onSaveForLaterFromResume,
   onOpenParkingLot,
   onOpenSessionHistory,
   onSnooze,
 }) {
   const textareaRef = useRef(null);
   const minutesInputRef = useRef(null);
+  const nextStepsRef = useRef(null);
   const previousStageRef = useRef(promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
+  const [resumeRecapDraft, setResumeRecapDraft] = useState('');
+  const [resumeNextStepsDraft, setResumeNextStepsDraft] = useState('');
 
   const safeTaskText = typeof taskText === 'string' ? taskText : '';
   const trimmedTaskText = safeTaskText.trim();
   const safeMinutes = useMemo(() => clampMinutes(minutes), [minutes]);
   const safeResumeTaskName = typeof resumeTaskName === 'string' ? resumeTaskName.trim() : '';
+  const safeResumeRecap = typeof resumeRecap === 'string' ? resumeRecap : '';
+  const safeResumeNextSteps = typeof resumeNextSteps === 'string' ? resumeNextSteps : '';
   const effectiveTaskName = (promptKind === 'resume-choice' ? safeResumeTaskName : trimmedTaskText) || 'Untitled task';
   const canAdvance = trimmedTaskText.length > 0;
-  const showBack = stage === 'start-chooser' || stage === 'snooze-options';
+  const showBack = stage === 'start-chooser' || stage === 'save-for-later' || stage === 'snooze-options';
   const showDismiss = stage !== 'snooze-options';
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setResumeRecapDraft(safeResumeRecap);
+    setResumeNextStepsDraft(safeResumeNextSteps);
+  }, [isOpen, safeResumeNextSteps, safeResumeRecap, safeResumeTaskName]);
 
   useEffect(() => {
     if (stage !== 'snooze-options') {
@@ -62,6 +75,14 @@ export default function ReentryPrompt({
         if (!input) return;
         input.focus();
         input.select();
+        return;
+      }
+
+      if (stage === 'save-for-later') {
+        const input = nextStepsRef.current;
+        if (!input) return;
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
       }
     }, 30);
 
@@ -88,6 +109,11 @@ export default function ReentryPrompt({
   const handleBack = () => {
     if (stage === 'start-chooser') {
       onStageChange?.(promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
+      return;
+    }
+
+    if (stage === 'save-for-later') {
+      onStageChange?.('resume-choice');
       return;
     }
 
@@ -211,9 +237,56 @@ export default function ReentryPrompt({
               <button
                 type="button"
                 className="reentry-prompt__btn reentry-prompt__btn--ghost"
-                onClick={() => onStartNewFromResume?.()}
+                onClick={() => onStageChange?.('save-for-later')}
               >
                 Start Something New
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {stage === 'save-for-later' ? (
+          <section className="reentry-prompt__step reentry-prompt__step--save-for-later">
+            <h2 className="reentry-prompt__title">Save “{safeResumeTaskName || 'this task'}” for later</h2>
+            <p className="reentry-prompt__copy">Where did you leave off?</p>
+
+            <label className="reentry-prompt__field">
+              <span className="reentry-prompt__field-label">First step back in</span>
+              <textarea
+                ref={nextStepsRef}
+                className="reentry-prompt__textarea reentry-prompt__textarea--notes"
+                rows={4}
+                maxLength={500}
+                name="next-steps"
+                value={resumeNextStepsDraft}
+                onChange={(event) => setResumeNextStepsDraft(event.target.value)}
+                placeholder="What should you do first when you come back?"
+              />
+            </label>
+
+            <label className="reentry-prompt__field">
+              <span className="reentry-prompt__field-label">Helpful context</span>
+              <textarea
+                className="reentry-prompt__textarea reentry-prompt__textarea--notes"
+                rows={4}
+                maxLength={500}
+                name="recap"
+                value={resumeRecapDraft}
+                onChange={(event) => setResumeRecapDraft(event.target.value)}
+                placeholder="Links, completed pieces, reminders, useful details..."
+              />
+            </label>
+
+            <div className="reentry-prompt__actions">
+              <button
+                type="button"
+                className="reentry-prompt__btn reentry-prompt__btn--primary"
+                onClick={() => onSaveForLaterFromResume?.({
+                  recap: resumeRecapDraft.trim(),
+                  nextSteps: resumeNextStepsDraft.trim(),
+                })}
+              >
+                Save and continue
               </button>
             </div>
           </section>

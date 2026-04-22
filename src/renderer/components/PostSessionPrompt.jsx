@@ -228,6 +228,16 @@ export default function PostSessionPrompt({
           <span>Start a new task</span>
           <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
         </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="post-session-action post-session-action--secondary post-session-action--terminal"
+          onClick={() => onStartNewTaskMarkComplete?.()}
+          data-testid="post-session-mark-complete"
+        >
+          <span>Mark complete</span>
+        </Button>
       </div>
 
       <button
