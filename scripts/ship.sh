@@ -118,6 +118,8 @@ REPO="$(node -p "const config = require('$PROJECT_ROOT/electron-builder.config.j
 TAG="v$VERSION"
 RELEASE_NOTES_SCRIPT="$PROJECT_ROOT/scripts/release-notes.js"
 RELEASE_NOTES_BODY_FILE=""
+CONFIRM_FRIENDS_AND_FAMILY_SLUG="justin-franklin"
+CONFIRM_FRIENDS_AND_FAMILY_HEADING="Justin, Welcome to the Focana family."
 
 trap cleanup_temp_files EXIT
 
@@ -289,6 +291,58 @@ verify_landing_production() {
   grep -Fq "Version $VERSION" <<<"$updates_html" || fail "/updates does not show Version $VERSION"
 
   ok "Landing production routes and the friends-and-family download flow reference the latest DMGs and release notes"
+}
+
+print_release_confirmation() {
+  if [ "$DRY_RUN" = true ]; then
+    info "Would print the final release confirmation block for $VERSION after verifying the live download pages, friends-and-family slug, updater manifest, and updates page"
+    return
+  fi
+
+  local download_html
+  local next_steps_html
+  local friends_html
+  local updates_html
+  local manifest_html
+  local release_summary
+  local friends_checkout_path="/api/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG/checkout"
+  local friends_url="https://focana.app/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG"
+
+  download_html="$(curl -fsSL "https://focana.app/download")" || fail "Could not fetch https://focana.app/download for final confirmation"
+  next_steps_html="$(curl -fsSL "https://focana.app/next-steps")" || fail "Could not fetch https://focana.app/next-steps for final confirmation"
+  friends_html="$(curl -fsSL "$friends_url")" || fail "Could not fetch $friends_url for final confirmation"
+  updates_html="$(curl -fsSL "https://focana.app/updates")" || fail "Could not fetch https://focana.app/updates for final confirmation"
+  manifest_html="$(curl -fsSL "$GITHUB_DL/$MANIFEST")" || fail "Could not fetch $GITHUB_DL/$MANIFEST for final confirmation"
+  release_summary="$(node -e "const fs=require('fs'); const note=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(note.summary || '').trim());" "$PROJECT_ROOT/release-notes/$VERSION.json")"
+
+  grep -Fq "$ARM64_URL" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the $VERSION arm64 DMG"
+  grep -Fq "$X64_URL" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the $VERSION x64 DMG"
+  grep -Fq "$ARM64_URL" <<<"$next_steps_html" || fail "Final confirmation failed: /next-steps does not reference the $VERSION arm64 DMG"
+  grep -Fq "$X64_URL" <<<"$next_steps_html" || fail "Final confirmation failed: /next-steps does not reference the $VERSION x64 DMG"
+  grep -Fq "$CONFIRM_FRIENDS_AND_FAMILY_HEADING" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug does not render the expected heading"
+  grep -Fq "${friends_checkout_path}?location=" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug does not expose the live checkout CTA path"
+  grep -Fq "const redirectUrl = new URL('/download', window.location.origin);" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug no longer redirects successful checkout to /download"
+  gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1 || fail "Final confirmation failed: GitHub release $TAG is not reachable"
+  grep -Fq "version: $VERSION" <<<"$manifest_html" || fail "Final confirmation failed: latest-mac.yml does not advertise version $VERSION"
+  for manifest_asset in "$ARM64_ZIP" "$X64_ZIP" "$ARM64_DMG" "$X64_DMG"; do
+    grep -Fq "$manifest_asset" <<<"$manifest_html" || fail "Final confirmation failed: latest-mac.yml does not list $manifest_asset"
+  done
+  grep -Fq "Version $VERSION" <<<"$updates_html" || fail "Final confirmation failed: /updates does not show Version $VERSION"
+  if [ -n "$release_summary" ]; then
+    grep -Fq "$release_summary" <<<"$updates_html" || fail "Final confirmation failed: /updates does not include the approved release summary"
+  fi
+
+  printf '\n'
+  printf '%s\n' "focana.app/download is live with the $VERSION arm64 and x64 GitHub DMG URLs."
+  printf '%s\n' "focana.app/next-steps is also live with those same $VERSION DMG URLs."
+  printf '%s\n' "focana.app/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG is live and active."
+  printf '%s\n' "It renders $CONFIRM_FRIENDS_AND_FAMILY_HEADING"
+  printf '%s\n' "It exposes the live CTA path ${friends_checkout_path}?..."
+  printf '%s\n' "The page script redirects successful checkout to /download, so this slug now lands on the updated $VERSION download page."
+  printf '%s\n' "The GitHub release is live at $TAG."
+  printf '%s\n' "The updater manifest latest-mac.yml is public and set to version: $VERSION with the $VERSION assets, so auto-updater has what it needs."
+  printf '%s\n' "focana.app/updates is live with Version $VERSION and the approved release notes under Product > Updates."
+  printf '\n'
 }
 
 info "Preflight: checking local tooling, auth, and repo state"
@@ -476,6 +530,7 @@ fi
 
 info "Step 12/12: Verify live landing pages"
 verify_landing_production
+print_release_confirmation
 
 info "Summary"
 printf '\n'
