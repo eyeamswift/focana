@@ -464,11 +464,23 @@ function EmailCaptureModal({
   footerNote,
   dismissLabel,
   defaultEmail = "",
+  showCloseButton = true,
+  dismissOnBack = false,
 }) {
   const [email, setEmail] = useState(defaultEmail);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const modalRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  const statusRef = useRef(status);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (open) {
@@ -527,6 +539,27 @@ function EmailCaptureModal({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [defaultEmail, onClose, open, status]);
+
+  useEffect(() => {
+    if (!open || !dismissOnBack || typeof window === "undefined") return;
+
+    let closedByPop = false;
+    window.history.pushState({ focanaModal: titleId }, "");
+
+    const handlePopState = () => {
+      closedByPop = true;
+      if (statusRef.current !== "loading") onCloseRef.current("back");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (!closedByPop && window.history.state?.focanaModal === titleId) {
+        window.history.back();
+      }
+    };
+  }, [dismissOnBack, open, titleId]);
 
   const requestClose = (reason) => {
     if (status === "loading") return;
@@ -589,27 +622,29 @@ function EmailCaptureModal({
           boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
         }}
       >
-        <button
-          type="button"
-          aria-label="Close modal"
-          onClick={() => requestClose("x")}
-          style={{
-            position: "absolute",
-            top: "16px",
-            right: "16px",
-            width: "40px",
-            height: "40px",
-            borderRadius: "999px",
-            border: `1px solid ${COLORS.beigeBorder}`,
-            background: COLORS.warmVanilla,
-            color: COLORS.warmBrown,
-            cursor: "pointer",
-            fontSize: "20px",
-            lineHeight: 1,
-          }}
-        >
-          ×
-        </button>
+        {showCloseButton ? (
+          <button
+            type="button"
+            aria-label="Close modal"
+            onClick={() => requestClose("x")}
+            style={{
+              position: "absolute",
+              top: "16px",
+              right: "16px",
+              width: "40px",
+              height: "40px",
+              borderRadius: "999px",
+              border: `1px solid ${COLORS.beigeBorder}`,
+              background: COLORS.warmVanilla,
+              color: COLORS.warmBrown,
+              cursor: "pointer",
+              fontSize: "20px",
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        ) : null}
 
         <h3
           id={titleId}
@@ -619,7 +654,7 @@ function EmailCaptureModal({
             fontWeight: 700,
             color: COLORS.warmBrown,
             marginBottom: description ? "10px" : "24px",
-            paddingRight: "40px",
+            paddingRight: showCloseButton ? "40px" : 0,
           }}
         >
           {title}
@@ -2706,11 +2741,13 @@ export default function FocanaLanding() {
         onClose={handleCheckoutModalClose}
         onSubmit={handleCheckoutSubmit}
         titleId="checkout-capture-title"
-        title="Enter your email to get your Focana details"
-        description="We'll use this to send your confirmation and access details."
+        title="Enter your email."
+        description="We'll send your download link and setup notes here."
         submitLabel="Get Focana →"
         loadingLabel="Continuing..."
         defaultEmail={submittedEmail}
+        showCloseButton={false}
+        dismissOnBack
       />
 
       {/* FOOTER */}
