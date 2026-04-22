@@ -173,8 +173,8 @@ function normalizeReleaseNote(note) {
     publishedAt: note.publishedAt,
     displayDate: formatDisplayDate(note.publishedAt),
     summary: typeof note.summary === 'string' ? note.summary.trim() : '',
-    fixes: Array.isArray(note.fixes) ? note.fixes.map((item) => item.trim()) : [],
     improvements: Array.isArray(note.improvements) ? note.improvements.map((item) => item.trim()) : [],
+    fixes: Array.isArray(note.fixes) ? note.fixes.map((item) => item.trim()) : [],
   };
 }
 
@@ -220,16 +220,16 @@ function renderGitHubNotes(release) {
     lines.push('', release.summary);
   }
 
-  if (release.fixes.length > 0) {
-    lines.push('', '### Fixes');
-    for (const item of release.fixes) {
+  if (release.improvements.length > 0) {
+    lines.push('', '### Improvements');
+    for (const item of release.improvements) {
       lines.push(`- ${item}`);
     }
   }
 
-  if (release.improvements.length > 0) {
-    lines.push('', '### Improvements');
-    for (const item of release.improvements) {
+  if (release.fixes.length > 0) {
+    lines.push('', '### Fixes');
+    for (const item of release.fixes) {
       lines.push(`- ${item}`);
     }
   }
@@ -247,8 +247,8 @@ function initReleaseNote(version) {
   const draft = {
     version,
     publishedAt: todayIso,
-    fixes: [],
     improvements: [],
+    fixes: [],
   };
   fs.writeFileSync(filePath, `${JSON.stringify(draft, null, 2)}\n`);
   info(`Created draft release notes at ${path.relative(projectRoot, filePath)}`);
