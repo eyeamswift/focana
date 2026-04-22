@@ -647,22 +647,22 @@ const heroSummary = latestRelease?.summary || fallbackSummary;
               <h2 class="release-version">Version {release.version}</h2>
               <p class="release-date">{release.displayDate}</p>
 
-              {release.fixes.length > 0 && (
+              {release.improvements.length > 0 && (
                 <div class="release-section">
-                  <h2>Fixes</h2>
+                  <h2>Improvements</h2>
                   <ul>
-                    {release.fixes.map((item) => (
+                    {release.improvements.map((item) => (
                       <li>{item}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {release.improvements.length > 0 && (
+              {release.fixes.length > 0 && (
                 <div class="release-section">
-                  <h2>Improvements</h2>
+                  <h2>Fixes</h2>
                   <ul>
-                    {release.improvements.map((item) => (
+                    {release.fixes.map((item) => (
                       <li>{item}</li>
                     ))}
                   </ul>
