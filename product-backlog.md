@@ -185,6 +185,16 @@
 - Notes: Use the positive post-session acknowledgement as the education surface rather than creating a separate tutorial system. First pass should support short rotating `Did you know?` tips inside or immediately after the `Good job` message, including after `Save for Later`, with concrete examples such as the check-in shortcut `Cmd/Ctrl+Shift+Y` for `Yes` and the global `Keep for Later` shortcut `Cmd/Ctrl+Shift+K` for Parking Lot capture. Teach the shortcut with behavior-first copy like `If something comes up, give it to Focana to keep for later.` Tips should feel optional, upbeat, and skimmable, and the system should avoid repeating the same hint too often.
 - Commits: —
 
+### ONB-001 — First launch should offer a dismissible guided feature wizard with first-use scripting
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: Focana has several high-value behaviors that are easy to miss or misunderstand without guidance, but a long mandatory onboarding flow would create the exact sustained-attention burden the product is supposed to reduce.
+- Files: `src/renderer/App.jsx`, first-run state in `src/main/store.js`, future onboarding/walkthrough UI, feature-trigger plumbing, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-012`, `UX-009`, `UX-010`, `TASK-002`
+- Notes: Scope this as a dismissible first-launch guide plus progressive feature scripting, not a forced tutorial. On first launch, offer a lightweight wizard the user can skip, snooze, or exit at any time. Then, as the user encounters key features for the first time, script each one in-context with short, behavior-led guidance instead of one long tour. First pass should cover the main surfaces that define Focana's value, such as starting a session, responding to a check-in, using Parking Lot, reviewing Session History, minimizing to floating, and moving through the end-session flow. Persist completion and dismissal state per feature so tips do not repeat excessively, and avoid blocking the user from starting work just to finish onboarding.
+- Commits: —
+
 ### TST-001 — Playwright E2E coverage should be split for parallel workers
 - Priority: Medium
 - Status: Later

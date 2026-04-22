@@ -1,0 +1,13 @@
+{
+  "version": "1.5.1",
+  "publishedAt": "2026-04-22",
+  "summary": "Focana makes the return-to-work flow feel tighter in 1.5.1, with a cleaner resume prompt and a faster way to close out saved work before moving on.",
+  "improvements": [
+    "Resume prompts now use a tighter layout in both full and compact windows, with copy and spacing that keep the key actions visible more consistently.",
+    "The re-entry chooser now labels the active task more clearly so it is easier to confirm what you are picking back up."
+  ],
+  "fixes": [
+    "If you choose Start Something New from a resumable prompt, you can now mark the saved task complete with recap and next steps instead of being forced to keep it open.",
+    "Resume and save-for-later surfaces now size more reliably so notes fields and controls are less likely to feel cramped."
+  ]
+}

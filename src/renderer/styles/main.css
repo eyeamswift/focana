@@ -590,6 +590,13 @@ html[data-window-mode='pill'] #root {
   padding-block: 0.05rem 0.25rem;
 }
 
+.full-view-content--reentry {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-height: 0;
+  padding-block: 0.15rem 0.3rem;
+}
+
 .focus-stage {
   width: 100%;
   display: flex;
@@ -603,11 +610,21 @@ html[data-window-mode='pill'] #root {
   justify-content: center;
 }
 
+.focus-stage--reentry {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
 .focus-stage__surface {
   width: min(100%, 980px);
 }
 
 .focus-stage__surface--post-session {
+  display: flex;
+  justify-content: center;
+}
+
+.focus-stage__surface--reentry {
   display: flex;
   justify-content: center;
 }
@@ -963,7 +980,7 @@ html[data-window-mode='pill'] #root {
 }
 
 .reentry-prompt--full {
-  margin-top: 0.2rem;
+  margin-top: 0;
 }
 
 .reentry-prompt--compact {
@@ -1007,7 +1024,7 @@ html[data-window-mode='pill'] #root {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.9rem 1rem 0;
+  padding: 0.72rem 0.9rem 0;
 }
 
 .reentry-prompt--compact .reentry-prompt__header {
@@ -1044,11 +1061,19 @@ html[data-window-mode='pill'] #root {
   background: color-mix(in srgb, var(--bg-card) 92%, transparent);
 }
 
+.reentry-prompt__header-btn--complete {
+  min-width: 6.35rem;
+  font-size: 0.83rem;
+  font-weight: 800;
+  border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+}
+
 .reentry-prompt__body {
   flex: 1;
   display: flex;
   min-height: 0;
-  padding: 0.65rem 1rem 1rem;
+  padding: 0.45rem 0.9rem 0.9rem;
   overflow-y: auto;
 }
 
@@ -1057,12 +1082,16 @@ html[data-window-mode='pill'] #root {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 0.82rem;
+  gap: 0.68rem;
+}
+
+.reentry-prompt__step--resume-choice {
+  justify-content: center;
 }
 
 .reentry-prompt__title {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.32rem;
   line-height: 1.08;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -1073,7 +1102,7 @@ html[data-window-mode='pill'] #root {
 .reentry-prompt__copy {
   margin: 0;
   font-size: 0.93rem;
-  line-height: 1.5;
+  line-height: 1.42;
   color: var(--text-secondary);
   text-align: center;
 }
@@ -1094,8 +1123,8 @@ html[data-window-mode='pill'] #root {
 }
 
 .reentry-prompt__textarea {
-  min-height: 6.4rem;
-  max-height: 6.4rem;
+  min-height: 5.7rem;
+  max-height: 5.7rem;
   padding: 0.85rem 0.95rem;
   font: inherit;
   font-size: 1.02rem;
@@ -1104,8 +1133,8 @@ html[data-window-mode='pill'] #root {
 }
 
 .reentry-prompt__textarea--notes {
-  min-height: 7rem;
-  max-height: 7rem;
+  min-height: 5.5rem;
+  max-height: 5.5rem;
 }
 
 .reentry-prompt__minutes-input {

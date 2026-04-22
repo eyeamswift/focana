@@ -1181,6 +1181,55 @@ test('floating resumable re-entry comes back after done-for-now and start someth
   }
 });
 
+test('resume save-for-later can mark complete with confetti and hand off to the next-task prompt', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'resume-mark-complete');
+    await exitCompactMode(page);
+
+    await page.getByRole('button', { name: 'End Session' }).click();
+    await expectPostSessionPrompt(page, 'resume-mark-complete');
+    await page.getByTestId('post-session-done').click();
+    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
+    await page.getByRole('button', { name: 'Done for now' }).click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await page.evaluate(() => {
+      window.electronAPI.bringToFront?.();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Start Something New' }).click();
+    await expect(page.getByRole('heading', { name: 'Save “resume-mark-complete” for later' })).toBeVisible();
+
+    await fillSplitSessionNotes(page, {
+      nextSteps: 'reopen the checklist and verify the last pass',
+      recap: 'handoff notes captured before marking it complete',
+    });
+    await expect(page.getByTestId('reentry-mark-complete')).toBeVisible();
+    await page.getByTestId('reentry-mark-complete').click();
+
+    await expect(page.locator('.confetti-overlay')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'What are we focusing on next?');
+
+    const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    const matchingSession = savedSessions.find((session) => session?.task === 'resume-mark-complete');
+    expect(matchingSession).toBeTruthy();
+    expect(matchingSession.completed).toBe(true);
+    expect(matchingSession.nextSteps).toBe('reopen the checklist and verify the last pass');
+    expect(matchingSession.recap).toBe('handoff notes captured before marking it complete');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('post-session prompt can mark complete and hand off directly into a clean start-another-session composer', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 

@@ -7,6 +7,7 @@ RELEASE_NOTES_SCRIPT="$PROJECT_ROOT/scripts/release-notes.js"
 
 SKIP_BUILD=false
 DRY_RUN=false
+PROMPT_VERSION_BUMP=false
 
 info() { printf '\033[1;34m[ship-smoke]\033[0m %s\n' "$1"; }
 ok() { printf '\033[1;32m[ship-smoke]\033[0m %s\n' "$1"; }
@@ -19,6 +20,9 @@ Usage: ./scripts/ship-smoke.sh [--skip-build] [--dry-run]
 
   --skip-build  Reuse existing release artifacts instead of rebuilding them
   --dry-run     Print the smoke-release steps without making changes
+  --prompt-version-bump
+                If package.json is not ahead of the latest local release tag,
+                recommend the next patch version and prompt to apply it
 
 This script intentionally stops before tagging, publishing, or deploying.
 It:
@@ -35,6 +39,9 @@ for arg in "$@"; do
       ;;
     --dry-run)
       DRY_RUN=true
+      ;;
+    --prompt-version-bump)
+      PROMPT_VERSION_BUMP=true
       ;;
     -h|--help)
       usage
@@ -73,8 +80,40 @@ check_release_notes_status() {
   warn "Scaffold a draft with: node scripts/release-notes.js init --version $VERSION"
 }
 
-VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
-PRODUCT="$(node -p "require('$PROJECT_ROOT/electron-builder.config.js').productName")"
+parse_semver_or_fail() {
+  local version="${1#v}"
+  version="${version%%[-+]*}"
+
+  if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    fail "Expected a semantic version like x.y.z, received: $1"
+  fi
+
+  printf '%s %s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+}
+
+semver_gt() {
+  local left_major left_minor left_patch
+  local right_major right_minor right_patch
+
+  read -r left_major left_minor left_patch <<<"$(parse_semver_or_fail "$1")"
+  read -r right_major right_minor right_patch <<<"$(parse_semver_or_fail "$2")"
+
+  if (( left_major > right_major )); then return 0; fi
+  if (( left_major < right_major )); then return 1; fi
+  if (( left_minor > right_minor )); then return 0; fi
+  if (( left_minor < right_minor )); then return 1; fi
+  if (( left_patch > right_patch )); then return 0; fi
+  return 1
+}
+
+recommend_next_patch_version() {
+  local major minor patch
+  read -r major minor patch <<<"$(parse_semver_or_fail "$1")"
+  printf '%s.%s.%s\n' "$major" "$minor" "$((patch + 1))"
+}
+
+VERSION=""
+PRODUCT=""
 
 ARM64_DMG="$PRODUCT-$VERSION-mac-arm64.dmg"
 X64_DMG="$PRODUCT-$VERSION-mac-x64.dmg"
@@ -94,18 +133,94 @@ EXPECTED_FILES=(
   "$MANIFEST"
 )
 
+refresh_release_metadata() {
+  VERSION="$(node -p "require('$PROJECT_ROOT/package.json').version")"
+  PRODUCT="$(node -p "require('$PROJECT_ROOT/electron-builder.config.js').productName")"
+
+  ARM64_DMG="$PRODUCT-$VERSION-mac-arm64.dmg"
+  X64_DMG="$PRODUCT-$VERSION-mac-x64.dmg"
+  ARM64_ZIP="$PRODUCT-$VERSION-mac-arm64.zip"
+  X64_ZIP="$PRODUCT-$VERSION-mac-x64.zip"
+  ARM64_ZIP_BM="$PRODUCT-$VERSION-mac-arm64.zip.blockmap"
+  X64_ZIP_BM="$PRODUCT-$VERSION-mac-x64.zip.blockmap"
+  MANIFEST="latest-mac.yml"
+
+  EXPECTED_FILES=(
+    "$ARM64_DMG"
+    "$X64_DMG"
+    "$ARM64_ZIP"
+    "$X64_ZIP"
+    "$ARM64_ZIP_BM"
+    "$X64_ZIP_BM"
+    "$MANIFEST"
+  )
+
+  case "$HOST_ARCH" in
+    arm64)
+      SMOKE_DMG="$RELEASE_DIR/$ARM64_DMG"
+      ;;
+    x86_64)
+      SMOKE_DMG="$RELEASE_DIR/$X64_DMG"
+      ;;
+    *)
+      fail "Unsupported host architecture for packaged smoke: $HOST_ARCH"
+      ;;
+  esac
+}
+
+ensure_version_bump_if_requested() {
+  local latest_tag
+  local recommended_version
+  local response
+
+  if [ "$PROMPT_VERSION_BUMP" != true ]; then
+    return
+  fi
+
+  latest_tag="$(git -C "$PROJECT_ROOT" tag --list 'v*' --sort=-version:refname | head -n 1 | tr -d '[:space:]')"
+
+  if [ -z "$latest_tag" ]; then
+    warn "No local release tags found, so version-bump prompting was skipped."
+    return
+  fi
+
+  if semver_gt "$VERSION" "$latest_tag"; then
+    ok "Version $VERSION is already ahead of latest local tag $latest_tag"
+    return
+  fi
+
+  recommended_version="$(recommend_next_patch_version "$latest_tag")"
+
+  if [ "$DRY_RUN" = true ]; then
+    warn "Version $VERSION is not newer than latest local tag $latest_tag."
+    info "Would recommend bumping to $recommended_version before packaged smoke."
+    return
+  fi
+
+  if [ ! -t 0 ]; then
+    fail "Version $VERSION is not newer than latest local tag $latest_tag. Recommended bump: $recommended_version. Re-run interactively with --prompt-version-bump or bump manually first."
+  fi
+
+  printf '\033[1;33m[ship-smoke]\033[0m package.json is at %s and latest local tag is %s. Recommended next version: %s. Apply it now and continue? [Y/n] ' "$VERSION" "$latest_tag" "$recommended_version"
+  read -r response
+
+  case "${response:-y}" in
+    y|Y|yes|YES)
+      npm --prefix "$PROJECT_ROOT" version "$recommended_version" --no-git-tag-version >/dev/null
+      refresh_release_metadata
+      ok "Version bumped to $VERSION for packaged smoke"
+      ;;
+    n|N|no|NO)
+      fail "Version bump declined. Bump package.json before running packaged smoke for a new release candidate."
+      ;;
+    *)
+      fail "Unrecognized response: $response"
+      ;;
+  esac
+}
+
 HOST_ARCH="$(uname -m)"
-case "$HOST_ARCH" in
-  arm64)
-    SMOKE_DMG="$RELEASE_DIR/$ARM64_DMG"
-    ;;
-  x86_64)
-    SMOKE_DMG="$RELEASE_DIR/$X64_DMG"
-    ;;
-  *)
-    fail "Unsupported host architecture for packaged smoke: $HOST_ARCH"
-    ;;
-esac
+refresh_release_metadata
 
 MOUNT_POINT=""
 cleanup() {
@@ -117,7 +232,7 @@ cleanup() {
 trap cleanup EXIT
 
 info "Preflight: checking local tooling"
-for tool in node npm xcrun hdiutil uname; do
+for tool in node npm xcrun hdiutil uname git; do
   require_tool "$tool"
 done
 
@@ -130,6 +245,9 @@ fi
 if [ "$SKIP_BUILD" = true ]; then
   warn "Skip build enabled: existing release artifacts will be reused."
 fi
+
+info "Preflight: checking version bump status"
+ensure_version_bump_if_requested
 
 info "Preflight: checking release note readiness"
 check_release_notes_status

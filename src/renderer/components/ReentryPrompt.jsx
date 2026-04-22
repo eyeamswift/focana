@@ -25,6 +25,7 @@ export default function ReentryPrompt({
   onStageChange,
   onStartSession,
   onSaveForLaterFromResume,
+  onCompleteFromResume,
   onOpenParkingLot,
   onOpenSessionHistory,
   onSnooze,
@@ -45,7 +46,8 @@ export default function ReentryPrompt({
   const effectiveTaskName = (promptKind === 'resume-choice' ? safeResumeTaskName : trimmedTaskText) || 'Untitled task';
   const canAdvance = trimmedTaskText.length > 0;
   const showBack = stage === 'start-chooser' || stage === 'save-for-later' || stage === 'snooze-options';
-  const showDismiss = stage !== 'snooze-options';
+  const showCompleteFromResume = stage === 'save-for-later' && promptKind === 'resume-choice';
+  const showDismiss = stage !== 'snooze-options' && !showCompleteFromResume;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -163,6 +165,18 @@ export default function ReentryPrompt({
         {showDismiss ? (
           <button type="button" className="reentry-prompt__header-btn" onClick={() => onStageChange?.('snooze-options')}>
             Snooze
+          </button>
+        ) : showCompleteFromResume ? (
+          <button
+            type="button"
+            className="reentry-prompt__header-btn reentry-prompt__header-btn--complete"
+            data-testid="reentry-mark-complete"
+            onClick={() => onCompleteFromResume?.({
+              recap: resumeRecapDraft.trim(),
+              nextSteps: resumeNextStepsDraft.trim(),
+            })}
+          >
+            Mark complete
           </button>
         ) : (
           <span className="reentry-prompt__header-spacer" aria-hidden="true" />
@@ -295,7 +309,7 @@ export default function ReentryPrompt({
         {stage === 'start-chooser' ? (
           <section className="reentry-prompt__step reentry-prompt__step--chooser">
             <div className="reentry-prompt__task-card">
-              <span className="reentry-prompt__task-label">Task</span>
+              <span className="reentry-prompt__task-label">Focusing on:</span>
               <span className="reentry-prompt__task-value">{effectiveTaskName}</span>
             </div>
 

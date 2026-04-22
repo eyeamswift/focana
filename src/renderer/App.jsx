@@ -58,7 +58,7 @@ const WINDOW_SIZES = {
   baseWidth: 460,
   runningWidth: 432,
   idleHeight: 124,
-  reentryPromptHeight: 404,
+  reentryPromptHeight: 340,
   startupCheckingHeight: 220,
   startupNameHeight: 380,
   startupActivationHeight: 460,
@@ -4489,6 +4489,70 @@ export default function App() {
     openFreshTaskComposer({ bringToFront: true, promptTone: 'first' });
   }, [openFreshTaskComposer, saveResumeCandidateForLater]);
 
+  const completeResumeCandidate = useCallback(async (notes = {}, candidate = reentryResumeCandidateRef.current) => {
+    if (!candidate?.taskText) return null;
+
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: candidate.recap,
+      nextSteps: candidate.nextSteps,
+    });
+
+    if (candidate.source === 'post-session') {
+      return updatePostSessionSession({
+        completed: true,
+        kept: false,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+      });
+    }
+
+    let sessionId = typeof candidate.sessionId === 'string' && candidate.sessionId.trim()
+      ? candidate.sessionId.trim()
+      : null;
+
+    try {
+      if (!sessionId) {
+        const created = await SessionStore.create({
+          task: candidate.taskText,
+          duration_minutes: Math.round((Math.max(0, Number(candidate.carryoverSeconds) || 0) / 60) * 10) / 10,
+          mode: candidate.mode === 'timed' ? 'timed' : 'freeflow',
+          completed: true,
+          kept: false,
+          notes: splitNotes.recap,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+        });
+        sessionId = created?.id || null;
+      } else {
+        await SessionStore.update(sessionId, {
+          completed: true,
+          kept: false,
+          notes: splitNotes.recap,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+        });
+      }
+
+      await loadSessions();
+      return sessionId;
+    } catch (error) {
+      console.error('Failed to complete resumable task before starting something new:', error);
+      return sessionId;
+    }
+  }, [loadSessions, updatePostSessionSession]);
+
+  const handleCompleteFromResumeCandidate = useCallback(async (notes = {}) => {
+    const candidate = reentryResumeCandidateRef.current;
+    await completeResumeCandidate(notes, candidate);
+    track('session_completed', {
+      mode: candidate?.completedMode || candidate?.mode || mode,
+      duration_minutes: Math.round((((candidate?.completedMinutes || 0) || ((candidate?.carryoverSeconds || 0) / 60)) * 10)) / 10,
+      source: 'resume_prompt',
+    });
+    triggerConfetti(1200);
+    openFreshTaskComposer({ bringToFront: true, promptTone: 'next' });
+  }, [completeResumeCandidate, mode, openFreshTaskComposer, triggerConfetti]);
+
   const handleTakePostSessionBreak = useCallback(async (payload = {}) => {
     if (!postSessionResumeCandidate?.taskText) return;
 
@@ -6023,6 +6087,7 @@ export default function App() {
           onReentryStageChange={setReentrySurfaceStage}
           onReentryStartSession={handleSurfaceReentryStart}
           onReentrySaveForLaterFromResume={handleSaveForLaterFromResumeCandidate}
+          onReentryCompleteFromResume={handleCompleteFromResumeCandidate}
           onReentryOpenParkingLot={openParkingLotFromReentry}
           onReentryOpenSessionHistory={openHistoryFromReentry}
           onReentrySnooze={snoozeReentryAttention}
@@ -6254,9 +6319,9 @@ export default function App() {
         )}
 
         {/* Content */}
-        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState}${showPostSessionPrompt ? ' full-view-content--post-session' : ''} ${getPulseClassName()}`}>
-          <div className={`focus-stage focus-stage--${fullScreenTaskState}${showPostSessionPrompt ? ' focus-stage--post-session' : ''}`}>
-            <div className={`focus-stage__surface${showPostSessionPrompt ? ' focus-stage__surface--post-session' : ''}`}>
+        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState}${showPostSessionPrompt ? ' full-view-content--post-session' : ''}${showSurfaceReentryPrompt ? ' full-view-content--reentry' : ''} ${getPulseClassName()}`}>
+          <div className={`focus-stage focus-stage--${fullScreenTaskState}${showPostSessionPrompt ? ' focus-stage--post-session' : ''}${showSurfaceReentryPrompt ? ' focus-stage--reentry' : ''}`}>
+            <div className={`focus-stage__surface${showPostSessionPrompt ? ' focus-stage__surface--post-session' : ''}${showSurfaceReentryPrompt ? ' focus-stage__surface--reentry' : ''}`}>
               {fullScreenTaskState === 'running' ? (
                 <FocusHeroCard
                   task={activeTaskLabel}
@@ -6282,6 +6347,7 @@ export default function App() {
                   onStageChange={setReentrySurfaceStage}
                   onStartSession={handleSurfaceReentryStart}
                   onSaveForLaterFromResume={handleSaveForLaterFromResumeCandidate}
+                  onCompleteFromResume={handleCompleteFromResumeCandidate}
                   onOpenParkingLot={openParkingLotFromReentry}
                   onOpenSessionHistory={openHistoryFromReentry}
                   onSnooze={snoozeReentryAttention}

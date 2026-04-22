@@ -18,11 +18,11 @@ const TASK_MAX_W = 220; // max task width before wrapping
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
 const REENTRY_PROMPT_SIZES = {
-  'task-entry': { width: 440, height: 386 },
-  'resume-choice': { width: 440, height: 294 },
-  'save-for-later': { width: 440, height: 620 },
-  'start-chooser': { width: 440, height: 390 },
-  'snooze-options': { width: 440, height: 444 },
+  'task-entry': { width: 440, height: 370 },
+  'resume-choice': { width: 440, height: 286 },
+  'save-for-later': { width: 440, height: 560 },
+  'start-chooser': { width: 440, height: 376 },
+  'snooze-options': { width: 440, height: 428 },
 };
 const COMPACT_PULSE_CYCLE_MS = 4500;
 const COMPACT_PULSE_REPEAT_COUNT = 1;
@@ -68,6 +68,7 @@ export default function CompactMode({
   onReentryStageChange,
   onReentryStartSession,
   onReentrySaveForLaterFromResume,
+  onReentryCompleteFromResume,
   onReentryOpenParkingLot,
   onReentryOpenSessionHistory,
   onReentrySnooze,
@@ -438,6 +439,7 @@ export default function CompactMode({
           onStageChange={onReentryStageChange}
           onStartSession={onReentryStartSession}
           onSaveForLaterFromResume={onReentrySaveForLaterFromResume}
+          onCompleteFromResume={onReentryCompleteFromResume}
           onOpenParkingLot={onReentryOpenParkingLot}
           onOpenSessionHistory={onReentryOpenSessionHistory}
           onSnooze={onReentrySnooze}
