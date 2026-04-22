@@ -1,0 +1,16 @@
+{
+  "version": "1.5.0",
+  "publishedAt": "2026-04-22",
+  "summary": "Focana now gives you a cleaner handoff at the end of a session, whether you want a break, another focused block, or a fresh start.",
+  "fixes": [
+    "Timed sessions now hand off directly into Session Wrap instead of getting stranded at 00:00 or falling into a separate timeout modal.",
+    "Post-session notes and follow-up screens now size more reliably so actions and text fields stay visible.",
+    "Break-time floating interactions now behave more predictably whether the countdown is hidden or shown."
+  ],
+  "improvements": [
+    "Session Wrap now offers clearer next steps: Take a break, Keep working, Start a new task, or Done for now.",
+    "Keep working now supports a faster timed restart flow, including Enter-to-start from the post-session timer field.",
+    "Break mode now lets you choose whether minimizing shows the countdown timer, with quicker click behavior for returning to work.",
+    "Idle nudges now ask “What’s next?” and keep Session History and Parking Lot easy to reach from the re-entry prompt."
+  ]
+}
