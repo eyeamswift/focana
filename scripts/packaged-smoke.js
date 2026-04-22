@@ -7,6 +7,7 @@ const { _electron: electron } = require('@playwright/test')
 const TASK_INPUT_SELECTOR = '[data-testid="task-input"]'
 const RUNNING_TASK_SELECTOR = '.focus-hero__task'
 const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text'
+const START_CHOOSER_INPUT_SELECTOR = '.start-chooser__input'
 const ACTIVATION_HEADING = 'Activate Focana on this Mac'
 const NAME_GATE_HEADING = 'One more thing. What should we call you?'
 const DEFAULT_LICENSE_KEY = process.env.FOCANA_SMOKE_LICENSE_KEY || 'password'
@@ -277,16 +278,20 @@ async function runTimedSmoke(page) {
   await taskInput.fill(taskName)
   await taskInput.press('Enter')
 
-  const minutesInput = page.locator('input[type="number"]').first()
+  const minutesInput = page.locator(START_CHOOSER_INPUT_SELECTOR).first()
   await minutesInput.fill('1')
   await minutesInput.press('Enter')
 
   await poll(async () => {
     const mode = await readWindowMode(page)
-    return mode === 'pill' || mode === 'full'
+    const chooserVisible = await page.locator('.start-chooser').first().isVisible().catch(() => false)
+    const currentTask = await readDisplayedTaskText(page)
+    return (mode === 'pill' || mode === 'full')
+      && !chooserVisible
+      && currentTask.includes(taskName)
   }, {
-    timeoutMs: 10000,
-    description: 'running shell after timed start',
+    timeoutMs: 15000,
+    description: 'timed session to enter the running shell',
   })
 
   await setTimeOffset(page, 65000)

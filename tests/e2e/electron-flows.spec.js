@@ -8,6 +8,8 @@ const APP_VERSION = JSON.parse(
   fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')
 ).version;
 const TASK_INPUT_SELECTOR = '[data-testid="task-input"]';
+const RUNNING_TASK_SELECTOR = '.focus-hero__task';
+const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text';
 const NAME_GATE_HEADING = 'One more thing. What should we call you?';
 const FOCUSED_CHECKIN_MESSAGES = [
   'Nice, keep going',
@@ -387,6 +389,25 @@ async function readWindowMode(page) {
   return page.evaluate(() => document.documentElement.getAttribute('data-window-mode'));
 }
 
+async function readDisplayedTaskText(page) {
+  const runningTask = page.locator(RUNNING_TASK_SELECTOR).first();
+  if (await runningTask.isVisible().catch(() => false)) {
+    return ((await runningTask.textContent().catch(() => '')) || '').trim();
+  }
+
+  const pillTask = page.locator(PILL_TASK_SELECTOR).first();
+  if (await pillTask.isVisible().catch(() => false)) {
+    return ((await pillTask.textContent().catch(() => '')) || '').trim();
+  }
+
+  const taskInput = page.locator(TASK_INPUT_SELECTOR).first();
+  if (await taskInput.isVisible().catch(() => false)) {
+    return ((await taskInput.inputValue().catch(() => '')) || '').trim();
+  }
+
+  return '';
+}
+
 async function startFreeflowSession(page, taskName) {
   await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
   await page.locator(TASK_INPUT_SELECTOR).press('Enter');
@@ -397,10 +418,15 @@ async function startFreeflowSession(page, taskName) {
 async function startTimedSession(page, taskName, minutes) {
   await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
   await page.locator(TASK_INPUT_SELECTOR).press('Enter');
-  const minutesInput = page.locator('input[type="number"]').first();
+  const minutesInput = page.locator('.start-chooser__input').first();
   await minutesInput.fill(String(minutes));
   await minutesInput.press('Enter');
-  await expect.poll(() => readWindowMode(page)).toBe('pill');
+  await expect.poll(async () => {
+    const mode = await readWindowMode(page);
+    const chooserVisible = await page.locator('.start-chooser').first().isVisible().catch(() => false);
+    const currentTask = await readDisplayedTaskText(page);
+    return mode === 'pill' && !chooserVisible && currentTask.includes(taskName);
+  }).toBe(true);
 }
 
 async function exitCompactMode(page) {
@@ -3247,7 +3273,7 @@ test('timed start blocks values above 240 until a valid whole number is entered'
     await taskInput.fill('Timed clamp task');
     await taskInput.press('Enter');
 
-    const minutesInput = page.locator('input[type="number"]').first();
+    const minutesInput = page.locator('.start-chooser__input').first();
     await minutesInput.fill('300');
     await minutesInput.press('Enter');
 
@@ -3279,7 +3305,7 @@ test('timed start only accepts whole numbers', async () => {
     await taskInput.fill('Whole number validation task');
     await taskInput.press('Enter');
 
-    const minutesInput = page.locator('input[type="number"]').first();
+    const minutesInput = page.locator('.start-chooser__input').first();
     await minutesInput.fill('12.5');
     await minutesInput.press('Enter');
 
