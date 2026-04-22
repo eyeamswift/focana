@@ -2741,8 +2741,7 @@ export default function FocanaLanding() {
         onClose={handleCheckoutModalClose}
         onSubmit={handleCheckoutSubmit}
         titleId="checkout-capture-title"
-        title="Enter your email."
-        description="We'll send your download link and setup notes here."
+        title="Where should we send your download and setup info?"
         submitLabel="Get Focana →"
         loadingLabel="Continuing..."
         defaultEmail={submittedEmail}
