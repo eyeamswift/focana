@@ -1,19 +1,33 @@
 [
   {
+    "version": "1.5.1",
+    "publishedAt": "2026-04-22",
+    "displayDate": "Wednesday, April 22, 2026",
+    "summary": "Focana makes the return-to-work flow feel tighter in 1.5.1, with a cleaner resume prompt and a faster way to close out saved work before moving on.",
+    "improvements": [
+      "Resume prompts now use a tighter layout in both full and compact windows, with copy and spacing that keep the key actions visible more consistently.",
+      "The re-entry chooser now labels the active task more clearly so it is easier to confirm what you are picking back up."
+    ],
+    "fixes": [
+      "If you choose Start Something New from a resumable prompt, you can now mark the saved task complete with recap and next steps instead of being forced to keep it open.",
+      "Resume and save-for-later surfaces now size more reliably so notes fields and controls are less likely to feel cramped."
+    ]
+  },
+  {
     "version": "1.5.0",
     "publishedAt": "2026-04-22",
     "displayDate": "Wednesday, April 22, 2026",
     "summary": "Focana now gives you a cleaner handoff at the end of a session, whether you want a break, another focused block, or a fresh start.",
-    "fixes": [
-      "Timed sessions now hand off directly into Session Wrap instead of getting stranded at 00:00 or falling into a separate timeout modal.",
-      "Post-session notes and follow-up screens now size more reliably so actions and text fields stay visible.",
-      "Break-time floating interactions now behave more predictably whether the countdown is hidden or shown."
-    ],
     "improvements": [
       "Session Wrap now offers clearer next steps: Take a break, Keep working, Start a new task, or Done for now.",
       "Keep working now supports a faster timed restart flow, including Enter-to-start from the post-session timer field.",
       "Break mode now lets you choose whether minimizing shows the countdown timer, with quicker click behavior for returning to work.",
       "Idle nudges now ask “What’s next?” and keep Session History and Parking Lot easy to reach from the re-entry prompt."
+    ],
+    "fixes": [
+      "Timed sessions now hand off directly into Session Wrap instead of getting stranded at 00:00 or falling into a separate timeout modal.",
+      "Post-session notes and follow-up screens now size more reliably so actions and text fields stay visible.",
+      "Break-time floating interactions now behave more predictably whether the countdown is hidden or shown."
     ]
   },
   {
@@ -21,17 +35,17 @@
     "publishedAt": "2026-04-21",
     "displayDate": "Tuesday, April 21, 2026",
     "summary": "Focana now helps you maintain momentum after a session ends and resume work with less friction.",
-    "fixes": [
-      "Floating re-entry prompts now stay in the floating flow more reliably instead of unexpectedly restoring the main window.",
-      "Save for Later, break, and done-for-now handoffs now preserve task continuity more reliably across full, compact, and floating windows.",
-      "The new post-session and notes screens now size more cleanly so actions and text fields stay visible."
-    ],
     "improvements": [
       "Ending a session now opens a guided post-session flow with Take a break, Start another session, and Done for now.",
       "Session notes are now split into Immediate next step and Additional details so restart cues stay separate from background context.",
       "Starting another session after a wrap-up now drops you into a clean composer with Parking Lot and Session History close by.",
       "Keep for Later is now available as a global shortcut with Cmd/Ctrl+Shift+K for quick Parking Lot capture.",
       "Focused check-ins now support Cmd/Ctrl+Shift+Y for a quick Yes response when Focana is frontmost."
+    ],
+    "fixes": [
+      "Floating re-entry prompts now stay in the floating flow more reliably instead of unexpectedly restoring the main window.",
+      "Save for Later, break, and done-for-now handoffs now preserve task continuity more reliably across full, compact, and floating windows.",
+      "The new post-session and notes screens now size more cleanly so actions and text fields stay visible."
     ]
   },
   {
@@ -39,16 +53,16 @@
     "publishedAt": "2026-04-15",
     "displayDate": "Wednesday, April 15, 2026",
     "summary": "Focana now does a better job helping you re-enter work with intention instead of drifting back in automatically.",
-    "fixes": [
-      "Save for Later notes now save more reliably.",
-      "Prompt and window-state handoffs between full, compact, and floating modes are more stable.",
-      "Time's up and resume-later flows now preserve task state more reliably."
-    ],
     "improvements": [
       "Idle prompts now guide you back into focus across full, compact, and floating modes.",
       "Resumable tasks now offer clearer choices to resume or start something new.",
       "Floating prompts now resize more cleanly and keep key actions visible.",
       "Snooze options are now more explicit and intentional."
+    ],
+    "fixes": [
+      "Save for Later notes now save more reliably.",
+      "Prompt and window-state handoffs between full, compact, and floating modes are more stable.",
+      "Time's up and resume-later flows now preserve task state more reliably."
     ]
   },
   {
@@ -56,15 +70,15 @@
     "publishedAt": "2026-04-08",
     "displayDate": "Wednesday, April 8, 2026",
     "summary": "Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.",
-    "fixes": [
-      "Sessions now pause when your Mac sleeps.",
-      "Timers over an hour are now easier to read."
-    ],
     "improvements": [
       "You can move completed or discarded sessions back to Resume.",
       "Switching tasks from Parking Lot during an active session is now smoother.",
       "Parking Lot delete and clear actions are now safer.",
       "Full-window dragging feels more reliable."
+    ],
+    "fixes": [
+      "Sessions now pause when your Mac sleeps.",
+      "Timers over an hour are now easier to read."
     ]
   }
 ]
