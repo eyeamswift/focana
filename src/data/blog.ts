@@ -1,3 +1,5 @@
+import { siteFounder } from './site';
+
 export type BlogFaqItem = {
   question: string;
   answer: string;
@@ -9,6 +11,30 @@ export type BlogSection = {
   bullets?: string[];
 };
 
+export type BlogSourceLink = {
+  phrase: string;
+  url: string;
+};
+
+export type BlogSource = {
+  label: string;
+  url: string;
+};
+
+export type BlogVisualItem = {
+  label: string;
+  title: string;
+  body: string;
+};
+
+export type BlogVisual = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  items: BlogVisualItem[];
+  caption?: string;
+};
+
 export type BlogPost = {
   slug: string;
   title: string;
@@ -16,25 +42,25 @@ export type BlogPost = {
   excerpt: string;
   publishedDate: string;
   publishedLabel: string;
+  publishedDateTime: string;
+  updatedDateTime?: string;
+  updatedLabel?: string;
   ogImageAlt: string;
+  category: string;
   tags: string[];
+  summary: string;
   opening: string[];
-  examples: string[];
+  examples?: string[];
   sections: BlogSection[];
+  visual?: BlogVisual;
   closing: string[];
-  faqs: BlogFaqItem[];
+  faqs?: BlogFaqItem[];
+  sourceLinks?: BlogSourceLink[];
+  sources: BlogSource[];
+  relatedSlugs: string[];
 };
 
-export const siteAuthor = {
-  name: 'Justin Franklin',
-  role: 'Founder of Focana and NeurDi Labs',
-  note: 'Diagnosed with ADHD at 30.',
-  sameAs: [
-    'https://www.linkedin.com/in/justinfranklin90',
-    'https://adhdfounder.substack.com',
-    'https://x.com/eyeamswift',
-  ],
-};
+export const siteAuthor = siteFounder;
 
 export const blogPosts: BlogPost[] = [
   {
@@ -46,8 +72,12 @@ export const blogPosts: BlogPost[] = [
       "ADHD focus often falls apart when the task disappears from view. Here's why that happens, and what actually helps you stay anchored on a computer.",
     publishedDate: '2026-04-14',
     publishedLabel: 'April 14, 2026',
-    ogImageAlt: 'Out of sight out of mind ADHD - why ADHD brains need visible focus tools',
+    publishedDateTime: '2026-04-14T09:00:00-05:00',
+    ogImageAlt: 'Out of sight out of mind ADHD and visible focus tools',
+    category: 'ADHD Focus',
     tags: ['ADHD', 'Focus', 'Working Memory', 'Object Permanence', 'Productivity'],
+    summary:
+      'If the task disappears from view, ADHD attention has a much harder time keeping it active. Visible tools help because they externalize working memory, reduce the chance of losing the thread, and make it easier to return to the work you meant to do.',
     opening: [
       `For ADHDers, "out of sight, out of mind" is not just a funny saying or a throwaway excuse. It is a daily reality that shapes how work gets started, interrupted, and forgotten.`,
       `A lot of people describe ADHD as a lack of attention, but that framing misses the lived experience. Many ADHD brains can pay attention to almost everything at once. The harder part is inhibition: choosing what deserves attention right now, and keeping that choice alive when something more visible shows up.`,
@@ -71,7 +101,7 @@ export const blogPosts: BlogPost[] = [
         ],
       },
       {
-        title: 'ADHD and working memory',
+        title: 'How does working memory shape ADHD focus?',
         paragraphs: [
           `Working memory is your brain's ability to hold information while you are actively using it. Think of your brain like an office desk. Working memory is the set of materials you need for the task in front of you: laptop, coffee, notepad, pencil. Long-term memory is the filing cabinet in the corner.`,
           `A browser cache is a useful analogy. If your browser could not temporarily hold your login state, it would keep forgetting who you were and ask you to sign in over and over. ADHD can feel like that. The intention was there a moment ago, and then something else overwrote it.`,
@@ -80,7 +110,7 @@ export const blogPosts: BlogPost[] = [
         ],
       },
       {
-        title: 'Why most focus tools fail ADHD brains',
+        title: 'Why do most focus tools fail ADHD brains?',
         paragraphs: [
           `Most productivity apps are built for brains that can hold onto their own intention. For ADHD brains, that assumption breaks the whole system. The moment the app minimizes or hides behind another window, the support disappears at exactly the moment it was needed.`,
           `Your task tracker is behind your email. Your timer is behind Slack. Your to-do list lives in a tab you have not looked at for 30 minutes. These tools are not necessarily bad. They are just built for people whose brains can keep the task alive without an external anchor.`,
@@ -89,7 +119,7 @@ export const blogPosts: BlogPost[] = [
         ],
       },
       {
-        title: 'What actually helps ADHD brains stay focused',
+        title: 'What actually helps ADHD brains stay focused?',
         paragraphs: [
           `The pattern is clear: if the problem is that things disappear from awareness, the solution is to make them hard to lose sight of. Tools work better when they keep the current task in your visual field, even while you switch contexts.`,
           `A few approaches consistently help:`,
@@ -132,7 +162,60 @@ export const blogPosts: BlogPost[] = [
           'Keep your current task physically visible, reduce visual noise by closing unnecessary tabs and clearing your desktop, and use external anchors like body doubling or an always-on-top app that checks in while you work.',
       },
     ],
+    sourceLinks: [
+      {
+        phrase: 'Body doubling',
+        url: 'https://add.org/the-body-double/',
+      },
+      {
+        phrase: 'time blindness',
+        url: 'https://health.clevelandclinic.org/time-blindness',
+      },
+      {
+        phrase: 'Working memory',
+        url: 'https://chadd.org/attention-article/adhd-and-working-memory/',
+      },
+      {
+        phrase: 'working memory',
+        url: 'https://chadd.org/attention-article/adhd-and-working-memory/',
+      },
+      {
+        phrase: 'Object permanence',
+        url: 'https://www.verywellmind.com/what-is-object-permanence-2795405',
+      },
+      {
+        phrase: 'object permanence',
+        url: 'https://www.verywellmind.com/what-is-object-permanence-2795405',
+      },
+    ],
+    sources: [
+      {
+        label: 'CHADD: ADHD and Working Memory',
+        url: 'https://chadd.org/attention-article/adhd-and-working-memory/',
+      },
+      {
+        label: 'ADD.org: Body doubling',
+        url: 'https://add.org/the-body-double/',
+      },
+      {
+        label: 'Cleveland Clinic: What Is Time Blindness?',
+        url: 'https://health.clevelandclinic.org/time-blindness',
+      },
+      {
+        label: 'Verywell Mind: What Is Object Permanence?',
+        url: 'https://www.verywellmind.com/what-is-object-permanence-2795405',
+      },
+    ],
+    relatedSlugs: [],
   },
 ];
 
-export const firstBlogPost = blogPosts[0];
+export function getBlogPost(slug: string) {
+  return blogPosts.find((post) => post.slug === slug);
+}
+
+export function getRelatedPosts(post: BlogPost) {
+  return post.relatedSlugs
+    .map((slug) => getBlogPost(slug))
+    .filter((relatedPost): relatedPost is BlogPost => Boolean(relatedPost));
+}

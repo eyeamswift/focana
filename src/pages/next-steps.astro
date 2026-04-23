@@ -2,10 +2,11 @@
 import Analytics from '@vercel/analytics/astro';
 import SpeedInsights from '@vercel/speed-insights/astro';
 import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
 
 const title = "Focana — Next Steps";
 const description = "Open Focana, paste your license key, and start your first session.";
-const canonicalURL = "https://focana.app/next-steps";
+const canonicalURL = `${SITE_ORIGIN}/next-steps`;
 const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
 const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
 ---

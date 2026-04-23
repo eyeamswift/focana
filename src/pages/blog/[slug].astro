@@ -1,0 +1,693 @@
+---
+import EditorialLayout from '../../layouts/EditorialLayout.astro';
+import {
+  blogPosts,
+  getRelatedPosts,
+  type BlogPost,
+  siteAuthor,
+} from '../../data/blog';
+import { SITE_NAME } from '../../data/site';
+import { SITE_ORIGIN } from '../../lib/siteOrigin';
+
+export function getStaticPaths() {
+  return blogPosts.map((post) => ({
+    params: { slug: post.slug },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props as { post: BlogPost };
+const canonicalURL = `${SITE_ORIGIN}/blog/${post.slug}`;
+const relatedPosts = getRelatedPosts(post);
+const xProfileUrl =
+  siteAuthor.sameAs.find((url) => url.includes('x.com')) || 'https://x.com/eyeamswift';
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function linkifyText(value: string) {
+  let html = escapeHtml(value);
+
+  for (const link of post.sourceLinks || []) {
+    const escapedPhrase = escapeHtml(link.phrase);
+    const anchor = `<a href="${link.url}" target="_blank" rel="noopener noreferrer">${escapedPhrase}</a>`;
+    html = html.replaceAll(escapedPhrase, anchor);
+  }
+
+  return html;
+}
+
+function splitLeadLabel(value: string) {
+  const firstPeriodIndex = value.indexOf('.');
+  if (firstPeriodIndex === -1) {
+    return {
+      lead: value,
+      rest: '',
+    };
+  }
+
+  return {
+    lead: value.slice(0, firstPeriodIndex),
+    rest: value.slice(firstPeriodIndex + 1).trim(),
+  };
+}
+
+const personSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: siteAuthor.name,
+  description: siteAuthor.bio,
+  sameAs: siteAuthor.sameAs,
+};
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: post.title,
+  description: post.description,
+  datePublished: post.publishedDateTime,
+  dateModified: post.updatedDateTime || post.publishedDateTime,
+  mainEntityOfPage: canonicalURL,
+  image: `${SITE_ORIGIN}/og-image.png`,
+  author: {
+    '@type': 'Person',
+    name: siteAuthor.name,
+    sameAs: siteAuthor.sameAs,
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: SITE_NAME,
+    url: SITE_ORIGIN,
+    logo: {
+      '@type': 'ImageObject',
+      url: `${SITE_ORIGIN}/favicon.png`,
+    },
+  },
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Home',
+      item: SITE_ORIGIN,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Resources',
+      item: `${SITE_ORIGIN}/blog`,
+    },
+    {
+      '@type': 'ListItem',
+      position: 3,
+      name: post.title,
+      item: canonicalURL,
+    },
+  ],
+};
+
+const faqSchema = post.faqs?.length
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: post.faqs.map((faq) => ({
+        '@type': 'Question',
+        name: faq.question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: faq.answer,
+        },
+      })),
+    }
+  : null;
+
+const jsonLd = faqSchema
+  ? [personSchema, articleSchema, breadcrumbSchema, faqSchema]
+  : [personSchema, articleSchema, breadcrumbSchema];
+---
+
+<EditorialLayout
+  title={post.title}
+  description={post.description}
+  canonicalURL={canonicalURL}
+  ogType="article"
+  ogImageAlt={post.ogImageAlt}
+  jsonLd={jsonLd}
+>
+  <Fragment slot="head">
+    <meta name="author" content={siteAuthor.name} />
+    <meta property="article:published_time" content={post.publishedDateTime} />
+    <meta property="article:modified_time" content={post.updatedDateTime || post.publishedDateTime} />
+    <meta property="article:section" content={post.category} />
+    {post.tags.map((tag) => <meta property="article:tag" content={tag} />)}
+  </Fragment>
+
+  <main class="article-page">
+    <div class="article-shell">
+      <article class="article-card">
+        <header class="article-header">
+          <a href="/blog/" class="back-link">Resources</a>
+          <span class="eyebrow">{post.category}</span>
+          <h1>{post.title}</h1>
+          <p class="article-dek">{post.description}</p>
+
+          <div class="byline-row">
+            <div class="author-block">
+              <span class="author-name">
+                <span class="author-inline">
+                  <a href={siteAuthor.aboutHref} class="author-link">{siteAuthor.name}</a>
+                  <a
+                    href={xProfileUrl}
+                    class="social-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Visit ${siteAuthor.name} on X`}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18.901 1.153h3.68l-8.04 9.188L24 22.847h-7.406l-5.8-7.584-6.636 7.584H.478l8.6-9.83L0 1.153h7.594l5.243 6.932 6.064-6.932Zm-1.291 19.492h2.039L6.486 3.24H4.298L17.61 20.645Z"></path>
+                    </svg>
+                  </a>
+                </span>
+              </span>
+              <span class="author-role">{siteAuthor.role}</span>
+            </div>
+
+            <div class="date-stack">
+              <time class="publish-date" datetime={post.publishedDate}>{post.publishedLabel}</time>
+              {post.updatedLabel && post.updatedDateTime ? (
+                <span class="updated-date">Updated {post.updatedLabel}</span>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        <div class="summary-box">
+          <p class="summary-label">Bottom line</p>
+          <p>{post.summary}</p>
+        </div>
+
+        <div class="article-body">
+          {post.opening.map((paragraph) => (
+            <p set:html={linkifyText(paragraph)} />
+          ))}
+
+          {post.examples?.length ? (
+            <ul>
+              {post.examples.map((example) => (
+                <li set:html={linkifyText(example)} />
+              ))}
+            </ul>
+          ) : null}
+
+          {post.visual ? (
+            <section class="visual-block">
+              <p class="visual-eyebrow">{post.visual.eyebrow}</p>
+              <h2>{post.visual.title}</h2>
+              <p class="visual-description">{post.visual.description}</p>
+
+              <div class="visual-grid">
+                {post.visual.items.map((item) => (
+                  <div class="visual-card">
+                    <span class="visual-step">{item.label}</span>
+                    <h3>{item.title}</h3>
+                    <p>{item.body}</p>
+                  </div>
+                ))}
+              </div>
+
+              {post.visual.caption ? <p class="visual-caption">{post.visual.caption}</p> : null}
+            </section>
+          ) : null}
+
+          {post.sections.map((section) => (
+            <section class="article-section">
+              <h2>{section.title}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p set:html={linkifyText(paragraph)} />
+              ))}
+              {section.bullets?.length ? (
+                <ul>
+                  {section.bullets.map((bullet) => {
+                    const { lead, rest } = splitLeadLabel(bullet);
+
+                    return (
+                      <li>
+                        <strong set:html={linkifyText(lead)} />
+                        {rest ? (
+                          <>
+                            {'. '}
+                            <span set:html={linkifyText(rest)} />
+                          </>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </section>
+          ))}
+
+          {post.closing.map((paragraph) => (
+            <p set:html={linkifyText(paragraph)} />
+          ))}
+        </div>
+
+        <section class="sources-section">
+          <h2>Sources cited</h2>
+          <ul class="source-list">
+            {post.sources.map((source) => (
+              <li>
+                <a href={source.url} target="_blank" rel="noopener noreferrer">
+                  {source.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {post.faqs?.length ? (
+          <section class="faq-section" id="faq">
+            <h2>Frequently Asked Questions</h2>
+            <div class="faq-list">
+              {post.faqs.map((faq) => (
+                <details class="faq-item">
+                  <summary>{faq.question}</summary>
+                  <p set:html={linkifyText(faq.answer)} />
+                </details>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </article>
+
+      <aside class="article-rail">
+        <div class="rail-card">
+          <p class="rail-label">Written by</p>
+          <p class="rail-title">{siteAuthor.name}</p>
+          <p>{siteAuthor.note}</p>
+          <a href={siteAuthor.aboutHref} class="rail-link">Read the founder story</a>
+        </div>
+
+        <div class="rail-card rail-card--accent">
+          <p class="rail-label">See the product</p>
+          <p class="rail-title">Want a visible focus anchor?</p>
+          <p>See how Focana keeps your task and timer in view while you move between apps.</p>
+          <a href="/" class="rail-link rail-link--button">Explore Focana</a>
+        </div>
+      </aside>
+    </div>
+
+    {relatedPosts.length ? (
+      <section class="related-section">
+        <div class="related-shell">
+          <div class="related-header">
+            <p class="related-label">Focus cluster</p>
+            <h2>Keep going</h2>
+            <p>
+              These articles are meant to work together: visible focus, app switching, and time
+              blindness are all parts of the same attention problem.
+            </p>
+          </div>
+
+          <div class="related-grid">
+            {relatedPosts.map((relatedPost) => (
+              <article class="related-card">
+                <time datetime={relatedPost.publishedDate}>{relatedPost.publishedLabel}</time>
+                <h3>
+                  <a href={`/blog/${relatedPost.slug}`}>{relatedPost.title}</a>
+                </h3>
+                <p>{relatedPost.excerpt}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    ) : null}
+  </main>
+
+  <style>
+    .article-page {
+      padding: 72px 0 104px;
+    }
+
+    .article-shell {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 760px) minmax(260px, 320px);
+      gap: 28px;
+      align-items: start;
+    }
+
+    .article-card,
+    .rail-card {
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .article-card {
+      padding: 32px;
+    }
+
+    .article-header {
+      padding-bottom: 28px;
+      border-bottom: 1px solid rgba(229, 212, 177, 0.72);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+      color: var(--muted-soft);
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .eyebrow,
+    .summary-label,
+    .visual-eyebrow,
+    .rail-label,
+    .related-label {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .article-header h1,
+    .related-header h2 {
+      margin-top: 18px;
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(38px, 5vw, 62px);
+      line-height: 1.04;
+      letter-spacing: -0.05em;
+    }
+
+    .article-dek,
+    .related-header p {
+      margin-top: 18px;
+      font-size: 19px;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .byline-row {
+      margin-top: 28px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .author-block,
+    .date-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .author-name,
+    .publish-date,
+    .updated-date {
+      font-size: 14px;
+      color: var(--muted-soft);
+    }
+
+    .author-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .author-link,
+    .source-list a,
+    .faq-item a,
+    .rail-link,
+    .related-card a {
+      color: var(--text);
+      text-decoration-color: rgba(217, 119, 6, 0.45);
+      text-decoration-thickness: 1.5px;
+      text-underline-offset: 3px;
+    }
+
+    .author-link:hover,
+    .source-list a:hover,
+    .faq-item a:hover,
+    .rail-link:hover,
+    .related-card a:hover {
+      color: var(--accent-deep);
+    }
+
+    .social-link {
+      display: inline-flex;
+      width: 16px;
+      height: 16px;
+      color: var(--muted-soft);
+    }
+
+    .social-link svg {
+      width: 100%;
+      height: 100%;
+      fill: currentColor;
+    }
+
+    .author-role {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .summary-box,
+    .visual-block,
+    .sources-section,
+    .faq-section {
+      margin-top: 28px;
+      padding: 24px;
+      border-radius: 24px;
+      border: 1px solid rgba(229, 212, 177, 0.78);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .summary-box p:last-child,
+    .visual-description,
+    .visual-caption,
+    .rail-card p,
+    .related-card p {
+      margin-top: 14px;
+      font-size: 16px;
+      line-height: 1.75;
+      color: var(--muted-soft);
+    }
+
+    .article-body {
+      margin-top: 34px;
+      font-size: 19px;
+      line-height: 1.82;
+      color: var(--text);
+    }
+
+    .article-body p + p,
+    .article-section + .article-section {
+      margin-top: 22px;
+    }
+
+    .article-body ul,
+    .source-list {
+      margin-top: 22px;
+      padding-left: 22px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .article-section h2,
+    .visual-block h2,
+    .sources-section h2,
+    .faq-section h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(28px, 3vw, 36px);
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+    }
+
+    .article-section ul strong {
+      color: var(--text);
+    }
+
+    .visual-grid,
+    .related-grid {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .visual-card,
+    .related-card {
+      padding: 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      background: rgba(255, 249, 230, 0.62);
+    }
+
+    .visual-step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .visual-card h3,
+    .related-card h3,
+    .rail-title {
+      margin-top: 16px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 22px;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+
+    .article-rail {
+      display: grid;
+      gap: 18px;
+      position: sticky;
+      top: 102px;
+    }
+
+    .rail-card {
+      padding: 24px;
+    }
+
+    .rail-card--accent {
+      background: linear-gradient(160deg, rgba(255, 249, 230, 0.98), rgba(252, 211, 77, 0.14));
+    }
+
+    .rail-link {
+      display: inline-flex;
+      margin-top: 18px;
+      font-weight: 700;
+    }
+
+    .rail-link--button {
+      min-height: 46px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 18px;
+      border-radius: 14px;
+      text-decoration: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+      box-shadow: 0 14px 34px rgba(217, 119, 6, 0.24);
+    }
+
+    .faq-list {
+      margin-top: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .faq-item {
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(229, 212, 177, 0.72);
+    }
+
+    .faq-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .faq-item summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text);
+      list-style: none;
+    }
+
+    .faq-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .faq-item p {
+      margin-top: 14px;
+      font-size: 16px;
+      line-height: 1.75;
+      color: var(--muted-soft);
+    }
+
+    .related-section {
+      width: min(1180px, calc(100% - 48px));
+      margin: 34px auto 0;
+    }
+
+    .related-shell {
+      padding: 30px;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .related-card time {
+      font-size: 13px;
+      color: var(--muted-soft);
+    }
+
+    @media (max-width: 960px) {
+      .article-shell {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .article-rail {
+        position: static;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .article-page,
+      .related-section {
+        width: min(100% - 32px, 1180px);
+      }
+
+      .article-shell,
+      .related-section {
+        width: 100%;
+      }
+
+      .article-card,
+      .related-shell {
+        padding: 24px;
+      }
+
+      .article-header h1,
+      .related-header h2 {
+        font-size: clamp(34px, 10vw, 46px);
+      }
+    }
+  </style>
+</EditorialLayout>
