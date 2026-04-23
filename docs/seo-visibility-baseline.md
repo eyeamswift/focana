@@ -7,13 +7,16 @@ Owner: TBD
 
 ## Queries to check
 
+Use natural user phrasing here, not just internal topic labels.
+
 | Query | Google | ChatGPT Search | Perplexity | Notes |
 | --- | --- | --- | --- | --- |
 | `Focana` | Pending manual check | Pending manual check | Pending manual check | |
 | `focus app for ADHD Mac` | Pending manual check | Pending manual check | Pending manual check | |
 | `always on top timer Mac` | Pending manual check | Pending manual check | Pending manual check | |
 | `how to stay focused when switching between apps` | Pending manual check | Pending manual check | Pending manual check | |
-| `ADHD time blindness at work` | Pending manual check | Pending manual check | Pending manual check | |
+| `why am I always late to work ADHD` | Pending manual check | Pending manual check | Pending manual check | |
+| `lose track of time at work ADHD` | Pending manual check | Pending manual check | Pending manual check | |
 
 ## What to record
 
