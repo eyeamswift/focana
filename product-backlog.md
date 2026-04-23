@@ -38,7 +38,7 @@
 - Status: Next Up
 - Version: 1.4.0
 - Why it matters: When Focana repeats state changes the user just watched happen, the interface can feel performative instead of supportive. The cosmetic pass should trust visible UI state, simplify copy, and keep celebration moments singular.
-- Files: `src/renderer/App.jsx`, `src/renderer/components/TimeUpModal.jsx`, kickoff/re-entry/check-in surfaces, `tests/e2e/electron-flows.spec.js`
+- Files: `src/renderer/App.jsx`, `src/renderer/components/TimeUpModal.jsx`, startup/re-entry/check-in surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`, `UX-008`
 - Notes: Add the remaining cosmetic cleanup to the current pass. Change the Time Up secondary action copy from `No, Save for Later` to `Save for Later` so it does not imply a missing antecedent question. Remove ceremonial state toasts that confirm changes the user already saw: `Session started`, `Session paused`, `Compact Mode On/Off`, `Enter a task to start timer`, and `Nice to meet you, {name}.` The new `Session Wrap` celebration should carry the completion moment on its own, so delete the `showCompletedSessionMessage()` call sites that currently stack a toast with confetti right before the wrap surface opens. Reduce preferred-name interpolation on check-ins so it is never always-on; either remove it entirely or gate it to a low-frequency sample (`~30%` max) to avoid sounding performative. Acceptance should verify the simplified Time Up copy, absence of the redundant toasts, single-celebration behavior on `Session Wrap`, and lower-dose name usage on check-ins.
 - Commits: —
@@ -92,7 +92,7 @@
 - Why it matters: The floating prompt becomes much more trustworthy when dismissing it feels lightweight and predictable instead of sticky.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`
-- Notes: Complete the existing floating re-entry prompt behavior before adding new timer modes. Escape and click-away should snooze for `10 minutes`, choosing a snooze in either the re-entry flow or the kickoff flow should collapse immediately to minimized floating by default, and the window sizing/animation should feel clean through every prompt stage. Treat the minimized float state as the quiet default after snooze rather than restoring the larger prompt surface.
+- Notes: Complete the existing floating re-entry prompt behavior before adding new timer modes. Escape and click-away should snooze for `10 minutes`, choosing a snooze in the floating re-entry flow should collapse immediately to minimized floating by default, and the window sizing/animation should feel clean through every prompt stage. Treat the minimized float state as the quiet default after snooze rather than restoring the larger prompt surface.
 - Commits: —
 
 ### WIN-008 — Floating logo should not pulse while re-entry is snoozed
@@ -123,16 +123,6 @@
 - Files: `src/renderer/App.jsx`, `src/main/store.js`, relevant session UI components
 - Related: `UX-003`
 - Notes: This is not a Parking Lot enhancement. Model it as an active-session checklist under one block/task title, not as a flat note list. Acceptance coverage should confirm one focus block can hold multiple checkable sub-tasks without turning Parking Lot into the work queue.
-- Commits: —
-
-### SET-001 — Focana should launch at login by default with a settings toggle
-- Priority: Medium
-- Status: Later
-- Version: 1.4.0
-- Why it matters: Focana works best as a daily habit tool when it is already there at the start of the day, but users still need an easy way to turn that behavior off.
-- Files: `src/main/main.js`, `src/renderer/components/SettingsModal.jsx`, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
-- Related: —
-- Notes: Default new installs to launch at login, surface the control in Settings, and persist the user’s choice so the app never silently turns itself back on after they disable it. Acceptance coverage should verify first-run default enabled, toggle-off persists, toggle-on restores startup launch, and platform-specific login-item wiring matches the saved setting.
 - Commits: —
 
 ### UX-009 — Check-ins should support keyboard shortcuts for quick responses
@@ -296,6 +286,15 @@
 - Commits: —
 
 ## Done
+
+### SET-001 — Focana should launch at login by default with a settings toggle
+- Status: Done
+- Version: 1.6.0
+- Why it matters: Focana works best as a daily habit tool when it is already there at the start of the day, but users still need an easy way to turn that behavior off.
+- Files: `src/main/main.js`, `src/renderer/components/SettingsModal.jsx`, `src/main/store.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-001`, `SES-002`
+- Notes: Launch at login now defaults on for new installs, the Settings toggle persists user intent, and startup no longer branches into a separate kickoff surface. Clean launches route to the normal idle shell, interrupted active work restores into the paused resume shell, and resumable sticky work stays on the dedicated resume path. Regression coverage now includes login-launch wiring, gate sequencing, startup restore behavior, and the release tooling path used to ship `1.6.0`.
+- Commits: `0246025`
 
 ### WIN-005 — Post-session flows should never restore to compact with no active task
 - Status: Done
