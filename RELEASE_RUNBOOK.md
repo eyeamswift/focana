@@ -16,29 +16,34 @@
 
 1. Bump `version` in [package.json](/Users/swift/focana/package.json) and [package-lock.json](/Users/swift/focana/package-lock.json).
 2. Commit and push the source changes.
-3. Build the mac release artifacts:
+3. Run the packaged smoke release flow first:
    ```bash
-   npm run build:mac:release
+   ./scripts/ship-smoke.sh
    ```
-   This now fails closed if Apple notarization or Lemon licensing env vars are missing. It also validates the notarized `.app` bundles, staples the final DMGs, refreshes `release/latest-mac.yml`, and removes stale `.dmg.blockmap` files that no longer match the stapled DMGs.
-4. Create and push the git tag for that version:
+   This builds the release artifacts, validates the stapled DMGs, mounts the host-arch DMG, and runs the packaged-app smoke checks locally. It intentionally stops before tagging, publishing, or deploying.
+4. Rehearse the full ship flow without making changes:
    ```bash
-   git tag v1.2.0
-   git push origin v1.2.0
+   ./scripts/ship.sh --dry-run
    ```
-5. Publish the GitHub release from the existing local artifacts:
+5. If both checks pass, publish without rebuilding:
    ```bash
-   gh release create v1.2.0 \
-     release/Focana-1.2.0-mac-arm64.dmg \
-     release/Focana-1.2.0-mac-arm64.zip \
-     release/Focana-1.2.0-mac-arm64.zip.blockmap \
-     release/Focana-1.2.0-mac-x64.dmg \
-     release/Focana-1.2.0-mac-x64.zip \
-     release/Focana-1.2.0-mac-x64.zip.blockmap \
-     release/latest-mac.yml \
-     --repo eyeamswift/focana \
-     --title "Focana 1.2.0"
+   ./scripts/ship.sh --skip-build
    ```
+   `ship.sh` creates and pushes the version tag, publishes the GitHub release, syncs landing release notes, updates Vercel env vars, deploys preview and production for `focana.app`, and verifies the live pages.
+
+## Preferred One-Command Flow
+
+If you want the repo to enforce the standard sequence for you, use:
+
+```bash
+./scripts/ship-safe.sh
+```
+
+That wrapper runs:
+
+1. `./scripts/ship-smoke.sh`
+2. `./scripts/ship.sh --dry-run`
+3. `./scripts/ship.sh --skip-build`
 
 ## Verify Release Assets
 
@@ -116,4 +121,4 @@ After publishing a new release:
 
 Use:
 
-`Prepare and ship v1.2.0 using the release runbook, publish the GitHub release, verify latest-mac.yml, and update the landing launch messaging if needed.`
+`Prepare and ship v1.2.0 using the release runbook. Always run ./scripts/ship-smoke.sh first, then ./scripts/ship.sh --dry-run, then ./scripts/ship.sh --skip-build if both pass.`

@@ -303,6 +303,9 @@ fi
 printf '\n'
 ok "Smoke-release workflow complete for $PRODUCT $VERSION"
 info "No tag, GitHub release, or deploy steps were run."
-info "If you want to continue with publishing after reviewing the smoke result, run:"
+info "Recommended next steps after a passing smoke result:"
+info "  ./scripts/ship.sh --dry-run"
 info "  ./scripts/ship.sh --skip-build"
+info "Or let the repo enforce the sequence for you with:"
+info "  ./scripts/ship-safe.sh"
 printf '\n'
