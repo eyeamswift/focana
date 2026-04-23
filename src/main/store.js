@@ -161,7 +161,7 @@ const schema = {
       postSessionFeedbackSuppressedUntil: { type: ['string', 'null'], default: null },
       doNotDisturbEnabled: { type: 'boolean', default: false },
       doNotDisturbUntil: { type: ['string', 'null'], default: null },
-      launchOnStartup: { type: 'boolean', default: false },
+      launchOnStartup: { type: 'boolean', default: true },
     },
     default: {},
   },

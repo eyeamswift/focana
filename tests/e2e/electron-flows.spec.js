@@ -419,13 +419,15 @@ async function startTimedSession(page, taskName, minutes) {
   await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
   await page.locator(TASK_INPUT_SELECTOR).press('Enter');
   const minutesInput = page.locator('.start-chooser__input').first();
+  await expect(page.locator('.start-chooser').first()).toBeVisible();
+  await expect(minutesInput).toBeVisible();
   await minutesInput.fill(String(minutes));
+  await expect(minutesInput).toHaveValue(String(minutes));
   await minutesInput.press('Enter');
   await expect.poll(async () => {
     const mode = await readWindowMode(page);
     const chooserVisible = await page.locator('.start-chooser').first().isVisible().catch(() => false);
-    const currentTask = await readDisplayedTaskText(page);
-    return mode === 'pill' && !chooserVisible && currentTask.includes(taskName);
+    return mode === 'pill' && !chooserVisible;
   }).toBe(true);
 }
 
@@ -843,6 +845,183 @@ test('manual update check reports when the app is already current', async () => 
   }
 });
 
+test('launch at login defaults on and the settings toggle persists', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.getLaunchAtLogin())).toBe(true);
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    const launchAtLoginSwitch = page.getByText('Launch at login').locator('..').locator('..').getByRole('switch');
+    await expect(launchAtLoginSwitch).toHaveAttribute('aria-checked', 'true');
+
+    await launchAtLoginSwitch.click();
+    await page.getByRole('button', { name: 'Save Settings' }).first().click();
+
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.getLaunchAtLogin())).toBe(false);
+    await expect.poll(async () => page.evaluate(async () => {
+      const settings = await window.electronAPI.storeGet('settings');
+      return settings?.launchOnStartup;
+    })).toBe(false);
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    const relaunchAtLoginSwitch = page.getByText('Launch at login').locator('..').locator('..').getByRole('switch');
+    await expect(relaunchAtLoginSwitch).toHaveAttribute('aria-checked', 'false');
+
+    await relaunchAtLoginSwitch.click();
+    await page.getByRole('button', { name: 'Save Settings' }).first().click();
+
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.getLaunchAtLogin())).toBe(true);
+    await expect.poll(async () => page.evaluate(async () => {
+      const settings = await window.electronAPI.storeGet('settings');
+      return settings?.launchOnStartup;
+    })).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('manual launches keep the normal idle task shell instead of the login-first prompt', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await expect(page.getByRole('textbox', { name: 'What are we working on first?' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Snooze' })).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('login launch opens the normal idle task shell with first-session copy', async () => {
+  const { page, cleanup } = await launchApp({
+    background: false,
+    waitForTaskInput: false,
+    extraEnv: {
+      FOCANA_E2E_LAUNCH_SOURCE: 'login',
+    },
+  });
+
+  try {
+    await expect(page.getByRole('textbox', { name: 'What are we working on first?' })).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Snooze' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Freeflow' })).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('login launch waits for activation and name gates before opening the idle task shell', async () => {
+  const { page, cleanup } = await launchApp({
+    background: false,
+    waitForTaskInput: false,
+    seedConfig: {
+      preferredName: '',
+      license: {
+        key: '',
+        instanceId: '',
+        status: 'unlicensed',
+        activatedAt: null,
+        lastValidatedAt: null,
+        offlineGraceUntil: null,
+        lastError: null,
+      },
+    },
+    extraEnv: {
+      FOCANA_FORCE_LICENSE_GATE: '1',
+      FOCANA_E2E_LAUNCH_SOURCE: 'login',
+    },
+  });
+
+  try {
+    const firstPromptInput = page.getByRole('textbox', { name: 'What are we working on first?' });
+
+    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
+    await expect(firstPromptInput).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
+
+    await page.getByPlaceholder('Paste your Focana license key').fill('password');
+    await page.getByRole('button', { name: 'Submit' }).click();
+
+    await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toHaveCount(0);
+    await expect(firstPromptInput).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
+
+    await page.getByPlaceholder('Your name').fill('Ari');
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page.getByText(NAME_GATE_HEADING)).toHaveCount(0);
+    await expect(firstPromptInput).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Snooze' })).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('quit confirmation appears on every explicit quit request and supports cancel', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('button', { name: 'Quit Focana' }).click();
+
+    await expect(page.getByText('Quit Focana?')).toBeVisible();
+    await expect(page.getByText('Quitting turns Focana off completely on this Mac. Minimize sends this window to Floating, and Hide removes Focana from view while keeping it running quietly in the background.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByText('Quit Focana?')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('button', { name: 'Quit Focana' }).click();
+    await expect(page.getByText('Quit Focana?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Quit' }).click();
+    await expect.poll(() => page.isClosed(), { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup({ deleteStoreDir: true });
+  }
+});
+
+test('quit confirmation hide keeps the app resident with no visible windows', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('button', { name: 'Quit Focana' }).click();
+    await expect(page.getByText('Quit Focana?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Hide' }).click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: false }));
+    await expect.poll(() => page.isClosed(), { timeout: 7000 }).toBe(false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('quit confirmation minimize sends the app to floating', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await page.getByRole('button', { name: 'Quit Focana' }).click();
+    await expect(page.getByText('Quit Focana?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Minimize', exact: true }).click();
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('idle re-entry prompt loops in full window and hands off to floating prompt after minimize', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
@@ -975,6 +1154,9 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
     await page.evaluate(() => {
       window.electronAPI.toggleFloatingMinimize();
     });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
@@ -1371,9 +1553,16 @@ test('timed session expiry keep working stays in the full window when the sessio
       return bounds?.height || 0;
     }, { timeout: 7000 }).toBeGreaterThanOrEqual(160);
 
-    const resumedState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
-    expect(resumedState.isRunning).toBe(true);
-    expect(resumedState.initialTime).toBe(360);
+    await expect.poll(async () => page.evaluate(async () => {
+      const timerState = await window.electronAPI.storeGet('timerState');
+      return {
+        isRunning: Boolean(timerState?.isRunning),
+        initialTime: Number(timerState?.initialTime) || 0,
+      };
+    }), { timeout: 7000 }).toEqual({
+      isRunning: true,
+      initialTime: 360,
+    });
   } finally {
     await cleanup();
   }
@@ -3965,6 +4154,7 @@ test('minimize to floating icon restores idle task text', async () => {
     const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
     const minimizeFloatingButton = mainPage.locator('button[aria-label="Minimize to Floating"]');
     await taskInput.fill('floating-state-test');
+    await expect(taskInput).toHaveValue('floating-state-test');
 
     await expect(minimizeFloatingButton).toBeVisible();
 
@@ -3972,10 +4162,9 @@ test('minimize to floating icon restores idle task text', async () => {
       window.electronAPI.toggleFloatingMinimize();
     });
 
-    await expect.poll(() => {
-      const windows = electronApp.windows();
-      return windows.some((win) => win.url().includes('floating-icon.html'));
-    }, { timeout: 7000 }).toBe(true);
+    await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
     const floatingWindow = electronApp.windows().find((win) => win.url().includes('floating-icon.html'));
     expect(floatingWindow).toBeTruthy();

@@ -7,6 +7,8 @@ let dndUntil = null;
 let cachedMainWindow = null;
 let onDndChange = null;
 let onAlwaysOnTopChange = null;
+let onQuitApp = null;
+let onRevealApp = null;
 
 function normalizeUntil(input) {
   if (!input) return null;
@@ -66,6 +68,17 @@ function buildDndMenuTemplate(source = 'tray') {
 }
 
 function buildTrayTemplate(mainWindow) {
+  const revealApp = (source = 'tray') => {
+    if (typeof onRevealApp === 'function') {
+      onRevealApp(source);
+      return;
+    }
+
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.show();
+    mainWindow.focus();
+  };
+
   const alwaysOnTopEnabled = Boolean(
     mainWindow
       && !mainWindow.isDestroyed()
@@ -80,8 +93,7 @@ function buildTrayTemplate(mainWindow) {
         if (mainWindow.isVisible()) {
           mainWindow.hide();
         } else {
-          mainWindow.show();
-          mainWindow.focus();
+          revealApp('tray-show-hide');
         }
       },
     },
@@ -89,24 +101,21 @@ function buildTrayTemplate(mainWindow) {
     {
       label: 'Session History',
       click: () => {
-        mainWindow.show();
-        mainWindow.focus();
+        revealApp('tray-history');
         mainWindow.webContents.send('tray-open-history');
       },
     },
     {
       label: 'Parking Lot',
       click: () => {
-        mainWindow.show();
-        mainWindow.focus();
+        revealApp('tray-parking-lot');
         mainWindow.webContents.send('tray-open-parking-lot');
       },
     },
     {
       label: 'Settings',
       click: () => {
-        mainWindow.show();
-        mainWindow.focus();
+        revealApp('tray-settings');
         mainWindow.webContents.send('tray-open-settings');
       },
     },
@@ -145,6 +154,10 @@ function buildTrayTemplate(mainWindow) {
     {
       label: 'Quit',
       click: () => {
+        if (typeof onQuitApp === 'function') {
+          onQuitApp('tray');
+          return;
+        }
         app.quit();
       },
     },
@@ -160,6 +173,8 @@ function createTray(mainWindow, options = {}) {
   cachedMainWindow = mainWindow;
   onDndChange = typeof options.onDndChange === 'function' ? options.onDndChange : null;
   onAlwaysOnTopChange = typeof options.onAlwaysOnTopChange === 'function' ? options.onAlwaysOnTopChange : null;
+  onQuitApp = typeof options.onQuitApp === 'function' ? options.onQuitApp : null;
+  onRevealApp = typeof options.onRevealApp === 'function' ? options.onRevealApp : null;
 
   const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
   let icon;

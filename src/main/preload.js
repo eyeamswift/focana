@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // Window control
   quitApp: () => ipcRenderer.send('quit-app'),
+  forceQuitApp: () => ipcRenderer.send('force-quit-app'),
+  hideApp: () => ipcRenderer.send('hide-app'),
   restartApp: () => ipcRenderer.send('restart-app'),
   minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
   toggleFloatingMinimize: () => ipcRenderer.send('toggle-floating-minimize'),
@@ -15,6 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke('set-always-on-top', enabled),
   getAlwaysOnTop: () => ipcRenderer.invoke('get-always-on-top'),
+  getLaunchAtLogin: () => ipcRenderer.invoke('launch-at-login:get'),
+  setLaunchAtLogin: (enabled) => ipcRenderer.invoke('launch-at-login:set', enabled),
+  getStartupLaunchSource: () => ipcRenderer.invoke('startup:get-launch-source'),
   getUpdateState: () => ipcRenderer.invoke('updates:get-state'),
   checkForAppUpdates: () => ipcRenderer.invoke('updates:check'),
   installAppUpdate: () => ipcRenderer.invoke('updates:install'),
@@ -113,6 +118,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on('system-suspend-paused', handler);
     return () => ipcRenderer.removeListener('system-suspend-paused', handler);
+  },
+  onQuitResidentInfoRequested: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('quit-resident-info-requested', handler);
+    return () => ipcRenderer.removeListener('quit-resident-info-requested', handler);
   },
   onUpdateStateChange: (callback) => {
     const handler = (_event, state) => callback(state);

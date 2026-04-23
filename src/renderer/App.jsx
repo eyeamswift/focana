@@ -80,6 +80,7 @@ const WINDOW_SIZES = {
     timeUp: [540, 460],
     notes: [440, 620],
     quickCapture: [420, 340],
+    quitResidentInfo: [440, 320],
   },
 };
 const TASK_CHARACTER_LIMIT = 96;
@@ -285,6 +286,7 @@ export default function App() {
   const [sessionStateHydrated, setSessionStateHydrated] = useState(false);
   const [showTimerValidationModal, setShowTimerValidationModal] = useState(false);
   const [timerValidationMessage, setTimerValidationMessage] = useState('');
+  const [showQuitResidentInfo, setShowQuitResidentInfo] = useState(false);
   const [windowHeight, setWindowHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 500
   );
@@ -326,6 +328,8 @@ export default function App() {
   const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [shortcutsHydrated, setShortcutsHydrated] = useState(false);
+  const [launchAtLoginEnabled, setLaunchAtLoginEnabled] = useState(true);
+  const [startupLaunchSource, setStartupLaunchSource] = useState(null);
   const [pinnedControls, setPinnedControls] = useState(PINNED_CONTROLS_DEFAULT);
   const [enabledMainControls, setEnabledMainControls] = useState(ENABLED_MAIN_CONTROLS_DEFAULT);
   const [suppressToolbarTooltips, setSuppressToolbarTooltips] = useState(false);
@@ -1002,6 +1006,50 @@ export default function App() {
       isCancelled = true;
     };
   }, [identifyPosthogInstall]);
+
+  useEffect(() => {
+    const cleanupQuitInfo = window.electronAPI.onQuitResidentInfoRequested?.(() => {
+      setShowSettings(false);
+      setShowQuitResidentInfo(true);
+    });
+
+    return () => {
+      if (cleanupQuitInfo) cleanupQuitInfo();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [launchAtLogin, launchSource] = await Promise.all([
+          window.electronAPI.getLaunchAtLogin?.(),
+          window.electronAPI.getStartupLaunchSource?.(),
+        ]);
+        if (cancelled) return;
+        if (typeof launchAtLogin === 'boolean') {
+          setLaunchAtLoginEnabled(launchAtLogin);
+        }
+        if (launchSource === 'login') {
+          setStartupLaunchSource('login');
+        }
+      } catch (error) {
+        console.warn('Failed to hydrate startup launch state:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (startupLaunchSource !== 'login') return;
+    if (task.trim() || isStartModalOpen || isRunning || isTimerVisible) {
+      setStartupLaunchSource(null);
+    }
+  }, [startupLaunchSource, task, isStartModalOpen, isRunning, isTimerVisible]);
 
   const refreshLicenseStatus = useCallback(async () => {
     const nextStatus = await window.electronAPI.getLicenseStatus?.();
@@ -2808,7 +2856,8 @@ export default function App() {
     showTimeUpModal ||
     showNotesModal ||
     showQuickCapture ||
-    showTimerValidationModal;
+    showTimerValidationModal ||
+    showQuitResidentInfo;
 
   const reentryHardResetRequired =
     !sessionStateHydrated ||
@@ -3387,6 +3436,29 @@ export default function App() {
   const handleQuitApp = () => {
     window.electronAPI.quitApp?.();
   };
+
+  const handleQuitResidentInfoHide = useCallback(() => {
+    track('quit_resident_info_action', { action: 'hide' });
+    setShowQuitResidentInfo(false);
+    window.electronAPI.hideApp?.();
+  }, []);
+
+  const handleQuitResidentInfoCancel = useCallback(() => {
+    track('quit_resident_info_action', { action: 'cancel' });
+    setShowQuitResidentInfo(false);
+  }, []);
+
+  const handleQuitResidentInfoMinimize = useCallback(() => {
+    track('quit_resident_info_action', { action: 'minimize' });
+    setShowQuitResidentInfo(false);
+    window.electronAPI.minimizeToTray?.();
+  }, []);
+
+  const handleQuitResidentInfoQuit = useCallback(() => {
+    track('quit_resident_info_action', { action: 'quit' });
+    setShowQuitResidentInfo(false);
+    window.electronAPI.forceQuitApp?.();
+  }, []);
 
   const handleCloseParkingLot = useCallback(() => {
     setDistractionJarOpen(false);
@@ -5571,6 +5643,7 @@ export default function App() {
       [showTimeUpModal, ...WINDOW_SIZES.modal.timeUp],
       [showNotesModal, ...WINDOW_SIZES.modal.notes],
       [showQuickCapture, ...WINDOW_SIZES.modal.quickCapture],
+      [showQuitResidentInfo, ...WINDOW_SIZES.modal.quitResidentInfo],
     ];
     const active = MODAL_SIZES.find(([open]) => open);
     if (active) {
@@ -5596,7 +5669,7 @@ export default function App() {
       return () => clearTimeout(settleTimer);
     }
     return undefined;
-  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, postSessionParkingLotSessionId, showTimeUpModal, showNotesModal, showQuickCapture, resyncFullWindowSize]);
+  }, [showSettings, showHistoryModal, showTaskPreview, distractionJarOpen, postSessionParkingLotSessionId, showTimeUpModal, showNotesModal, showQuickCapture, showQuitResidentInfo, resyncFullWindowSize]);
 
   // No active timer: keep full view tightly fit to content.
   // Base height matches the compact no-timer layout, then grows with
@@ -5610,7 +5683,8 @@ export default function App() {
       Boolean(postSessionParkingLotSessionId) ||
       showTimeUpModal ||
       showNotesModal ||
-      showQuickCapture;
+      showQuickCapture ||
+      showQuitResidentInfo;
 
     if (isCompact || hasModalOpen) return undefined;
     if (isRunning || isTimerVisible) return undefined;
@@ -5640,6 +5714,7 @@ export default function App() {
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
+    showQuitResidentInfo,
     showUpdateBanner,
   ]);
 
@@ -5653,7 +5728,8 @@ export default function App() {
       Boolean(postSessionParkingLotSessionId) ||
       showTimeUpModal ||
       showNotesModal ||
-      showQuickCapture;
+      showQuickCapture ||
+      showQuitResidentInfo;
 
     if (isCompact || hasModalOpen) return undefined;
     if (!isRunning && !isTimerVisible && !hasSavedContext) return undefined;
@@ -5679,6 +5755,7 @@ export default function App() {
     showTimeUpModal,
     showNotesModal,
     showQuickCapture,
+    showQuitResidentInfo,
     showUpdateBanner,
     getActiveScreenDefaultHeight,
     resizeToMainCardContent,
@@ -5965,9 +6042,19 @@ export default function App() {
   const fullScreenTaskState = isRunning ? 'running' : (isTimerVisible ? 'paused' : 'draft');
   const isRunningFullWindow = fullScreenTaskState === 'running';
   const showReentryTaskHint = showSurfaceReentryPrompt && !isCompact;
+  const showInitialLoginIdlePrompt = (
+    startupLaunchSource === 'login'
+    && fullScreenTaskState === 'draft'
+    && !task.trim()
+    && !hasSavedContext
+    && !showSurfaceReentryPrompt
+    && !isStartModalOpen
+  );
   const fullScreenTaskEyebrow = fullScreenTaskState === 'paused'
     ? 'Paused session'
-    : 'Set your next focus';
+    : showInitialLoginIdlePrompt
+      ? 'What are we working on first?'
+      : 'Set your next focus';
   const fullScreenTaskHelper = fullScreenTaskState === 'paused'
     ? (showReentryTaskHint
       ? 'Ready to continue? Press play to resume this session.'
@@ -5977,7 +6064,9 @@ export default function App() {
       : 'Start something new, or pull from Parking Lot or History.');
   const draftTaskPlaceholder = postSessionStartAssist
     ? 'What are we focusing on next?'
-    : 'Where are we focusing first?';
+    : showInitialLoginIdlePrompt
+      ? 'What are we working on first?'
+      : 'Where are we focusing first?';
   const fullScreenTimerControls = (
     <>
       {!isRunning ? (
@@ -6683,6 +6772,8 @@ export default function App() {
         }}
         alwaysOnTopDefault={isAlwaysOnTop}
         onAlwaysOnTopChange={setIsAlwaysOnTop}
+        launchAtLoginDefault={launchAtLoginEnabled}
+        onLaunchAtLoginChange={setLaunchAtLoginEnabled}
         onRestartApp={() => {
           setShowSettings(false);
           settingsReturnToCompactRef.current = false;
@@ -6729,6 +6820,51 @@ export default function App() {
         onValidateLicense={handleValidateLicenseNow}
         onDeactivateLicense={handleDeactivateLicense}
       />
+      <Dialog open={showQuitResidentInfo} onOpenChange={(open) => { if (!open) setShowQuitResidentInfo(false); }}>
+        <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
+          <DialogHeader>
+            <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Quit Focana?
+            </DialogTitle>
+          </DialogHeader>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem', lineHeight: 1.6 }}>
+            Quitting turns Focana off completely on this Mac. Minimize sends this window to Floating, and Hide removes Focana from view while keeping it running quietly in the background.
+          </p>
+          <DialogFooter style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'flex-end' }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleQuitResidentInfoCancel}
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleQuitResidentInfoMinimize}
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              Minimize
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleQuitResidentInfoHide}
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              Hide
+            </Button>
+            <Button
+              type="button"
+              onClick={handleQuitResidentInfoQuit}
+              style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
+            >
+              Quit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={showTimerValidationModal} onOpenChange={(open) => { if (!open) closeTimerValidationModal(); }}>
         <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '22rem' }}>
           <DialogHeader>

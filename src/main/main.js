@@ -111,6 +111,7 @@ let awaitingInitialMainWindowShow = false;
 let startupRevealFallbackTimer = null;
 let pendingSystemResumeSyncTimer = null;
 let pendingSystemPausePayload = null;
+let pendingStartupLaunchSource = null;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -787,6 +788,121 @@ function applyDndState(nextState) {
   setDndState(normalized);
   scheduleDndExpiry(normalized);
   return normalized;
+}
+
+function shouldUseLaunchAtLoginMock() {
+  return isE2E || !app.isPackaged;
+}
+
+function getStoredLaunchAtLogin() {
+  return store.get('settings.launchOnStartup', true) !== false;
+}
+
+function getLaunchAtLoginEnabled() {
+  if (shouldUseLaunchAtLoginMock()) {
+    return getStoredLaunchAtLogin();
+  }
+
+  try {
+    const settings = app.getLoginItemSettings();
+    if (typeof settings?.openAtLogin === 'boolean') {
+      return settings.openAtLogin;
+    }
+  } catch (error) {
+    console.warn('Could not read login item settings:', error);
+  }
+
+  return getStoredLaunchAtLogin();
+}
+
+function setLaunchAtLoginEnabled(enabled) {
+  const nextEnabled = Boolean(enabled);
+  store.set('settings.launchOnStartup', nextEnabled);
+
+  if (shouldUseLaunchAtLoginMock()) {
+    return nextEnabled;
+  }
+
+  try {
+    app.setLoginItemSettings({ openAtLogin: nextEnabled });
+  } catch (error) {
+    console.warn('Could not update login item settings:', error);
+  }
+
+  return getLaunchAtLoginEnabled();
+}
+
+function getLaunchSourceFromRuntime() {
+  const e2eLaunchSource = typeof process.env.FOCANA_E2E_LAUNCH_SOURCE === 'string'
+    ? process.env.FOCANA_E2E_LAUNCH_SOURCE.trim().toLowerCase()
+    : '';
+  if (e2eLaunchSource === 'login') {
+    return 'login';
+  }
+
+  if (shouldUseLaunchAtLoginMock()) {
+    return null;
+  }
+
+  try {
+    const settings = app.getLoginItemSettings();
+    return settings?.wasOpenedAtLogin ? 'login' : null;
+  } catch (error) {
+    console.warn('Could not read launch source from login item settings:', error);
+    return null;
+  }
+}
+
+function revealMainWindow({ focusMain = true } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  if (isFloatingMinimized) {
+    exitFloatingIconMode({ focusMain });
+    return true;
+  }
+
+  if (typeof mainWindow.getOpacity === 'function' && mainWindow.getOpacity() < 1) {
+    mainWindow.setOpacity(1);
+  }
+
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  if (focusMain) {
+    mainWindow.focus();
+  }
+
+  return true;
+}
+
+function hideResidentApp() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
+    floatingIconWindow.hide();
+  }
+
+  stopFloatingStateSync();
+  floatingIconDragStart = null;
+  clearFloatingIconDragPolling();
+  isFloatingMinimized = false;
+
+  if (typeof mainWindow.getOpacity === 'function' && mainWindow.getOpacity() < 1) {
+    mainWindow.setOpacity(1);
+  }
+
+  mainWindow.hide();
+  return true;
+}
+
+function requestQuitResidentInfo(source = 'unknown') {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    app.quit();
+    return;
+  }
+
+  revealMainWindow({ focusMain: true });
+  mainWindow.webContents.send('quit-resident-info-requested', { source });
 }
 
 // Ensure the runtime app name is Focana in dev and packaged modes.
@@ -1617,6 +1733,12 @@ function createWindow() {
       onAlwaysOnTopChange: (nextState) => {
         applyAlwaysOnTop(nextState?.enabled);
       },
+      onRevealApp: () => {
+        revealMainWindow({ focusMain: true });
+      },
+      onQuitApp: (source) => {
+        requestQuitResidentInfo(source);
+      },
     });
   }
 
@@ -1633,7 +1755,29 @@ function createWindow() {
 
 // Window control
 ipcMain.on('quit-app', () => {
+  requestQuitResidentInfo('settings');
+});
+
+ipcMain.on('force-quit-app', () => {
   app.quit();
+});
+
+ipcMain.on('hide-app', () => {
+  hideResidentApp();
+});
+
+ipcMain.handle('launch-at-login:get', () => {
+  return getLaunchAtLoginEnabled();
+});
+
+ipcMain.handle('launch-at-login:set', (_event, enabled) => {
+  return setLaunchAtLoginEnabled(enabled);
+});
+
+ipcMain.handle('startup:get-launch-source', () => {
+  const source = pendingStartupLaunchSource;
+  pendingStartupLaunchSource = null;
+  return source;
 });
 
 ipcMain.on('restart-app', () => {
@@ -2222,6 +2366,8 @@ app.whenReady().then(() => {
       applyDndState({ enabled: false, until: null });
     }
   }
+  setLaunchAtLoginEnabled(getStoredLaunchAtLogin());
+  pendingStartupLaunchSource = getLaunchSourceFromRuntime();
   powerMonitor.on('suspend', handleSystemSuspend);
   powerMonitor.on('resume', handleSystemResume);
   createWindow();
@@ -2260,15 +2406,8 @@ app.on('activate', () => {
     createWindow();
     return;
   }
-  if (isFloatingMinimized) {
-    exitFloatingIconMode();
-    return;
-  }
   if (awaitingInitialMainWindowShow) {
     return;
   }
-  if (!mainWindow.isVisible()) {
-    mainWindow.show();
-    mainWindow.focus();
-  }
+  revealMainWindow({ focusMain: true });
 });

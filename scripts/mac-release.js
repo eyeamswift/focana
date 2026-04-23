@@ -88,13 +88,60 @@ function loadEnvFile(envPath) {
   return loaded;
 }
 
-function applyReleaseEnv() {
-  const baseEnvPath = path.join(projectRoot, '.env.release');
-  const localEnvPath = path.join(projectRoot, '.env.release.local');
+function appendUniquePath(target, nextPath) {
+  const resolved = path.resolve(nextPath);
+  if (!target.includes(resolved)) {
+    target.push(resolved);
+  }
+}
 
-  const baseEnv = loadEnvFile(baseEnvPath);
-  const localEnv = loadEnvFile(localEnvPath);
-  const merged = { ...baseEnv, ...localEnv };
+function getGitCommonCheckoutRoot() {
+  const result = spawnSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) return null;
+  const rawCommonDir = String(result.stdout || '').trim();
+  if (!rawCommonDir) return null;
+
+  const resolvedCommonDir = path.resolve(projectRoot, rawCommonDir);
+  if (path.basename(resolvedCommonDir) !== '.git') return null;
+  return path.dirname(resolvedCommonDir);
+}
+
+function getReleaseEnvRoots() {
+  const roots = [];
+  const overrideRoot = String(process.env.FOCANA_RELEASE_ENV_ROOT || '').trim();
+  if (overrideRoot) {
+    appendUniquePath(roots, path.resolve(projectRoot, overrideRoot));
+  }
+
+  const sharedRoot = getGitCommonCheckoutRoot();
+  if (sharedRoot) {
+    appendUniquePath(roots, sharedRoot);
+  }
+
+  appendUniquePath(roots, projectRoot);
+  return roots;
+}
+
+function applyReleaseEnv() {
+  const merged = {};
+  const loadedFiles = [];
+  const attemptedFiles = [];
+
+  for (const root of getReleaseEnvRoots()) {
+    for (const fileName of ['.env.release', '.env.release.local']) {
+      const envPath = path.join(root, fileName);
+      attemptedFiles.push(envPath);
+      const nextEnv = loadEnvFile(envPath);
+      if (Object.keys(nextEnv).length > 0) {
+        loadedFiles.push(envPath);
+        Object.assign(merged, nextEnv);
+      }
+    }
+  }
 
   let loadedCount = 0;
   for (const [key, value] of Object.entries(merged)) {
@@ -105,9 +152,11 @@ function applyReleaseEnv() {
   }
 
   if (loadedCount > 0) {
-    console.log(`[release] Loaded ${loadedCount} env vars from .env.release files`);
+    const prettyFiles = loadedFiles.map((envPath) => path.relative(projectRoot, envPath)).join(', ');
+    console.log(`[release] Loaded ${loadedCount} env vars from ${prettyFiles}`);
   } else {
-    console.log('[release] No env vars loaded from .env.release files');
+    const prettyFiles = attemptedFiles.map((envPath) => path.relative(projectRoot, envPath)).join(', ');
+    console.log(`[release] No env vars loaded from release env files (${prettyFiles})`);
   }
 }
 

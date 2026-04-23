@@ -5,8 +5,6 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LANDING_ROOT="$PROJECT_ROOT/../focana-landing"
 RELEASE_DIR="$PROJECT_ROOT/release"
 VERCEL_PROJECT_FILE="$LANDING_ROOT/.vercel/project.json"
-RELEASE_ENV_FILE="$PROJECT_ROOT/.env.release"
-RELEASE_ENV_LOCAL_FILE="$PROJECT_ROOT/.env.release.local"
 
 SKIP_BUILD=false
 DRY_RUN=false
@@ -16,14 +14,50 @@ ok() { printf '\033[1;32m[ship]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[ship]\033[0m %s\n' "$1"; }
 fail() { printf '\033[1;31m[ship]\033[0m %s\n' "$1" >&2; exit 1; }
 
-load_release_env() {
-  local env_file
-  for env_file in "$RELEASE_ENV_FILE" "$RELEASE_ENV_LOCAL_FILE"; do
-    if [ -f "$env_file" ]; then
-      # shellcheck disable=SC1090
-      set -a; . "$env_file"; set +a
-    fi
+append_unique_root() {
+  local candidate="$1"
+  [ -n "$candidate" ] || return 0
+  candidate="$(cd "$candidate" 2>/dev/null && pwd)" || return 0
+  for existing in "${RELEASE_ENV_ROOTS[@]:-}"; do
+    [ "$existing" = "$candidate" ] && return 0
   done
+  RELEASE_ENV_ROOTS+=("$candidate")
+}
+
+resolve_release_env_roots() {
+  RELEASE_ENV_ROOTS=()
+
+  if [ -n "${FOCANA_RELEASE_ENV_ROOT:-}" ]; then
+    append_unique_root "${FOCANA_RELEASE_ENV_ROOT}"
+  fi
+
+  local common_dir=""
+  if common_dir="$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir 2>/dev/null)"; then
+    local common_root
+    common_root="$(dirname "$(cd "$PROJECT_ROOT" && cd "$common_dir" && pwd)")"
+    append_unique_root "$common_root"
+  fi
+
+  append_unique_root "$PROJECT_ROOT"
+}
+
+load_release_env() {
+  resolve_release_env_roots
+
+  local env_root env_file loaded_any=false
+  for env_root in "${RELEASE_ENV_ROOTS[@]}"; do
+    for env_file in "$env_root/.env.release" "$env_root/.env.release.local"; do
+      if [ -f "$env_file" ]; then
+        # shellcheck disable=SC1090
+        set -a; . "$env_file"; set +a
+        loaded_any=true
+      fi
+    done
+  done
+
+  if [ "$loaded_any" = false ]; then
+    warn "No release env files were loaded for ship.sh"
+  fi
 }
 
 usage() {

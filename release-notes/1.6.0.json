@@ -1,0 +1,15 @@
+{
+  "version": "1.6.0",
+  "publishedAt": "2026-04-23",
+  "summary": "Focana 1.6.0 makes startup and quitting more intentional, with launch at login, clearer resume behavior, and safer ways to keep the app resident instead of accidentally closing it.",
+  "improvements": [
+    "Added Launch at login in Settings so Focana can open automatically when you sign in.",
+    "Startup now uses a clearer set of surfaces: clean starts open the normal idle window, while interrupted or resumable work comes back in clearer resume states.",
+    "Quit confirmation now offers Cancel, Minimize, Hide, and Quit so it is easier to keep Focana resident instead of accidentally shutting it down."
+  ],
+  "fixes": [
+    "Restoring from floating minimize now more reliably returns to the correct window state instead of surfacing stale hidden-window state.",
+    "Sleep, relaunch, and update restart flows now preserve interrupted work more consistently across startup and resume.",
+    "Release tooling now finds shared .env.release files from the main checkout when you run ship flows from a fresh worktree."
+  ]
+}

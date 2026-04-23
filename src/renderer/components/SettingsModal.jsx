@@ -213,6 +213,8 @@ export default function SettingsModal({
   onOpenSessionHistory,
   alwaysOnTopDefault,
   onAlwaysOnTopChange,
+  launchAtLoginDefault,
+  onLaunchAtLoginChange,
   onRestartApp,
   onCloseApp,
   shortcuts,
@@ -240,6 +242,7 @@ export default function SettingsModal({
   const [tempShortcuts, setTempShortcuts] = useState(mergeShortcutsWithDefaults(shortcuts));
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
   const [alwaysOnTop, setAlwaysOnTop] = useState(alwaysOnTopDefault ?? true);
+  const [launchAtLogin, setLaunchAtLogin] = useState(launchAtLoginDefault ?? true);
   const [bringToFront, setBringToFront] = useState(true);
   const [keepTextAfterCompletion, setKeepTextAfterCompletion] = useState(false);
   const [tempPreferredName, setTempPreferredName] = useState(normalizePreferredName(preferredName));
@@ -279,9 +282,11 @@ export default function SettingsModal({
       // Load settings from electron-store
       (async () => {
         const settings = await window.electronAPI.storeGet('settings') || {};
+        const launchAtLoginEnabled = await window.electronAPI.getLaunchAtLogin?.();
         setTempShortcuts(mergeShortcutsWithDefaults(settings.shortcuts || shortcuts));
         setShortcutsEnabled(settings.shortcutsEnabled ?? shortcutsEnabledDefault ?? true);
         setAlwaysOnTop(settings.alwaysOnTop ?? alwaysOnTopDefault ?? true);
+        setLaunchAtLogin(typeof launchAtLoginEnabled === 'boolean' ? launchAtLoginEnabled : (settings.launchOnStartup ?? launchAtLoginDefault ?? true));
         setBringToFront(settings.bringToFront ?? true);
         setKeepTextAfterCompletion(settings.keepTextAfterCompletion ?? false);
         setTempPreferredName(normalizePreferredName(await window.electronAPI.storeGet('preferredName')) || normalizePreferredName(preferredName));
@@ -294,7 +299,7 @@ export default function SettingsModal({
         );
       })();
     }
-  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, isOpen, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault]);
+  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, isOpen, launchAtLoginDefault, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault]);
 
   const handleSave = async () => {
     const normalizedPreferredName = normalizePreferredName(tempPreferredName);
@@ -313,6 +318,7 @@ export default function SettingsModal({
     await Promise.all([
       window.electronAPI.storeSet('settings.shortcutsEnabled', shortcutsEnabled),
       window.electronAPI.setAlwaysOnTop(alwaysOnTop),
+      window.electronAPI.setLaunchAtLogin?.(launchAtLogin),
       window.electronAPI.storeSet('settings.bringToFront', bringToFront),
       window.electronAPI.storeSet('settings.keepTextAfterCompletion', keepTextAfterCompletion),
       window.electronAPI.storeSet('settings.pinnedControls', pinnedControls),
@@ -325,7 +331,7 @@ export default function SettingsModal({
     // Track changed settings
     const diffs = {};
     const trackable = {
-      shortcutsEnabled, alwaysOnTop, bringToFront, keepTextAfterCompletion,
+      shortcutsEnabled, alwaysOnTop, launchAtLogin, bringToFront, keepTextAfterCompletion,
       pinnedControls, enabledControls, doNotDisturb,
       checkInEnabled, checkInIntervalFreeflow,
       preferredName: normalizedPreferredName,
@@ -333,6 +339,7 @@ export default function SettingsModal({
     const oldMap = {
       shortcutsEnabled: oldSettings.shortcutsEnabled,
       alwaysOnTop: oldSettings.alwaysOnTop,
+      launchAtLogin: oldSettings.launchOnStartup,
       bringToFront: oldSettings.bringToFront,
       keepTextAfterCompletion: oldSettings.keepTextAfterCompletion,
       pinnedControls: oldSettings.pinnedControls,
@@ -350,6 +357,7 @@ export default function SettingsModal({
     }
     onShortcutsEnabledChange?.(shortcutsEnabled);
     onAlwaysOnTopChange?.(alwaysOnTop);
+    onLaunchAtLoginChange?.(launchAtLogin);
     onPinnedControlsChange?.(pinnedControls);
     onEnabledControlsChange?.(enabledControls);
     onDndChange?.(doNotDisturb);
@@ -362,6 +370,7 @@ export default function SettingsModal({
     setTempShortcuts(DEFAULT_SHORTCUTS);
     setShortcutsEnabled(true);
     setAlwaysOnTop(true);
+    setLaunchAtLogin(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
     setTempPreferredName(normalizePreferredName(preferredName));
@@ -778,6 +787,15 @@ export default function SettingsModal({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Keep Focana always on top</span>
                   <Switch checked={alwaysOnTop} onCheckedChange={setAlwaysOnTop} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Launch at login</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>
+                      Keep Focana ready to greet you when your Mac signs in.
+                    </p>
+                  </div>
+                  <Switch checked={launchAtLogin} onCheckedChange={setLaunchAtLogin} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Bring Focana to front on shortcut</span>
