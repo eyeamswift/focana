@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/x",
+      "destination": "/?utm_source=twitter&utm_medium=social&utm_campaign=founder_launch",
+      "permanent": false
+    },
+    {
+      "source": "/r",
+      "destination": "/?utm_source=reddit&utm_medium=community&utm_campaign=founder_launch",
+      "permanent": false
+    },
+    {
+      "source": "/li",
+      "destination": "/?utm_source=linkedin&utm_medium=social&utm_campaign=founder_launch",
+      "permanent": false
+    },
+    {
+      "source": "/s",
+      "destination": "/?utm_source=substack&utm_medium=email&utm_campaign=founder_launch",
+      "permanent": false
+    }
+  ]
+}
