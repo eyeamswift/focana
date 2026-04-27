@@ -760,14 +760,56 @@ export default function App() {
     track('dnd_toggled', { enabled: nextEnabled, source });
   }, []);
 
+  const buildPosthogPersonProps = useCallback((status, overrides = {}) => {
+    const source = status && typeof status === 'object' ? status : {};
+    const normalizedPreferredName = normalizePreferredName(
+      overrides.preferredName ?? source.preferredName ?? preferredName
+    );
+    const normalizedCustomerName = normalizePreferredName(source.customerName);
+    const normalizedCustomerEmail = typeof source.customerEmail === 'string'
+      ? source.customerEmail.trim().toLowerCase()
+      : '';
+    const resolvedChannel = typeof overrides.channel === 'string' && overrides.channel.trim()
+      ? overrides.channel.trim()
+      : (typeof source.channel === 'string' && source.channel.trim()
+        ? source.channel.trim()
+        : (runtimeInfo?.channel || 'latest'));
+    const props = {
+      channel: resolvedChannel,
+      license_status: typeof source.status === 'string' && source.status.trim()
+        ? source.status.trim()
+        : 'unknown',
+    };
+
+    if (normalizedCustomerEmail) {
+      props.email = normalizedCustomerEmail;
+      props.customer_email = normalizedCustomerEmail;
+    }
+    if (normalizedCustomerName) {
+      props.customer_name = normalizedCustomerName;
+    }
+    if (normalizedPreferredName) {
+      props.preferred_name = normalizedPreferredName;
+    }
+
+    const resolvedName = normalizedPreferredName || normalizedCustomerName;
+    if (resolvedName) {
+      props.name = resolvedName;
+    }
+
+    return props;
+  }, [preferredName, runtimeInfo?.channel]);
+
   const identifyPosthogInstall = useCallback((distinctId, extraProps = {}) => {
     const normalizedId = typeof distinctId === 'string' ? distinctId.trim() : '';
     if (!normalizedId) return;
     try {
       if (typeof posthog?.identify === 'function') {
-        posthog.identify(normalizedId);
+        posthog.identify(normalizedId, extraProps);
       }
-      if (typeof posthog?.people?.set === 'function') {
+      if (typeof posthog?.setPersonProperties === 'function') {
+        posthog.setPersonProperties(extraProps);
+      } else if (typeof posthog?.people?.set === 'function') {
         posthog.people.set(extraProps);
       }
     } catch (error) {
@@ -955,10 +997,7 @@ export default function App() {
           if (nextLicenseStatus?.allowed) {
             identifyPosthogInstall(
               nextLicenseStatus.instanceId || nextLicenseStatus.installId,
-              {
-                channel: nextRuntime.channel,
-                license_status: nextLicenseStatus.status,
-              },
+              buildPosthogPersonProps(nextLicenseStatus, { channel: nextRuntime.channel }),
             );
             const storedPreferredName = normalizePreferredName(
               await window.electronAPI.storeGet('preferredName')
@@ -976,10 +1015,7 @@ export default function App() {
         setLicenseStatus(nextLicenseStatus || null);
         identifyPosthogInstall(
           nextLicenseStatus?.instanceId || nextLicenseStatus?.installId,
-          {
-            channel: nextRuntime?.channel || 'dev',
-            license_status: nextLicenseStatus?.status || 'not_required',
-          },
+          buildPosthogPersonProps(nextLicenseStatus, { channel: nextRuntime?.channel || 'dev' }),
         );
         const storedPreferredName = normalizePreferredName(
           await window.electronAPI.storeGet('preferredName')
@@ -1005,7 +1041,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [identifyPosthogInstall]);
+  }, [buildPosthogPersonProps, identifyPosthogInstall]);
 
   useEffect(() => {
     const cleanupQuitInfo = window.electronAPI.onQuitResidentInfoRequested?.(() => {
@@ -1059,17 +1095,14 @@ export default function App() {
     if (nextStatus.allowed) {
       identifyPosthogInstall(
         nextStatus.instanceId || nextStatus.installId,
-        {
-          channel: runtimeInfo?.channel || 'latest',
-          license_status: nextStatus.status,
-        },
+        buildPosthogPersonProps(nextStatus, { channel: runtimeInfo?.channel || 'latest' }),
       );
       await resolveStartupReadyState();
     } else if (runtimeInfo?.licenseEnforced) {
       setStartupGateState('activation');
     }
     return nextStatus;
-  }, [identifyPosthogInstall, resolveStartupReadyState, runtimeInfo?.channel, runtimeInfo?.licenseEnforced]);
+  }, [buildPosthogPersonProps, identifyPosthogInstall, resolveStartupReadyState, runtimeInfo?.channel, runtimeInfo?.licenseEnforced]);
 
   const handleLicenseActivation = useCallback(async () => {
     if (licenseSubmitting) return;
@@ -1086,10 +1119,7 @@ export default function App() {
       if (nextStatus.allowed) {
         identifyPosthogInstall(
           nextStatus.instanceId || nextStatus.installId,
-          {
-            channel: runtimeInfo?.channel || 'latest',
-            license_status: nextStatus.status,
-          },
+          buildPosthogPersonProps(nextStatus, { channel: runtimeInfo?.channel || 'latest' }),
         );
         setLicenseKeyInput('');
         await resolveStartupReadyState();
@@ -1108,7 +1138,7 @@ export default function App() {
     } finally {
       setLicenseSubmitting(false);
     }
-  }, [identifyPosthogInstall, licenseKeyInput, licenseSubmitting, resolveStartupReadyState, runtimeInfo?.channel, showToast]);
+  }, [buildPosthogPersonProps, identifyPosthogInstall, licenseKeyInput, licenseSubmitting, resolveStartupReadyState, runtimeInfo?.channel, showToast]);
 
   const handleValidateLicenseNow = useCallback(async () => {
     try {
@@ -1119,10 +1149,7 @@ export default function App() {
       if (nextStatus.allowed) {
         identifyPosthogInstall(
           nextStatus.instanceId || nextStatus.installId,
-          {
-            channel: runtimeInfo?.channel || 'latest',
-            license_status: nextStatus.status,
-          },
+          buildPosthogPersonProps(nextStatus, { channel: runtimeInfo?.channel || 'latest' }),
         );
         showToast(nextStatus.status === 'offline_grace' ? 'warning' : 'success', nextStatus.status === 'offline_grace'
           ? 'License check failed, but this Mac is still within offline grace.'
@@ -1141,7 +1168,7 @@ export default function App() {
       showToast('warning', 'Could not validate this license right now.');
       return null;
     }
-  }, [identifyPosthogInstall, preferredName, runtimeInfo?.channel, runtimeInfo?.licenseEnforced, showToast, startupGateState]);
+  }, [buildPosthogPersonProps, identifyPosthogInstall, preferredName, runtimeInfo?.channel, runtimeInfo?.licenseEnforced, showToast, startupGateState]);
 
   const handleDeactivateLicense = useCallback(async () => {
     try {
@@ -1180,6 +1207,15 @@ export default function App() {
       const savedPreferredName = normalizePreferredName(result?.preferredName || normalizedPreferredName);
       setPreferredName(savedPreferredName);
       setPreferredNameInput(savedPreferredName);
+      if (licenseStatus?.allowed) {
+        identifyPosthogInstall(
+          licenseStatus.instanceId || licenseStatus.installId,
+          buildPosthogPersonProps(licenseStatus, {
+            channel: runtimeInfo?.channel || 'latest',
+            preferredName: savedPreferredName,
+          }),
+        );
+      }
       setStartupGateState('ready');
     } catch (error) {
       console.error('Failed to save preferred name:', error);
@@ -1187,7 +1223,7 @@ export default function App() {
     } finally {
       setPreferredNameSubmitting(false);
     }
-  }, [preferredNameInput, preferredNameSubmitting, showToast]);
+  }, [buildPosthogPersonProps, identifyPosthogInstall, licenseStatus, preferredNameInput, preferredNameSubmitting, runtimeInfo?.channel, showToast]);
 
   useEffect(() => {
     if (startupGateState !== 'ready') return undefined;
@@ -6798,6 +6834,15 @@ export default function App() {
           const normalizedPreferredName = normalizePreferredName(nextPreferredName);
           setPreferredName(normalizedPreferredName);
           setPreferredNameInput(normalizedPreferredName);
+          if (licenseStatus?.allowed) {
+            identifyPosthogInstall(
+              licenseStatus.instanceId || licenseStatus.installId,
+              buildPosthogPersonProps(licenseStatus, {
+                channel: runtimeInfo?.channel || 'latest',
+                preferredName: normalizedPreferredName,
+              }),
+            );
+          }
         }}
         dndEnabled={dndEnabled}
         onDndChange={(enabled) => {

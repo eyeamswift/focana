@@ -472,6 +472,9 @@ function createLicenseService({ app, store }) {
       lastError: packagedDevTestLicense ? null : stored.lastError,
       productId: packagedDevTestLicense ? null : stored.productId || null,
       variantId: packagedDevTestLicense ? null : stored.variantId || null,
+      customerEmail: packagedDevTestLicense ? null : stored.customerEmail || null,
+      customerName: packagedDevTestLicense ? null : stored.customerName || null,
+      preferredName: getStoredPreferredName() || null,
     }
   }
 

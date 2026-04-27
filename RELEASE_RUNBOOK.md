@@ -9,6 +9,10 @@
   - `FOCANA_LEMON_STORE_ID=...`
   - `FOCANA_LEMON_PRODUCT_ID=...`
   - `FOCANA_LEMON_VARIANT_IDS=...`
+- Keep the PostHog renderer vars in `/Users/swift/focana/.env.release.local` (or `.env.release`) if release builds should report analytics:
+  - `VITE_ENABLE_ANALYTICS=true`
+  - `VITE_POSTHOG_KEY=...`
+  - `VITE_POSTHOG_HOST=https://us.i.posthog.com` (optional; defaults to US ingestion)
 - Standard releases must use a new non-prerelease semver such as `1.2.0`.
 - Do not ship artifacts from `npm run build` or `npm run build:mac`. Those commands can still generate local builds that are not safe for release.
 
