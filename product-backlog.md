@@ -13,9 +13,41 @@
 
 ## Next Up
 
-### TASK-002 — Session planning should require a project-based task hierarchy
+### SET-003 — Auto-launch should feel polished and context-aware after login launch
 - Priority: High
 - Status: Next Up
+- Version: 1.7.0
+- Why it matters: If launch-at-login feels abrupt, noisy, or ambiguous, the default-on behavior can feel like the app is happening to the user instead of quietly supporting them.
+- Files: `src/main/main.js`, `src/renderer/App.jsx`, `src/main/store.js`, `src/renderer/components/SettingsModal.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `SET-001`, `SES-001`, `SES-002`
+- Notes: Treat this as a polish pass on the shipped launch-at-login foundation, not a rethink of the default-on decision. Focus on the login-launch path feeling intentional and quiet: the right startup surface should appear immediately based on restore state, startup sizing/reveal should not flash awkward intermediary shells, manual launch and login launch should only diverge where the user benefit is clear, and the Settings toggle plus stored preference should remain trustworthy across relaunches and upgrades. Acceptance should verify cold login launch, restored paused/resumable sessions, licensed and unlicensed startup gates, and toggling launch-at-login on and off without surprise windows or inconsistent startup copy.
+- Commits: —
+
+### UX-014 — Pre-session and post-session boundary screens should feel polished and decisive
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: The moments right before starting and right after finishing are where users either carry momentum forward or drift away. If those screens feel clumsy, the core focus loop loses trust at both edges.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/PostSessionPrompt.jsx`, `src/renderer/components/TimeUpModal.jsx`, start-session and save-for-later surfaces, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-010`, `UX-011`, `UX-013`, `TASK-002`
+- Notes: Do a holistic polish pass across the session-boundary surfaces rather than treating pre-session and post-session as unrelated tweaks. Refine the ready/start flow so beginning work feels crisp, then tighten `Session Wrap`, `Save for Later`, and adjacent copy/actions so ending a session always scripts the next obvious move. Prefer visible-state clarity over extra ceremony, keep the highest-confidence next action easy to choose, and make the before and after screens feel like one coherent loop instead of separate features that happen to touch the timer. Acceptance should verify clean manual startup into the ready shell, predictable start-task handoff, polished `Session Wrap` child paths, and save-for-later transitions that preserve context without awkward dead ends.
+- Commits: —
+
+### LIC-002 — Focana should offer a 30-day free trial before $79 lifetime or $10/month
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: Users need a low-friction way to experience the full focus loop before paying, but the upgrade path still has to be clear, simple, and trustworthy once the trial ends.
+- Files: `src/main/licenseService.js`, `src/main/licenseConfig.js`, `src/main/main.js`, `src/renderer/App.jsx`, `src/renderer/components/SettingsModal.jsx`, checkout/activation surfaces, `tests/license-service.test.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `LIC-001`, `SET-002`, `I18N-001`
+- Notes: Replace the current license-first posture with a `30-day` free-trial model that transitions into two purchase options: `$79` lifetime or `$10/month`. Scope the first pass end-to-end so trial state, checkout or variant mapping, first-run messaging, expiry gating, restore and re-validate behavior, and settings/account surfaces all agree on what the user currently has and what happens next. Keep the upgrade UX calm and explicit rather than punitive, and make sure existing paid licenses, offline grace behavior, and packaged/dev-test flows continue to work without ambiguity. Acceptance should verify a new install enters trial automatically, trial expiry routes the user into the correct upgrade choices, both paid paths activate successfully, and relaunch/validation flows preserve the right entitlement state.
+- Commits: —
+
+## Later
+
+### TASK-002 — Session planning should require a project-based task hierarchy
+- Priority: High
+- Status: Later
 - Version: TBD
 - Why it matters: Flat task entry makes it too easy to start vague work. Requiring a parent/child structure pushes users to name the project and break the work into concrete, intentional units before they spend time on it.
 - Files: `src/renderer/App.jsx`, `src/main/store.js`, session start flow, future queue/planning UI
@@ -23,72 +55,50 @@
 - Notes: Add a project-based task queue that forces intentional structure before focus starts. Users should have to identify either `Project -> Task` or `Task -> Subtask` before beginning a session, rather than entering one flat line and improvising from there. First pass should support a lightweight queue under the chosen parent item, make it easy to break work into the next concrete steps, and let the active focus block pull from that queue while preserving the parent context. This is broader than the in-session checklist in `UX-005`, but it should still avoid turning Focana into a heavyweight project-management board.
 - Commits: —
 
-### UX-010 — Post-session transition should script the next move
+### UX-005 — Focus blocks should support a checklist of sub-tasks
 - Priority: High
-- Status: Next Up
-- Version: 1.4.0
-- Why it matters: The moment after a session ends is a high-risk drift point. If Focana drops straight back to a blank home screen, users have to remember and orchestrate their own next move at exactly the point where momentum is most fragile.
-- Files: `src/renderer/components/TimeUpModal.jsx`, `src/renderer/App.jsx`, post-session flow components, `tests/e2e/electron-flows.spec.js`
-- Related: `UX-008`, `UX-007`
-- Notes: Current implementation plan replaces the earlier equal-weight first pass. After any end-session path, render an inline `Session Wrap` hub in full mode with celebratory completion copy plus four actions in this order: `Take a break`, `Keep working on [task]`, `Start a new task`, and `Done for now`. `Take a break`, `Keep working on [task]`, and `Start a new task` should each open their own child screen inside the same inline flow with a visible `X` affordance that returns to the parent `Session Wrap` hub without losing context. The `Take a break` child screen should show preset choices such as `5 / 15 / 25`; the `Keep working` child screen should show timed-session and `Freeflow` start options with the prior task/context carried forward; the `Start a new task` child screen should show the real new-task idle composer state with Parking Lot and Session History still reachable. `Done for now` is the only terminal action in this flow: minimize to floating, clear the wrap stage, and do not provide a return path back into `Session Wrap`. Keep celebration singular on this surface: remove the separate completion toast before the wrap transition and rely on one confetti burst when the `Session Wrap` surface mounts. Acceptance should verify the flow appears after both `Save for Later` and `Complete`, preserves session history and task continuity, allows backing out of each child screen to the hub, minimizes to floating cleanly for `Done for now`, and does not double-signal completion right before the hub opens.
+- Status: Later
+- Version: TBD
+- Why it matters: A single work block often contains a short queue of concrete sub-tasks that users want to check off without losing the top-level focus.
+- Files: `src/renderer/App.jsx`, `src/main/store.js`, relevant session UI components
+- Related: `UX-003`, `TASK-002`
+- Notes: Model it as an active-session checklist under one block or task title, not as a Parking Lot enhancement or flat note list. First pass should let the user take the structured plan they created and work through the next concrete steps inside the active session without losing the parent project or task context. Acceptance coverage should confirm one focus block can hold multiple checkable sub-tasks without turning Parking Lot into the work queue.
 - Commits: —
 
 ### UX-013 — Cosmetic pass should remove redundant ceremony and obvious state toasts
 - Priority: High
-- Status: Next Up
-- Version: 1.4.0
+- Status: Later
+- Version: TBD
 - Why it matters: When Focana repeats state changes the user just watched happen, the interface can feel performative instead of supportive. The cosmetic pass should trust visible UI state, simplify copy, and keep celebration moments singular.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TimeUpModal.jsx`, startup/re-entry/check-in surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`, `UX-008`
 - Notes: Add the remaining cosmetic cleanup to the current pass. Change the Time Up secondary action copy from `No, Save for Later` to `Save for Later` so it does not imply a missing antecedent question. Remove ceremonial state toasts that confirm changes the user already saw: `Session started`, `Session paused`, `Compact Mode On/Off`, `Enter a task to start timer`, and `Nice to meet you, {name}.` The new `Session Wrap` celebration should carry the completion moment on its own, so delete the `showCompletedSessionMessage()` call sites that currently stack a toast with confetti right before the wrap surface opens. Reduce preferred-name interpolation on check-ins so it is never always-on; either remove it entirely or gate it to a low-frequency sample (`~30%` max) to avoid sounding performative. Acceptance should verify the simplified Time Up copy, absence of the redundant toasts, single-celebration behavior on `Session Wrap`, and lower-dose name usage on check-ins.
 - Commits: —
 
-### UX-011 — Session notes should split `Immediate next step` from `Additional details`
+### UX-006 — Re-entry timing should be fully hardened after the 1.4.0 break flow lands
 - Priority: High
-- Status: Next Up
-- Version: 1.4.0
-- Why it matters: One catch-all note box makes it harder to restart. Users need a clear separation between what already happened and the very next action they should take when they come back.
-- Files: `src/renderer/components/ContextBox.jsx`, `src/renderer/App.jsx`, `src/main/store.js`, resume/history surfaces
-- Related: `UX-003`
-- Notes: Replace the current single notes field with two visible fields in this order: `Immediate next step` first, then `Additional details`. The second field should include helper copy explaining it is for background context like what was completed or relevant links. Persist the fields separately as `nextSteps` and `recap`, keep legacy note data readable through `Additional details` until the user edits it, and show both fields anywhere the user returns to a paused or resumable task. Acceptance should verify each field persists, can be edited independently in context/history surfaces, and survives resume/save-for-later flows without being merged back into one blob.
-- Commits: —
-
-## Later
-
-### MOB-001 — Focana should have an iPhone companion app that mirrors focus sessions on the Lock Screen
-- Priority: Medium
 - Status: Later
 - Version: TBD
-- Why it matters: If focus only lives on the desktop, the phone stays an easy escape hatch. A synced iPhone presence should carry the active session onto the device, add friction before casual phone use, and keep break/Pomodoro timing trustworthy away from the Mac.
-- Files: desktop session sync layer, future iPhone app, Lock Screen / Live Activity surfaces, notification scheduling or push plumbing
-- Related: `UX-007`, `SES-003`
-- Notes: Scope this as a real iPhone companion app, not just one-way notifications. The app should sync the active focus state from desktop, show the current task and timer on the iPhone Lock Screen in a persistent way that the user has to dismiss before slipping into the rest of the phone, and stay aligned with timed, Freeflow, and Pomodoro sessions. If the user is on a break or running a Pomodoro cycle, the phone should notify them when break time is up and the next work interval should begin. First pass should prioritize reliable desktop-to-phone session sync and local notification behavior over deeper mobile editing features, and acceptance should verify pause, resume, stop, break start, and break end all stay in sync across desktop and iPhone.
-- Commits: —
-
-### SES-003 — Running timers should support adding more time before time is up
-- Priority: Medium
-- Status: Later
-- Version: 1.4.0
-- Why it matters: Users often realize mid-session that they need a little more time and should be able to extend the current timer without waiting for the time-up interruption.
-- Files: `src/renderer/App.jsx`, active timer controls, compact/floating timer surfaces, `tests/e2e/electron-flows.spec.js`
-- Related: `SES-002`
-- Notes: Scope this as an in-session add-time control for active timed sessions, not just the existing post-expiry time-up flow. First pass should make it easy to add a few common increments plus a custom amount, update the visible timer immediately across full, compact, and floating surfaces, and preserve check-in/pulse timing in a predictable way after the extension.
-- Commits: —
-
-### UX-006 — Re-entry timing should be fully hardened after the 1.4.0 break flow lands
-- Priority: Medium
-- Status: Later
-- Version: 1.5.0
 - Why it matters: The thin break/re-entry slice in `1.4.0` will cover the new post-session flow, but the wider reminder system still needs a full trust pass so nudges always feel intentional instead of random or sticky.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TaskInput.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`
 - Notes: Finish the shared re-entry timer hardening after `1.4.0`: persist remaining delay and snooze state across relaunch, keep remaining time consistent across full-window and floating surfaces, suppress nudges immediately for Do Not Disturb, paused sessions, update/license blockers, and pause countdown across system sleep/hibernate so wake resumes from the remaining awake time instead of treating sleep as idle.
 - Commits: —
 
+### SES-003 — Running timers should support adding more time before time is up
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: Users often realize mid-session that they need a little more time and should be able to extend the current timer without waiting for the time-up interruption.
+- Files: `src/renderer/App.jsx`, active timer controls, compact/floating timer surfaces, `tests/e2e/electron-flows.spec.js`
+- Related: `SES-002`
+- Notes: Scope this as an in-session add-time control for active timed sessions, not just the existing post-expiry time-up flow. First pass should make it easy to add a few common increments plus a custom amount, update the visible timer immediately across full, compact, and floating surfaces, and preserve check-in/pulse timing in a predictable way after the extension.
+- Commits: —
+
 ### UX-007A — Floating re-entry prompt should finish its snooze and collapse behavior
 - Priority: Medium
 - Status: Later
-- Version: 1.5.0
+- Version: TBD
 - Why it matters: The floating prompt becomes much more trustworthy when dismissing it feels lightweight and predictable instead of sticky.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`
@@ -98,7 +108,7 @@
 ### WIN-008 — Floating logo should not pulse while re-entry is snoozed
 - Priority: Medium
 - Status: Later
-- Version: 1.5.0
+- Version: TBD
 - Why it matters: Snooze is supposed to buy quiet time. If the floating logo keeps pulsing anyway, the app feels like it ignored the user’s choice and the snooze becomes hard to trust.
 - Files: `src/renderer/App.jsx`, `src/main/main.js`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`, `UX-007A`
@@ -108,37 +118,17 @@
 ### UX-007B — Floating re-entry should support Pomodoro as a first-class start mode
 - Priority: Medium
 - Status: Later
-- Version: 1.5.0
+- Version: TBD
 - Why it matters: Pomodoro is a meaningful new timer mode, not just a prompt tweak, and it should land after the post-session and re-entry foundations are solid.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`, `UX-007A`
 - Notes: Add `Pomodoro` to the existing start-session flow rather than creating a parallel entry path. The mode should manage work/break cycling, skip the normal single-session time-up path, and keep history/check-in semantics predictable across chained intervals.
 - Commits: —
 
-### UX-005 — Focus blocks should support a checklist of sub-tasks
-- Priority: Medium
-- Status: Later
-- Version: 1.4.0
-- Why it matters: A single work block often contains a short queue of concrete sub-tasks that users want to check off without losing the top-level focus.
-- Files: `src/renderer/App.jsx`, `src/main/store.js`, relevant session UI components
-- Related: `UX-003`
-- Notes: This is not a Parking Lot enhancement. Model it as an active-session checklist under one block/task title, not as a flat note list. Acceptance coverage should confirm one focus block can hold multiple checkable sub-tasks without turning Parking Lot into the work queue.
-- Commits: —
-
-### UX-009 — Check-ins should support keyboard shortcuts for quick responses
-- Priority: Medium
-- Status: Later
-- Version: 1.5.0
-- Why it matters: When a check-in appears, reaching for the mouse adds friction and can break focus, especially in compact or floating mode.
-- Files: `src/renderer/App.jsx`, check-in prompt components, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
-- Related: `WIN-004`
-- Notes: Keep the first pass intentionally narrow. Only enable a `Yes` shortcut while the first check-in menu is visible, using `Cmd/Ctrl+Shift+Y`. Do not add a `No` shortcut, do not turn this into a broader global shortcut system, and do not keep the shortcut active on follow-up detour/finished states.
-- Commits: —
-
 ### WIN-006 — Focana should support a temporary peek-through transparency mode
 - Priority: Medium
 - Status: Later
-- Version: 1.4.0
+- Version: TBD
 - Why it matters: An always-on-top focus window sometimes blocks links, form fields, or reference material the user only needs to touch for a few seconds. They need a fast "let me reach what's behind this" escape hatch without dismissing or moving Focana.
 - Files: `src/main/main.js`, floating window plumbing, shortcut registration, context-menu affordances, `tests/e2e/electron-flows.spec.js`
 - Related: `WIN-001`
@@ -148,7 +138,7 @@
 ### WIN-007 — Minimize to floating should relocate to the nearest display edge
 - Priority: Medium
 - Status: Later
-- Version: 1.4.0
+- Version: TBD
 - Why it matters: If the floating window lands in an arbitrary or stale position after minimize, it feels sloppy and takes extra mouse work to recover. The minimize action should leave Focana tucked into the closest natural edge of the display the user is already working on.
 - Files: `src/main/main.js`, floating window positioning logic, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `WIN-006`
@@ -158,7 +148,7 @@
 ### UX-008 — Post-session feedback prompt should persist until dismissed and support optional written context
 - Priority: Medium
 - Status: Later
-- Version: 1.4.0
+- Version: TBD
 - Why it matters: The current thumbs up/down prompt disappears too quickly, can fall back into `Did you finish?` before the user is done responding, misses the qualitative context needed to understand why a session felt good or bad, and skips the quick encouragement moment users should feel before being asked for feedback.
 - Files: `src/renderer/App.jsx`, post-session feedback UI, relevant modal/flow components, `tests/e2e/electron-flows.spec.js`
 - Related: `QA-001`
@@ -168,7 +158,7 @@
 ### UX-012 — Post-session encouragement should surface rotating “Did you know?” tips
 - Priority: Medium
 - Status: Later
-- Version: 1.4.0
+- Version: TBD
 - Why it matters: Helpful features like keyboard shortcuts are easy to miss if users never stumble into them. A lightweight post-session teaching moment can help users get more out of Focana without interrupting active focus.
 - Files: `src/renderer/App.jsx`, post-session acknowledgment/feedback UI, shortcut copy source, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-008`, `UX-009`
@@ -188,7 +178,7 @@
 ### TST-001 — Playwright E2E coverage should be split for parallel workers
 - Priority: Medium
 - Status: Later
-- Version: 1.5.0
+- Version: TBD
 - Why it matters: The current monolithic Electron E2E file makes every regression pass slow, which discourages broader coverage right when more flow combinations are landing. Splitting the suite will make it practical to run more tests without turning every release candidate into a long serialized wait.
 - Files: `playwright.config.js`, `tests/e2e/electron-flows.spec.js`, future `tests/e2e/*.spec.js`
 - Related: `QA-001`
@@ -278,14 +268,51 @@
 ### SET-002 — License info should live at the bottom of Settings
 - Priority: Low
 - Status: Later
-- Version: 1.4.0
+- Version: TBD
 - Why it matters: License details are important, but they are not a high-frequency daily control. Keeping them at the bottom lets core focus settings stay front-and-center while still leaving license management easy to find.
 - Files: `src/renderer/components/SettingsModal.jsx`
 - Related: `LIC-001`, `SET-001`
 - Notes: Move the license status and actions to the bottom of the Settings modal instead of placing them above more frequently used controls. Keep validation and deactivation accessible, but treat the license block as admin/account information rather than a primary in-session setting.
 - Commits: —
 
+### MOB-001 — Focana should have an iPhone companion app that mirrors focus sessions on the Lock Screen
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: If focus only lives on the desktop, the phone stays an easy escape hatch. A synced iPhone presence should carry the active session onto the device, add friction before casual phone use, and keep break/Pomodoro timing trustworthy away from the Mac.
+- Files: desktop session sync layer, future iPhone app, Lock Screen / Live Activity surfaces, notification scheduling or push plumbing
+- Related: `UX-007`, `SES-003`
+- Notes: Scope this as a real iPhone companion app, not just one-way notifications. The app should sync the active focus state from desktop, show the current task and timer on the iPhone Lock Screen in a persistent way that the user has to dismiss before slipping into the rest of the phone, and stay aligned with timed, Freeflow, and Pomodoro sessions. If the user is on a break or running a Pomodoro cycle, the phone should notify them when break time is up and the next work interval should begin. First pass should prioritize reliable desktop-to-phone session sync and local notification behavior over deeper mobile editing features, and acceptance should verify pause, resume, stop, break start, and break end all stay in sync across desktop and iPhone.
+- Commits: —
+
 ## Done
+
+### UX-010 — Post-session transition should script the next move
+- Status: Done
+- Version: 1.4.0
+- Why it matters: The moment after a session ends is a high-risk drift point. If Focana drops straight back to a blank home screen, users have to remember and orchestrate their own next move at exactly the point where momentum is most fragile.
+- Files: `src/renderer/components/TimeUpModal.jsx`, `src/renderer/App.jsx`, post-session flow components, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-008`, `UX-007`
+- Notes: End-session flows now route into the shipped `Session Wrap` family instead of dropping straight back to a blank home screen. The live flow supports inline keep-working, take-a-break, start-something-new, and done-for-now paths, keeps the handoff inside the same post-session context, and routes `Done for now` back into the resumable surface rather than discarding the task. The shipped new-task handoff also includes explicit `Save for later` and `Mark complete` decisions before returning to the idle shell.
+- Commits: `cf2c74c`, `f355d0d`, `8bae8f0`
+
+### UX-011 — Session notes should split `Immediate next step` from `Additional details`
+- Status: Done
+- Version: 1.4.0
+- Why it matters: One catch-all note box makes it harder to restart. Users need a clear separation between what already happened and the very next action they should take when they come back.
+- Files: `src/renderer/components/ContextBox.jsx`, `src/renderer/App.jsx`, `src/main/store.js`, resume/history surfaces
+- Related: `UX-003`
+- Notes: Session notes now persist split `nextSteps` and `recap` fields, keep legacy single-note data readable through the recap/additional-details path, and surface both fields across the main notes modal, save-for-later flows, resumable context, and history/task preview editing. Regression coverage verifies split notes survive save-for-later and resume flows without collapsing back into one blob.
+- Commits: `f355d0d`
+
+### UX-009 — Check-ins should support keyboard shortcuts for quick responses
+- Status: Done
+- Version: 1.4.0
+- Why it matters: When a check-in appears, reaching for the mouse adds friction and can break focus, especially in compact or floating mode.
+- Files: `src/renderer/App.jsx`, check-in prompt components, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-004`
+- Notes: `Cmd/Ctrl+Shift+Y` now resolves the positive `Yes` path only while the first check-in prompt is visible and Focana is frontmost. The shortcut is scoped to the app window instead of being added to the global shortcut registry, there is no paired `No` shortcut, and current regression coverage verifies both the focused-only shortcut messaging and that `Keep for Later` remains the only registered global shortcut on launch.
+- Commits: `fbd4769`, `8bae8f0`
 
 ### SET-001 — Focana should launch at login by default with a settings toggle
 - Status: Done
