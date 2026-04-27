@@ -106,6 +106,27 @@ async function triggerShortcutAction(electronApp, action) {
   }, action);
 }
 
+async function triggerCheckInYesShortcut(electronApp) {
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const mainWindow = BrowserWindow.getAllWindows()
+      .find((win) => !win.webContents.getURL().includes('floating-icon.html'));
+    if (!mainWindow) return;
+    mainWindow.webContents.send('scoped-checkin-shortcut', 'focused');
+  });
+}
+
+async function readGlobalShortcutRegistrationState(electronApp) {
+  return electronApp.evaluate(({ globalShortcut }) => ({
+    keepForLater: globalShortcut.isRegistered('CommandOrControl+Shift+K'),
+    checkInYes: globalShortcut.isRegistered('CommandOrControl+Shift+Y'),
+    startPause: globalShortcut.isRegistered('CommandOrControl+Shift+S'),
+    newTask: globalShortcut.isRegistered('CommandOrControl+N'),
+    toggleCompact: globalShortcut.isRegistered('CommandOrControl+Shift+I'),
+    completeTask: globalShortcut.isRegistered('CommandOrControl+Enter'),
+    openParkingLotLegacy: globalShortcut.isRegistered('CommandOrControl+Shift+P'),
+  }));
+}
+
 function parseTimerTextToSeconds(timerText) {
   if (typeof timerText !== 'string') return null;
   const hourMatch = timerText.match(/^(\d+):(\d{2}):(\d{2})$/);
@@ -3472,18 +3493,18 @@ test('history can restore completed and discarded sessions back to Resume', asyn
   }
 });
 
-test('shortcuts tab explains the keep-for-later global shortcut and focused-only check-in response', async () => {
+test('shortcuts tab explains the keep-for-later global shortcut and temporary check-in shortcut', async () => {
   const { page, cleanup } = await launchApp();
   try {
     await page.getByRole('button', { name: 'Open Settings' }).click();
     await page.getByRole('tab', { name: 'Shortcuts' }).click();
 
     await expect(page.getByText('Keyboard Shortcuts')).toBeVisible();
-    await expect(page.getByText('Keep for Later')).toBeVisible();
+    await expect(page.getByText('Keep for Later', { exact: true })).toBeVisible();
     await expect(page.getByText('Global shortcut for quick Parking Lot capture from anywhere.')).toBeVisible();
-    await expect(page.getByText('Check-in: Yes')).toBeVisible();
-    await expect(page.getByText('Works only when the first check-in menu is visible and Focana is frontmost.')).toBeVisible();
-    await expect(page.getByText('Today Focana uses one intentional global shortcut for capture and keeps the check-in response shortcut focused-only.')).toBeVisible();
+    await expect(page.getByText('Check-in: Yes', { exact: true })).toBeVisible();
+    await expect(page.getByText('Temporary global shortcut while the first check-in menu is visible.')).toBeVisible();
+    await expect(page.getByText('Keep for Later is always global, and Check-in: Yes only goes global while a prompt is on screen.')).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -3492,23 +3513,59 @@ test('shortcuts tab explains the keep-for-later global shortcut and focused-only
 test('keep-for-later is the only registered global shortcut on launch', async () => {
   const { electronApp, cleanup } = await launchApp();
   try {
-    const registrationState = await electronApp.evaluate(({ globalShortcut }) => ({
-      keepForLater: globalShortcut.isRegistered('CommandOrControl+Shift+K'),
-      startPause: globalShortcut.isRegistered('CommandOrControl+Shift+S'),
-      newTask: globalShortcut.isRegistered('CommandOrControl+N'),
-      toggleCompact: globalShortcut.isRegistered('CommandOrControl+Shift+I'),
-      completeTask: globalShortcut.isRegistered('CommandOrControl+Enter'),
-      openParkingLotLegacy: globalShortcut.isRegistered('CommandOrControl+Shift+P'),
-    }));
+    const registrationState = await readGlobalShortcutRegistrationState(electronApp);
 
     expect(registrationState).toEqual({
       keepForLater: true,
+      checkInYes: false,
       startPause: false,
       newTask: false,
       toggleCompact: false,
       completeTask: false,
       openParkingLotLegacy: false,
     });
+  } finally {
+    await cleanup();
+  }
+});
+
+test('check-in yes becomes a temporary global shortcut only while a prompt is visible', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'global-checkin-yes');
+
+    await expect.poll(async () => {
+      const registrationState = await readGlobalShortcutRegistrationState(electronApp);
+      return registrationState.checkInYes;
+    }).toBe(false);
+
+    await setTimeOffset(page, 301000);
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('global-checkin-yes?')).toBeVisible();
+
+    await expect.poll(async () => {
+      const registrationState = await readGlobalShortcutRegistrationState(electronApp);
+      return registrationState.checkInYes;
+    }, { timeout: 7000 }).toBe(true);
+
+    await triggerCheckInYesShortcut(electronApp);
+
+    await expect(page.getByText('Still focused on')).toHaveCount(0);
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES);
+    await expect.poll(async () => {
+      const registrationState = await readGlobalShortcutRegistrationState(electronApp);
+      return registrationState.checkInYes;
+    }, { timeout: 7000 }).toBe(false);
   } finally {
     await cleanup();
   }

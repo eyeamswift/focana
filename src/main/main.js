@@ -3,7 +3,12 @@ const fs = require('fs/promises');
 const http = require('http');
 const path = require('path');
 const store = require('./store');
-const { registerKeepForLaterShortcut, unregisterAll } = require('./shortcuts');
+const {
+  registerKeepForLaterShortcut,
+  registerCheckInYesShortcut,
+  unregisterCheckInYesShortcut,
+  unregisterAll,
+} = require('./shortcuts');
 const { createTray, popupCompactContextMenu, popupFloatingContextMenu, popupMainContextMenu, refreshTrayMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 const { createFeedbackSyncService } = require('./feedbackSync');
@@ -44,9 +49,6 @@ let floatingBreakState = {
   showTimer: false,
 };
 let floatingBreakPeekUntil = 0;
-let checkInShortcutState = {
-  visible: false,
-};
 let floatingPromptStage = 'task-entry';
 let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
@@ -1018,32 +1020,12 @@ function isToggleFloatingShortcut(input) {
   return !!hasPrimary && !input.alt;
 }
 
-function isCheckInYesShortcut(input) {
-  if (!input || input.type !== 'keyDown') return false;
-  const key = typeof input.key === 'string' ? input.key.toLowerCase() : '';
-  const code = typeof input.code === 'string' ? input.code : '';
-  const hasPrimary = process.platform === 'darwin' ? input.meta : input.control;
-  return !!hasPrimary && !!input.shift && !input.alt && (key === 'y' || code === 'KeyY');
-}
-
 function wireToggleFloatingShortcut(window) {
   if (!window || window.isDestroyed()) return;
   window.webContents.on('before-input-event', (event, input) => {
     if (isToggleFloatingShortcut(input)) {
       event.preventDefault();
       toggleFloatingMinimize();
-      return;
-    }
-
-    if (
-      window === mainWindow
-      && checkInShortcutState.visible
-      && isCheckInYesShortcut(input)
-      && mainWindow
-      && !mainWindow.isDestroyed()
-    ) {
-      event.preventDefault();
-      mainWindow.webContents.send('scoped-checkin-shortcut', 'focused');
     }
   });
 }
@@ -1748,7 +1730,7 @@ function createWindow() {
   if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
     store.set('settings.shortcuts', normalizedShortcuts);
   }
-  registerKeepForLaterShortcut(mainWindow);
+  registerKeepForLaterShortcut(() => mainWindow);
 }
 
 // IPC Handlers
@@ -2113,9 +2095,12 @@ ipcMain.on('floating-break-action', (_event, action) => {
 
 ipcMain.on('set-checkin-shortcut-state', (_event, payload = {}) => {
   const safePayload = payload && typeof payload === 'object' ? payload : {};
-  checkInShortcutState = {
-    visible: safePayload.visible === true,
-  };
+  if (safePayload.visible === true) {
+    registerCheckInYesShortcut(() => mainWindow);
+    return;
+  }
+
+  unregisterCheckInYesShortcut();
 });
 
 ipcMain.on('floating-reentry-stage', (_event, stage) => {

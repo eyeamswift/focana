@@ -906,7 +906,7 @@ export default function SettingsModal({
                 <div>
                   <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Keyboard Shortcuts</h3>
                   <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.35rem', lineHeight: 1.5 }}>
-                    Focana is using a narrow shortcut model so it can help in the moment without hijacking a bunch of common Mac commands while you work in other apps.
+                    Focana keeps shortcuts narrow so it can help in the moment without hijacking a bunch of common commands while you work in other apps.
                   </p>
                 </div>
 
@@ -965,7 +965,7 @@ export default function SettingsModal({
                   <div>
                     <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>Check-in: Yes</p>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem', lineHeight: 1.45 }}>
-                      Works only when the first check-in menu is visible and Focana is frontmost.
+                      Temporary global shortcut while the first check-in menu is visible.
                     </p>
                   </div>
                   <span
@@ -1001,7 +1001,7 @@ export default function SettingsModal({
                     lineHeight: 1.5,
                   }}
                 >
-                  Today Focana uses one intentional global shortcut for capture and keeps the check-in response shortcut focused-only. That keeps the system helpful without trampling the shortcuts you already use in other apps.
+                  Keep for Later is always global, and Check-in: Yes only goes global while a prompt is on screen. That keeps the system helpful without trampling the shortcuts you already use the rest of the time.
                 </div>
               </div>
             </div>

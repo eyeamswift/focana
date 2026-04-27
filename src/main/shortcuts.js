@@ -1,21 +1,60 @@
 const { globalShortcut } = require('electron');
 
-let registeredShortcuts = [];
+const registeredCustomShortcuts = new Set();
+const registeredSpecialShortcuts = new Set();
 const KEEP_FOR_LATER_ACCELERATOR = 'CommandOrControl+Shift+K';
+const CHECK_IN_YES_ACCELERATOR = 'CommandOrControl+Shift+Y';
+
+function unregisterShortcut(accelerator, registry) {
+  if (!registry.has(accelerator)) return;
+
+  try {
+    globalShortcut.unregister(accelerator);
+  } catch (e) {
+    // Ignore errors from already-unregistered shortcuts
+  }
+
+  registry.delete(accelerator);
+}
+
+function unregisterShortcutRegistry(registry) {
+  Array.from(registry).forEach((accelerator) => {
+    unregisterShortcut(accelerator, registry);
+  });
+}
 
 function unregisterAll() {
-  registeredShortcuts.forEach((accelerator) => {
-    try {
-      globalShortcut.unregister(accelerator);
-    } catch (e) {
-      // Ignore errors from already-unregistered shortcuts
+  unregisterShortcutRegistry(registeredCustomShortcuts);
+  unregisterShortcutRegistry(registeredSpecialShortcuts);
+}
+
+function registerManagedShortcut(accelerator, callback, description, registry) {
+  if (!accelerator) return false;
+  if (registry.has(accelerator)) return true;
+
+  try {
+    const success = globalShortcut.register(accelerator, callback);
+    if (success) {
+      registry.add(accelerator);
+      return true;
     }
-  });
-  registeredShortcuts = [];
+    console.warn(`Failed to register shortcut ${accelerator} for ${description}.`);
+  } catch (e) {
+    console.warn(`Failed to register shortcut ${accelerator} for ${description}:`, e.message);
+  }
+
+  return false;
+}
+
+function resolveWindow(windowOrGetter) {
+  if (typeof windowOrGetter === 'function') {
+    return windowOrGetter();
+  }
+  return windowOrGetter;
 }
 
 function registerShortcuts(shortcuts, mainWindow) {
-  unregisterAll();
+  unregisterShortcutRegistry(registeredCustomShortcuts);
 
   const actionMap = {
     startPause: 'startPause',
@@ -35,38 +74,56 @@ function registerShortcuts(shortcuts, mainWindow) {
       .replace(/⇧/g, 'Shift')
       .replace(/⌥/g, 'Alt');
 
-    try {
-      const success = globalShortcut.register(electronAccelerator, () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('shortcut-triggered', actionMap[action]);
+    registerManagedShortcut(
+      electronAccelerator,
+      () => {
+        const targetWindow = resolveWindow(mainWindow);
+        if (targetWindow && !targetWindow.isDestroyed()) {
+          targetWindow.webContents.send('shortcut-triggered', actionMap[action]);
         }
-      });
-
-      if (success) {
-        registeredShortcuts.push(electronAccelerator);
-      }
-    } catch (e) {
-      console.warn(`Failed to register shortcut ${electronAccelerator} for ${action}:`, e.message);
-    }
+      },
+      action,
+      registeredCustomShortcuts,
+    );
   });
 }
 
 function registerKeepForLaterShortcut(mainWindow) {
-  unregisterAll();
-
-  try {
-    const success = globalShortcut.register(KEEP_FOR_LATER_ACCELERATOR, () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('shortcut-triggered', 'openParkingLot');
+  registerManagedShortcut(
+    KEEP_FOR_LATER_ACCELERATOR,
+    () => {
+      const targetWindow = resolveWindow(mainWindow);
+      if (targetWindow && !targetWindow.isDestroyed()) {
+        targetWindow.webContents.send('shortcut-triggered', 'openParkingLot');
       }
-    });
-
-    if (success) {
-      registeredShortcuts.push(KEEP_FOR_LATER_ACCELERATOR);
-    }
-  } catch (e) {
-    console.warn(`Failed to register shortcut ${KEEP_FOR_LATER_ACCELERATOR} for Keep for Later:`, e.message);
-  }
+    },
+    'Keep for Later',
+    registeredSpecialShortcuts,
+  );
 }
 
-module.exports = { registerShortcuts, registerKeepForLaterShortcut, unregisterAll };
+function registerCheckInYesShortcut(mainWindow) {
+  registerManagedShortcut(
+    CHECK_IN_YES_ACCELERATOR,
+    () => {
+      const targetWindow = resolveWindow(mainWindow);
+      if (targetWindow && !targetWindow.isDestroyed()) {
+        targetWindow.webContents.send('scoped-checkin-shortcut', 'focused');
+      }
+    },
+    'Check-in: Yes',
+    registeredSpecialShortcuts,
+  );
+}
+
+function unregisterCheckInYesShortcut() {
+  unregisterShortcut(CHECK_IN_YES_ACCELERATOR, registeredSpecialShortcuts);
+}
+
+module.exports = {
+  registerShortcuts,
+  registerKeepForLaterShortcut,
+  registerCheckInYesShortcut,
+  unregisterCheckInYesShortcut,
+  unregisterAll,
+};
