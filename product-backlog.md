@@ -20,7 +20,7 @@
 - Why it matters: If launch-at-login feels abrupt, noisy, or ambiguous, the default-on behavior can feel like the app is happening to the user instead of quietly supporting them.
 - Files: `src/main/main.js`, `src/renderer/App.jsx`, `src/main/store.js`, `src/renderer/components/SettingsModal.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `SET-001`, `SES-001`, `SES-002`
-- Notes: Treat this as a polish pass on the shipped launch-at-login foundation, not a rethink of the default-on decision. Focus on the login-launch path feeling intentional and quiet: the right startup surface should appear immediately based on restore state, startup sizing/reveal should not flash awkward intermediary shells, manual launch and login launch should only diverge where the user benefit is clear, and the Settings toggle plus stored preference should remain trustworthy across relaunches and upgrades. Acceptance should verify cold login launch, restored paused/resumable sessions, licensed and unlicensed startup gates, and toggling launch-at-login on and off without surprise windows or inconsistent startup copy.
+- Notes: Treat this as a polish pass on the shipped launch-at-login foundation, not a rethink of the default-on decision. The near-term path assumes Focana is a resident app after login, so wake/unlock behavior should be modeled as runtime re-entry on an already-running process rather than as a brand-new cold launch. Focus on the login-launch path feeling intentional and quiet: the right startup surface should appear immediately based on restore state, startup sizing/reveal should not flash awkward intermediary shells, manual launch and login launch should only diverge where the user benefit is clear, and the Settings toggle plus stored preference should remain trustworthy across relaunches and upgrades. Acceptance should verify cold login launch, restored paused/resumable sessions, licensed and unlicensed startup gates, wake/unlock re-entry while resident, and toggling launch-at-login on and off without surprise windows or inconsistent startup copy.
 - Commits: —
 
 ### UX-014 — Pre-session and post-session boundary screens should feel polished and decisive
@@ -73,6 +73,16 @@
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TimeUpModal.jsx`, startup/re-entry/check-in surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`, `UX-008`
 - Notes: Add the remaining cosmetic cleanup to the current pass. Change the Time Up secondary action copy from `No, Save for Later` to `Save for Later` so it does not imply a missing antecedent question. Remove ceremonial state toasts that confirm changes the user already saw: `Session started`, `Session paused`, `Compact Mode On/Off`, `Enter a task to start timer`, and `Nice to meet you, {name}.` The new `Session Wrap` celebration should carry the completion moment on its own, so delete the `showCompletedSessionMessage()` call sites that currently stack a toast with confetti right before the wrap surface opens. Reduce preferred-name interpolation on check-ins so it is never always-on; either remove it entirely or gate it to a low-frequency sample (`~30%` max) to avoid sounding performative. Acceptance should verify the simplified Time Up copy, absence of the redundant toasts, single-celebration behavior on `Session Wrap`, and lower-dose name usage on check-ins.
+- Commits: —
+
+### SET-004 — Focana should support wake-plus-unlock launch even when the app is not already running
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: The resident-app model covers wake/unlock only while Focana is already alive. Users who expect the app to appear after wake+password even when it is not running need a separate background-launch strategy.
+- Files: macOS helper or launch-agent packaging, `src/main/main.js`, startup handoff plumbing, release/signing flow, `tests/e2e/electron-flows.spec.js`
+- Related: `SET-003`, `SET-001`
+- Notes: Scope this as a helper or LaunchAgent project, not as a tweak to the current Electron main-process listeners. Electron can observe `unlock-screen` only while the app is already running, so the current resident-app direction is the near-term path. A later pass can investigate a dedicated macOS helper that stays alive across the user session, listens for wake/unlock or related session-activation signals, and relaunches or signals the main Focana app when needed. Acceptance should verify wake+password can surface Focana even after the user fully closed the main app, without breaking ordinary login launch, explicit quit behavior, or macOS signing/notarization.
 - Commits: —
 
 ### UX-006 — Re-entry timing should be fully hardened after the 1.4.0 break flow lands

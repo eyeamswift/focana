@@ -11,6 +11,7 @@ const TASK_INPUT_SELECTOR = '[data-testid="task-input"]';
 const RUNNING_TASK_SELECTOR = '.focus-hero__task';
 const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text';
 const NAME_GATE_HEADING = 'One more thing. What should we call you?';
+const SYSTEM_ENTRY_TEST_DELAY_MS = '900';
 const FOCUSED_CHECKIN_MESSAGES = [
   'Nice, keep going',
   'Good Job! 🍊',
@@ -270,8 +271,9 @@ async function readWindowVisibilityState(electronApp) {
     const windows = BrowserWindow.getAllWindows();
     const main = windows.find((win) => !win.webContents.getURL().includes('floating-icon.html'));
     const floating = windows.find((win) => win.webContents.getURL().includes('floating-icon.html'));
+    const mainOpacity = main && typeof main.getOpacity === 'function' ? main.getOpacity() : 1;
     return {
-      mainVisible: Boolean(main && main.isVisible()),
+      mainVisible: Boolean(main && main.isVisible() && mainOpacity >= 0.99),
       floatingVisible: Boolean(floating && floating.isVisible()),
     };
   });
@@ -914,26 +916,31 @@ test('manual launches keep the normal idle task shell instead of the login-first
   }
 });
 
-test('login launch opens the normal idle task shell with first-session copy', async () => {
-  const { page, cleanup } = await launchApp({
+test("login launch floats first, then opens What's next after the system-entry delay", async () => {
+  const { electronApp, page, cleanup } = await launchApp({
     background: false,
     waitForTaskInput: false,
     extraEnv: {
       FOCANA_E2E_LAUNCH_SOURCE: 'login',
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
     },
   });
 
   try {
-    await expect(page.getByRole('textbox', { name: 'What are we working on first?' })).toBeVisible();
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Snooze' })).toHaveCount(0);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+    await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Freeflow' })).toHaveCount(0);
   } finally {
     await cleanup();
   }
 });
 
-test('login launch waits for activation and name gates before opening the idle task shell', async () => {
+test('first-launch gates still win over login launch, and finishing them lands in the idle shell', async () => {
   const { page, cleanup } = await launchApp({
     background: false,
     waitForTaskInput: false,
@@ -952,14 +959,12 @@ test('login launch waits for activation and name gates before opening the idle t
     extraEnv: {
       FOCANA_FORCE_LICENSE_GATE: '1',
       FOCANA_E2E_LAUNCH_SOURCE: 'login',
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
     },
   });
 
   try {
-    const firstPromptInput = page.getByRole('textbox', { name: 'What are we working on first?' });
-
     await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
-    await expect(firstPromptInput).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
 
     await page.getByPlaceholder('Paste your Focana license key').fill('password');
@@ -967,15 +972,307 @@ test('login launch waits for activation and name gates before opening the idle t
 
     await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toHaveCount(0);
-    await expect(firstPromptInput).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
 
     await page.getByPlaceholder('Your name').fill('Ari');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await expect(page.getByText(NAME_GATE_HEADING)).toHaveCount(0);
-    await expect(firstPromptInput).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'Where are we focusing first?');
     await expect(page.getByRole('button', { name: 'Snooze' })).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('restart launch with paused work opens Ready to resume immediately', async () => {
+  const { page, cleanup } = await launchApp({
+    background: false,
+    waitForTaskInput: false,
+    seedConfig: {
+      currentTask: {
+        text: 'restart-paused-task',
+        recap: 'Paused context',
+        nextSteps: 'Continue from the checklist',
+      },
+      timerState: {
+        mode: 'freeflow',
+        initialTime: 0,
+        elapsedSeconds: 420,
+        isRunning: false,
+        timerVisible: true,
+        currentSessionId: 'restart-paused-session',
+      },
+    },
+    extraEnv: {
+      FOCANA_E2E_LAUNCH_SOURCE: 'restart',
+    },
+  });
+
+  try {
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByText('restart-paused-task')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('restart launch with no task stays in the idle shell', async () => {
+  const { page, cleanup } = await launchApp({
+    background: false,
+    extraEnv: {
+      FOCANA_E2E_LAUNCH_SOURCE: 'restart',
+    },
+  });
+
+  try {
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'Where are we focusing first?');
+  } finally {
+    await cleanup();
+  }
+});
+
+test("wake plus login with nothing resumable floats first, then opens What's next", async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: true,
+    waitForTaskInput: false,
+    extraEnv: {
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: false }));
+    await page.waitForTimeout(600);
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('unlock-screen');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+    await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test("wake plus resume with nothing resumable floats first, then opens What's next", async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: true,
+    waitForTaskInput: false,
+    extraEnv: {
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: false }));
+    await page.waitForTimeout(600);
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+    await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('wake plus resume with an interrupted active session floats first, then opens Ready to resume', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    extraEnv: {
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await startFreeflowSession(page, 'wake-resume-active-session');
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByText('wake-resume-active-session')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('wake plus resume with a saved resumable task floats first, then opens Ready to resume', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: true,
+    waitForTaskInput: false,
+    seedConfig: {
+      currentTask: {
+        text: 'wake-resume-saved-task',
+        recap: 'Resume notes',
+        nextSteps: 'Re-open the draft',
+      },
+      timerState: {
+        mode: 'freeflow',
+        initialTime: 0,
+        elapsedSeconds: 0,
+        isRunning: false,
+        timerVisible: false,
+        currentSessionId: 'wake-resume-saved-session',
+      },
+      sessions: [{
+        id: 'wake-resume-saved-session',
+        task: 'wake-resume-saved-task',
+        durationMinutes: 12,
+        mode: 'freeflow',
+        completed: false,
+        kept: true,
+        notes: 'Resume notes',
+        recap: 'Resume notes',
+        nextSteps: 'Re-open the draft',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      }],
+    },
+    extraEnv: {
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: false }));
+    await page.waitForTimeout(600);
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByText('wake-resume-saved-task')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('wake plus login with an interrupted active session floats first, then opens Ready to resume', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    extraEnv: {
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await startFreeflowSession(page, 'wake-active-session');
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('unlock-screen');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByText('wake-active-session')).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('wake plus login with a saved resumable task floats first, then opens Ready to resume', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: true,
+    waitForTaskInput: false,
+    seedConfig: {
+      currentTask: {
+        text: 'wake-saved-resume',
+        recap: 'Saved notes',
+        nextSteps: 'Pick up the draft',
+      },
+      timerState: {
+        mode: 'freeflow',
+        initialTime: 0,
+        elapsedSeconds: 0,
+        isRunning: false,
+        timerVisible: false,
+        currentSessionId: 'wake-saved-session',
+      },
+      sessions: [{
+        id: 'wake-saved-session',
+        task: 'wake-saved-resume',
+        durationMinutes: 18,
+        mode: 'freeflow',
+        completed: false,
+        kept: true,
+        notes: 'Saved notes',
+        recap: 'Saved notes',
+        nextSteps: 'Pick up the draft',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      }],
+    },
+    extraEnv: {
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: false }));
+    await page.waitForTimeout(600);
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+      powerMonitor.emit('unlock-screen');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByText('wake-saved-resume')).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1298,7 +1595,7 @@ test('floating idle re-entry prompt can open Session History from the task-entry
   }
 });
 
-test('done-for-now reopens into the resume screen by default', async () => {
+test('done-for-now manual reopen stays in the idle shell until a system re-entry prompt is triggered', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1324,9 +1621,9 @@ test('done-for-now reopens into the resume screen by default', async () => {
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
-    await expect(page.getByText('done-for-now-default-resume')).toBeVisible();
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('done-for-now-default-resume');
   } finally {
     await cleanup();
   }
@@ -1388,6 +1685,7 @@ test('resume save-for-later can mark complete with confetti and hand off to the 
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
+    await installTimeOffsetControl(page);
     await startFreeflowSession(page, 'resume-mark-complete');
     await exitCompactMode(page);
 
@@ -1399,16 +1697,12 @@ test('resume save-for-later can mark complete with confetti and hand off to the 
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await setTimeOffset(page, (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
 
-    await page.evaluate(() => {
-      window.electronAPI.bringToFront?.();
-    });
-
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Start Something New' }).click();
+    await floatingWindow.locator('#prompt-start-new-btn').click();
     await expect(page.getByRole('heading', { name: 'Save “resume-mark-complete” for later' })).toBeVisible();
 
     await fillSplitSessionNotes(page, {

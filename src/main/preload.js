@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleFloatingMinimize: () => ipcRenderer.send('toggle-floating-minimize'),
   getFloatingMinimized: () => ipcRenderer.invoke('get-floating-minimized'),
   restoreFromFloatingForTimeUp: () => ipcRenderer.invoke('restore-from-floating-for-time-up'),
-  enterFloatingMinimize: () => ipcRenderer.invoke('enter-floating-minimize'),
+  enterFloatingMinimize: (options) => ipcRenderer.invoke('enter-floating-minimize', options),
   exitFloatingForCompact: () => ipcRenderer.invoke('exit-floating-for-compact'),
   showMainWindowAfterStartup: (width, height) => ipcRenderer.invoke('show-main-window-after-startup', width, height),
   openCompactContextMenu: () => ipcRenderer.send('compact-context-menu'),
@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLaunchAtLogin: () => ipcRenderer.invoke('launch-at-login:get'),
   setLaunchAtLogin: (enabled) => ipcRenderer.invoke('launch-at-login:set', enabled),
   getStartupLaunchSource: () => ipcRenderer.invoke('startup:get-launch-source'),
+  getPendingSystemEntryReveal: () => ipcRenderer.invoke('system-entry:get-pending-reveal'),
+  beginSystemEntry: (source) => ipcRenderer.invoke('system-entry:begin', source),
+  showSystemEntryWindow: () => ipcRenderer.invoke('system-entry:show-window'),
   getUpdateState: () => ipcRenderer.invoke('updates:get-state'),
   checkForAppUpdates: () => ipcRenderer.invoke('updates:check'),
   installAppUpdate: () => ipcRenderer.invoke('updates:install'),
@@ -118,6 +121,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on('system-suspend-paused', handler);
     return () => ipcRenderer.removeListener('system-suspend-paused', handler);
+  },
+  onSystemEntryEvent: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('system-entry-event', handler);
+    return () => ipcRenderer.removeListener('system-entry-event', handler);
+  },
+  onSystemEntryReveal: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('system-entry-reveal', handler);
+    return () => ipcRenderer.removeListener('system-entry-reveal', handler);
+  },
+  onSystemEntryOpenNow: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('system-entry-open-now', handler);
+    return () => ipcRenderer.removeListener('system-entry-open-now', handler);
   },
   onQuitResidentInfoRequested: (callback) => {
     const handler = (_event, payload) => callback(payload);

@@ -94,6 +94,24 @@ const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'resume-choice': 276,
   'snooze-options': 378,
 };
+const SYSTEM_ENTRY_DELAY_MS = (() => {
+  const rawValue = Number.parseInt(String(process.env.FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS || '').trim(), 10);
+  if (Number.isFinite(rawValue) && rawValue >= 0) {
+    return rawValue;
+  }
+  return 90 * 1000;
+})();
+const WAKE_UNLOCK_CLASSIFY_WINDOW_MS = (() => {
+  const rawValue = Number.parseInt(String(
+    process.env.FOCANA_E2E_WAKE_UNLOCK_CLASSIFY_WINDOW_MS
+    || process.env.FOCANA_E2E_UNLOCK_REVEAL_WINDOW_MS
+    || ''
+  ).trim(), 10);
+  if (Number.isFinite(rawValue) && rawValue >= 0) {
+    return rawValue;
+  }
+  return 30 * 1000;
+})();
 const DEFAULT_SHORTCUTS = {
   startPause: 'CommandOrControl+Shift+S',
   newTask: 'CommandOrControl+N',
@@ -114,6 +132,13 @@ let startupRevealFallbackTimer = null;
 let pendingSystemResumeSyncTimer = null;
 let pendingSystemPausePayload = null;
 let pendingStartupLaunchSource = null;
+let pendingWakeUnlockUntil = 0;
+let pendingSystemEntrySource = null;
+let pendingSystemEntryRevealTimer = null;
+let pendingHiddenRendererPrimeTimer = null;
+let hiddenRendererPriming = false;
+let mainWindowRendererLoaded = false;
+let pendingHydrationSystemEntryRevealSource = null;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -841,6 +866,13 @@ function getLaunchSourceFromRuntime() {
   if (e2eLaunchSource === 'login') {
     return 'login';
   }
+  if (e2eLaunchSource === 'restart') {
+    return 'restart';
+  }
+
+  if (process.argv.includes('--focana-restart')) {
+    return 'restart';
+  }
 
   if (shouldUseLaunchAtLoginMock()) {
     return null;
@@ -855,9 +887,22 @@ function getLaunchSourceFromRuntime() {
   }
 }
 
+function shouldStartLoginInFloating() {
+  const licenseStatus = licenseService.getStatus();
+  const preferredName = typeof store.get('preferredName', '') === 'string'
+    ? store.get('preferredName', '').trim()
+    : '';
+  return Boolean(licenseStatus?.allowed) && preferredName.length > 0;
+}
+
 function revealMainWindow({ focusMain = true } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
 
+  if (pendingHiddenRendererPrimeTimer) {
+    clearTimeout(pendingHiddenRendererPrimeTimer);
+    pendingHiddenRendererPrimeTimer = null;
+  }
+  hiddenRendererPriming = false;
   if (isFloatingMinimized) {
     exitFloatingIconMode({ focusMain });
     return true;
@@ -877,9 +922,129 @@ function revealMainWindow({ focusMain = true } = {}) {
   return true;
 }
 
+function clearPendingWakeUnlock() {
+  pendingWakeUnlockUntil = 0;
+}
+
+function notifySystemEntryEvent(payload = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('system-entry-event', payload);
+}
+
+function notifySystemEntryReveal(payload = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('system-entry-reveal', payload);
+}
+
+function notifySystemEntryOpenNow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('system-entry-open-now');
+}
+
+function clearPendingSystemEntryReveal() {
+  pendingSystemEntrySource = null;
+  if (pendingSystemEntryRevealTimer) {
+    clearTimeout(pendingSystemEntryRevealTimer);
+    pendingSystemEntryRevealTimer = null;
+  }
+}
+
+function primeHiddenRendererWhileFloating() {
+  if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
+  if (mainWindowRendererLoaded) return;
+  if (mainWindow.isVisible()) return;
+
+  if (pendingHiddenRendererPrimeTimer) {
+    clearTimeout(pendingHiddenRendererPrimeTimer);
+    pendingHiddenRendererPrimeTimer = null;
+  }
+
+  hiddenRendererPriming = true;
+  if (typeof mainWindow.setOpacity === 'function') {
+    mainWindow.setOpacity(0);
+  }
+  mainWindow.show();
+  pendingHiddenRendererPrimeTimer = setTimeout(() => {
+    pendingHiddenRendererPrimeTimer = null;
+    hiddenRendererPriming = false;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!isFloatingMinimized) {
+      if (typeof mainWindow.getOpacity === 'function' && mainWindow.getOpacity() < 1) {
+        mainWindow.setOpacity(1);
+      }
+      return;
+    }
+    mainWindow.hide();
+  }, 4000);
+}
+
+function beginSystemEntry(source, { focusFloating = false } = {}) {
+  const normalizedSource = typeof source === 'string' ? source.trim() : '';
+  if (!normalizedSource || !mainWindow || mainWindow.isDestroyed()) return false;
+
+  clearPendingSystemEntryReveal();
+  pendingSystemEntrySource = normalizedSource;
+
+  if (!isFloatingMinimized) {
+    enterFloatingIconMode({ focusFloating });
+  }
+  primeHiddenRendererWhileFloating();
+
+  notifySystemEntryEvent({ type: normalizedSource });
+  pendingSystemEntryRevealTimer = setTimeout(() => {
+    pendingSystemEntryRevealTimer = null;
+    const revealSource = pendingSystemEntrySource;
+    pendingSystemEntrySource = null;
+    if (!revealSource) return;
+    pendingHydrationSystemEntryRevealSource = revealSource;
+    notifySystemEntryReveal({ source: revealSource });
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!isFloatingMinimized) return;
+      revealMainWindow({ focusMain: true });
+    }, 120);
+    setTimeout(async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      try {
+        const rootChildCount = await mainWindow.webContents.executeJavaScript(
+          `(() => {
+            const root = document.getElementById('root');
+            return root ? root.childElementCount : -1;
+          })()`,
+          true,
+        );
+        if (Number(rootChildCount) > 0) return;
+        mainWindow.webContents.once('did-finish-load', () => {
+          notifySystemEntryReveal({ source: revealSource });
+        });
+        mainWindow.webContents.reload();
+      } catch (error) {
+        console.warn('Could not rescue blank system-entry window:', error);
+      }
+    }, 1800);
+  }, SYSTEM_ENTRY_DELAY_MS);
+  return true;
+}
+
+function updatePendingSystemEntrySource(source) {
+  const normalizedSource = typeof source === 'string' ? source.trim() : '';
+  if (!normalizedSource || !pendingSystemEntrySource) return false;
+  pendingSystemEntrySource = normalizedSource;
+  notifySystemEntryEvent({ type: normalizedSource });
+  return true;
+}
+
 function hideResidentApp() {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
 
+  if (pendingHiddenRendererPrimeTimer) {
+    clearTimeout(pendingHiddenRendererPrimeTimer);
+    pendingHiddenRendererPrimeTimer = null;
+  }
+  hiddenRendererPriming = false;
+  clearPendingSystemEntryReveal();
+  pendingHydrationSystemEntryRevealSource = null;
+  notifySystemEntryOpenNow();
   if (floatingIconWindow && !floatingIconWindow.isDestroyed()) {
     floatingIconWindow.hide();
   }
@@ -1194,6 +1359,7 @@ function checkpointActiveSessionInStore(options = {}) {
 }
 
 function handleSystemSuspend() {
+  clearPendingWakeUnlock();
   const didPauseTimer = checkpointActiveSessionInStore({ pauseTimer: true });
   if (!didPauseTimer) {
     pendingSystemPausePayload = null;
@@ -1253,10 +1419,23 @@ function handleSystemResume() {
     clearTimeout(pendingSystemResumeSyncTimer);
   }
 
+  pendingWakeUnlockUntil = Date.now() + WAKE_UNLOCK_CLASSIFY_WINDOW_MS;
+  beginSystemEntry('wake-resume', { focusFloating: false });
   pendingSystemResumeSyncTimer = setTimeout(() => {
     pendingSystemResumeSyncTimer = null;
     syncPausedSessionAfterResume();
   }, 150);
+}
+
+function handleSystemUnlockScreen() {
+  if (!pendingWakeUnlockUntil || Date.now() > pendingWakeUnlockUntil) {
+    return;
+  }
+
+  pendingWakeUnlockUntil = 0;
+  if (!updatePendingSystemEntrySource('wake-login')) {
+    beginSystemEntry('wake-login', { focusFloating: false });
+  }
 }
 
 function getFloatingWindowState() {
@@ -1479,20 +1658,41 @@ function createFloatingIconWindow() {
   });
 }
 
-function enterFloatingIconMode() {
+function enterFloatingIconMode({ focusFloating = true } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
+  if (pendingHiddenRendererPrimeTimer) {
+    clearTimeout(pendingHiddenRendererPrimeTimer);
+    pendingHiddenRendererPrimeTimer = null;
+  }
+  hiddenRendererPriming = false;
   createFloatingIconWindow();
   if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
 
+  if (startupRevealFallbackTimer) {
+    clearTimeout(startupRevealFallbackTimer);
+    startupRevealFallbackTimer = null;
+  }
+  awaitingInitialMainWindowShow = false;
   startFloatingStateSync({ preservePosition: false, anchorBounds: mainWindow.getBounds() });
   mainWindow.hide();
-  floatingIconWindow.show();
-  floatingIconWindow.focus();
+  if (focusFloating && typeof floatingIconWindow.show === 'function') {
+    floatingIconWindow.show();
+    floatingIconWindow.focus();
+  } else if (typeof floatingIconWindow.showInactive === 'function') {
+    floatingIconWindow.showInactive();
+  } else {
+    floatingIconWindow.show();
+  }
   isFloatingMinimized = true;
 }
 
 function exitFloatingIconMode({ focusMain = true } = {}) {
+  if (pendingHiddenRendererPrimeTimer) {
+    clearTimeout(pendingHiddenRendererPrimeTimer);
+    pendingHiddenRendererPrimeTimer = null;
+  }
+  hiddenRendererPriming = false;
   stopFloatingStateSync();
   floatingIconDragStart = null;
   clearFloatingIconDragPolling();
@@ -1506,6 +1706,9 @@ function exitFloatingIconMode({ focusMain = true } = {}) {
   }
 
   if (mainWindow && !mainWindow.isDestroyed()) {
+    if (typeof mainWindow.getOpacity === 'function' && mainWindow.getOpacity() < 1) {
+      mainWindow.setOpacity(1);
+    }
     const currentMainBounds = mainWindow.getBounds();
     const nextBounds = floatingBounds
       ? clampBounds({
@@ -1531,6 +1734,7 @@ function toggleFloatingMinimize() {
 
 function createWindow() {
   setDockIcon();
+  mainWindowRendererLoaded = false;
 
   const fallbackBounds = getDefaultMainWindowBounds();
   const rawWindowState = getPersistedWindowState() || fallbackBounds;
@@ -1595,6 +1799,26 @@ function createWindow() {
     popupMainContextMenu(mainWindow);
   });
   mainWindow.webContents.on('did-finish-load', () => {
+    mainWindowRendererLoaded = true;
+    if (hiddenRendererPriming && isFloatingMinimized) {
+      if (pendingHiddenRendererPrimeTimer) {
+        clearTimeout(pendingHiddenRendererPrimeTimer);
+        pendingHiddenRendererPrimeTimer = null;
+      }
+      setTimeout(() => {
+        hiddenRendererPriming = false;
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        if (!isFloatingMinimized) {
+          if (typeof mainWindow.getOpacity === 'function' && mainWindow.getOpacity() < 1) {
+            mainWindow.setOpacity(1);
+          }
+          return;
+        }
+        mainWindow.hide();
+      }, 120);
+      return;
+    }
+
     if (
       isDev
       && awaitingInitialMainWindowShow
@@ -1670,6 +1894,12 @@ function createWindow() {
       clearTimeout(startupRevealFallbackTimer);
       startupRevealFallbackTimer = null;
     }
+    if (pendingHiddenRendererPrimeTimer) {
+      clearTimeout(pendingHiddenRendererPrimeTimer);
+      pendingHiddenRendererPrimeTimer = null;
+    }
+    hiddenRendererPriming = false;
+    clearPendingSystemEntryReveal();
     if (clearProgrammaticMainBoundsTimer) {
       clearTimeout(clearProgrammaticMainBoundsTimer);
       clearProgrammaticMainBoundsTimer = null;
@@ -1687,6 +1917,10 @@ function createWindow() {
   mainWindow.on('show', () => {
     if (getStoredAlwaysOnTop() && !isE2EBackground) {
       applyWindowAlwaysOnTop(mainWindow, true);
+    }
+    if (hiddenRendererPriming) {
+      feedbackSyncService.requestSync('main-window-show');
+      return;
     }
     if (isFloatingMinimized) {
       isFloatingMinimized = false;
@@ -1716,6 +1950,10 @@ function createWindow() {
         applyAlwaysOnTop(nextState?.enabled);
       },
       onRevealApp: () => {
+        clearPendingWakeUnlock();
+        clearPendingSystemEntryReveal();
+        pendingHydrationSystemEntryRevealSource = null;
+        notifySystemEntryOpenNow();
         revealMainWindow({ focusMain: true });
       },
       onQuitApp: (source) => {
@@ -1762,9 +2000,27 @@ ipcMain.handle('startup:get-launch-source', () => {
   return source;
 });
 
+ipcMain.handle('system-entry:get-pending-reveal', () => {
+  return pendingHydrationSystemEntryRevealSource;
+});
+
+ipcMain.handle('system-entry:begin', (_event, source) => {
+  return beginSystemEntry(source, { focusFloating: false });
+});
+
+ipcMain.handle('system-entry:show-window', () => {
+  clearPendingWakeUnlock();
+  pendingHydrationSystemEntryRevealSource = null;
+  return revealMainWindow({ focusMain: true });
+});
+
 ipcMain.on('restart-app', () => {
   checkpointActiveSessionInStore({ pauseTimer: true });
-  app.relaunch();
+  const relaunchArgs = process.argv
+    .slice(1)
+    .filter((arg) => arg !== '--focana-restart')
+    .concat('--focana-restart');
+  app.relaunch({ args: relaunchArgs });
   app.exit(0);
 });
 
@@ -1829,6 +2085,10 @@ ipcMain.handle('get-always-on-top', () => {
 });
 
 ipcMain.on('bring-to-front', () => {
+  clearPendingWakeUnlock();
+  clearPendingSystemEntryReveal();
+  pendingHydrationSystemEntryRevealSource = null;
+  notifySystemEntryOpenNow();
   if (!mainWindow) return;
   if (isFloatingMinimized) {
     exitFloatingIconMode();
@@ -1856,9 +2116,11 @@ ipcMain.handle('restore-from-floating-for-time-up', () => {
   return wasFloating;
 });
 
-ipcMain.handle('enter-floating-minimize', () => {
+ipcMain.handle('enter-floating-minimize', (_event, options = {}) => {
   if (!isFloatingMinimized) {
-    enterFloatingIconMode();
+    enterFloatingIconMode({
+      focusFloating: options?.focusFloating !== false,
+    });
   }
   return true;
 });
@@ -1940,6 +2202,9 @@ ipcMain.handle('show-main-window-after-startup', (_, width = FULL_MIN_WIDTH, hei
 
 ipcMain.on('expand-from-floating', () => {
   if (!isFloatingMinimized) return;
+  clearPendingSystemEntryReveal();
+  pendingHydrationSystemEntryRevealSource = null;
+  notifySystemEntryOpenNow();
   exitFloatingIconMode();
 });
 
@@ -1947,6 +2212,9 @@ ipcMain.on('floating-context-menu', () => {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed() || !isFloatingMinimized) return;
   popupFloatingContextMenu(floatingIconWindow, {
     onExpand: () => {
+      clearPendingSystemEntryReveal();
+      pendingHydrationSystemEntryRevealSource = null;
+      notifySystemEntryOpenNow();
       exitFloatingIconMode();
     },
   });
@@ -2355,7 +2623,11 @@ app.whenReady().then(() => {
   pendingStartupLaunchSource = getLaunchSourceFromRuntime();
   powerMonitor.on('suspend', handleSystemSuspend);
   powerMonitor.on('resume', handleSystemResume);
+  powerMonitor.on('unlock-screen', handleSystemUnlockScreen);
   createWindow();
+  if (pendingStartupLaunchSource === 'login' && shouldStartLoginInFloating()) {
+    beginSystemEntry('login', { focusFloating: false });
+  }
   updater.start();
   feedbackSyncService.start();
 });
@@ -2373,10 +2645,18 @@ app.on('will-quit', () => {
   stopRendererServer();
   powerMonitor.removeListener('suspend', handleSystemSuspend);
   powerMonitor.removeListener('resume', handleSystemResume);
+  powerMonitor.removeListener('unlock-screen', handleSystemUnlockScreen);
   if (pendingSystemResumeSyncTimer) {
     clearTimeout(pendingSystemResumeSyncTimer);
     pendingSystemResumeSyncTimer = null;
   }
+  if (pendingHiddenRendererPrimeTimer) {
+    clearTimeout(pendingHiddenRendererPrimeTimer);
+    pendingHiddenRendererPrimeTimer = null;
+  }
+  hiddenRendererPriming = false;
+  clearPendingWakeUnlock();
+  clearPendingSystemEntryReveal();
   checkpointActiveSessionInStore({ pauseTimer: true });
   updater.stop();
   feedbackSyncService.stop();
@@ -2394,5 +2674,9 @@ app.on('activate', () => {
   if (awaitingInitialMainWindowShow) {
     return;
   }
+  clearPendingWakeUnlock();
+  clearPendingSystemEntryReveal();
+  pendingHydrationSystemEntryRevealSource = null;
+  notifySystemEntryOpenNow();
   revealMainWindow({ focusMain: true });
 });
