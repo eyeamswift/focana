@@ -72,7 +72,19 @@ async function launchApp({
     },
   });
 
-  const page = await electronApp.firstWindow();
+  let page = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    page = electronApp.windows().find((win) => isMainAppWindow(win)) || null;
+    if (page) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!page) {
+    await electronApp.firstWindow();
+    page = electronApp.windows().find((win) => isMainAppWindow(win)) || null;
+  }
+  if (!page) {
+    throw new Error('Could not find the main app window.');
+  }
   if (typeof onPage === 'function') {
     await onPage(page, electronApp);
   }
