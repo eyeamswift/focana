@@ -107,13 +107,13 @@ async function triggerShortcutAction(electronApp, action) {
   }, action);
 }
 
-async function triggerCheckInYesShortcut(electronApp) {
-  await electronApp.evaluate(({ BrowserWindow }) => {
+async function triggerCheckInYesShortcut(electronApp, payload = 'focused') {
+  await electronApp.evaluate(({ BrowserWindow }, incomingPayload) => {
     const mainWindow = BrowserWindow.getAllWindows()
       .find((win) => !win.webContents.getURL().includes('floating-icon.html'));
     if (!mainWindow) return;
-    mainWindow.webContents.send('scoped-checkin-shortcut', 'focused');
-  });
+    mainWindow.webContents.send('scoped-checkin-shortcut', incomingPayload);
+  }, payload);
 }
 
 async function readGlobalShortcutRegistrationState(electronApp) {
@@ -126,6 +126,16 @@ async function readGlobalShortcutRegistrationState(electronApp) {
     completeTask: globalShortcut.isRegistered('CommandOrControl+Enter'),
     openParkingLotLegacy: globalShortcut.isRegistered('CommandOrControl+Shift+P'),
   }));
+}
+
+async function setE2EFrontmostApp(page, appInfo) {
+  await page.evaluate((incomingAppInfo) => (
+    window.electronAPI.e2eSetFrontmostApp(incomingAppInfo)
+  ), appInfo);
+}
+
+async function readE2ELastActivatedApp(page) {
+  return page.evaluate(() => window.electronAPI.e2eGetLastActivatedApp());
 }
 
 function parseTimerTextToSeconds(timerText) {
@@ -3048,6 +3058,40 @@ test('open parking lot shortcut exits compact mode before showing quick capture'
   }
 });
 
+test('keep-for-later save restores the previous compact view and returns focus to the prior app', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+  try {
+    await triggerShortcutAction(electronApp, 'toggleCompact');
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+
+    await setE2EFrontmostApp(page, {
+      bundleId: 'com.example.Writer',
+      name: 'Writer',
+    });
+
+    await triggerShortcutAction(electronApp, {
+      action: 'openParkingLot',
+      focusReturnSource: 'parkingLot',
+    });
+
+    await expect(page.locator('[data-quick-capture-textarea]')).toBeVisible();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+
+    await page.locator('[data-quick-capture-textarea]').fill('return me to compact');
+    await page.getByRole('button', { name: 'Save to Parking Lot (Enter)' }).click();
+
+    await expect(page.locator('[data-quick-capture-textarea]')).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => JSON.stringify(await readE2ELastActivatedApp(page)), { timeout: 7000 })
+      .toBe(JSON.stringify({
+        bundleId: 'com.example.Writer',
+        name: 'Writer',
+      }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('freeflow check-in appears at the configured interval', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
@@ -3408,6 +3452,59 @@ test('freeflow check-in restores from floating minimize and snaps back to the ne
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
     await expect.poll(() => floatingWindowMatchesNearestCorner(electronApp), { timeout: 7000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('global check-in yes restores the floating view and returns focus to the prior app', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'floating-checkin-global-shortcut-return');
+    await exitCompactMode(page);
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await setE2EFrontmostApp(page, {
+      bundleId: 'com.example.Writer',
+      name: 'Writer',
+    });
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
+
+    await triggerCheckInYesShortcut(electronApp, {
+      action: 'focused',
+      focusReturnSource: 'checkin',
+    });
+
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => JSON.stringify(await readE2ELastActivatedApp(page)), { timeout: 7000 })
+      .toBe(JSON.stringify({
+        bundleId: 'com.example.Writer',
+        name: 'Writer',
+      }));
   } finally {
     await cleanup();
   }

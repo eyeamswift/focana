@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor } = require('electron');
+const { execFile } = require('child_process');
 const fs = require('fs/promises');
 const http = require('http');
 const path = require('path');
@@ -94,6 +95,7 @@ const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'resume-choice': 276,
   'snooze-options': 378,
 };
+const FOCUS_RETURN_TTL_MS = 2 * 60 * 1000;
 const SYSTEM_ENTRY_DELAY_MS = (() => {
   const rawValue = Number.parseInt(String(process.env.FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS || '').trim(), 10);
   if (Number.isFinite(rawValue) && rawValue >= 0) {
@@ -139,6 +141,9 @@ let pendingHiddenRendererPrimeTimer = null;
 let hiddenRendererPriming = false;
 let mainWindowRendererLoaded = false;
 let pendingHydrationSystemEntryRevealSource = null;
+const pendingFocusReturnTargets = new Map();
+let e2eFrontmostAppOverride = null;
+let e2eLastActivatedApp = null;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -893,6 +898,128 @@ function shouldStartLoginInFloating() {
     ? store.get('preferredName', '').trim()
     : '';
   return Boolean(licenseStatus?.allowed) && preferredName.length > 0;
+}
+
+function normalizeFocusReturnSource(source) {
+  const normalizedSource = typeof source === 'string' ? source.trim() : '';
+  if (normalizedSource !== 'checkin' && normalizedSource !== 'parkingLot') {
+    return null;
+  }
+  return normalizedSource;
+}
+
+function runFile(command, args) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { timeout: 2000 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr?.trim() || error.message || 'Command failed.'));
+        return;
+      }
+      resolve(String(stdout || '').trim());
+    });
+  });
+}
+
+async function readFrontmostApplication() {
+  if (isE2E) {
+    const override = e2eFrontmostAppOverride;
+    if (!override || typeof override !== 'object') return null;
+    const bundleId = typeof override.bundleId === 'string' ? override.bundleId.trim() : '';
+    const name = typeof override.name === 'string' ? override.name.trim() : '';
+    if (!bundleId && !name) return null;
+    return { bundleId, name };
+  }
+
+  if (process.platform !== 'darwin') return null;
+
+  try {
+    const frontAsn = await runFile('/usr/bin/lsappinfo', ['front']);
+    if (!frontAsn) return null;
+    const appInfo = await runFile('/usr/bin/lsappinfo', [
+      'info',
+      '-only',
+      'bundleid,name',
+      '-app',
+      frontAsn,
+    ]);
+    const bundleIdMatch = appInfo.match(/"CFBundleIdentifier"="([^"]+)"/);
+    const nameMatch = appInfo.match(/"LSDisplayName"="([^"]+)"/);
+    const bundleId = bundleIdMatch?.[1]?.trim() || '';
+    const name = nameMatch?.[1]?.trim() || '';
+    if (!bundleId && !name) return null;
+    return { bundleId, name };
+  } catch (error) {
+    console.warn('Could not read the frontmost application:', error.message || error);
+    return null;
+  }
+}
+
+function isSelfApplicationTarget(target) {
+  if (!target || typeof target !== 'object') return false;
+  const bundleId = typeof target.bundleId === 'string' ? target.bundleId.trim() : '';
+  const name = typeof target.name === 'string' ? target.name.trim() : '';
+  const selfBundleId = typeof app.getBundleId === 'function'
+    ? String(app.getBundleId() || '').trim()
+    : '';
+  if (bundleId && selfBundleId && bundleId === selfBundleId) return true;
+  return Boolean(name) && name === app.getName();
+}
+
+function armFocusReturnForSource(source) {
+  const normalizedSource = normalizeFocusReturnSource(source);
+  if (!normalizedSource) return;
+
+  pendingFocusReturnTargets.set(normalizedSource, {
+    expiresAt: Date.now() + FOCUS_RETURN_TTL_MS,
+    targetPromise: readFrontmostApplication()
+      .then((target) => (isSelfApplicationTarget(target) ? null : target))
+      .catch((error) => {
+        console.warn(`Could not capture focus return target for ${normalizedSource}:`, error.message || error);
+        return null;
+      }),
+  });
+}
+
+async function consumeFocusReturnTarget(source) {
+  const normalizedSource = normalizeFocusReturnSource(source);
+  if (!normalizedSource) return null;
+  const pendingEntry = pendingFocusReturnTargets.get(normalizedSource);
+  pendingFocusReturnTargets.delete(normalizedSource);
+  if (!pendingEntry) return null;
+  if (pendingEntry.expiresAt <= Date.now()) return null;
+  return pendingEntry.targetPromise;
+}
+
+async function activateApplicationTarget(target) {
+  if (!target || typeof target !== 'object') return false;
+  const bundleId = typeof target.bundleId === 'string' ? target.bundleId.trim() : '';
+  const name = typeof target.name === 'string' ? target.name.trim() : '';
+
+  if (isE2E) {
+    e2eLastActivatedApp = { bundleId, name };
+    return true;
+  }
+
+  try {
+    if (bundleId) {
+      await runFile('/usr/bin/open', ['-b', bundleId]);
+      return true;
+    }
+    if (name) {
+      await runFile('/usr/bin/open', ['-a', name]);
+      return true;
+    }
+  } catch (error) {
+    console.warn('Could not reactivate the previous application:', error.message || error);
+  }
+
+  return false;
+}
+
+async function returnFocusToPreviousApp(source) {
+  const target = await consumeFocusReturnTarget(source);
+  if (!target) return false;
+  return activateApplicationTarget(target);
 }
 
 function revealMainWindow({ focusMain = true } = {}) {
@@ -1968,7 +2095,10 @@ function createWindow() {
   if (shortcutsNeedRepair(settings.shortcuts, normalizedShortcuts)) {
     store.set('settings.shortcuts', normalizedShortcuts);
   }
-  registerKeepForLaterShortcut(() => mainWindow);
+  registerKeepForLaterShortcut(() => mainWindow, () => ({
+    action: 'openParkingLot',
+    focusReturnSource: 'parkingLot',
+  }));
 }
 
 // IPC Handlers
@@ -2084,7 +2214,8 @@ ipcMain.handle('get-always-on-top', () => {
   return getEffectiveAlwaysOnTop();
 });
 
-ipcMain.on('bring-to-front', () => {
+ipcMain.on('bring-to-front', (_event, payload = {}) => {
+  armFocusReturnForSource(payload?.focusReturnSource);
   clearPendingWakeUnlock();
   clearPendingSystemEntryReveal();
   pendingHydrationSystemEntryRevealSource = null;
@@ -2100,6 +2231,27 @@ ipcMain.on('bring-to-front', () => {
   setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
   mainWindow.show();
   mainWindow.focus();
+});
+
+ipcMain.handle('focus:return-previous-app', (_event, source) => {
+  return returnFocusToPreviousApp(source);
+});
+
+ipcMain.handle('focus:arm-previous-app', (_event, source) => {
+  armFocusReturnForSource(source);
+  return true;
+});
+
+ipcMain.handle('e2e:set-frontmost-app', (_event, appInfo = null) => {
+  if (!isE2E) return false;
+  e2eFrontmostAppOverride = appInfo && typeof appInfo === 'object' ? appInfo : null;
+  e2eLastActivatedApp = null;
+  return true;
+});
+
+ipcMain.handle('e2e:get-last-activated-app', () => {
+  if (!isE2E) return null;
+  return e2eLastActivatedApp;
 });
 
 ipcMain.on('toggle-floating-minimize', () => {
@@ -2364,7 +2516,10 @@ ipcMain.on('floating-break-action', (_event, action) => {
 ipcMain.on('set-checkin-shortcut-state', (_event, payload = {}) => {
   const safePayload = payload && typeof payload === 'object' ? payload : {};
   if (safePayload.visible === true) {
-    registerCheckInYesShortcut(() => mainWindow);
+    registerCheckInYesShortcut(() => mainWindow, () => ({
+      action: 'focused',
+      focusReturnSource: 'checkin',
+    }));
     return;
   }
 

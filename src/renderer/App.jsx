@@ -98,6 +98,22 @@ const isEditableShortcutTarget = (target) => {
   const tagName = typeof target.tagName === 'string' ? target.tagName.toLowerCase() : '';
   return tagName === 'input' || tagName === 'textarea' || target.isContentEditable;
 };
+const normalizeShortcutEventPayload = (payload) => {
+  if (typeof payload === 'string') {
+    return { action: payload, focusReturnSource: null };
+  }
+  if (!payload || typeof payload !== 'object') {
+    return { action: '', focusReturnSource: null };
+  }
+  const action = typeof payload.action === 'string' ? payload.action.trim() : '';
+  const focusReturnSource = typeof payload.focusReturnSource === 'string'
+    ? payload.focusReturnSource.trim()
+    : null;
+  return {
+    action,
+    focusReturnSource: focusReturnSource || null,
+  };
+};
 const STARTUP_GATE_VERTICAL_PADDING = 32;
 const CHECKIN_MESSAGES = [
   'Nice, keep going',
@@ -429,6 +445,9 @@ export default function App() {
   const elapsedBeforeRunRef = useRef(0);
   const parkingLotReturnToCompactRef = useRef(false);
   const parkingLotReturnToFloatingRef = useRef(false);
+  const quickCaptureReturnToCompactRef = useRef(false);
+  const quickCaptureReturnToFloatingRef = useRef(false);
+  const quickCaptureFocusReturnSourceRef = useRef(null);
   const historyReturnToCompactRef = useRef(false);
   const settingsReturnToCompactRef = useRef(false);
   const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
@@ -1932,11 +1951,27 @@ export default function App() {
     }
   }, [task, isRunning, getElapsedSeconds, pauseActiveTimer, mode, saveSessionWithNotes, isCompact, handleExitCompact, contextNotes, nextStepsNotes]);
 
-  const handleShortcutAction = useCallback((action) => {
+  const handleShortcutAction = useCallback((shortcutPayload) => {
     (async () => {
+      const { action, focusReturnSource } = normalizeShortcutEventPayload(shortcutPayload);
+      if (!action) return;
       const settings = await window.electronAPI.storeGet('settings') || {};
       const bringToFront = settings.bringToFront ?? true;
-      if (bringToFront) window.electronAPI.bringToFront();
+      const restoredFromFloating = action === 'openParkingLot'
+        ? await window.electronAPI.getFloatingMinimized?.() || false
+        : false;
+      if (action === 'openParkingLot') {
+        quickCaptureReturnToCompactRef.current = isCompact;
+        quickCaptureReturnToFloatingRef.current = Boolean(restoredFromFloating);
+        quickCaptureFocusReturnSourceRef.current = focusReturnSource;
+      }
+      if (bringToFront) {
+        window.electronAPI.bringToFront?.(
+          focusReturnSource
+            ? { focusReturnSource }
+            : undefined,
+        );
+      }
 
       switch (action) {
         case 'startPause': handleShortcutStartPause(); break;
@@ -2534,6 +2569,13 @@ export default function App() {
     pendingCompactRestoreRef.current = false;
   }, [requestCompactEntry]);
 
+  const scheduleFocusReturnToPreviousApp = useCallback((source, delayMs = 0) => {
+    if (!source) return;
+    setTimeout(() => {
+      void window.electronAPI.returnFocusToPreviousApp?.(source);
+    }, Math.max(0, Number(delayMs) || 0));
+  }, []);
+
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = 0;
@@ -2720,12 +2762,15 @@ export default function App() {
     return completedSessionId;
   }, [currentSessionId, task, mode, contextNotes, loadSessions, nextStepsNotes]);
 
-  const resolveCheckIn = useCallback(async (status) => {
+  const resolveCheckIn = useCallback(async (status, options = {}) => {
     if (checkInStateRef.current !== 'prompting') return;
     if (status !== 'focused') return;
     // Synchronously claim the ref so a second click cannot slip through
     // while the async logCheckIn IPC is in flight.
     checkInStateRef.current = 'resolved';
+    const focusReturnSource = typeof options?.focusReturnSource === 'string'
+      ? options.focusReturnSource.trim()
+      : '';
     const shouldReturnToCompact = checkInReturnToCompactRef.current;
     const shouldReturnToFloating = checkInReturnToFloatingRef.current;
     const elapsedSec = getElapsedSeconds();
@@ -2760,6 +2805,7 @@ export default function App() {
         compactSuccessReturnTimerRef.current = setTimeout(() => {
           compactSuccessReturnTimerRef.current = null;
           restoreDisplayMode({ returnToFloating: true });
+          scheduleFocusReturnToPreviousApp(focusReturnSource, 140);
         }, 2000);
         return;
       }
@@ -2771,6 +2817,7 @@ export default function App() {
         source: 'checkin-success',
       });
       setCompactSuccessCueSignal((prev) => prev + 1);
+      scheduleFocusReturnToPreviousApp(focusReturnSource, 80);
       return;
     }
 
@@ -2792,6 +2839,7 @@ export default function App() {
     checkInResolveTimeoutRef.current = setTimeout(() => {
       clearCheckInUi();
       restoreDisplayMode({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
+      scheduleFocusReturnToPreviousApp(focusReturnSource, 140);
     }, 2000);
   }, [
     advanceCheckInScheduleAfterResult,
@@ -2804,6 +2852,7 @@ export default function App() {
     preferredName,
     resetCheckInSchedule,
     restoreDisplayMode,
+    scheduleFocusReturnToPreviousApp,
     showToast,
     triggerConfetti,
   ]);
@@ -2870,9 +2919,10 @@ export default function App() {
   }, [checkInState]);
 
   useEffect(() => {
-    const cleanup = window.electronAPI.onScopedCheckInShortcut?.((action) => {
+    const cleanup = window.electronAPI.onScopedCheckInShortcut?.((shortcutPayload) => {
+      const { action, focusReturnSource } = normalizeShortcutEventPayload(shortcutPayload);
       if (action !== 'focused') return;
-      void resolveCheckIn('focused');
+      void resolveCheckIn('focused', { focusReturnSource });
     });
     return () => { if (cleanup) cleanup(); };
   }, [resolveCheckIn]);
@@ -3149,6 +3199,7 @@ export default function App() {
       pendingCompactRestoreRef.current = false;
       checkInPromptSurfaceRef.current = 'compact';
       pendingCompactCheckInPromptRef.current = true;
+      void window.electronAPI.armFocusReturnSource?.('checkin');
       // When floating originated from an already-compact session, React state is
       // still "pill", so setIsCompact(true) would be a no-op. In that case the
       // main window has already been restored at pill bounds; we just need to
@@ -3156,7 +3207,7 @@ export default function App() {
       // still need the normal compact-entry handoff.
       void Promise.resolve(window.electronAPI.exitFloatingForCompact?.()).then(() => {
         if (compactPromptRequested) {
-          window.electronAPI.bringToFront?.();
+          window.electronAPI.bringToFront?.({ focusReturnSource: 'checkin' });
           openCompactCheckInPrompt();
           return;
         }
@@ -3204,7 +3255,7 @@ export default function App() {
           checkInReturnToFloatingRef.current = true;
         }
         pendingCompactRestoreRef.current = false;
-        window.electronAPI.bringToFront?.();
+        window.electronAPI.bringToFront?.({ focusReturnSource: 'checkin' });
         setTimeout(() => {
           ensureWindowSizeForCurrentScreen(WINDOW_SIZES.timerCheckInPromptHeight);
         }, 160);
@@ -5662,6 +5713,42 @@ export default function App() {
     const sessionId = await getActiveThoughtSessionId();
     setThoughts((prev) => [buildThoughtRecord(nextText, sessionId), ...prev]);
   }, [buildThoughtRecord, getActiveThoughtSessionId]);
+  const closeQuickCaptureAndRestore = useCallback(({ returnFocus = false } = {}) => {
+    const shouldReturnToCompact = quickCaptureReturnToCompactRef.current;
+    const shouldReturnToFloating = quickCaptureReturnToFloatingRef.current;
+    const focusReturnSource = quickCaptureFocusReturnSourceRef.current;
+    quickCaptureReturnToCompactRef.current = false;
+    quickCaptureReturnToFloatingRef.current = false;
+    quickCaptureFocusReturnSourceRef.current = null;
+
+    setShowQuickCapture(false);
+
+    setTimeout(() => {
+      if (shouldReturnToCompact || shouldReturnToFloating) {
+        restoreDisplayMode({
+          returnToCompact: shouldReturnToCompact,
+          returnToFloating: shouldReturnToFloating,
+        });
+      } else {
+        resyncFullWindowSize();
+        setTimeout(() => {
+          resyncFullWindowSize();
+        }, 140);
+      }
+
+      if (returnFocus) {
+        scheduleFocusReturnToPreviousApp(
+          focusReturnSource,
+          shouldReturnToCompact || shouldReturnToFloating ? 140 : 80,
+        );
+      }
+    }, 60);
+  }, [resyncFullWindowSize, restoreDisplayMode, scheduleFocusReturnToPreviousApp]);
+  const handleQuickCaptureClose = useCallback(() => {
+    closeQuickCaptureAndRestore({
+      returnFocus: Boolean(quickCaptureFocusReturnSourceRef.current),
+    });
+  }, [closeQuickCaptureAndRestore]);
   const handleQuickCaptureSave = useCallback((text) => {
     const nextText = typeof text === 'string' ? text.trim() : '';
     if (!nextText) return;
@@ -5669,8 +5756,11 @@ export default function App() {
       const sessionId = await getActiveThoughtSessionId();
       setThoughts((prev) => [buildThoughtRecord(nextText, sessionId), ...prev]);
       showToast('success', 'Saved to Parking Lot');
+      closeQuickCaptureAndRestore({
+        returnFocus: Boolean(quickCaptureFocusReturnSourceRef.current),
+      });
     })();
-  }, [buildThoughtRecord, getActiveThoughtSessionId, showToast]);
+  }, [buildThoughtRecord, closeQuickCaptureAndRestore, getActiveThoughtSessionId, showToast]);
   const removeThought = useCallback((thoughtId) => {
     if (!thoughtId) return;
     setThoughts((prev) => prev.filter((thought) => thought.id !== thoughtId));
@@ -6396,7 +6486,7 @@ export default function App() {
           onDeleteSession={handleDeleteSession}
           onDeleteSessions={handleDeleteSessions}
         />
-        <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
+        <QuickCaptureModal isOpen={showQuickCapture} onClose={handleQuickCaptureClose} onSave={handleQuickCaptureSave} />
         <Toast toast={toast} onDismiss={() => setToast(null)} placement="pill-center" />
         {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
       </div>
@@ -7048,7 +7138,7 @@ export default function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <QuickCaptureModal isOpen={showQuickCapture} onClose={() => setShowQuickCapture(false)} onSave={handleQuickCaptureSave} />
+      <QuickCaptureModal isOpen={showQuickCapture} onClose={handleQuickCaptureClose} onSave={handleQuickCaptureSave} />
       <Toast toast={toast} onDismiss={() => setToast(null)} placement={toast?.placement || 'top-right'} />
       {showConfetti && <ConfettiBurst burstId={confettiBurstId} />}
     </div>

@@ -34,7 +34,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePreferredName: (preferredName) => ipcRenderer.invoke('profile:save-preferred-name', preferredName),
   enqueueFeedback: (item) => ipcRenderer.invoke('feedback:enqueue', item),
   syncFeedbackQueue: () => ipcRenderer.invoke('feedback:sync'),
-  bringToFront: () => ipcRenderer.send('bring-to-front'),
+  bringToFront: (options) => ipcRenderer.send('bring-to-front', options),
+  armFocusReturnSource: (source) => ipcRenderer.invoke('focus:arm-previous-app', source),
+  returnFocusToPreviousApp: (source) => ipcRenderer.invoke('focus:return-previous-app', source),
+  e2eSetFrontmostApp: (appInfo) => ipcRenderer.invoke('e2e:set-frontmost-app', appInfo),
+  e2eGetLastActivatedApp: () => ipcRenderer.invoke('e2e:get-last-activated-app'),
 
   // Shortcuts
   registerGlobalShortcuts: (shortcuts) => ipcRenderer.send('register-shortcuts', shortcuts),

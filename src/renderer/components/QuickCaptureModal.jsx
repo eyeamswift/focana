@@ -21,9 +21,8 @@ export default function QuickCaptureModal({ isOpen, onClose, onSave }) {
 
   const handleSave = async () => {
     if (thought.trim()) {
-      onSave?.(thought.trim());
+      await onSave?.(thought.trim());
       setThought('');
-      onClose();
     }
   };
 

@@ -88,13 +88,24 @@ function registerShortcuts(shortcuts, mainWindow) {
   });
 }
 
-function registerKeepForLaterShortcut(mainWindow) {
+function resolveShortcutPayload(payloadOrFactory, fallbackPayload) {
+  if (typeof payloadOrFactory === 'function') {
+    const resolved = payloadOrFactory();
+    return typeof resolved === 'undefined' ? fallbackPayload : resolved;
+  }
+  return typeof payloadOrFactory === 'undefined' ? fallbackPayload : payloadOrFactory;
+}
+
+function registerKeepForLaterShortcut(mainWindow, payloadOrFactory) {
   registerManagedShortcut(
     KEEP_FOR_LATER_ACCELERATOR,
     () => {
       const targetWindow = resolveWindow(mainWindow);
       if (targetWindow && !targetWindow.isDestroyed()) {
-        targetWindow.webContents.send('shortcut-triggered', 'openParkingLot');
+        targetWindow.webContents.send(
+          'shortcut-triggered',
+          resolveShortcutPayload(payloadOrFactory, 'openParkingLot'),
+        );
       }
     },
     'Keep for Later',
@@ -102,13 +113,16 @@ function registerKeepForLaterShortcut(mainWindow) {
   );
 }
 
-function registerCheckInYesShortcut(mainWindow) {
+function registerCheckInYesShortcut(mainWindow, payloadOrFactory) {
   registerManagedShortcut(
     CHECK_IN_YES_ACCELERATOR,
     () => {
       const targetWindow = resolveWindow(mainWindow);
       if (targetWindow && !targetWindow.isDestroyed()) {
-        targetWindow.webContents.send('scoped-checkin-shortcut', 'focused');
+        targetWindow.webContents.send(
+          'scoped-checkin-shortcut',
+          resolveShortcutPayload(payloadOrFactory, 'focused'),
+        );
       }
     },
     'Check-in: Yes',
