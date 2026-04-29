@@ -150,6 +150,10 @@ async function readE2ELastActivatedApp(page) {
   return page.evaluate(() => window.electronAPI.e2eGetLastActivatedApp());
 }
 
+async function readE2ELastBringToFrontPayload(page) {
+  return page.evaluate(() => window.electronAPI.e2eGetLastBringToFrontPayload());
+}
+
 function parseTimerTextToSeconds(timerText) {
   if (typeof timerText !== 'string') return null;
   const hourMatch = timerText.match(/^(\d+):(\d{2}):(\d{2})$/);
@@ -3158,6 +3162,54 @@ test('freeflow check-in stays on the compact prompt surface and returns to compa
     await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES);
     await expect(page.locator('.pill-success-cue--active')).toBeVisible();
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact-origin global check-in yes brings Focana forward and returns focus to the prior app', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'compact-global-checkin-yes');
+
+    await setE2EFrontmostApp(page, {
+      bundleId: 'com.example.Writer',
+      name: 'Writer',
+    });
+
+    await setTimeOffset(page, 301000);
+
+    await expect.poll(async () => readE2ELastBringToFrontPayload(page), { timeout: 7000 })
+      .toEqual({ focusReturnSource: 'checkin' });
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.locator('.checkin-popup-compact')).toBeVisible();
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('compact-global-checkin-yes?')).toBeVisible();
+
+    await triggerCheckInYesShortcut(electronApp, {
+      action: 'focused',
+      focusReturnSource: 'checkin',
+    });
+
+    await expect(page.locator('.checkin-popup-compact')).toHaveCount(0);
+    await expectCheckInToastMessage(page, FOCUSED_CHECKIN_MESSAGES);
+    await expect(page.locator('.pill-success-cue--active')).toBeVisible();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => JSON.stringify(await readE2ELastActivatedApp(page)), { timeout: 7000 })
+      .toBe(JSON.stringify({
+        bundleId: 'com.example.Writer',
+        name: 'Writer',
+      }));
   } finally {
     await cleanup();
   }

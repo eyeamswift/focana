@@ -3217,6 +3217,7 @@ export default function App() {
     }
 
     if (shouldUseCompactPrompt) {
+      window.electronAPI.bringToFront?.({ focusReturnSource: 'checkin' });
       openCompactCheckInPrompt();
       return true;
     }

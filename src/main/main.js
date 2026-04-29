@@ -144,6 +144,7 @@ let pendingHydrationSystemEntryRevealSource = null;
 const pendingFocusReturnTargets = new Map();
 let e2eFrontmostAppOverride = null;
 let e2eLastActivatedApp = null;
+let e2eLastBringToFrontPayload = null;
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -2215,6 +2216,11 @@ ipcMain.handle('get-always-on-top', () => {
 });
 
 ipcMain.on('bring-to-front', (_event, payload = {}) => {
+  if (isE2E) {
+    e2eLastBringToFrontPayload = payload && typeof payload === 'object'
+      ? { ...payload }
+      : payload;
+  }
   armFocusReturnForSource(payload?.focusReturnSource);
   clearPendingWakeUnlock();
   clearPendingSystemEntryReveal();
@@ -2246,12 +2252,18 @@ ipcMain.handle('e2e:set-frontmost-app', (_event, appInfo = null) => {
   if (!isE2E) return false;
   e2eFrontmostAppOverride = appInfo && typeof appInfo === 'object' ? appInfo : null;
   e2eLastActivatedApp = null;
+  e2eLastBringToFrontPayload = null;
   return true;
 });
 
 ipcMain.handle('e2e:get-last-activated-app', () => {
   if (!isE2E) return null;
   return e2eLastActivatedApp;
+});
+
+ipcMain.handle('e2e:get-last-bring-to-front-payload', () => {
+  if (!isE2E) return null;
+  return e2eLastBringToFrontPayload;
 });
 
 ipcMain.on('toggle-floating-minimize', () => {

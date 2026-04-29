@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   returnFocusToPreviousApp: (source) => ipcRenderer.invoke('focus:return-previous-app', source),
   e2eSetFrontmostApp: (appInfo) => ipcRenderer.invoke('e2e:set-frontmost-app', appInfo),
   e2eGetLastActivatedApp: () => ipcRenderer.invoke('e2e:get-last-activated-app'),
+  e2eGetLastBringToFrontPayload: () => ipcRenderer.invoke('e2e:get-last-bring-to-front-payload'),
 
   // Shortcuts
   registerGlobalShortcuts: (shortcuts) => ipcRenderer.send('register-shortcuts', shortcuts),
