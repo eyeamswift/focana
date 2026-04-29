@@ -2519,6 +2519,30 @@ test('settings opened from compact return to the previous compact position', asy
   }
 });
 
+test('quit confirmation requested from compact exits compact and returns to compact after cancel', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact-quit-dialog');
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+
+    await page.evaluate(() => {
+      window.electronAPI.quitApp?.();
+    });
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Quit Focana?')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cancel' }).click();
+
+    await expect(page.getByText('Quit Focana?')).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.locator(PILL_TASK_SELECTOR)).toContainText('compact-quit-dialog');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('parking lot opened from compact returns to the previous compact position', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 

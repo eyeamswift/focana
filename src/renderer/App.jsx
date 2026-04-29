@@ -450,6 +450,7 @@ export default function App() {
   const quickCaptureFocusReturnSourceRef = useRef(null);
   const historyReturnToCompactRef = useRef(false);
   const settingsReturnToCompactRef = useRef(false);
+  const quitResidentInfoReturnToCompactRef = useRef(false);
   const postSessionNotesActionRef = useRef(null); // 'resume-later' | 'move-on' | null
   const checkInReturnToCompactRef = useRef(false);
   const checkInReturnToFloatingRef = useRef(false);
@@ -1069,17 +1070,6 @@ export default function App() {
       isCancelled = true;
     };
   }, [buildPosthogPersonProps, identifyPosthogInstall]);
-
-  useEffect(() => {
-    const cleanupQuitInfo = window.electronAPI.onQuitResidentInfoRequested?.(() => {
-      setShowSettings(false);
-      setShowQuitResidentInfo(true);
-    });
-
-    return () => {
-      if (cleanupQuitInfo) cleanupQuitInfo();
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1750,7 +1740,12 @@ export default function App() {
   }, [closeFloatingReentryPrompt]);
 
   const handleExitCompact = useCallback(() => {
-    if (isCompact) {
+    const compactModeActive = isCompact
+      || document.documentElement.getAttribute('data-window-mode') === 'pill'
+      || windowModeDesiredRef.current === 'pill'
+      || windowModeActualRef.current === 'pill';
+
+    if (compactModeActive) {
       window.electronAPI.capturePillRestoreBounds?.();
       pendingCompactRestoreRef.current = false;
     }
@@ -1805,7 +1800,11 @@ export default function App() {
   }, []);
 
   const exitCompactForReturnDetour = useCallback((afterExit, delayMs = 120) => {
-    if (!isCompact) return false;
+    const compactModeActive = isCompact
+      || document.documentElement.getAttribute('data-window-mode') === 'pill'
+      || windowModeDesiredRef.current === 'pill'
+      || windowModeActualRef.current === 'pill';
+    if (!compactModeActive) return false;
     captureCompactReturnBounds();
     handleExitCompact();
     if (typeof afterExit === 'function') {
@@ -1839,6 +1838,25 @@ export default function App() {
     settingsReturnToCompactRef.current = false;
     setShowSettings(true);
   }, [exitCompactForReturnDetour, isCompact]);
+
+  const openQuitResidentInfo = useCallback(() => {
+    const compactQuitRequested = document.documentElement.getAttribute('data-window-mode') === 'pill'
+      || windowModeDesiredRef.current === 'pill'
+      || windowModeActualRef.current === 'pill';
+
+    if (compactQuitRequested) {
+      quitResidentInfoReturnToCompactRef.current = true;
+      exitCompactForReturnDetour(() => {
+        setShowSettings(false);
+        setShowQuitResidentInfo(true);
+      }, 120);
+      return;
+    }
+
+    quitResidentInfoReturnToCompactRef.current = false;
+    setShowSettings(false);
+    setShowQuitResidentInfo(true);
+  }, [exitCompactForReturnDetour]);
 
   const handleOpenParkingLot = useCallback(() => {
     track('parking_lot_opened', { source: 'manual' });
@@ -1899,6 +1917,16 @@ export default function App() {
     }
     setIsCompact(true);
   }, []);
+
+  const closeQuitResidentInfo = useCallback(({ returnToPreviousDisplayMode = false } = {}) => {
+    setShowQuitResidentInfo(false);
+    const shouldReturnToCompact = quitResidentInfoReturnToCompactRef.current;
+    quitResidentInfoReturnToCompactRef.current = false;
+
+    if (returnToPreviousDisplayMode && shouldReturnToCompact) {
+      requestCompactEntry({ restorePreviousBounds: true, delayMs: 80 });
+    }
+  }, [requestCompactEntry]);
 
   const handleShortcutToggleCompact = useCallback(() => {
     const newCompact = !isCompact;
@@ -2169,6 +2197,13 @@ export default function App() {
     });
     return () => { if (cleanup) cleanup(); };
   }, [openSettingsModal]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.onQuitResidentInfoRequested?.(() => {
+      openQuitResidentInfo();
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [openQuitResidentInfo]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onTrayThemeSelect?.((nextTheme) => {
@@ -3619,26 +3654,26 @@ export default function App() {
 
   const handleQuitResidentInfoHide = useCallback(() => {
     track('quit_resident_info_action', { action: 'hide' });
-    setShowQuitResidentInfo(false);
+    closeQuitResidentInfo();
     window.electronAPI.hideApp?.();
-  }, []);
+  }, [closeQuitResidentInfo]);
 
   const handleQuitResidentInfoCancel = useCallback(() => {
     track('quit_resident_info_action', { action: 'cancel' });
-    setShowQuitResidentInfo(false);
-  }, []);
+    closeQuitResidentInfo({ returnToPreviousDisplayMode: true });
+  }, [closeQuitResidentInfo]);
 
   const handleQuitResidentInfoMinimize = useCallback(() => {
     track('quit_resident_info_action', { action: 'minimize' });
-    setShowQuitResidentInfo(false);
+    closeQuitResidentInfo();
     window.electronAPI.minimizeToTray?.();
-  }, []);
+  }, [closeQuitResidentInfo]);
 
   const handleQuitResidentInfoQuit = useCallback(() => {
     track('quit_resident_info_action', { action: 'quit' });
-    setShowQuitResidentInfo(false);
+    closeQuitResidentInfo();
     window.electronAPI.forceQuitApp?.();
-  }, []);
+  }, [closeQuitResidentInfo]);
 
   const handleCloseParkingLot = useCallback(() => {
     setDistractionJarOpen(false);
@@ -7074,7 +7109,12 @@ export default function App() {
         onValidateLicense={handleValidateLicenseNow}
         onDeactivateLicense={handleDeactivateLicense}
       />
-      <Dialog open={showQuitResidentInfo} onOpenChange={(open) => { if (!open) setShowQuitResidentInfo(false); }}>
+      <Dialog
+        open={showQuitResidentInfo}
+        onOpenChange={(open) => {
+          if (!open) closeQuitResidentInfo({ returnToPreviousDisplayMode: true });
+        }}
+      >
         <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>
           <DialogHeader>
             <DialogTitle style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
