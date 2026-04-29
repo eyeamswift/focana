@@ -15,13 +15,13 @@
 
 ### SET-003 — Auto-launch should feel polished and context-aware after login launch
 - Priority: High
-- Status: Next Up
+- Status: In Progress
 - Version: 1.7.0
 - Why it matters: If launch-at-login feels abrupt, noisy, or ambiguous, the default-on behavior can feel like the app is happening to the user instead of quietly supporting them.
 - Files: `src/main/main.js`, `src/renderer/App.jsx`, `src/main/store.js`, `src/renderer/components/SettingsModal.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `SET-001`, `SES-001`, `SES-002`
-- Notes: Treat this as a polish pass on the shipped launch-at-login foundation, not a rethink of the default-on decision. The near-term path assumes Focana is a resident app after login, so wake/unlock behavior should be modeled as runtime re-entry on an already-running process rather than as a brand-new cold launch. Focus on the login-launch path feeling intentional and quiet: the right startup surface should appear immediately based on restore state, startup sizing/reveal should not flash awkward intermediary shells, manual launch and login launch should only diverge where the user benefit is clear, and the Settings toggle plus stored preference should remain trustworthy across relaunches and upgrades. Acceptance should verify cold login launch, restored paused/resumable sessions, licensed and unlicensed startup gates, wake/unlock re-entry while resident, and toggling launch-at-login on and off without surprise windows or inconsistent startup copy.
-- Commits: —
+- Notes: Treat this as a polish pass on the shipped launch-at-login foundation, not a rethink of the default-on decision. The near-term path assumes Focana is a resident app after login, so wake/unlock behavior should be modeled as runtime re-entry on an already-running process rather than as a brand-new cold launch. The current `1.7.0` candidate on `main` is the float-first resident path: system-initiated login/wake flows minimize to floating first, then surface `Ready to resume?` or `What's next?` after the system-entry delay; manual launch stays on the idle shell; first-launch activation and preferred-name gates still win immediately. Tomorrow's validation pass should cover first launch, launch+login, wake+login, wake+resume, manual launch, and in-app restart. Keep `package.json` at `1.6.0` until the release-prep pass and packaged testing signoff are complete.
+- Commits: `d2700ef`, `2876141`
 
 ### UX-014 — Pre-session and post-session boundary screens should feel polished and decisive
 - Priority: High
@@ -321,8 +321,8 @@
 - Why it matters: When a check-in appears, reaching for the mouse adds friction and can break focus, especially in compact or floating mode.
 - Files: `src/renderer/App.jsx`, check-in prompt components, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `WIN-004`
-- Notes: `Cmd/Ctrl+Shift+Y` now resolves the positive `Yes` path only while the first check-in prompt is visible and Focana is frontmost. The shortcut is scoped to the app window instead of being added to the global shortcut registry, there is no paired `No` shortcut, and current regression coverage verifies both the focused-only shortcut messaging and that `Keep for Later` remains the only registered global shortcut on launch.
-- Commits: `fbd4769`, `8bae8f0`
+- Notes: The original `1.4.0` pass added a keyboard shortcut for the positive `Yes` path. The current behavior on `main` is a temporary global `Cmd/Ctrl+Shift+Y` while the first check-in prompt is visible, plus focus return to the previously active app after the shortcut resolves the check-in. `Cmd/Ctrl+Shift+K` also now restores the prior Focana view and returns focus to the previously active app after Parking Lot capture, so the shortcut story stays lightweight while the user keeps working.
+- Commits: `fbd4769`, `8bae8f0`, `ab8a3a3`, `953718d`
 
 ### SET-001 — Focana should launch at login by default with a settings toggle
 - Status: Done
