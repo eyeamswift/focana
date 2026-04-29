@@ -265,6 +265,16 @@
 - Notes: Do not pull this into the current roadmap. Revisit after session analytics and pattern views ship as part of the planned Phase 2 premium work. First pass should read from existing session history rather than creating a separate manual tracking workflow.
 - Commits: —
 
+### ANA-003 — Next app open should backfill local session history into Supabase
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: Historical usage is still stranded on users' Macs because Supabase only sees feedback-backed sessions today. A one-time backfill on the next app open would recover real session history for users who still have their local Electron Store data, making analytics materially more trustworthy without waiting for a full long-term sync architecture.
+- Files: `src/renderer/App.jsx`, `src/renderer/adapters/store.js`, `src/main/store.js`, licensing/startup flow, future Supabase session-sync endpoint
+- Related: `ANA-001`, `HIST-001`
+- Notes: Scope this as a device-local historical import, not a general cloud history feature. On app open after runtime/license resolution, read local `sessions` from Electron Store, upload any unsynced historical sessions to Supabase tagged with `install_id` and `license_instance_id`, and persist a local synced marker so the same rows are not resent. The import should be idempotent, safe across retries, and tolerant of partial failures. Important constraint: this only works if the original local store still exists on that same machine; it will not recover history from wiped installs or different devices. Acceptance should verify an existing user with local session history and no prior cloud rows can launch once, backfill their historical sessions, and then relaunch without creating duplicates.
+- Commits: —
+
 ### ANA-002 — Goal setting should support intentional focus targets
 - Priority: Low
 - Status: Later
@@ -296,6 +306,24 @@
 - Commits: —
 
 ## Done
+
+### WIN-009 — Parking Lot hotkey from floating should not collapse back to compact
+- Status: Done
+- Version: 1.7.0
+- Why it matters: A global capture shortcut should feel lighter than changing modes by hand. If invoking Parking Lot from floating drops the user back into compact, the shortcut interrupts the exact low-friction flow it is supposed to protect.
+- Files: `src/main/main.js`, `src/main/shortcuts.js`, `src/renderer/App.jsx`, Parking Lot entry/exit flow, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-007`, `UX-010`
+- Notes: Quick Capture now restores the originating display mode instead of turning the shortcut into a mode switch. The shortcut-triggered flow returns `full -> full`, `compact/pill -> compact/pill`, and `floating minimize -> floating minimize`, with targeted regression coverage for save and dismiss across the real shortcut path.
+- Commits: `953718d`
+
+### WIN-010 — Global shortcuts should preserve the user’s typing context in the previous app
+- Status: Done
+- Version: 1.7.0
+- Why it matters: Global commands are supposed to reduce friction mid-flow. If Focana steals keyboard focus and leaves the user stranded there, the shortcut defeats its own purpose by interrupting the app they were actively using.
+- Files: `src/main/main.js`, `src/main/shortcuts.js`, window activation/focus plumbing, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `WIN-001`, `WIN-009`, `WIN-006`
+- Notes: Shortcut flows now capture the previously active app and hand focus back after the shortcut interaction completes. `Check-in: Yes` can resolve the visible prompt without leaving typing stranded in Focana, and text-entry flows such as `Keep for Later` can temporarily focus Focana for input before returning focus after save or cancel.
+- Commits: `ab8a3a3`, `953718d`, `4926f02`
 
 ### UX-010 — Post-session transition should script the next move
 - Status: Done
