@@ -2026,19 +2026,9 @@ export default function FocanaLanding() {
                 fontWeight: 500,
                 lineHeight: 1.6,
                 color: COLORS.coffeeBrown,
-                marginBottom: "18px",
+                marginBottom: "20px",
               }}>
                 Always visible, always anchoring you back to what matters.
-              </p>
-
-              <p style={{
-                fontSize: "16px",
-                lineHeight: 1.8,
-                color: COLORS.coffeeBrown,
-                marginBottom: "20px",
-                maxWidth: "560px",
-              }}>
-                <strong style={{ color: COLORS.warmBrown }}>What is Focana?</strong> Focana is a native Mac focus app for ADHD and busy brains that keeps your task, timer, and session notes visible while you switch between apps. Instead of asking you to build a whole productivity system, it gives you one calm attention anchor you can keep in sight.
               </p>
 
               <p style={{
