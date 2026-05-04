@@ -18,6 +18,23 @@ const FOCUSED_CHECKIN_MESSAGES = [
   'Great. You got this.',
   'You\'re doing good 👍🏾',
 ];
+
+function buildExpiredTrialLicense(overrides = {}) {
+  const now = Date.now();
+  return {
+    key: '',
+    instanceId: '',
+    status: 'unlicensed',
+    activatedAt: null,
+    lastValidatedAt: null,
+    offlineGraceUntil: null,
+    lastError: null,
+    trialStartedAt: new Date(now - (31 * 24 * 60 * 60 * 1000)).toISOString(),
+    trialEndsAt: new Date(now - (24 * 60 * 60 * 1000)).toISOString(),
+    ...overrides,
+  };
+}
+
 function buildSeedConfig(seedConfig = null) {
   return {
     userEmail: 'justin.franklin90@gmail.com',
@@ -106,6 +123,9 @@ async function triggerShortcutAction(electronApp, action) {
   }, action);
 }
 
+async function readE2ELastExternalUrl(page) {
+  return page.evaluate(() => window.electronAPI.e2eGetLastExternalUrl());
+}
 function parseTimerTextToSeconds(timerText) {
   if (typeof timerText !== 'string') return null;
   const hourMatch = timerText.match(/^(\d+):(\d{2}):(\d{2})$/);
@@ -596,19 +616,11 @@ test('fresh launch without persisted window state opens in the bottom-right work
   }
 });
 
-test('activation gate expands beyond the old 360px startup shell to fit its content', async () => {
+test('expired trial upgrade gate expands beyond the old 360px startup shell and opens checkout links', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     seedConfig: {
       preferredName: '',
-      license: {
-        key: '',
-        instanceId: '',
-        status: 'unlicensed',
-        activatedAt: null,
-        lastValidatedAt: null,
-        offlineGraceUntil: null,
-        lastError: null,
-      },
+      license: buildExpiredTrialLicense(),
     },
     waitForTaskInput: false,
     extraEnv: {
@@ -617,16 +629,22 @@ test('activation gate expands beyond the old 360px startup shell to fit its cont
   });
 
   try {
-    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
-    await expect(page.getByText('Where is my key? Check your Lemon Squeezy receipt email or Lemon Squeezy My Orders. If this key is already active on another Mac, deactivate it there first or contact support at hello@focana.app.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your free trial is complete' })).toBeVisible();
+    await expect(page.getByText('After checkout, use the license key from your Lemon receipt email to activate this Mac.')).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
       .toBeGreaterThan(360);
+
+    await page.getByRole('button', { name: 'Start monthly - $10/mo' }).click();
+    await expect.poll(() => readE2ELastExternalUrl(page)).toContain('enabled=1442573');
+
+    await page.getByRole('button', { name: 'Buy lifetime - $79' }).click();
+    await expect.poll(() => readE2ELastExternalUrl(page)).toContain('enabled=1611321');
   } finally {
     await cleanup();
   }
 });
 
-test('activation gate keeps its larger shell even when a running timer restores at startup', async () => {
+test('expired trial upgrade gate keeps its larger shell even when a running timer restores at startup', async () => {
   const restoredSessionStartedAt = new Date(Date.now() - (2 * 60 * 1000)).toISOString();
   const { electronApp, page, cleanup } = await launchApp({
     seedConfig: {
@@ -644,15 +662,7 @@ test('activation gate keeps its larger shell even when a running timer restores 
         sessionStartedAt: restoredSessionStartedAt,
         currentSessionId: 'restored-license-gate-session',
       },
-      license: {
-        key: '',
-        instanceId: '',
-        status: 'unlicensed',
-        activatedAt: null,
-        lastValidatedAt: null,
-        offlineGraceUntil: null,
-        lastError: null,
-      },
+      license: buildExpiredTrialLicense(),
     },
     waitForTaskInput: false,
     extraEnv: {
@@ -661,7 +671,7 @@ test('activation gate keeps its larger shell even when a running timer restores 
   });
 
   try {
-    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your free trial is complete' })).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
       .toBeGreaterThan(360);
 
@@ -678,15 +688,7 @@ test('license activation flows into name capture and then into the app without b
   const { page, cleanup } = await launchApp({
     seedConfig: {
       preferredName: '',
-      license: {
-        key: '',
-        instanceId: '',
-        status: 'unlicensed',
-        activatedAt: null,
-        lastValidatedAt: null,
-        offlineGraceUntil: null,
-        lastError: null,
-      },
+      license: buildExpiredTrialLicense(),
     },
     waitForTaskInput: false,
     extraEnv: {
@@ -695,16 +697,17 @@ test('license activation flows into name capture and then into the app without b
   });
 
   try {
-    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your free trial is complete' })).toBeVisible();
+    await page.getByRole('button', { name: 'I already have a license key' }).click();
     await page.getByPlaceholder('Paste your Focana license key').fill('password');
-    await page.getByRole('button', { name: 'Submit' }).click();
+    await page.getByRole('button', { name: 'Activate license' }).click();
 
     await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
     await page.getByPlaceholder('Your name').fill('Ari');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await expect(page.getByText(NAME_GATE_HEADING)).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Your free trial is complete' })).toHaveCount(0);
     await page.waitForSelector(TASK_INPUT_SELECTOR);
   } finally {
     await cleanup();
@@ -918,15 +921,6 @@ test('login launch waits for activation and name gates before opening the idle t
     waitForTaskInput: false,
     seedConfig: {
       preferredName: '',
-      license: {
-        key: '',
-        instanceId: '',
-        status: 'unlicensed',
-        activatedAt: null,
-        lastValidatedAt: null,
-        offlineGraceUntil: null,
-        lastError: null,
-      },
     },
     extraEnv: {
       FOCANA_FORCE_LICENSE_GATE: '1',
@@ -937,15 +931,7 @@ test('login launch waits for activation and name gates before opening the idle t
   try {
     const firstPromptInput = page.getByRole('textbox', { name: 'What are we working on first?' });
 
-    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toBeVisible();
-    await expect(firstPromptInput).toHaveCount(0);
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
-
-    await page.getByPlaceholder('Paste your Focana license key').fill('password');
-    await page.getByRole('button', { name: 'Submit' }).click();
-
     await expect(page.getByText(NAME_GATE_HEADING)).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Activate Focana on this Mac' })).toHaveCount(0);
     await expect(firstPromptInput).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveCount(0);
 

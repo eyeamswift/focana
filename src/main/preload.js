@@ -28,10 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   activateLicense: (licenseKey) => ipcRenderer.invoke('license:activate', licenseKey),
   validateLicense: (options) => ipcRenderer.invoke('license:validate', options),
   deactivateLicense: () => ipcRenderer.invoke('license:deactivate'),
+  getBillingCheckoutLinks: () => ipcRenderer.invoke('billing:get-checkout-links'),
+  openBillingCheckout: (plan) => ipcRenderer.invoke('billing:open-checkout', plan),
+  openExternalUrl: (url) => ipcRenderer.invoke('app:open-external-url', url),
   savePreferredName: (preferredName) => ipcRenderer.invoke('profile:save-preferred-name', preferredName),
   enqueueFeedback: (item) => ipcRenderer.invoke('feedback:enqueue', item),
   syncFeedbackQueue: () => ipcRenderer.invoke('feedback:sync'),
   bringToFront: () => ipcRenderer.send('bring-to-front'),
+  e2eGetLastExternalUrl: () => ipcRenderer.invoke('e2e:get-last-external-url'),
 
   // Shortcuts
   registerGlobalShortcuts: (shortcuts) => ipcRenderer.send('register-shortcuts', shortcuts),

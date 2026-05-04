@@ -62,6 +62,7 @@ const WINDOW_SIZES = {
   startupCheckingHeight: 220,
   startupNameHeight: 380,
   startupActivationHeight: 460,
+  startupUpgradeHeight: 620,
   startChooserHeight: 176,
   timerHeight: 108,
   timerCheckInPromptHeight: 280,
@@ -165,6 +166,8 @@ function getFocusedCheckInMessages(preferredName) {
 
 function getLicenseGateCopy(status) {
   switch (status) {
+    case 'trial_expired':
+      return 'Your free trial is complete. Choose a plan to keep Focana active on this Mac.';
     case 'config_error':
       return 'This packaged build is missing Lemon licensing config. Add the Focana Lemon store, product, and variant IDs before shipping it.';
     case 'invalid':
@@ -346,12 +349,13 @@ export default function App() {
   const [parkingLotTaskSwitchConfirm, setParkingLotTaskSwitchConfirm] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
-  const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | name | ready
+  const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | upgrade | name | ready
   const [startupRevealComplete, setStartupRevealComplete] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState(null);
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [licenseSubmitting, setLicenseSubmitting] = useState(false);
+  const [upgradeLicenseFormVisible, setUpgradeLicenseFormVisible] = useState(false);
   const [preferredName, setPreferredName] = useState('');
   const [preferredNameInput, setPreferredNameInput] = useState('');
   const [preferredNameSubmitting, setPreferredNameSubmitting] = useState(false);
@@ -968,7 +972,7 @@ export default function App() {
             setPreferredNameInput(storedPreferredName);
             setStartupGateState(storedPreferredName ? 'ready' : 'name');
           } else {
-            setStartupGateState('activation');
+            setStartupGateState(nextLicenseStatus?.status === 'trial_expired' ? 'upgrade' : 'activation');
           }
           return;
         }
@@ -1066,7 +1070,7 @@ export default function App() {
       );
       await resolveStartupReadyState();
     } else if (runtimeInfo?.licenseEnforced) {
-      setStartupGateState('activation');
+      setStartupGateState(nextStatus.status === 'trial_expired' ? 'upgrade' : 'activation');
     }
     return nextStatus;
   }, [identifyPosthogInstall, resolveStartupReadyState, runtimeInfo?.channel, runtimeInfo?.licenseEnforced]);
@@ -1083,7 +1087,8 @@ export default function App() {
       if (!nextStatus) return;
 
       setLicenseStatus(nextStatus);
-      if (nextStatus.allowed) {
+      const paidActivationSucceeded = nextStatus.allowed && nextStatus.keyPresent && nextStatus.status !== 'trial_active';
+      if (paidActivationSucceeded) {
         identifyPosthogInstall(
           nextStatus.instanceId || nextStatus.installId,
           {
@@ -1092,9 +1097,16 @@ export default function App() {
           },
         );
         setLicenseKeyInput('');
+        setUpgradeLicenseFormVisible(false);
         await resolveStartupReadyState();
         showToast('success', 'License activated for this Mac');
+      } else if (nextStatus.allowed) {
+        await resolveStartupReadyState();
+        showToast('warning', nextStatus.lastError || getLicenseGateCopy(nextStatus.status));
       } else {
+        if (nextStatus.status === 'trial_expired') {
+          setStartupGateState('upgrade');
+        }
         showToast('warning', nextStatus.lastError || getLicenseGateCopy(nextStatus.status));
       }
     } catch (error) {
@@ -1131,7 +1143,7 @@ export default function App() {
           setPreferredNameInput((prev) => prev || preferredName);
         }
       } else if (runtimeInfo?.licenseEnforced) {
-        setStartupGateState('activation');
+        setStartupGateState(nextStatus.status === 'trial_expired' ? 'upgrade' : 'activation');
         showToast('warning', nextStatus.lastError || 'This Mac needs a valid Focana license.');
       }
 
@@ -1151,7 +1163,11 @@ export default function App() {
       setLicenseStatus(nextStatus);
       if (runtimeInfo?.licenseEnforced) {
         setShowSettings(false);
-        setStartupGateState('activation');
+        if (nextStatus.allowed) {
+          await resolveStartupReadyState();
+        } else {
+          setStartupGateState(nextStatus.status === 'trial_expired' ? 'upgrade' : 'activation');
+        }
         setLicenseKeyInput('');
       }
       showToast('info', 'License removed from this Mac.');
@@ -1161,7 +1177,18 @@ export default function App() {
       showToast('warning', 'Could not deactivate this Mac right now.');
       return null;
     }
-  }, [runtimeInfo?.licenseEnforced, showToast]);
+  }, [resolveStartupReadyState, runtimeInfo?.licenseEnforced, showToast]);
+
+  const handleOpenBillingCheckout = useCallback(async (plan) => {
+    const normalizedPlan = typeof plan === 'string' ? plan : '';
+    try {
+      await window.electronAPI.openBillingCheckout?.(normalizedPlan);
+      track('billing_checkout_opened', { plan: normalizedPlan, source: startupGateState === 'upgrade' ? 'upgrade_gate' : 'settings' });
+    } catch (error) {
+      console.error('Failed to open billing checkout:', error);
+      showToast('warning', 'Could not open checkout right now.');
+    }
+  }, [showToast, startupGateState]);
 
   const handlePreferredNameSubmit = useCallback(async () => {
     if (preferredNameSubmitting) return;
@@ -3507,6 +3534,7 @@ export default function App() {
 
   const getStartupGateFallbackHeight = useCallback(() => {
     if (startupGateState === 'activation') return WINDOW_SIZES.startupActivationHeight;
+    if (startupGateState === 'upgrade') return WINDOW_SIZES.startupUpgradeHeight;
     if (startupGateState === 'name') return WINDOW_SIZES.startupNameHeight;
     return WINDOW_SIZES.startupCheckingHeight;
   }, [startupGateState]);
@@ -5961,6 +5989,123 @@ export default function App() {
       );
     }
 
+    if (startupGateState === 'upgrade') {
+      const activationErrorMessage = licenseStatus?.lastError || '';
+      return (
+        <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
+          <div
+            ref={startupGateCardRef}
+            className="electron-no-drag"
+            style={{
+              width: '100%',
+              maxWidth: '28rem',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--brand-action)',
+              borderRadius: '0.9rem',
+              boxShadow: 'var(--shadow-minimal)',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.9rem',
+            }}
+          >
+            <div style={{ display: 'grid', gap: '0.45rem' }}>
+              <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                Your free trial is complete
+              </h1>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                Keep Focana running with a monthly plan, or buy lifetime access once.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gap: '0.65rem' }}>
+              <Button
+                type="button"
+                onClick={() => void handleOpenBillingCheckout('monthly')}
+                className="electron-no-drag"
+                style={{ width: '100%', minHeight: '2.8rem' }}
+              >
+                Start monthly - $10/mo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleOpenBillingCheckout('lifetime')}
+                className="electron-no-drag"
+                style={{ width: '100%', minHeight: '2.8rem', borderColor: 'var(--brand-action)', color: 'var(--text-primary)' }}
+              >
+                Buy lifetime - $79
+              </Button>
+            </div>
+
+            <button
+              type="button"
+              className="electron-no-drag"
+              onClick={() => setUpgradeLicenseFormVisible((visible) => !visible)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: '0.86rem',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: '0.1rem',
+                alignSelf: 'center',
+              }}
+            >
+              I already have a license key
+            </button>
+
+            {upgradeLicenseFormVisible ? (
+              <form
+                className="electron-no-drag"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleLicenseActivation();
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+              >
+                <input
+                  type="text"
+                  value={licenseKeyInput}
+                  onChange={(event) => setLicenseKeyInput(event.target.value)}
+                  placeholder="Paste your Focana license key"
+                  autoFocus
+                  className="input electron-no-drag"
+                  style={{ width: '100%', fontSize: '0.95rem', padding: '0.7rem 0.8rem' }}
+                />
+                <Button
+                  type="submit"
+                  disabled={!canSubmitLicense || licenseSubmitting}
+                  className="electron-no-drag"
+                  style={{ width: '100%', minHeight: '2.6rem' }}
+                >
+                  {licenseSubmitting ? 'Submitting...' : 'Activate license'}
+                </Button>
+              </form>
+            ) : null}
+
+            {activationErrorMessage ? (
+              <div style={{
+                padding: '0.75rem 0.9rem',
+                borderRadius: '0.75rem',
+                border: '1px solid var(--error-surface-border)',
+                background: 'var(--error-surface-bg)',
+              }}>
+                <p style={{ margin: 0, color: 'var(--error-surface-text)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                  {activationErrorMessage}
+                </p>
+              </div>
+            ) : null}
+
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.5, textAlign: 'center' }}>
+              After checkout, use the license key from your Lemon receipt email to activate this Mac.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (startupGateState === 'name') {
       return (
         <div className="app-container electron-draggable" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', padding: '1rem' }}>
@@ -6819,6 +6964,7 @@ export default function App() {
         licenseStatus={licenseStatus}
         onValidateLicense={handleValidateLicenseNow}
         onDeactivateLicense={handleDeactivateLicense}
+        onOpenCheckout={handleOpenBillingCheckout}
       />
       <Dialog open={showQuitResidentInfo} onOpenChange={(open) => { if (!open) setShowQuitResidentInfo(false); }}>
         <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '28rem' }}>

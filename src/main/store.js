@@ -112,6 +112,8 @@ const schema = {
       customerIdLs: { type: ['string', 'null'], default: null },
       customerEmail: { type: ['string', 'null'], default: null },
       customerName: { type: ['string', 'null'], default: null },
+      trialStartedAt: { type: ['string', 'null'], default: null },
+      trialEndsAt: { type: ['string', 'null'], default: null },
     },
     default: {},
   },

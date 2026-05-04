@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, screen, nativeImage, powerMonitor, shell } = require('electron');
 const fs = require('fs/promises');
 const http = require('http');
 const path = require('path');
@@ -112,6 +112,16 @@ let startupRevealFallbackTimer = null;
 let pendingSystemResumeSyncTimer = null;
 let pendingSystemPausePayload = null;
 let pendingStartupLaunchSource = null;
+let e2eLastExternalUrl = null;
+const BILLING_CHECKOUT_URLS = {
+  monthly: process.env.FOCANA_MONTHLY_CHECKOUT_URL || 'https://focana.lemonsqueezy.com/checkout/buy/44ce5109-e534-4421-9665-34c166169b18?enabled=1442573',
+  lifetime: process.env.FOCANA_LIFETIME_CHECKOUT_URL || 'https://focana.lemonsqueezy.com/checkout/buy/4a2aae5f-06fd-4645-a774-c562c4d4d9fe?enabled=1611321',
+};
+const ALLOWED_EXTERNAL_HOSTS = new Set([
+  'focana.app',
+  'www.focana.app',
+  'focana.lemonsqueezy.com',
+]);
 const ALLOWED_STORE_KEYS = new Set([
   'currentTask',
   'timerState',
@@ -618,6 +628,31 @@ function validateStoreKey(key) {
     throw new Error(`Unsupported store key: ${String(key)}`);
   }
   return key;
+}
+
+function normalizeAllowedExternalUrl(rawUrl) {
+  const value = typeof rawUrl === 'string' ? rawUrl.trim() : '';
+  if (!value) {
+    throw new Error('Missing external URL');
+  }
+
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || !ALLOWED_EXTERNAL_HOSTS.has(url.hostname)) {
+    throw new Error('Unsupported external URL');
+  }
+
+  return url.toString();
+}
+
+async function openExternalUrl(rawUrl) {
+  const url = normalizeAllowedExternalUrl(rawUrl);
+  if (isE2E) {
+    e2eLastExternalUrl = url;
+    return { ok: true, url };
+  }
+
+  await shell.openExternal(url);
+  return { ok: true, url };
 }
 
 function sanitizeBooleanMap(value) {
@@ -1818,6 +1853,23 @@ ipcMain.handle('license:deactivate', () => {
   return licenseService.deactivateLicense();
 });
 
+ipcMain.handle('billing:get-checkout-links', () => {
+  return { ...BILLING_CHECKOUT_URLS };
+});
+
+ipcMain.handle('billing:open-checkout', (_event, plan) => {
+  const normalizedPlan = typeof plan === 'string' ? plan.trim().toLowerCase() : '';
+  const checkoutUrl = BILLING_CHECKOUT_URLS[normalizedPlan];
+  if (!checkoutUrl) {
+    throw new Error('Unsupported checkout plan');
+  }
+  return openExternalUrl(checkoutUrl);
+});
+
+ipcMain.handle('app:open-external-url', (_event, url) => {
+  return openExternalUrl(url);
+});
+
 ipcMain.handle('profile:save-preferred-name', (_event, preferredName) => {
   return licenseService.savePreferredName(preferredName);
 });
@@ -1858,6 +1910,11 @@ ipcMain.on('bring-to-front', () => {
   setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
   mainWindow.show();
   mainWindow.focus();
+});
+
+ipcMain.handle('e2e:get-last-external-url', () => {
+  if (!isE2E) return null;
+  return e2eLastExternalUrl;
 });
 
 ipcMain.on('toggle-floating-minimize', () => {

@@ -7,6 +7,13 @@ const LICENSE_API_BASE_URL = 'https://api.lemonsqueezy.com/v1/licenses'
 const DEFAULT_LICENSE_SYNC_API_URL = 'https://focana.app/api/license-instance-sync'
 const LICENSE_SYNC_TIMEOUT_MS = 10 * 1000
 const DEV_TEST_LICENSE_KEY = 'password'
+const TRIAL_DAYS = 30
+const KNOWN_VARIANT_IDS = {
+  monthly: 1442573,
+  lifetime: 1611321,
+  legacyLifetime: 1442556,
+  friendsFamily: 1438451,
+}
 
 function isDevRuntime(app) {
   return process.env.FOCANA_E2E === '1' || process.env.FOCANA_DEV === '1' || !app.isPackaged
@@ -38,6 +45,13 @@ function addDays(date, days) {
   const copy = new Date(date)
   copy.setDate(copy.getDate() + days)
   return copy
+}
+
+function daysBetween(start, end) {
+  const startMs = start instanceof Date ? start.getTime() : new Date(start).getTime()
+  const endMs = end instanceof Date ? end.getTime() : new Date(end).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0
+  return Math.ceil((endMs - startMs) / (24 * 60 * 60 * 1000))
 }
 
 function safeIsoDate(value) {
@@ -82,6 +96,8 @@ function normalizeStoredLicense(raw) {
       customerIdLs: null,
       customerEmail: null,
       customerName: null,
+      trialStartedAt: null,
+      trialEndsAt: null,
     }
   }
 
@@ -99,7 +115,26 @@ function normalizeStoredLicense(raw) {
     customerIdLs: typeof raw.customerIdLs === 'string' && raw.customerIdLs.trim() ? raw.customerIdLs.trim() : null,
     customerEmail: clampText(raw.customerEmail, 320).toLowerCase() || null,
     customerName: clampText(raw.customerName, 160) || null,
+    trialStartedAt: safeIsoDate(raw.trialStartedAt),
+    trialEndsAt: safeIsoDate(raw.trialEndsAt),
   }
+}
+
+function getConfiguredVariantId(name) {
+  const envKey = `FOCANA_LEMON_${name.toUpperCase()}_VARIANT_ID`
+  const envValue = Number.parseInt(String(process.env[envKey] || '').trim(), 10)
+  return Number.isFinite(envValue) && envValue > 0 ? envValue : KNOWN_VARIANT_IDS[name]
+}
+
+function getPlanForVariantId(variantId) {
+  const normalizedVariantId = Number(variantId) || null
+  if (!normalizedVariantId) return null
+
+  if (normalizedVariantId === getConfiguredVariantId('monthly')) return 'monthly'
+  if (normalizedVariantId === getConfiguredVariantId('lifetime')) return 'lifetime'
+  if (normalizedVariantId === getConfiguredVariantId('legacyLifetime')) return 'legacy_lifetime'
+  if (normalizedVariantId === getConfiguredVariantId('friendsFamily')) return 'friends_family'
+  return 'paid'
 }
 
 function extractLicenseMeta(payload) {
@@ -387,7 +422,27 @@ function createLicenseService({ app, store }) {
     return getStoredLicense()
   }
 
-  function clearStoredLicense(lastError = null, status = 'unlicensed') {
+  function ensureTrialWindow(storedLicense, now = new Date()) {
+    const stored = normalizeStoredLicense(storedLicense)
+    const trialStartedAt = safeIsoDate(stored.trialStartedAt)
+    const trialEndsAt = safeIsoDate(stored.trialEndsAt)
+
+    if (trialStartedAt && trialEndsAt) {
+      return stored
+    }
+
+    const nextTrialStartedAt = trialStartedAt || now.toISOString()
+    const nextTrialEndsAt = trialEndsAt || addDays(new Date(nextTrialStartedAt), TRIAL_DAYS).toISOString()
+    setStoredLicense({
+      ...stored,
+      trialStartedAt: nextTrialStartedAt,
+      trialEndsAt: nextTrialEndsAt,
+    })
+    return getStoredLicense()
+  }
+
+  function clearStoredLicense(lastError = null, status = 'unlicensed', { preserveTrial = true } = {}) {
+    const existing = preserveTrial ? getStoredLicense() : {}
     return setStoredLicense({
       key: '',
       instanceId: '',
@@ -398,13 +453,15 @@ function createLicenseService({ app, store }) {
       lastError,
       productId: null,
       variantId: null,
+      trialStartedAt: existing.trialStartedAt || null,
+      trialEndsAt: existing.trialEndsAt || null,
     })
   }
 
   function resetDevLicenseStateIfNeeded() {
     if (devLicenseStateReset) return
     if (!isLicenseGateForced() || !shouldResetLicenseState()) return
-    clearStoredLicense(null, 'unlicensed')
+    clearStoredLicense(null, 'unlicensed', { preserveTrial: false })
     devLicenseStateReset = true
   }
 
@@ -412,22 +469,30 @@ function createLicenseService({ app, store }) {
     resetDevLicenseStateIfNeeded()
     const runtime = getRuntimeInfo()
     const installId = ensureInstallId()
-    const stored = { ...getStoredLicense(), ...overrides }
     const now = new Date()
+    const initialStored = { ...getStoredLicense(), ...overrides }
+    const keyPresent = Boolean(initialStored.key)
+    const instanceId = initialStored.instanceId || ''
+    const packagedDevTestLicense = runtime.licenseEnforced && !isDevTestLicenseAllowed(app) && isStoredDevTestLicense(initialStored)
+    const configured = runtime.licenseConfigured || isForcedDevLicenseFlow(app) || isDevTestLicenseAllowed(app)
+    const shouldHaveTrial = runtime.licenseEnforced
+      && configured
+      && !keyPresent
+      && !packagedDevTestLicense
+    const stored = shouldHaveTrial ? ensureTrialWindow(initialStored, now) : initialStored
     const lastValidatedAt = safeIsoDate(stored.lastValidatedAt)
     const offlineGraceUntil = safeIsoDate(stored.offlineGraceUntil)
+    const trialStartedAt = safeIsoDate(stored.trialStartedAt)
+    const trialEndsAt = safeIsoDate(stored.trialEndsAt)
+    const trialDaysRemaining = trialEndsAt ? Math.max(0, daysBetween(now, new Date(trialEndsAt))) : 0
+    const trialActive = Boolean(trialEndsAt && new Date(trialEndsAt) > now)
     const validationDueAt = lastValidatedAt
       ? addHours(new Date(lastValidatedAt), licenseConfig.validationIntervalHours).toISOString()
       : null
     const validationDue = !lastValidatedAt || new Date(validationDueAt) <= now
     const withinGrace = Boolean(offlineGraceUntil && new Date(offlineGraceUntil) > now)
-    const keyPresent = Boolean(stored.key)
-    const instanceId = stored.instanceId || ''
-    const usingForcedDevFlow = isForcedDevLicenseFlow(app)
     const usingDevTestLicense = isDevTestLicenseAllowed(app) && instanceId.startsWith('dev-test-')
-    const configured = runtime.licenseConfigured || usingForcedDevFlow || isDevTestLicenseAllowed(app)
     let status = stored.status || 'unlicensed'
-    const packagedDevTestLicense = runtime.licenseEnforced && !isDevTestLicenseAllowed(app) && isStoredDevTestLicense(stored)
 
     if (!runtime.licenseEnforced) {
       status = 'not_required'
@@ -436,12 +501,15 @@ function createLicenseService({ app, store }) {
     } else if (!configured) {
       status = 'config_error'
     } else if (!keyPresent || !instanceId) {
-      status = 'unlicensed'
+      status = trialActive ? 'trial_active' : 'trial_expired'
     } else if (status === 'offline_grace' && !withinGrace) {
       status = 'error'
     }
 
-    const allowed = !runtime.licenseEnforced || status === 'active' || (status === 'offline_grace' && withinGrace)
+    const allowed = !runtime.licenseEnforced
+      || status === 'active'
+      || status === 'trial_active'
+      || (status === 'offline_grace' && withinGrace)
     const shouldValidateInForeground = runtime.licenseEnforced
       && configured
       && keyPresent
@@ -456,15 +524,22 @@ function createLicenseService({ app, store }) {
       licenseConfigured: configured,
       validationIntervalHours: runtime.validationIntervalHours,
       offlineGraceDays: runtime.offlineGraceDays,
+      trialDays: TRIAL_DAYS,
       installId,
       status,
       allowed,
+      plan: getPlanForVariantId(stored.variantId),
       keyPresent: packagedDevTestLicense ? false : keyPresent,
       maskedKey: packagedDevTestLicense ? '' : maskLicenseKey(stored.key),
       instanceId: packagedDevTestLicense ? null : instanceId || null,
       activatedAt: safeIsoDate(stored.activatedAt),
       lastValidatedAt,
       offlineGraceUntil,
+      trialStartedAt,
+      trialEndsAt,
+      trialActive,
+      trialExpired: status === 'trial_expired',
+      trialDaysRemaining,
       validationDueAt,
       validationDue,
       withinGrace,
@@ -515,6 +590,7 @@ function createLicenseService({ app, store }) {
       const now = new Date().toISOString()
       const nextGrace = addDays(new Date(now), licenseConfig.offlineGraceDays).toISOString()
       const installId = ensureInstallId()
+      const existing = getStoredLicense()
       setStoredLicense({
         key,
         instanceId: `dev-test-${installId}`,
@@ -523,15 +599,17 @@ function createLicenseService({ app, store }) {
         lastValidatedAt: now,
         offlineGraceUntil: nextGrace,
         lastError: null,
-      productId: licenseConfig.productId,
-      variantId: licenseConfig.variantIds[0] || null,
-      orderId: null,
-      customerIdLs: null,
-      customerEmail: null,
-      customerName: null,
-    })
-    return buildStatus()
-  }
+        productId: licenseConfig.productId,
+        variantId: licenseConfig.variantIds[0] || null,
+        orderId: null,
+        customerIdLs: null,
+        customerEmail: null,
+        customerName: null,
+        trialStartedAt: existing.trialStartedAt || null,
+        trialEndsAt: existing.trialEndsAt || null,
+      })
+      return buildStatus()
+    }
 
     if (isForcedDevLicenseFlow(app)) {
       if (!key) {
@@ -577,6 +655,7 @@ function createLicenseService({ app, store }) {
 
       const now = new Date().toISOString()
       const nextGrace = addDays(new Date(now), licenseConfig.offlineGraceDays).toISOString()
+      const existing = getStoredLicense()
       setStoredLicense({
         key,
         instanceId: meta.instanceId,
@@ -591,6 +670,8 @@ function createLicenseService({ app, store }) {
         customerIdLs: meta.customerId,
         customerEmail: meta.customerEmail,
         customerName: meta.customerName,
+        trialStartedAt: existing.trialStartedAt || null,
+        trialEndsAt: existing.trialEndsAt || null,
       })
 
       await syncLicenseIdentity(meta, {
@@ -697,8 +778,14 @@ function createLicenseService({ app, store }) {
     }
 
     const stored = getStoredLicense()
+    if (isDevTestLicenseAllowed(app) && isStoredDevTestLicense(stored)) {
+      clearStoredLicense(null, 'unlicensed')
+      return buildStatus()
+    }
+
     if (!stored.key || !stored.instanceId) {
-      return clearStoredLicense(null, 'unlicensed')
+      clearStoredLicense(null, 'unlicensed')
+      return buildStatus()
     }
 
     try {
@@ -706,7 +793,8 @@ function createLicenseService({ app, store }) {
         license_key: stored.key,
         instance_id: stored.instanceId,
       })
-      return clearStoredLicense(null, 'unlicensed')
+      clearStoredLicense(null, 'unlicensed')
+      return buildStatus()
     } catch (error) {
       return buildStatus({
         ...stored,
