@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   activateLicense: (licenseKey) => ipcRenderer.invoke('license:activate', licenseKey),
   validateLicense: (options) => ipcRenderer.invoke('license:validate', options),
   deactivateLicense: () => ipcRenderer.invoke('license:deactivate'),
+  getBillingCheckoutLinks: () => ipcRenderer.invoke('billing:get-checkout-links'),
+  openBillingCheckout: (plan) => ipcRenderer.invoke('billing:open-checkout', plan),
+  openExternalUrl: (url) => ipcRenderer.invoke('app:open-external-url', url),
   savePreferredName: (preferredName) => ipcRenderer.invoke('profile:save-preferred-name', preferredName),
   enqueueFeedback: (item) => ipcRenderer.invoke('feedback:enqueue', item),
   syncFeedbackQueue: () => ipcRenderer.invoke('feedback:sync'),
@@ -40,6 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   e2eSetFrontmostApp: (appInfo) => ipcRenderer.invoke('e2e:set-frontmost-app', appInfo),
   e2eGetLastActivatedApp: () => ipcRenderer.invoke('e2e:get-last-activated-app'),
   e2eGetLastBringToFrontPayload: () => ipcRenderer.invoke('e2e:get-last-bring-to-front-payload'),
+  e2eGetLastExternalUrl: () => ipcRenderer.invoke('e2e:get-last-external-url'),
 
   // Shortcuts
   registerGlobalShortcuts: (shortcuts) => ipcRenderer.send('register-shortcuts', shortcuts),

@@ -191,6 +191,10 @@ function getLicenseStatusLabel(status) {
       return 'Active';
     case 'offline_grace':
       return 'Offline Grace';
+    case 'trial_active':
+      return 'Trial Active';
+    case 'trial_expired':
+      return 'Trial Complete';
     case 'invalid':
       return 'Invalid';
     case 'config_error':
@@ -238,6 +242,7 @@ export default function SettingsModal({
   licenseStatus,
   onValidateLicense,
   onDeactivateLicense,
+  onOpenCheckout,
 }) {
   const [tempShortcuts, setTempShortcuts] = useState(mergeShortcutsWithDefaults(shortcuts));
   const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
@@ -509,11 +514,14 @@ export default function SettingsModal({
   const licenseStatusLabel = getLicenseStatusLabel(licenseStatus?.status);
   const licenseTone = licenseStatus?.status === 'active'
     ? '#166534'
+    : licenseStatus?.status === 'trial_active'
+      ? '#166534'
     : licenseStatus?.status === 'offline_grace'
       ? '#92400E'
-      : licenseStatus?.status === 'config_error' || licenseStatus?.status === 'invalid' || licenseStatus?.status === 'error'
+      : licenseStatus?.status === 'trial_expired' || licenseStatus?.status === 'config_error' || licenseStatus?.status === 'invalid' || licenseStatus?.status === 'error'
         ? '#B91C1C'
         : 'var(--text-secondary)';
+  const showUpgradeActions = licenseStatus?.status === 'trial_active' || licenseStatus?.status === 'trial_expired';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -617,6 +625,18 @@ export default function SettingsModal({
                     <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
                       <strong>Status:</strong> <span style={{ color: licenseTone }}>{licenseStatusLabel}</span>
                     </p>
+                    {licenseStatus?.status === 'trial_active' || licenseStatus?.status === 'trial_expired' ? (
+                      <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        <strong>Trial:</strong> {licenseStatus?.status === 'trial_expired'
+                          ? 'Complete'
+                          : `${Math.max(0, Number(licenseStatus?.trialDaysRemaining) || 0)} day${Math.max(0, Number(licenseStatus?.trialDaysRemaining) || 0) === 1 ? '' : 's'} remaining`}
+                      </p>
+                    ) : null}
+                    {licenseStatus?.plan ? (
+                      <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        <strong>Plan:</strong> {String(licenseStatus.plan).replace(/_/g, ' ')}
+                      </p>
+                    ) : null}
                     <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                       <strong>Key:</strong> {licenseStatus?.maskedKey || 'Not activated'}
                     </p>
@@ -652,6 +672,27 @@ export default function SettingsModal({
                       {licenseAction === 'deactivate' ? 'Deactivating...' : 'Deactivate this Mac'}
                     </Button>
                   </div>
+                  {showUpgradeActions ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => onOpenCheckout?.('monthly')}
+                        style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
+                      >
+                        $10/month
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onOpenCheckout?.('lifetime')}
+                        style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                      >
+                        $79 lifetime
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
