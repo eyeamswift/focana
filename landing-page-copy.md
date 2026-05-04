@@ -1,7 +1,7 @@
 # Focana — Landing Page Copy
 # ICPs: ADHD Remote Worker (primary) + Developer/Knowledge Worker (secondary)
 # Keywords: adhd focus timer, adhd focus app, floating timer mac, always on top timer, pomodoro timer desktop, time blindness
-# Last updated: March 12, 2026
+# Last updated: May 4, 2026
 
 ---
 
@@ -10,14 +10,14 @@
 How it Works
 Features
 FAQ
-Buy Focana
+Start free trial
 
 ---
 
 ## HERO
 
 **Pre-headline (small text above):**
-For macOS — founding member pricing now live
+For macOS — free 30-day trial, no card required
 
 **Headline:**
 You opened your laptop to do one thing.
@@ -33,11 +33,11 @@ Sound familiar?
 Focana is a floating Mac focus app that keeps your task and timer visible while you work.
 
 **CTA:**
-Buy Focana →
+Start free 30-day trial →
 See How It Works
 
 **Below CTA:**
-Founder launch pricing: $29 lifetime with a 7-day money-back guarantee.
+Free for 30 days. After that, choose $10/month or $79 lifetime.
 
 **Secondary line:**
 Windows coming soon - join the waitlist
@@ -194,27 +194,29 @@ This is for you if...
 
 ---
 
-## FOUNDING MEMBER PRICING
+## TRIAL-FIRST PRICING
 
-Own it forever. $29.
+Start free. Choose later.
 
-Founder launch pricing is live now.
+Download Focana first and use every feature for 30 days.
 
-Founding Member — $29 lifetime
-Full access. No subscription. No renewals.
-Every feature, now and everything we ship next.
+Free trial — 30 days
+Full access. No card required. App-managed trial.
 
-[Get Founding Member Access — $29]
+Monthly — $10/month
+Flexible access for ongoing focus work.
 
-One-time payment. macOS. Instant download.
-No subscription. Ever.
+Lifetime — $79
+One payment for long-term access.
 
-Why a lifetime deal during beta?
-Most apps charge full price to test an unfinished product.
-We'd rather reward the people willing to bet on us early.
-If you buy at $29, that purchase stays lifetime access.
-We get real users, real feedback, and the resources to build faster.
-Fair trade.
+[Start free 30-day trial]
+[Choose monthly]
+[Buy lifetime]
+
+Why the trial comes first?
+The product should earn the upgrade. Try it without a card,
+then choose the plan that fits once Focana is already part
+of your workflow.
 
 ---
 
@@ -256,29 +258,30 @@ macOS is live now. Windows is in development — drop your
 email and you'll be the first to know when it's ready.
 
 What does it cost?
-$29 one-time. That's lifetime access — no subscription,
-no renewals. You also get a 7-day money-back guarantee:
-if it doesn't stick, we'll refund you.
+Start with a free 30-day trial, no card required.
+After that, choose $10/month or $79 lifetime.
+Paid checkout sends you a Lemon receipt with the license
+key you use to activate the app.
 
-Will the $29 price go up?
-Pricing may change later. If you buy at $29, that purchase
-stays lifetime access with no subscription or renewals.
+Do I need to pay before I download?
+No. The public download starts the free trial first.
+You only use Lemon checkout when you decide to keep Focana
+after the trial, or if you want to upgrade early.
 
 What if I just want to try it first?
-Buy it, use it for a week, and if it doesn't stick,
-we'll refund you. No questions asked.
+Download it and use the full app for 30 days.
 
 ---
 
 ## CLOSING CTA
 
 Takes 10 seconds to start your first session.
-$29 once. Yours forever. 7-day guarantee.
+Free for 30 days. No card required.
 
-Buy Focana →
+Start free 30-day trial →
 
 Already know you want it?
-Get Founding Member Access — $29 lifetime
+Choose $10/month or buy lifetime for $79.
 
 Focana — the desktop focus buddy for busy brains.
 

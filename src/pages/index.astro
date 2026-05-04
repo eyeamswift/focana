@@ -74,12 +74,24 @@ const softwareSchema = {
     name: siteOrganization.legalName,
     url: canonicalURL,
   },
-  offers: {
-    '@type': 'Offer',
-    price: '29',
-    priceCurrency: 'USD',
-    availability: 'https://schema.org/OnlineOnly',
-  },
+  offers: [
+    {
+      '@type': 'Offer',
+      name: 'Focana Monthly',
+      price: '10',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/OnlineOnly',
+      url: `${canonicalURL}/#pricing`,
+    },
+    {
+      '@type': 'Offer',
+      name: 'Focana Lifetime',
+      price: '79',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/OnlineOnly',
+      url: `${canonicalURL}/#pricing`,
+    },
+  ],
 };
 ---
 

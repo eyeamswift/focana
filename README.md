@@ -29,7 +29,8 @@ Required env vars:
 - `LOOPS_API_KEY` — Your Loops API key (server-side only)
 - `PUBLIC_GITHUB_ARM64_DMG_URL` — Public GitHub Release DMG URL for Apple Silicon
 - `PUBLIC_GITHUB_X64_DMG_URL` — Public GitHub Release DMG URL for Intel Macs
-- `PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` — Lemon Squeezy checkout URL
+- `PUBLIC_LEMONSQUEEZY_MONTHLY_CHECKOUT_URL` — Lemon Squeezy checkout URL for the $10/month plan
+- `PUBLIC_LEMONSQUEEZY_LIFETIME_CHECKOUT_URL` — Lemon Squeezy checkout URL for the $79 lifetime plan
 
 3. Create a `Beta_Downloads` table in Supabase with columns:
    - `email` (text, unique)

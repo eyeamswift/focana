@@ -8,7 +8,7 @@ const title = 'Focana Updates';
 const description = 'See the latest Focana release notes and product improvements.';
 const canonicalURL = `${SITE_ORIGIN}/updates`;
 const ogImage = `${SITE_ORIGIN}/og-image.png`;
-const checkoutUrl = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || 'https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d?embed=1';
+const checkoutUrl = '/download';
 const fallbackSummary = 'Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.';
 const releases = Array.isArray(releasesData)
   ? releasesData.map((release) => ({
@@ -808,7 +808,7 @@ const heroSummary = latestRelease?.summary || fallbackSummary;
               );
             } catch {}
 
-            const redirectUrl = new URL('/download', window.location.origin);
+            const redirectUrl = new URL('/purchase-complete', window.location.origin);
             if (email) redirectUrl.searchParams.set('email', email);
             if (orderId) redirectUrl.searchParams.set('order_id', orderId);
             window.location.href = redirectUrl.toString();
@@ -868,6 +868,11 @@ const heroSummary = latestRelease?.summary || fallbackSummary;
       };
 
       const openCheckout = async () => {
+        if (!/^https:\/\/focana\.lemonsqueezy\.com\//.test(CHECKOUT_URL)) {
+          window.location.assign(CHECKOUT_URL);
+          return;
+        }
+
         try {
           const lemon = await waitForCheckoutOverlay();
           lemon.Url.Open(CHECKOUT_URL);

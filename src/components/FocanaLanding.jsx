@@ -82,8 +82,8 @@ function persistSubmittedEmailLocally(email) {
   } catch {}
 }
 
-function buildCheckoutUrl(email) {
-  const url = new URL(CHECKOUT_URL, window.location.origin);
+function buildCheckoutUrl(email, checkoutUrl) {
+  const url = new URL(checkoutUrl, window.location.origin);
   url.searchParams.delete("embed");
   url.searchParams.set("checkout[email]", normalizeEmail(email));
   return url.toString();
@@ -1124,7 +1124,15 @@ function getIsAppleSilicon() {
   return null;
 }
 
-const CHECKOUT_URL = import.meta.env.PUBLIC_LEMONSQUEEZY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/891e9985-1a19-4426-a99e-51544249139d";
+const DOWNLOAD_URL = "/download";
+const CHECKOUT_URLS = {
+  monthly: import.meta.env.PUBLIC_LEMONSQUEEZY_MONTHLY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/44ce5109-e534-4421-9665-34c166169b18?enabled=1442573",
+  lifetime: import.meta.env.PUBLIC_LEMONSQUEEZY_LIFETIME_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/4a2aae5f-06fd-4645-a774-c562c4d4d9fe?enabled=1611321",
+};
+const CHECKOUT_PLAN_LABELS = {
+  monthly: "$10/month",
+  lifetime: "$79 lifetime",
+};
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
@@ -1136,6 +1144,7 @@ export default function FocanaLanding() {
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [checkoutRedirecting, setCheckoutRedirecting] = useState(false);
   const [checkoutLocation, setCheckoutLocation] = useState("hero");
+  const [checkoutPlan, setCheckoutPlan] = useState("monthly");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [hasSubmittedEmail, setHasSubmittedEmail] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -1411,9 +1420,10 @@ export default function FocanaLanding() {
   };
 
   const handleCheckoutSubmit = async (email) => {
+    const plan = CHECKOUT_URLS[checkoutPlan] ? checkoutPlan : "monthly";
     checkoutSubmittedRef.current = true;
     rememberSubmittedEmail(email);
-    phCapture("cta_modal_submitted", { location: checkoutLocation });
+    phCapture("cta_modal_submitted", { location: checkoutLocation, plan });
     setCheckoutModalOpen(false);
     setCheckoutRedirecting(true);
 
@@ -1425,7 +1435,7 @@ export default function FocanaLanding() {
       console.error("Checkout email capture failed:", error);
     });
 
-    const redirectUrl = buildCheckoutUrl(email);
+    const redirectUrl = buildCheckoutUrl(email, CHECKOUT_URLS[plan]);
 
     await new Promise((resolve) => {
       requestAnimationFrame(() => {
@@ -1436,16 +1446,27 @@ export default function FocanaLanding() {
     window.location.assign(redirectUrl);
   };
 
-  const openCheckout = (location) => {
-    phCapture("cta_clicked", { location });
+  const openTrialDownload = (location) => {
+    phCapture("cta_clicked", { location, target: "download", plan: "trial" });
+    try {
+      window.sessionStorage.setItem(EXIT_INTENT_DISABLED_KEY, String(Date.now()));
+    } catch {}
+    window.location.assign(DOWNLOAD_URL);
+  };
+
+  const openCheckout = (location, plan = "monthly") => {
+    const normalizedPlan = CHECKOUT_URLS[plan] ? plan : "monthly";
+    phCapture("cta_clicked", { location, target: "checkout", plan: normalizedPlan });
     checkoutSubmittedRef.current = false;
     setCheckoutLocation(location);
+    setCheckoutPlan(normalizedPlan);
     setCheckoutModalOpen(true);
     try {
       window.sessionStorage.setItem(EXIT_INTENT_DISABLED_KEY, String(Date.now()));
     } catch {}
     phCapture("cta_modal_shown", {
       location,
+      plan: normalizedPlan,
       prefilled_email: Boolean(submittedEmail),
     });
   };
@@ -1795,7 +1816,7 @@ export default function FocanaLanding() {
                     className="product-menu-item"
                     onClick={() => {
                       setProductMenuOpen(false);
-                      openCheckout("nav_product_dropdown");
+                      openTrialDownload("nav_product_dropdown");
                     }}
                     style={{
                       display: "block",
@@ -1839,7 +1860,7 @@ export default function FocanaLanding() {
             <a href="#pricing" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Pricing</a>
             <a href="/blog/" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Resources</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => openCheckout("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Get Focana</button>
+            <button onClick={() => openTrialDownload("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Start free 30-day trial</button>
           </div>
           <button
             className="hamburger-btn"
@@ -1932,7 +1953,7 @@ export default function FocanaLanding() {
                   onClick={() => {
                     setMobileProductMenuOpen(false);
                     setMobileMenuOpen(false);
-                    openCheckout("mobile_product_dropdown");
+                    openTrialDownload("mobile_product_dropdown");
                   }}
                   style={{
                     color: COLORS.coffeeBrown,
@@ -1966,7 +1987,7 @@ export default function FocanaLanding() {
           <a href="#pricing" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Pricing</a>
           <a href="/blog/" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Resources</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); openCheckout("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Get Focana</button>
+          <button onClick={() => { setMobileMenuOpen(false); openTrialDownload("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Start free 30-day trial</button>
         </div>
       )}
 
@@ -2049,8 +2070,8 @@ export default function FocanaLanding() {
                 gap: "12px",
                 width: "100%",
               }}>
-                <button onClick={() => openCheckout("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
-                  Get Focana <span style={{ fontSize: "22px" }}>→</span>
+                <button onClick={() => openTrialDownload("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
+                  Start free 30-day trial <span style={{ fontSize: "22px" }}>→</span>
                 </button>
                 <p style={{
                   fontSize: "15px",
@@ -2058,7 +2079,7 @@ export default function FocanaLanding() {
                   margin: 0,
                   textAlign: "center",
                 }}>
-                  $29 lifetime · No subscription · macOS
+                  No card required · macOS · full access
                 </p>
               </div>
             </div>
@@ -2153,15 +2174,15 @@ export default function FocanaLanding() {
           </p>
 
           <div style={{ textAlign: "center" }}>
-            <button onClick={() => openCheckout("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Get Focana <span style={{ fontSize: "22px" }}>→</span>
+            <button onClick={() => openTrialDownload("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Start free 30-day trial <span style={{ fontSize: "22px" }}>→</span>
             </button>
             <p style={{
               fontSize: "15px",
               color: COLORS.coffeeBrown,
               marginTop: "14px",
             }}>
-              $29 lifetime · No subscription · macOS
+              Try every feature free for 30 days · macOS
             </p>
           </div>
         </div>
@@ -2260,8 +2281,8 @@ export default function FocanaLanding() {
             }}>
               Ready to try it for yourself?
             </p>
-            <button onClick={() => openCheckout("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Start My Focus
+            <button onClick={() => openTrialDownload("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Start free 30-day trial
             </button>
           </div>
         </div>
@@ -2636,56 +2657,121 @@ export default function FocanaLanding() {
 
       {/* PRICING */}
       <section id="pricing" style={{ padding: "100px 0", background: "white" }}>
-        <div className="section" style={{ maxWidth: "720px" }}>
+        <div className="section" style={{ maxWidth: "960px" }}>
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
             <h2 style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
               fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15, marginBottom: "20px",
             }}>
-              Founder launch pricing
+              Start free. Choose later.
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              Buy Focana once, download it instantly,<br />
-              and keep every update we ship next.
+              Download Focana first and use every feature for 30 days.<br />
+              When the trial ends, keep going monthly or buy lifetime access.
             </p>
           </div>
 
-          <div className="pricing-card" style={{
-            background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
-            border: `2px solid ${COLORS.sunshineYellow}`,
-            borderRadius: "20px",
-            padding: "40px",
-            textAlign: "center",
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "24px",
             marginBottom: "32px",
           }}>
-            <span style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 700,
-              color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-            }}>Founder Launch</span>
-            <div style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 56px)",
-              fontWeight: 800, color: COLORS.warmBrown, margin: "12px 0",
+            <div className="pricing-card" style={{
+              background: `linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.creamYellow}44)`,
+              border: `2px solid ${COLORS.sunshineYellow}`,
+              borderRadius: "20px",
+              padding: "36px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "18px",
             }}>
-              $29 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>lifetime</span>
+              <span style={{
+                fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 700,
+                color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
+              }}>Trial first</span>
+              <div>
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 52px)",
+                  fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1,
+                }}>
+                  Free
+                </div>
+                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
+                  30 days, no card required
+                </p>
+              </div>
+              <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
+                Download the Mac app, start your trial locally, and use the full focus system before deciding.
+              </p>
+              <button onClick={() => openTrialDownload("pricing_trial")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
+                Start free 30-day trial <span style={{ fontSize: "20px" }}>→</span>
+              </button>
             </div>
-            <p style={{ fontSize: "17px", lineHeight: 1.7, color: COLORS.coffeeBrown, marginBottom: "24px" }}>
-              Full access. No subscription. No renewals.<br />
-              Every feature, now and everything we ship next.
-            </p>
-            <p style={{ fontSize: "15px", color: COLORS.coffeeBrown, marginBottom: "28px", opacity: 0.8 }}>
-              7-day money-back guarantee.<br />
-              If it doesn't stick, we'll refund you.
-            </p>
-            <div style={{ marginBottom: "28px" }}>
-              <SaasHubBadge location="pricing" />
+
+            <div className="pricing-card" style={{
+              background: COLORS.warmVanilla,
+              border: `1px solid ${COLORS.beigeBorder}`,
+              borderRadius: "20px",
+              padding: "36px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "18px",
+            }}>
+              <span style={{
+                fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 700,
+                color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
+              }}>After trial</span>
+              <div>
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif", fontSize: "clamp(38px, 5vw, 50px)",
+                  fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1,
+                }}>
+                  $10 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>/month</span>
+                </div>
+                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
+                  Flexible access for ongoing focus work
+                </p>
+              </div>
+              <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
+                Upgrade from inside the app when your trial ends, or start monthly early if you already know it fits.
+              </p>
+              <button onClick={() => openCheckout("pricing_monthly", "monthly")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
+                Choose monthly
+              </button>
             </div>
-            <button onClick={() => openCheckout("pricing")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Start My Focus <span style={{ fontSize: "22px" }}>→</span>
-            </button>
-            <p style={{ fontSize: "13px", color: COLORS.coffeeBrown, marginTop: "16px", opacity: 0.7 }}>
-              One-time payment. macOS. Instant download.<br />
-              No subscription. Ever.
-            </p>
+
+            <div className="pricing-card" style={{
+              background: COLORS.warmVanilla,
+              border: `1px solid ${COLORS.beigeBorder}`,
+              borderRadius: "20px",
+              padding: "36px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "18px",
+            }}>
+              <span style={{
+                fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 700,
+                color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
+              }}>Pay once</span>
+              <div>
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif", fontSize: "clamp(38px, 5vw, 50px)",
+                  fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1,
+                }}>
+                  $79 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>lifetime</span>
+                </div>
+                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
+                  One payment for long-term access
+                </p>
+              </div>
+              <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
+                Keep Focana without monthly billing. Your Lemon receipt includes the license key for activation.
+              </p>
+              <button onClick={() => openCheckout("pricing_lifetime", "lifetime")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
+                Buy lifetime
+              </button>
+            </div>
           </div>
 
           <div style={{
@@ -2696,13 +2782,16 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
               color: COLORS.warmBrown, marginBottom: "12px",
             }}>
-              Why buy during the founder launch?
+              Why the trial comes first?
             </h3>
             <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              We want pricing to feel as calm as the product: simple, upfront, and easy to trust.
-              If you buy at $29, that purchase stays lifetime access while Focana grows.
-              No subscription math. No renewal anxiety. Just a tool that stays with you.
+              We want pricing to feel as calm as the product: try it first, then choose the plan that fits.
+              The free trial is app-managed and no-card. Paid checkout is only for activation after your trial
+              or for people who want to upgrade early.
             </p>
+            <div style={{ marginTop: "22px" }}>
+              <SaasHubBadge location="pricing" />
+            </div>
           </div>
         </div>
       </section>
@@ -2745,11 +2834,11 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="What does it cost?"
-            answer="$29 one-time. That's lifetime access — no subscription, no renewals. You also get a 7-day money-back guarantee: if it doesn't stick, we'll refund you, no questions asked."
+            answer="Start with a free 30-day trial, no card required. After that, choose $10/month or $79 lifetime. Paid checkout sends you a Lemon receipt with the license key you use to activate the app."
           />
           <FAQItem
-            question="Will the $29 price go up?"
-            answer="Pricing may change later. If you buy at $29, that purchase stays lifetime access with no subscription or renewals."
+            question="Do I need to pay before I download?"
+            answer="No. The public download starts the free trial first. You only use Lemon checkout when you decide to keep Focana after the trial, or if you want to upgrade early."
           />
         </div>
       </section>
@@ -2771,11 +2860,11 @@ export default function FocanaLanding() {
         <div className="section" style={{ position: "relative", zIndex: 2, textAlign: "center", maxWidth: "640px" }}>
           <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "32px" }}>
             Takes 10 seconds to start your first session.<br />
-            $29 once. Yours forever. 7-day guarantee.
+            Free for 30 days. No card required.
           </p>
 
-          <button onClick={() => openCheckout("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Get Focana <span style={{ fontSize: "22px" }}>→</span>
+          <button onClick={() => openTrialDownload("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+            Start free 30-day trial <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
@@ -2813,9 +2902,9 @@ export default function FocanaLanding() {
         onClose={handleCheckoutModalClose}
         onSubmit={handleCheckoutSubmit}
         titleId="checkout-capture-title"
-        title="Where should we send your download and setup info?"
-        description="We'll use this to send your confirmation and access details."
-        submitLabel="Get Focana →"
+        title="Where should Lemon send your receipt?"
+        description={`We'll prefill your email for the ${CHECKOUT_PLAN_LABELS[checkoutPlan] || "paid"} checkout. Your receipt includes the license key for activation.`}
+        submitLabel={`Continue to ${CHECKOUT_PLAN_LABELS[checkoutPlan] || "checkout"} →`}
         loadingLabel="Continuing..."
         defaultEmail={submittedEmail}
         showCloseButton={false}

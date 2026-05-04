@@ -6,6 +6,27 @@ import {
 
 export const prerender = false;
 
+const KNOWN_VARIANT_PLANS: Record<string, 'monthly' | 'lifetime' | 'legacy_lifetime' | 'friends_family'> = {
+  '1442573': 'monthly',
+  '1611321': 'lifetime',
+  '1442556': 'legacy_lifetime',
+  '1438451': 'friends_family',
+};
+
+const ORDER_EVENTS = new Set(['order_created']);
+const SUBSCRIPTION_EVENTS = new Set([
+  'subscription_created',
+  'subscription_updated',
+  'subscription_cancelled',
+  'subscription_resumed',
+  'subscription_expired',
+  'subscription_paused',
+  'subscription_unpaused',
+  'subscription_payment_success',
+  'subscription_payment_failed',
+  'subscription_payment_recovered',
+]);
+
 async function verifySignature(
   secret: string,
   body: string,
@@ -26,17 +47,246 @@ async function verifySignature(
   return digest === signatureHeader;
 }
 
+function clampText(value: unknown, maxLength = 500) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function normalizeId(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function firstPresent(...values: unknown[]) {
+  for (const value of values) {
+    const text = normalizeId(value);
+    if (text) return text;
+  }
+  return null;
+}
+
+function extractVariantId(payload: any) {
+  const attributes = payload?.data?.attributes || {};
+  const customData = payload?.meta?.custom_data || {};
+  const firstOrderItem = attributes.first_order_item || attributes.first_order_item_data || {};
+  const firstSubscriptionItem = attributes.first_subscription_item || {};
+
+  return firstPresent(
+    customData.variant_id,
+    customData.variantId,
+    attributes.variant_id,
+    attributes.variantId,
+    firstOrderItem.variant_id,
+    firstOrderItem.variantId,
+    firstSubscriptionItem.variant_id,
+    firstSubscriptionItem.variantId
+  );
+}
+
+function extractSubscriptionId(payload: any) {
+  const attributes = payload?.data?.attributes || {};
+  const customData = payload?.meta?.custom_data || {};
+  const firstOrderItem = attributes.first_order_item || attributes.first_order_item_data || {};
+  const firstSubscriptionItem = attributes.first_subscription_item || {};
+  const dataType = String(payload?.data?.type || '').toLowerCase();
+
+  return firstPresent(
+    dataType.includes('subscription') ? payload?.data?.id : null,
+    customData.subscription_id,
+    customData.subscriptionId,
+    attributes.subscription_id,
+    attributes.subscriptionId,
+    firstOrderItem.subscription_id,
+    firstOrderItem.subscriptionId,
+    firstSubscriptionItem.subscription_id,
+    firstSubscriptionItem.subscriptionId
+  );
+}
+
+function getPlanType(variantId: string | null, customSource = '') {
+  if (customSource === 'friends_and_family') return 'friends_family';
+  return variantId ? KNOWN_VARIANT_PLANS[variantId] || 'paid' : 'paid';
+}
+
+function getCustomerSource(planType: string, customSource = '', betaUser = false) {
+  if (customSource === 'friends_and_family' || planType === 'friends_family') return 'friends_and_family';
+  if (customSource) return customSource;
+  if (betaUser) return 'beta_convert';
+  if (planType === 'monthly') return 'trial_upgrade_monthly';
+  if (planType === 'lifetime') return 'trial_upgrade_lifetime';
+  if (planType === 'legacy_lifetime') return 'legacy_lifetime';
+  return 'paid_checkout';
+}
+
+function getSubscriptionStatus(payload: any) {
+  const attributes = payload?.data?.attributes || {};
+  return clampText(
+    attributes.status ||
+    attributes.subscription_status ||
+    attributes.status_formatted ||
+    '',
+    80
+  ) || null;
+}
+
+function buildSupabaseHeaders(serviceKey: string, extraHeaders: Record<string, string> = {}) {
+  return {
+    apikey: serviceKey,
+    Authorization: `Bearer ${serviceKey}`,
+    ...extraHeaders,
+  };
+}
+
+async function checkBetaUser({
+  supabaseUrl,
+  supabaseServiceKey,
+  email,
+}: {
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  email: string;
+}) {
+  const betaCheck = await fetch(
+    `${supabaseUrl}/rest/v1/Beta_Downloads?email=eq.${encodeURIComponent(email)}&select=email`,
+    {
+      headers: buildSupabaseHeaders(supabaseServiceKey),
+    }
+  );
+
+  if (!betaCheck.ok) return false;
+  const betaRows = await betaCheck.json();
+  return Array.isArray(betaRows) && betaRows.length > 0;
+}
+
+async function patchCustomers({
+  supabaseUrl,
+  supabaseServiceKey,
+  filter,
+  patch,
+}: {
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  filter: string;
+  patch: Record<string, unknown>;
+}) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/customers?${filter}&select=id`, {
+    method: 'PATCH',
+    headers: buildSupabaseHeaders(supabaseServiceKey, {
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    }),
+    body: JSON.stringify(patch),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Supabase customer patch failed with status ${response.status}`);
+  }
+
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function handleSubscriptionEvent({
+  payload,
+  supabaseUrl,
+  supabaseServiceKey,
+}: {
+  payload: any;
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+}) {
+  const attributes = payload.data?.attributes || {};
+  const subscriptionId = extractSubscriptionId(payload);
+  const variantId = extractVariantId(payload);
+  const planType = getPlanType(variantId);
+  const subscriptionStatus = getSubscriptionStatus(payload);
+  const email = clampText(attributes.user_email || attributes.email || '', 320).toLowerCase();
+  const name = clampText(attributes.user_name || attributes.name || '', 160);
+  const customerIdLs = normalizeId(attributes.customer_id);
+
+  const patch: Record<string, unknown> = {
+    status: subscriptionStatus || 'subscription_event',
+    source: getCustomerSource(planType),
+    plan_type: planType,
+    variant_id_ls: variantId,
+    subscription_id_ls: subscriptionId,
+    subscription_status: subscriptionStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (email) patch.email = email;
+  if (name) patch.name = name;
+  if (customerIdLs) patch.customer_id_ls = customerIdLs;
+
+  try {
+    let updatedRows: unknown[] = [];
+
+    if (subscriptionId) {
+      updatedRows = await patchCustomers({
+        supabaseUrl,
+        supabaseServiceKey,
+        filter: `subscription_id_ls=eq.${encodeURIComponent(subscriptionId)}`,
+        patch,
+      });
+    }
+
+    if (!updatedRows.length && customerIdLs) {
+      updatedRows = await patchCustomers({
+        supabaseUrl,
+        supabaseServiceKey,
+        filter: `customer_id_ls=eq.${encodeURIComponent(customerIdLs)}`,
+        patch,
+      });
+    }
+
+    if (!updatedRows.length && email) {
+      updatedRows = await patchCustomers({
+        supabaseUrl,
+        supabaseServiceKey,
+        filter: `email=eq.${encodeURIComponent(email)}`,
+        patch,
+      });
+    }
+
+    if (updatedRows.length) {
+      return { supabaseOk: true, inserted: false };
+    }
+
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/customers`, {
+      method: 'POST',
+      headers: buildSupabaseHeaders(supabaseServiceKey, {
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      }),
+      body: JSON.stringify({
+        ...patch,
+        purchased_at: new Date().toISOString(),
+        email_opted_in: true,
+      }),
+    });
+
+    if (!insertRes.ok) {
+      const errText = await insertRes.text();
+      console.error(`[subscription_id=${subscriptionId || 'unknown'}] Supabase subscription insert error:`, errText);
+      return { supabaseOk: false, inserted: false };
+    }
+
+    return { supabaseOk: true, inserted: true };
+  } catch (err) {
+    console.error(`[subscription_id=${subscriptionId || 'unknown'}] Supabase subscription error:`, err);
+    return { supabaseOk: false, inserted: false };
+  }
+}
+
 export const POST: APIRoute = async ({ request }) => {
   const webhookSecret = import.meta.env.LEMONSQUEEZY_WEBHOOK_SECRET;
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
   const loopsApiKey = import.meta.env.LOOPS_API_KEY;
 
-  // Read raw body for signature verification
   const rawBody = await request.text();
   const signature = request.headers.get('X-Signature') || '';
 
-  // Verify HMAC-SHA256 signature
   const isValid = await verifySignature(webhookSecret, rawBody, signature);
   if (!isValid) {
     console.error('Lemon Squeezy webhook signature verification failed');
@@ -50,8 +300,20 @@ export const POST: APIRoute = async ({ request }) => {
   const eventName = payload.meta?.event_name;
   const customData = payload.meta?.custom_data || {};
 
-  // Only process order_created events
-  if (eventName !== 'order_created') {
+  if (SUBSCRIPTION_EVENTS.has(eventName)) {
+    const result = await handleSubscriptionEvent({
+      payload,
+      supabaseUrl,
+      supabaseServiceKey,
+    });
+
+    return new Response(JSON.stringify({ ok: result.supabaseOk, handled: 'subscription', ...result }), {
+      status: result.supabaseOk ? 200 : 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (!ORDER_EVENTS.has(eventName)) {
     return new Response(JSON.stringify({ ok: true, skipped: true }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -60,9 +322,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   const orderId = String(payload.data?.id);
   const attributes = payload.data?.attributes || {};
-  const email: string = attributes.user_email;
-  const name: string = attributes.user_name;
-  const customerIdLs = String(attributes.customer_id);
+  const email: string = clampText(attributes.user_email, 320).toLowerCase();
+  const name: string = clampText(attributes.user_name, 160);
+  const customerIdLs = normalizeId(attributes.customer_id);
   const creatorSlug = typeof customData.creator_slug === 'string'
     ? customData.creator_slug.trim().toLowerCase()
     : '';
@@ -71,22 +333,21 @@ export const POST: APIRoute = async ({ request }) => {
     : '';
   const amountPaid = Number(attributes.total) / 100;
   const currency: string = attributes.currency;
+  const variantId = extractVariantId(payload);
+  const planType = getPlanType(variantId, customSource);
+  const subscriptionId = extractSubscriptionId(payload);
+  const subscriptionStatus = getSubscriptionStatus(payload);
 
   let supabaseOk = false;
   let loopsOk = false;
   let inviteClaimOk = customSource !== 'friends_and_family';
-  let source = customSource === 'friends_and_family' ? 'friends_and_family' : 'founding_sale';
+  let source = getCustomerSource(planType, customSource);
 
-  // --- Supabase ---
   try {
-    // Check for duplicate order_id
     const dupCheck = await fetch(
       `${supabaseUrl}/rest/v1/customers?order_id=eq.${orderId}&select=order_id`,
       {
-        headers: {
-          'apikey': supabaseServiceKey,
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-        },
+        headers: buildSupabaseHeaders(supabaseServiceKey),
       }
     );
 
@@ -95,47 +356,27 @@ export const POST: APIRoute = async ({ request }) => {
       if (existing.length > 0) {
         console.log(`[order_id=${orderId}] Duplicate order, skipping insert`);
         supabaseOk = true;
-        // Still attempt Loops below
       }
     }
 
     if (!supabaseOk) {
-      // Check if email exists in beta_downloads
-      let betaUser = false;
+      const betaUser = await checkBetaUser({
+        supabaseUrl,
+        supabaseServiceKey,
+        email,
+      });
+      source = getCustomerSource(planType, customSource, betaUser);
 
-      const betaCheck = await fetch(
-        `${supabaseUrl}/rest/v1/Beta_Downloads?email=eq.${encodeURIComponent(email)}&select=email`,
-        {
-          headers: {
-            'apikey': supabaseServiceKey,
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-        }
-      );
-
-      if (betaCheck.ok) {
-        const betaRows = await betaCheck.json();
-        if (betaRows.length > 0) {
-          betaUser = true;
-          if (source !== 'friends_and_family') {
-            source = 'beta_convert';
-          }
-        }
-      }
-
-      // Insert into customers table
       const insertRes = await fetch(`${supabaseUrl}/rest/v1/customers`, {
         method: 'POST',
-        headers: {
+        headers: buildSupabaseHeaders(supabaseServiceKey, {
           'Content-Type': 'application/json',
-          'apikey': supabaseServiceKey,
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Prefer': 'return=minimal',
-        },
+          Prefer: 'return=minimal',
+        }),
         body: JSON.stringify({
           email,
           name,
-          status: 'founding_member',
+          status: planType,
           source,
           order_id: orderId,
           customer_id_ls: customerIdLs,
@@ -145,6 +386,10 @@ export const POST: APIRoute = async ({ request }) => {
           creator_slug: creatorSlug || null,
           beta_user: betaUser,
           email_opted_in: true,
+          plan_type: planType,
+          variant_id_ls: variantId,
+          subscription_id_ls: subscriptionId,
+          subscription_status: subscriptionStatus,
         }),
       });
 
@@ -188,20 +433,20 @@ export const POST: APIRoute = async ({ request }) => {
     console.error(`[order_id=${orderId}] Supabase error:`, err);
   }
 
-  // --- Loops ---
   try {
     if (loopsApiKey) {
       const contactRes = await fetch('https://app.loops.so/api/v1/contacts/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${loopsApiKey}`,
+          Authorization: `Bearer ${loopsApiKey}`,
         },
         body: JSON.stringify({
           email,
           firstName: name,
           source,
           userGroup: 'customer',
+          planType,
         }),
       });
 
@@ -214,11 +459,12 @@ export const POST: APIRoute = async ({ request }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${loopsApiKey}`,
+          Authorization: `Bearer ${loopsApiKey}`,
         },
         body: JSON.stringify({
           email,
           eventName: 'purchase_completed',
+          planType,
         }),
       });
 
@@ -245,7 +491,6 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  // If both Supabase and Loops failed, return 500
   if (!supabaseOk && !loopsOk) {
     return new Response(
       JSON.stringify({ error: 'Both Supabase and Loops failed' }),
@@ -256,7 +501,7 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify({ ok: true, planType, variantId }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
