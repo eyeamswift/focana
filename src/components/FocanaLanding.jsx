@@ -1860,7 +1860,7 @@ export default function FocanaLanding() {
             <a href="#pricing" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Pricing</a>
             <a href="/blog/" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>Resources</a>
             <a href="#faq" className="nav-link" style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "15px", fontWeight: 500, transition: "color 0.2s ease" }}>FAQ</a>
-            <button onClick={() => openTrialDownload("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Start free 30-day trial</button>
+            <button onClick={() => openTrialDownload("nav")} className="cta-btn" style={{ padding: "10px 24px", fontSize: "14px", animation: "none" }}>Download for free</button>
           </div>
           <button
             className="hamburger-btn"
@@ -1987,7 +1987,7 @@ export default function FocanaLanding() {
           <a href="#pricing" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Pricing</a>
           <a href="/blog/" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>Resources</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)} style={{ color: COLORS.coffeeBrown, textDecoration: "none", fontSize: "16px", fontWeight: 500, padding: "8px 0" }}>FAQ</a>
-          <button onClick={() => { setMobileMenuOpen(false); openTrialDownload("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Start free 30-day trial</button>
+          <button onClick={() => { setMobileMenuOpen(false); openTrialDownload("mobile_nav"); }} className="cta-btn" style={{ padding: "14px 24px", fontSize: "16px", animation: "none", justifyContent: "center" }}>Download for free</button>
         </div>
       )}
 
@@ -2071,7 +2071,7 @@ export default function FocanaLanding() {
                 width: "100%",
               }}>
                 <button onClick={() => openTrialDownload("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
-                  Start free 30-day trial <span style={{ fontSize: "22px" }}>→</span>
+                  Download for free <span style={{ fontSize: "22px" }}>→</span>
                 </button>
                 <p style={{
                   fontSize: "15px",
@@ -2175,7 +2175,7 @@ export default function FocanaLanding() {
 
           <div style={{ textAlign: "center" }}>
             <button onClick={() => openTrialDownload("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Start free 30-day trial <span style={{ fontSize: "22px" }}>→</span>
+              Download for free <span style={{ fontSize: "22px" }}>→</span>
             </button>
             <p style={{
               fontSize: "15px",
@@ -2282,7 +2282,7 @@ export default function FocanaLanding() {
               Ready to try it for yourself?
             </p>
             <button onClick={() => openTrialDownload("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Start free 30-day trial
+              Download for free
             </button>
           </div>
         </div>
@@ -2340,38 +2340,6 @@ export default function FocanaLanding() {
               </div>
 
               <div style={{ flex: "1 1 420px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "10px",
-                    marginBottom: "18px",
-                  }}
-                >
-                  {[
-                    siteFounder.shortRole,
-                    siteFounder.note,
-                    "Built from first-hand ADHD experience",
-                  ].map((chip) => (
-                    <span
-                      key={chip}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "8px 12px",
-                        borderRadius: "999px",
-                        background: "rgba(255,255,255,0.78)",
-                        border: `1px solid ${COLORS.beigeBorder}`,
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: COLORS.coffeeBrown,
-                      }}
-                    >
-                      {chip}
-                    </span>
-                  ))}
-                </div>
-
                 <p style={{ fontSize: "17px", lineHeight: 1.6, color: COLORS.coffeeBrown, margin: "0 0 16px" }}>
                   <strong style={{ color: COLORS.warmBrown }}>{siteFounder.name}</strong> is the founder of Focana and NeurDi Labs. He built Focana after years of trying productivity tools that created more setup, more guilt, and more room to lose the thread.
                 </p>
@@ -2705,7 +2673,7 @@ export default function FocanaLanding() {
                 Download the Mac app, start your trial locally, and use the full focus system before deciding.
               </p>
               <button onClick={() => openTrialDownload("pricing_trial")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
-                Start free 30-day trial <span style={{ fontSize: "20px" }}>→</span>
+                Download for free <span style={{ fontSize: "20px" }}>→</span>
               </button>
             </div>
 
@@ -2864,7 +2832,7 @@ export default function FocanaLanding() {
           </p>
 
           <button onClick={() => openTrialDownload("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-            Start free 30-day trial <span style={{ fontSize: "22px" }}>→</span>
+            Download for free <span style={{ fontSize: "22px" }}>→</span>
           </button>
 
           <p style={{ fontSize: "16px", fontStyle: "italic", color: "#FEF3C7", marginTop: "32px" }}>
