@@ -33,6 +33,16 @@
 - Notes: Do a holistic polish pass across the session-boundary surfaces rather than treating pre-session and post-session as unrelated tweaks. Refine the ready/start flow so beginning work feels crisp, then tighten `Session Wrap`, `Save for Later`, and adjacent copy/actions so ending a session always scripts the next obvious move. Prefer visible-state clarity over extra ceremony, keep the highest-confidence next action easy to choose, and make the before and after screens feel like one coherent loop instead of separate features that happen to touch the timer. Acceptance should verify clean manual startup into the ready shell, predictable start-task handoff, polished `Session Wrap` child paths, and save-for-later transitions that preserve context without awkward dead ends.
 - Commits: —
 
+### UX-015 — Pause and break flows should help users pick up where they left off
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: Pausing or taking a break is often when the thread of the work is most fragile. Focana should make the next step easy to recover without turning a quick pause into paperwork.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/PostSessionPrompt.jsx`, `src/renderer/components/SessionNotesModal.jsx`, pause/resume surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-011`, `UX-014`, `UX-010`, `SES-001`, `UX-006`
+- Notes: Add a lightweight `Where should we pick up?` handoff for two intentional exits: manual `Pause` during a running session and `Take a break` from `Session Wrap`. The first pass should reuse the existing split `Immediate next step` / `Additional details` note model, let users skip quickly, and carry the latest pick-up note into the paused resume shell, break timer, and floating resume prompt. Keep elapsed-time semantics unchanged for timed and Freeflow sessions, avoid duplicating `Save for Later` or `Done for now`, and make the note feel like a helpful optional bookmark instead of a blocking modal. Acceptance should verify pause-note-to-resume, break-note-to-break-timer-to-resume, one-click skip paths, and relaunch recovery while paused or on break.
+- Commits: —
+
 ### LIC-002 — Focana should offer a 30-day free trial before $79 lifetime or $10/month
 - Priority: High
 - Status: Next Up

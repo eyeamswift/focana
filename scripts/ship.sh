@@ -234,6 +234,7 @@ sync_landing_release_notes() {
 }
 
 verify_friends_and_family_flow() {
+  local landing_component="$LANDING_ROOT/src/components/FocanaLanding.jsx"
   local download_page="$LANDING_ROOT/src/pages/download.astro"
   local next_steps_page="$LANDING_ROOT/src/pages/next-steps.astro"
   local friends_page="$LANDING_ROOT/src/pages/friends-and-family/[slug].astro"
@@ -243,22 +244,32 @@ verify_friends_and_family_flow() {
   local preview_envs
 
   if [ "$DRY_RUN" = true ]; then
-    info "Would verify the landing download pages still read the GitHub DMG env vars"
+    info "Would verify the landing download pages still read the GitHub DMG env vars and route through /api/download"
+    info "Would verify the landing paid checkout success flow still routes through /download"
     info "Would verify the friends-and-family checkout stays wired to LEMONSQUEEZY_FREE_VARIANT_ID"
     info "Would verify the friends-and-family checkout and receipt flow still redirect through /download"
     return
   fi
 
+  [ -f "$landing_component" ] || fail "Missing landing source at $landing_component"
   [ -f "$download_page" ] || fail "Missing landing download page source at $download_page"
   [ -f "$next_steps_page" ] || fail "Missing landing next-steps page source at $next_steps_page"
   [ -f "$friends_page" ] || fail "Missing landing friends-and-family page source at $friends_page"
   [ -f "$friends_checkout_api" ] || fail "Missing landing friends-and-family checkout API source at $friends_checkout_api"
   [ -f "$friends_lib" ] || fail "Missing landing friends-and-family helper source at $friends_lib"
 
+  grep -Fq "if (event.event !== \"Checkout.Success\") return;" "$landing_component" || fail "Landing paid checkout no longer listens for Lemon Checkout.Success"
+  grep -Fq "const redirectUrl = new URL(\"/download\", window.location.origin);" "$landing_component" || fail "Landing paid checkout no longer redirects successful purchases through /download"
+  grep -Fq "window.location.href = redirectUrl.toString();" "$landing_component" || fail "Landing paid checkout no longer sends successful purchases to the download page"
+  grep -Fq "lemon.Url.Open(checkoutUrl);" "$landing_component" || fail "Landing paid checkout no longer opens the Lemon overlay"
   grep -Fq "PUBLIC_GITHUB_ARM64_DMG_URL" "$download_page" || fail "/download is no longer wired to PUBLIC_GITHUB_ARM64_DMG_URL"
   grep -Fq "PUBLIC_GITHUB_X64_DMG_URL" "$download_page" || fail "/download is no longer wired to PUBLIC_GITHUB_X64_DMG_URL"
+  grep -Fq "/api/download?arch=arm64" "$download_page" || fail "/download no longer routes Apple Silicon downloads through /api/download"
+  grep -Fq "/api/download?arch=x64" "$download_page" || fail "/download no longer routes Intel downloads through /api/download"
   grep -Fq "PUBLIC_GITHUB_ARM64_DMG_URL" "$next_steps_page" || fail "/next-steps is no longer wired to PUBLIC_GITHUB_ARM64_DMG_URL"
   grep -Fq "PUBLIC_GITHUB_X64_DMG_URL" "$next_steps_page" || fail "/next-steps is no longer wired to PUBLIC_GITHUB_X64_DMG_URL"
+  grep -Fq "/api/download?arch=arm64" "$next_steps_page" || fail "/next-steps no longer routes Apple Silicon downloads through /api/download"
+  grep -Fq "/api/download?arch=x64" "$next_steps_page" || fail "/next-steps no longer routes Intel downloads through /api/download"
   grep -Fq "const storeId = import.meta.env.LEMONSQUEEZY_STORE_ID;" "$friends_checkout_api" || fail "Friends-and-family checkout no longer reads LEMONSQUEEZY_STORE_ID"
   grep -Fq "const variantId = import.meta.env.LEMONSQUEEZY_FREE_VARIANT_ID;" "$friends_checkout_api" || fail "Friends-and-family checkout no longer reads LEMONSQUEEZY_FREE_VARIANT_ID"
   grep -Fq "enabled_variants: [Number(variantId)]," "$friends_lib" || fail "Friends-and-family checkout no longer constrains checkout to the free Lemon variant"
@@ -275,7 +286,7 @@ verify_friends_and_family_flow() {
   grep -Fq "LEMONSQUEEZY_STORE_ID" <<<"$preview_envs" || fail "Landing preview env is missing LEMONSQUEEZY_STORE_ID"
   grep -Fq "LEMONSQUEEZY_FREE_VARIANT_ID" <<<"$preview_envs" || fail "Landing preview env is missing LEMONSQUEEZY_FREE_VARIANT_ID"
 
-  ok "Friends-and-family flow stays wired to the free Lemon variant and the refreshed download pages"
+  ok "Landing and friends-and-family checkout flows stay wired to /download and the refreshed DMG routes"
 }
 
 commit_landing_release_notes() {
@@ -303,7 +314,9 @@ commit_landing_release_notes() {
 
 verify_landing_production() {
   if [ "$DRY_RUN" = true ]; then
-    info "Would verify focana.app/download, /next-steps, and /updates reflect $VERSION"
+    info "Would verify focana.app/download and /next-steps still render the /api/download DMG routes"
+    info "Would verify focana.app/api/download redirects to the $VERSION arm64 and x64 DMGs"
+    info "Would verify focana.app/updates reflects $VERSION"
     info "Would verify the friends-and-family flow still lands on the refreshed download CTAs"
     return
   fi
@@ -311,20 +324,26 @@ verify_landing_production() {
   local download_html
   local next_steps_html
   local updates_html
+  local arm64_headers
+  local x64_headers
 
   verify_friends_and_family_flow
 
   download_html="$(curl -fsSL "https://focana.app/download")" || fail "Could not fetch https://focana.app/download"
   next_steps_html="$(curl -fsSL "https://focana.app/next-steps")" || fail "Could not fetch https://focana.app/next-steps"
   updates_html="$(curl -fsSL "https://focana.app/updates")" || fail "Could not fetch https://focana.app/updates"
+  arm64_headers="$(curl -fsSI "https://focana.app/api/download?arch=arm64")" || fail "Could not fetch https://focana.app/api/download?arch=arm64"
+  x64_headers="$(curl -fsSI "https://focana.app/api/download?arch=x64")" || fail "Could not fetch https://focana.app/api/download?arch=x64"
 
-  grep -Fq "$ARM64_URL" <<<"$download_html" || fail "/download does not reference the $VERSION arm64 DMG"
-  grep -Fq "$X64_URL" <<<"$download_html" || fail "/download does not reference the $VERSION x64 DMG"
-  grep -Fq "$ARM64_URL" <<<"$next_steps_html" || fail "/next-steps does not reference the $VERSION arm64 DMG"
-  grep -Fq "$X64_URL" <<<"$next_steps_html" || fail "/next-steps does not reference the $VERSION x64 DMG"
+  grep -Fq "/api/download?arch=arm64" <<<"$download_html" || fail "/download does not reference the Apple Silicon download route"
+  grep -Fq "/api/download?arch=x64" <<<"$download_html" || fail "/download does not reference the Intel download route"
+  grep -Fq "/api/download?arch=arm64" <<<"$next_steps_html" || fail "/next-steps does not reference the Apple Silicon download route"
+  grep -Fq "/api/download?arch=x64" <<<"$next_steps_html" || fail "/next-steps does not reference the Intel download route"
+  grep -Fq "$ARM64_DMG" <<<"$arm64_headers" || fail "/api/download?arch=arm64 does not resolve to the $VERSION arm64 DMG"
+  grep -Fq "$X64_DMG" <<<"$x64_headers" || fail "/api/download?arch=x64 does not resolve to the $VERSION x64 DMG"
   grep -Fq "Version $VERSION" <<<"$updates_html" || fail "/updates does not show Version $VERSION"
 
-  ok "Landing production routes and the friends-and-family download flow reference the latest DMGs and release notes"
+  ok "Landing production routes and the friends-and-family download flow resolve to the latest DMGs and release notes"
 }
 
 print_release_confirmation() {
@@ -338,6 +357,8 @@ print_release_confirmation() {
   local friends_html
   local updates_html
   local manifest_html
+  local arm64_headers
+  local x64_headers
   local release_summary
   local friends_checkout_path="/api/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG/checkout"
   local friends_url="https://focana.app/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG"
@@ -347,12 +368,16 @@ print_release_confirmation() {
   friends_html="$(curl -fsSL "$friends_url")" || fail "Could not fetch $friends_url for final confirmation"
   updates_html="$(curl -fsSL "https://focana.app/updates")" || fail "Could not fetch https://focana.app/updates for final confirmation"
   manifest_html="$(curl -fsSL "$GITHUB_DL/$MANIFEST")" || fail "Could not fetch $GITHUB_DL/$MANIFEST for final confirmation"
+  arm64_headers="$(curl -fsSI "https://focana.app/api/download?arch=arm64")" || fail "Could not fetch https://focana.app/api/download?arch=arm64 for final confirmation"
+  x64_headers="$(curl -fsSI "https://focana.app/api/download?arch=x64")" || fail "Could not fetch https://focana.app/api/download?arch=x64 for final confirmation"
   release_summary="$(node -e "const fs=require('fs'); const note=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(note.summary || '').trim());" "$PROJECT_ROOT/release-notes/$VERSION.json")"
 
-  grep -Fq "$ARM64_URL" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the $VERSION arm64 DMG"
-  grep -Fq "$X64_URL" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the $VERSION x64 DMG"
-  grep -Fq "$ARM64_URL" <<<"$next_steps_html" || fail "Final confirmation failed: /next-steps does not reference the $VERSION arm64 DMG"
-  grep -Fq "$X64_URL" <<<"$next_steps_html" || fail "Final confirmation failed: /next-steps does not reference the $VERSION x64 DMG"
+  grep -Fq "/api/download?arch=arm64" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the Apple Silicon download route"
+  grep -Fq "/api/download?arch=x64" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the Intel download route"
+  grep -Fq "/api/download?arch=arm64" <<<"$next_steps_html" || fail "Final confirmation failed: /next-steps does not reference the Apple Silicon download route"
+  grep -Fq "/api/download?arch=x64" <<<"$next_steps_html" || fail "Final confirmation failed: /next-steps does not reference the Intel download route"
+  grep -Fq "$ARM64_DMG" <<<"$arm64_headers" || fail "Final confirmation failed: /api/download?arch=arm64 does not resolve to the $VERSION arm64 DMG"
+  grep -Fq "$X64_DMG" <<<"$x64_headers" || fail "Final confirmation failed: /api/download?arch=x64 does not resolve to the $VERSION x64 DMG"
   grep -Fq "$CONFIRM_FRIENDS_AND_FAMILY_HEADING" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug does not render the expected heading"
   grep -Fq "${friends_checkout_path}?location=" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug does not expose the live checkout CTA path"
   grep -Fq "const redirectUrl = new URL('/download', window.location.origin);" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug no longer redirects successful checkout to /download"
@@ -367,8 +392,8 @@ print_release_confirmation() {
   fi
 
   printf '\n'
-  printf '%s\n' "focana.app/download is live with the $VERSION arm64 and x64 GitHub DMG URLs."
-  printf '%s\n' "focana.app/next-steps is also live with those same $VERSION DMG URLs."
+  printf '%s\n' "focana.app/download is live with /api/download routes that resolve to the $VERSION arm64 and x64 DMGs."
+  printf '%s\n' "focana.app/next-steps is also live with those same /api/download routes."
   printf '%s\n' "focana.app/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG is live and active."
   printf '%s\n' "It renders $CONFIRM_FRIENDS_AND_FAMILY_HEADING"
   printf '%s\n' "It exposes the live CTA path ${friends_checkout_path}?..."
