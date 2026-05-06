@@ -7,8 +7,10 @@ import { SITE_ORIGIN } from '../lib/siteOrigin';
 const title = "Focana — Next Steps";
 const description = "Open Focana, paste your license key, and start your first session.";
 const canonicalURL = `${SITE_ORIGIN}/next-steps`;
-const arm64DownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
-const x64DownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
+const arm64DirectDownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
+const x64DirectDownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
+const arm64DownloadUrl = arm64DirectDownloadUrl ? "/api/download?arch=arm64" : "";
+const x64DownloadUrl = x64DirectDownloadUrl ? "/api/download?arch=x64" : "";
 ---
 
 <html lang="en">

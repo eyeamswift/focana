@@ -82,11 +82,28 @@ function persistSubmittedEmailLocally(email) {
   } catch {}
 }
 
-function buildCheckoutUrl(email, checkoutUrl) {
-  const url = new URL(checkoutUrl, window.location.origin);
-  url.searchParams.delete("embed");
-  url.searchParams.set("checkout[email]", normalizeEmail(email));
-  return url.toString();
+function getCheckoutSuccessContext(event) {
+  const payload = event?.data || {};
+  const nestedOrder = payload.order || {};
+  const attributes = payload.attributes || nestedOrder.attributes || {};
+
+  const email =
+    payload.user_email ||
+    attributes.user_email ||
+    nestedOrder.user_email ||
+    "";
+
+  const orderId =
+    payload.id ||
+    payload.order_id ||
+    nestedOrder.id ||
+    nestedOrder.order_id ||
+    "";
+
+  return {
+    email: email ? String(email).trim() : "",
+    orderId: orderId ? String(orderId).trim() : "",
+  };
 }
 
 function isDesktopExitIntentCandidate() {
@@ -1129,10 +1146,6 @@ const CHECKOUT_URLS = {
   monthly: import.meta.env.PUBLIC_LEMONSQUEEZY_MONTHLY_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/44ce5109-e534-4421-9665-34c166169b18?enabled=1442573",
   lifetime: import.meta.env.PUBLIC_LEMONSQUEEZY_LIFETIME_CHECKOUT_URL || "https://focana.lemonsqueezy.com/checkout/buy/4a2aae5f-06fd-4645-a774-c562c4d4d9fe?enabled=1611321",
 };
-const CHECKOUT_PLAN_LABELS = {
-  monthly: "$10/month",
-  lifetime: "$79 lifetime",
-};
 
 export default function FocanaLanding() {
   const [scrollY, setScrollY] = useState(0);
@@ -1141,19 +1154,16 @@ export default function FocanaLanding() {
   const [mobileProductMenuOpen, setMobileProductMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [exitIntentOpen, setExitIntentOpen] = useState(false);
-  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [checkoutRedirecting, setCheckoutRedirecting] = useState(false);
-  const [checkoutLocation, setCheckoutLocation] = useState("hero");
-  const [checkoutPlan, setCheckoutPlan] = useState("monthly");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [hasSubmittedEmail, setHasSubmittedEmail] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const productMenuRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const exitIntentSubmittedRef = useRef(false);
-  const checkoutSubmittedRef = useRef(false);
   const exitIntentMouseRef = useRef({ y: null, time: 0, velocity: 0 });
   const newsletterShownRef = useRef(false);
+  const checkoutReadyPromiseRef = useRef(null);
 
   useEffect(() => {
     let rafId = 0;
@@ -1305,7 +1315,7 @@ export default function FocanaLanding() {
 
   useEffect(() => {
     if (!isDesktopExitIntentCandidate()) return;
-    if (hasSubmittedEmail || exitIntentOpen || checkoutModalOpen) return;
+    if (hasSubmittedEmail || exitIntentOpen) return;
 
     try {
       if (
@@ -1367,7 +1377,7 @@ export default function FocanaLanding() {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseout", handleMouseOut);
     };
-  }, [checkoutModalOpen, exitIntentOpen, hasSubmittedEmail]);
+  }, [exitIntentOpen, hasSubmittedEmail]);
 
   const navOpacity = Math.min(scrollY / 200, 1);
 
@@ -1400,16 +1410,6 @@ export default function FocanaLanding() {
     exitIntentSubmittedRef.current = false;
   };
 
-  const handleCheckoutModalClose = (reason) => {
-    setCheckoutModalOpen(false);
-
-    if (!checkoutSubmittedRef.current) {
-      phCapture("cta_modal_dismissed", { location: checkoutLocation, reason });
-    }
-
-    checkoutSubmittedRef.current = false;
-  };
-
   const handleExitIntentSubmit = async (email) => {
     await postEmailCapture({ email, source: "exit-intent" });
     exitIntentSubmittedRef.current = true;
@@ -1417,33 +1417,6 @@ export default function FocanaLanding() {
     phCapture("exit_intent_submitted");
     setExitIntentOpen(false);
     showToast("You're on the list. Check your inbox.");
-  };
-
-  const handleCheckoutSubmit = async (email) => {
-    const plan = CHECKOUT_URLS[checkoutPlan] ? checkoutPlan : "monthly";
-    checkoutSubmittedRef.current = true;
-    rememberSubmittedEmail(email);
-    phCapture("cta_modal_submitted", { location: checkoutLocation, plan });
-    setCheckoutModalOpen(false);
-    setCheckoutRedirecting(true);
-
-    void postEmailCapture({
-      email,
-      source: "checkout-started",
-      keepalive: true,
-    }).catch((error) => {
-      console.error("Checkout email capture failed:", error);
-    });
-
-    const redirectUrl = buildCheckoutUrl(email, CHECKOUT_URLS[plan]);
-
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => {
-        window.setTimeout(resolve, 180);
-      });
-    });
-
-    window.location.assign(redirectUrl);
   };
 
   const openTrialDownload = (location) => {
@@ -1456,19 +1429,113 @@ export default function FocanaLanding() {
 
   const openCheckout = (location, plan = "monthly") => {
     const normalizedPlan = CHECKOUT_URLS[plan] ? plan : "monthly";
+    const checkoutUrl = CHECKOUT_URLS[normalizedPlan];
+
+    const redirectToPaidDownload = (email, orderId) => {
+      try {
+        window.sessionStorage.setItem(
+          "focana_purchase_context",
+          JSON.stringify({ email, orderId })
+        );
+      } catch {}
+
+      const redirectUrl = new URL("/download", window.location.origin);
+      if (email) redirectUrl.searchParams.set("email", email);
+      if (orderId) redirectUrl.searchParams.set("order_id", orderId);
+      window.location.href = redirectUrl.toString();
+    };
+
+    const setupLemonCheckout = () => {
+      if (!window.LemonSqueezy || window.__focanaLandingCheckoutSetup) return;
+
+      window.__focanaLandingCheckoutSetup = true;
+      window.LemonSqueezy.Setup({
+        eventHandler: (event) => {
+          if (event.event !== "Checkout.Success") return;
+
+          const { email, orderId } = getCheckoutSuccessContext(event);
+          redirectToPaidDownload(email, orderId);
+        },
+      });
+    };
+
+    const waitForCheckoutOverlay = () => {
+      if (window.LemonSqueezy?.Url?.Open) {
+        setupLemonCheckout();
+        return Promise.resolve(window.LemonSqueezy);
+      }
+
+      if (checkoutReadyPromiseRef.current) {
+        return checkoutReadyPromiseRef.current;
+      }
+
+      checkoutReadyPromiseRef.current = new Promise((resolve, reject) => {
+        let pollId = null;
+        let timeoutId = null;
+
+        const cleanup = () => {
+          window.removeEventListener("lemon:ready", handleReady);
+          if (pollId) window.clearInterval(pollId);
+          if (timeoutId) window.clearTimeout(timeoutId);
+          checkoutReadyPromiseRef.current = null;
+        };
+
+        const finish = (callback) => {
+          cleanup();
+          callback();
+        };
+
+        const tryResolve = () => {
+          if (!window.LemonSqueezy?.Url?.Open) return false;
+          setupLemonCheckout();
+          finish(() => resolve(window.LemonSqueezy));
+          return true;
+        };
+
+        const handleReady = () => {
+          tryResolve();
+        };
+
+        window.addEventListener("lemon:ready", handleReady);
+        pollId = window.setInterval(() => {
+          tryResolve();
+        }, 100);
+        timeoutId = window.setTimeout(() => {
+          finish(() => reject(new Error("Lemon checkout overlay did not become available in time.")));
+        }, 4000);
+
+        tryResolve();
+      });
+
+      return checkoutReadyPromiseRef.current;
+    };
+
     phCapture("cta_clicked", { location, target: "checkout", plan: normalizedPlan });
-    checkoutSubmittedRef.current = false;
-    setCheckoutLocation(location);
-    setCheckoutPlan(normalizedPlan);
-    setCheckoutModalOpen(true);
     try {
       window.sessionStorage.setItem(EXIT_INTENT_DISABLED_KEY, String(Date.now()));
     } catch {}
-    phCapture("cta_modal_shown", {
-      location,
-      plan: normalizedPlan,
-      prefilled_email: Boolean(submittedEmail),
-    });
+
+    if (!/^https:\/\/focana\.lemonsqueezy\.com\//.test(checkoutUrl)) {
+      setCheckoutRedirecting(true);
+      requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          window.location.assign(checkoutUrl);
+        }, 120);
+      });
+      return;
+    }
+
+    setCheckoutRedirecting(true);
+    waitForCheckoutOverlay()
+      .then((lemon) => {
+        setCheckoutRedirecting(false);
+        lemon.Url.Open(checkoutUrl);
+      })
+      .catch((error) => {
+        console.error("Failed to open Lemon overlay:", error);
+        setCheckoutRedirecting(false);
+        showToast("Checkout is still loading. Please try again.");
+      });
   };
 
   return (
@@ -2864,19 +2931,6 @@ export default function FocanaLanding() {
         loadingLabel="Saving..."
         dismissLabel="No thanks"
         defaultEmail={submittedEmail}
-      />
-      <EmailCaptureModal
-        open={checkoutModalOpen}
-        onClose={handleCheckoutModalClose}
-        onSubmit={handleCheckoutSubmit}
-        titleId="checkout-capture-title"
-        title="Where should Lemon send your receipt?"
-        description={`We'll prefill your email for the ${CHECKOUT_PLAN_LABELS[checkoutPlan] || "paid"} checkout. Your receipt includes the license key for activation.`}
-        submitLabel={`Continue to ${CHECKOUT_PLAN_LABELS[checkoutPlan] || "checkout"} →`}
-        loadingLabel="Continuing..."
-        defaultEmail={submittedEmail}
-        showCloseButton={false}
-        dismissOnBack
       />
 
       {/* FOOTER */}

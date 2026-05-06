@@ -14,6 +14,7 @@ Use natural user phrasing here, not just internal topic labels.
 | `Focana` | Pending manual check | Pending manual check | Pending manual check | |
 | `focus app for ADHD Mac` | Pending manual check | Pending manual check | Pending manual check | |
 | `always on top timer Mac` | Pending manual check | Pending manual check | Pending manual check | |
+| `why do I forget what I was doing when I switch tabs` | Pending manual check | Pending manual check | Pending manual check | |
 | `how to stay focused when switching between apps` | Pending manual check | Pending manual check | Pending manual check | |
 | `why am I always late to work ADHD` | Pending manual check | Pending manual check | Pending manual check | |
 | `lose track of time at work ADHD` | Pending manual check | Pending manual check | Pending manual check | |

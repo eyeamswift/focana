@@ -308,7 +308,7 @@ async function createInvite({ supabaseUrl, serviceKey, name, email, slug }) {
   return rows[0];
 }
 
-function printInviteSummary({ heading, invite, link, dryRun, slugAdjusted }) {
+export function printInviteSummary({ heading, invite, link, dryRun, slugAdjusted }) {
   console.log(heading);
   console.log(`Name: ${invite.name}`);
   console.log(`Email: ${invite.email}`);
@@ -325,27 +325,24 @@ function printInviteSummary({ heading, invite, link, dryRun, slugAdjusted }) {
   }
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-
-  if (args.help) {
-    printUsage();
-    return;
-  }
-
-  const name = normalizeDisplayName(args.name);
-  if (!name) {
+export async function resolveInviteCreation({
+  name,
+  email,
+  dryRun = false,
+}) {
+  const normalizedName = normalizeDisplayName(name);
+  if (!normalizedName) {
     throw new Error('Missing required --name value');
   }
 
-  const email = normalizeInviteEmail(args.email);
-  if (!email) {
+  const normalizedEmail = normalizeInviteEmail(email);
+  if (!normalizedEmail) {
     throw new Error('Missing or invalid --email value');
   }
 
-  const baseSlug = normalizeCreatorSlug(name);
+  const baseSlug = normalizeCreatorSlug(normalizedName);
   if (!baseSlug) {
-    throw new Error(`Could not derive a valid slug from "${name}"`);
+    throw new Error(`Could not derive a valid slug from "${normalizedName}"`);
   }
 
   await loadLocalEnvFiles();
@@ -356,20 +353,18 @@ async function main() {
   const existingInviteByEmail = await fetchInviteByEmail({
     supabaseUrl,
     serviceKey,
-    email,
+    email: normalizedEmail,
   });
 
   if (existingInviteByEmail) {
-    const link = buildInviteLink(existingInviteByEmail.slug);
-    printInviteSummary({
+    return {
       heading: 'Invite already exists for this email.',
       invite: existingInviteByEmail,
-      link,
-      dryRun: args.dryRun,
+      link: buildInviteLink(existingInviteByEmail.slug),
+      dryRun,
       slugAdjusted: false,
-    });
-    process.exitCode = 1;
-    return;
+      existed: true,
+    };
   }
 
   const slug = await findAvailableSlug({
@@ -380,40 +375,68 @@ async function main() {
   const link = buildInviteLink(slug);
   const slugAdjusted = slug !== baseSlug;
 
-  if (args.dryRun) {
-    printInviteSummary({
+  if (dryRun) {
+    return {
       heading: 'Invite preview',
       invite: {
-        name,
-        email,
+        name: normalizedName,
+        email: normalizedEmail,
         slug,
         status: 'active',
       },
       link,
       dryRun: true,
       slugAdjusted,
-    });
-    return;
+      existed: false,
+    };
   }
 
   const invite = await createInvite({
     supabaseUrl,
     serviceKey,
-    name,
-    email,
+    name: normalizedName,
+    email: normalizedEmail,
     slug,
   });
 
-  printInviteSummary({
+  return {
     heading: 'Invite created',
     invite,
     link,
     dryRun: false,
     slugAdjusted,
-  });
+    existed: false,
+  };
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    printUsage();
+    return;
+  }
+
+  const result = await resolveInviteCreation({
+    name: args.name,
+    email: args.email,
+    dryRun: args.dryRun,
+  });
+
+  printInviteSummary(result);
+
+  if (result.existed) {
+    process.exitCode = 1;
+  }
+}
+
+const isDirectRun = process.argv[1]
+  ? path.resolve(process.argv[1]) === __filename
+  : false;
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

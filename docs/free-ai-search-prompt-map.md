@@ -3,264 +3,310 @@
 Owner: Justin / Focana
 Last updated: April 23, 2026
 
-## What we are optimizing for
+## Goal
 
-Focana should not optimize for robotic phrases that sound good in a keyword spreadsheet but do not sound like a real person.
+Build a small prompt map from free sources only and use it to decide:
 
-Use this distinction:
+- what belongs on the homepage
+- what belongs in the anchor article
+- what the next 2 human-written articles should be
 
-- `Topic label`: internal shorthand for us
-- `Search query`: what someone might type into Google
-- `LLM prompt`: what someone might ask ChatGPT, Perplexity, Gemini, or Claude
+The rule:
 
-Example:
+- `Topic label` is for us
+- `Search query` is what a person might type
+- `LLM prompt` is how they might ask for help in ChatGPT, Perplexity, Gemini, or Claude
 
-- Topic label: `ADHD time blindness at work`
-- Better search queries:
-  - `why am I always late to work ADHD`
-  - `how to stop being late to work with ADHD`
-  - `lose track of time at work ADHD`
-- Better LLM prompts:
-  - `Why am I always late to work even when I try really hard? I have ADHD.`
-  - `How do people with ADHD stop losing track of time at work?`
+Do not publish the topic label just because it sounds SEO-friendly.
 
-The topic label is still useful internally. It just should not automatically become the page title, slug, or main query we track.
+## Free sources used
 
-## Free-first tool stack
-
-Keep this free for as long as possible.
-
-- Google Search Console:
-  - query data
-  - index coverage
-  - sitemap status
-  - URL inspection
-- Bing Webmaster Tools:
-  - secondary indexing checks
-  - sitemap submission
-- Google Rich Results Test:
-  - validate Google-supported structured data
-- Schema Markup Validator:
-  - validate raw Schema.org markup
-- PageSpeed Insights:
-  - page experience checks
-- Google search in incognito:
-  - autocomplete
-  - People Also Ask
-  - related searches
-- Reddit search:
-  - real phrasing from ADHD and productivity communities
-- Manual checks in ChatGPT, Perplexity, and Gemini:
-  - note whether Focana appears
-  - note which pages or sources get cited
+- Current Focana homepage and anchor article
+- Google Search Console and Bing Webmaster Tools
+- Google search results in incognito
+- Reddit phrasing from ADHD, ADHD programmers, and Mac app communities
+- Manual prompting in ChatGPT, Perplexity, and Gemini
 
 Optional free tier:
 
 - Screaming Frog SEO Spider:
   - free up to 500 URLs
-  - useful for canonicals, redirects, noindex, sitemap, and internal links
+  - useful for canonicals, redirects, sitemap, noindex, and internal links
 
-## Core prompt families
+## Source signals observed
+
+These are the strongest human-language signals seen so far:
+
+- Product-intent phrases already in live search results:
+  - `focus app for ADHD Mac`
+  - `always on top timer Mac`
+  - `native Mac focus app`
+- Problem phrasing from Reddit:
+  - `I forget what I'm doing every time I switch tabs or windows at work`
+  - `I lose the thread every time I switch apps`
+  - `I'm always late to work`
+  - `I always think I still have time`
+  - `one last thing before I leave`
+- Explanatory phrasing that still sounds natural:
+  - `out of sight out of mind ADHD`
+  - `working memory ADHD adults`
+  - `how to keep tasks visible for ADHD`
+
+Important note:
+
+- `ADHD time blindness at work` is still a useful internal label.
+- It is not the best public-facing headline or core tracked phrase.
+
+## Small prompt map
 
 ### 1. Product-intent
 
-These are the queries closest to revenue.
+Priority: highest
+
+Why it matters:
+
+- closest to revenue
+- strongest fit for homepage optimization
 
 Best targets:
 
 - Homepage
-- Product sections on homepage
-- Comparison section on homepage
+- Homepage comparison section
+- FAQ and metadata
 
-Human phrasing:
+Search queries:
 
 - `focus app for ADHD Mac`
 - `best ADHD focus app for Mac`
-- `Mac app to stay focused while working`
 - `always on top timer Mac`
 - `Mac app that stays visible while I work`
-- `focus app that stays on top`
 - `native Mac focus app`
+- `focus app that stays on top`
 
-LLM-style prompts:
+LLM prompts:
 
 - `What's the best Mac app for ADHD focus that stays visible while I switch apps?`
 - `Is there a Mac focus app that stays on top of other windows?`
 - `I need a focus tool for Mac that doesn't disappear behind tabs.`
 
-### 2. App-switching and losing-the-thread intent
+What to reinforce on-site:
 
-This is the strongest problem-to-product bridge for Focana.
+- native Mac app
+- always visible
+- stays on top across apps
+- built from first-hand ADHD experience
+
+### 2. Losing-the-thread / tab-switching intent
+
+Priority: highest
+
+Why it matters:
+
+- strongest bridge between user pain and Focana's product promise
 
 Best targets:
 
-- Existing anchor article
-- Future human-written article 2
-- Homepage comparison section
+- Anchor article
+- Future article 2
+- Homepage "why it feels different" section
 
-Human phrasing:
+Search queries:
+
+- `why do I forget what I was doing when I switch tabs`
+- `how to stay focused when switching between apps`
+- `how to stop losing focus when switching windows`
+- `how to remember what I was doing after switching apps`
+- `app switching kills my focus`
+
+LLM prompts:
+
+- `Why do I forget what I was doing every time I switch tabs at work?`
+- `How do I stay focused when I have to bounce between Slack, email, and my browser?`
+- `I keep losing the thread when I switch windows. What actually helps?`
+
+Best article angle:
+
+- `Why do I forget what I was doing when I switch tabs?`
+
+Secondary support phrases:
 
 - `how to stay focused when switching between apps`
-- `why do I forget what I was doing when I switch tabs`
 - `how to stop losing focus when switching windows`
-- `app switching kills my focus`
-- `how to keep task visible while working`
 - `how to remember what I was doing after switching apps`
 
-LLM-style prompts:
+### 3. Visible-focus / working-memory intent
 
-- `Why do I lose the thread every time I switch apps?`
-- `How do I stay focused when I have to bounce between Slack, email, and my browser?`
-- `I keep forgetting what I was doing when I switch tabs. What helps?`
+Priority: medium-high
 
-### 3. Visibility and externalized working-memory intent
+Why it matters:
 
-This is the deeper explanatory layer that makes Focana believable.
+- makes the product claim feel credible
+- gives AI systems stronger explanatory content to cite
 
 Best targets:
 
-- Existing anchor article
-- Homepage trust/problem sections
+- Anchor article
+- Homepage trust/problem framing
 
-Human phrasing:
+Search queries:
 
 - `out of sight out of mind ADHD`
 - `why do ADHD people forget tasks when they can't see them`
 - `working memory ADHD adults`
-- `object permanence ADHD adults`
-- `ADHD visible reminders`
 - `how to keep tasks visible for ADHD`
+- `ADHD visible reminders`
 
-LLM-style prompts:
+LLM prompts:
 
 - `Why do I forget tasks the second they leave my screen?`
 - `Is out of sight out of mind an ADHD thing?`
 - `What helps ADHD brains keep a task active while working on a computer?`
 
-### 4. Time-loss and lateness intent
+What to do with this theme:
 
-This is where the old phrasing needed correction.
+- keep it mostly explanatory
+- use it to support product-intent and tab-switching pages
+- do not let this become too academic or jargon-heavy
 
-Internal label:
+### 4. Lateness / time-loss intent
+
+Priority: medium
+
+Why it matters:
+
+- big emotional pain point
+- good fit for a future human-written article
+- not as directly commercial as app-switching
+
+Internal topic label:
 
 - `ADHD time blindness at work`
 
-Better public phrasing:
+Better public-facing search queries:
 
 - `why am I always late to work ADHD`
 - `how to stop being late to work with ADHD`
 - `lose track of time at work ADHD`
+- `why do I always think I still have time`
 - `why do I underestimate how long things take ADHD`
-- `ADHD always late to work`
 
-LLM-style prompts:
+LLM prompts:
 
 - `Why am I always late even when I care and try hard?`
 - `How can I stop losing track of time at work with ADHD?`
 - `Why do I always think I have more time than I do?`
 
-Best targets:
+Best article angle:
 
-- Future human-written article 3
-- Possibly a short supporting section in the anchor article
+- `Why am I always late to work with ADHD?`
 
-Important note:
+Secondary support phrases:
 
-- This topic is real.
-- The exact phrase `ADHD time blindness at work` may still appear in some content ecosystems.
-- But it works better for us as an internal theme than as the main phrase we optimize around.
+- `how to stop being late to work with ADHD`
+- `lose track of time at work ADHD`
+- `why do I underestimate how long things take ADHD`
 
 ### 5. Browser-extension-vs-native-app intent
 
-This is strong buying-stage content.
+Priority: medium
+
+Why it matters:
+
+- buying-stage comparison intent
+- highly relevant to Focana's product story
 
 Best targets:
 
 - Homepage comparison section
-- Future human-written article
+- Future supporting article or FAQ block
 
-Human phrasing:
+Search queries:
 
 - `browser extension vs desktop app for focus`
 - `best focus app not browser extension`
 - `browser extension disappears when I switch tabs`
 - `native app vs browser extension ADHD productivity`
 
-LLM-style prompts:
+LLM prompts:
 
 - `Should I use a browser extension or a desktop app for focus?`
 - `What's better for ADHD focus: a browser extension or a native Mac app?`
 
-## What to publish in each phase
+## What belongs in Phase 2
 
-### Phase 1
+### Article 2
 
-Use the current site and existing anchor article to cover:
+Working title:
 
-- product-intent
-- app-switching intent
-- visible-focus / working-memory intent
+- `Why do I forget what I was doing when I switch tabs?`
 
-Do not force a content cluster just to fill it out.
+Why this goes first:
 
-### Phase 2
+- sounds like a real person
+- matches repeated community phrasing
+- connects directly to Focana's visibility promise
 
-Add 2 human-written articles:
+Secondary phrases:
 
-1. Article 2
-   - Working title:
-     - `Why do I forget what I was doing when I switch tabs?`
-   - Secondary phrases:
-     - `how to stay focused when switching between apps`
-     - `how to stop losing focus when switching windows`
-     - `app switching kills my focus`
+- `how to stay focused when switching between apps`
+- `how to stop losing focus when switching windows`
+- `how to remember what I was doing after switching apps`
 
-2. Article 3
-   - Working title:
-     - `Why am I always late to work with ADHD?`
-   - Secondary phrases:
-     - `how to stop being late to work with ADHD`
-     - `lose track of time at work ADHD`
-     - `why do I underestimate how long things take ADHD`
+### Article 3
 
-These titles are more human than the internal labels and more likely to match real search and AI prompt phrasing.
+Working title:
 
-## How to research this for free every week
+- `Why am I always late to work with ADHD?`
 
-1. Pull Search Console queries for the homepage, `/blog/`, and the anchor article.
-2. Look for plain-English wording, not just short head terms.
-3. Search Google in incognito for the main themes and record:
-   - autocomplete ideas
-   - People Also Ask questions
+Why this goes second:
+
+- strong emotional resonance
+- repeated community phrasing
+- useful for broader ADHD trust and problem awareness
+
+Secondary phrases:
+
+- `how to stop being late to work with ADHD`
+- `lose track of time at work ADHD`
+- `why do I always think I still have time`
+
+## What stays in Phase 1 pages
+
+Homepage should keep carrying:
+
+- `focus app for ADHD Mac`
+- `always on top timer Mac`
+- `native Mac focus app`
+- `Mac app that stays visible while I work`
+
+Anchor article should keep carrying:
+
+- `out of sight out of mind ADHD`
+- `working memory ADHD adults`
+- `why do I forget tasks the second they leave my screen`
+
+## Weekly free workflow
+
+1. Pull Search Console queries for homepage, `/blog`, and the anchor article.
+2. Check Bing Webmaster for sitemap health and emerging queries.
+3. Search the top problem themes in Google incognito and note:
+   - autocomplete
+   - People Also Ask
    - related searches
-4. Search Reddit for the same problems and save exact language people repeat.
-5. Ask ChatGPT, Perplexity, and Gemini the top buyer and pain-point prompts.
+4. Search Reddit for the same themes and collect repeated human phrasing.
+5. Ask ChatGPT, Perplexity, and Gemini the top prompts from this document.
 6. Record:
    - whether Focana appears
-   - which competitors appear
-   - which sources are cited
-7. Update the next article brief based on repeated phrasing.
+   - which URL appears
+   - which outside sources get cited
+7. Update the next article brief from repeated phrasing, not gut feel.
 
-## How to write for both SEO and AI search
+## Writing rules for Phase 2
 
 - Start with a short direct answer near the top.
-- Use question-based subheads when they match real phrasing.
+- Keep the title human, not clinical.
+- Use question-based subheads only when they sound natural.
 - Prefer first-hand explanation over generic listicles.
 - Add source links where claims need support.
-- Keep the author visible.
-- Make the page easy to skim and easy to quote.
-- Do not write around awkward phrases just because they look keyword-rich.
-
-## Content map
-
-| Theme | Best page | Main phrases to target |
-| --- | --- | --- |
-| Product category | Homepage | `focus app for ADHD Mac`, `always on top timer Mac`, `Mac app that stays visible while I work` |
-| Losing the thread when switching | Anchor article + future article 2 | `how to stay focused when switching between apps`, `why do I forget what I was doing when I switch tabs` |
-| Visible focus / working memory | Anchor article | `out of sight out of mind ADHD`, `working memory ADHD adults`, `how to keep tasks visible for ADHD` |
-| Lateness / time loss | Future article 3 | `why am I always late to work ADHD`, `lose track of time at work ADHD`, `how to stop being late to work with ADHD` |
-| Native app vs extension | Future comparison article or homepage section | `browser extension vs desktop app for focus`, `native app vs browser extension ADHD productivity` |
-
-## Simple rule
-
-If a phrase sounds like something only a marketer would type, keep it as an internal label, not the public-facing target.
+- Keep Justin visible as the author.
+- Write pages that are easy to skim, easy to quote, and easy to trust.

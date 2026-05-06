@@ -19,6 +19,12 @@ Run:
 npm run invite:create -- --name "Justin Franklin" --email "justin@example.com"
 ```
 
+Create an invite and verify the live URL:
+
+```bash
+npm run invite:live -- --name "Justin Franklin" --email "justin@example.com"
+```
+
 Preview without inserting:
 
 ```bash
@@ -33,6 +39,27 @@ npm run invite:create -- --name "Justin Franklin" --email "justin@example.com" -
 - Finds the next available slug if the base slug is already taken
 - Inserts a new `friends_and_family_invites` row
 - Prints the final share link
+
+## Recommended Workflow
+Use `invite:live` for real invites you plan to send immediately.
+
+It does everything `invite:create` does, then:
+- polls the production invite URL
+- confirms it returns a real `200` HTML response
+- checks that the invite page content actually rendered
+- only prints success after the link is live and smoke tested
+
+This is the command to use when you want me to say:
+- `this link is live`
+- `we smoke tested it`
+
+Example prompt to me:
+
+```text
+Run invite:live for:
+Name: Justin Franklin
+Email: justin@example.com
+```
 
 ## Link Format
 `https://focana.app/friends-and-family/<slug>`
