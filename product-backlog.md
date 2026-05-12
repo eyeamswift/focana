@@ -33,6 +33,16 @@
 - Notes: Do a holistic polish pass across the session-boundary surfaces rather than treating pre-session and post-session as unrelated tweaks. Refine the ready/start flow so beginning work feels crisp, then tighten `Session Wrap`, `Save for Later`, and adjacent copy/actions so ending a session always scripts the next obvious move. Prefer visible-state clarity over extra ceremony, keep the highest-confidence next action easy to choose, and make the before and after screens feel like one coherent loop instead of separate features that happen to touch the timer. Acceptance should verify clean manual startup into the ready shell, predictable start-task handoff, polished `Session Wrap` child paths, and save-for-later transitions that preserve context without awkward dead ends.
 - Commits: —
 
+### UX-016 — Re-entry nudges should never interrupt active typing
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: If the user is typing in the `What's next?` field, Focana has already regained their attention. Pulsing, refocusing, or clearing draft text at that moment makes the re-entry prompt feel intrusive and can break trust in the resident app behavior.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `SET-003`, `UX-014`, `UX-006`, `WIN-008`
+- Notes: Treat typing in the re-entry prompt as active engagement. Suppress or postpone re-entry pulses while the task field is focused, while the prompt has unsaved draft text, or during a short grace window after text input. Protect `reentrySurfaceTaskText` from being overwritten by timer ticks, pulse state, prompt reopen/signature refreshes, or duplicate resident-window events unless the user explicitly chooses a new source, snoozes, closes, or starts the task. Acceptance should verify that a scheduled pulse does not fire mid-typing, that draft text survives any prompt attention refresh, and that packaged/dev duplicate-instance testing does not allow one Focana instance to clear another instance's active draft.
+- Commits: —
+
 ### UX-015 — Pause and break flows should help users pick up where they left off
 - Priority: High
 - Status: Next Up

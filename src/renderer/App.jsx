@@ -226,6 +226,27 @@ const findLatestResumableSession = (sessions = []) => (
     : null
 );
 
+const isCompletedPostSessionCandidate = (candidate) => candidate?.resolution === 'completed';
+
+function buildResumeCandidateFromSession(session, fallbacks = {}) {
+  const taskText = typeof session?.task === 'string' ? session.task.trim() : '';
+  if (!taskText) return null;
+
+  const recap = getSessionRecap(session) || fallbacks.recap || '';
+  const nextSteps = getSessionNextSteps(session) || fallbacks.nextSteps || '';
+
+  return {
+    source: 'resume-later-loaded',
+    taskText,
+    recap,
+    nextSteps,
+    notes: recap,
+    sessionId: session.id || null,
+    mode: session.mode === 'timed' ? 'timed' : 'freeflow',
+    carryoverSeconds: Math.max(0, Math.round((Number(session.durationMinutes) || 0) * 60)),
+  };
+}
+
 function getSessionRecap(session) {
   if (!session || typeof session !== 'object') return '';
   if (typeof session.recap === 'string') return session.recap;
@@ -408,6 +429,7 @@ export default function App() {
   const [reentryPromptOverrideKind, setReentryPromptOverrideKind] = useState(null);
   const [systemEntryPending, setSystemEntryPending] = useState(null);
   const [systemEntryRevealPending, setSystemEntryRevealPending] = useState(false);
+  const [systemEntryResumeCandidate, setSystemEntryResumeCandidate] = useState(null);
   const [reentrySurfaceStage, setReentrySurfaceStage] = useState('task-entry');
   const [reentrySurfaceTaskText, setReentrySurfaceTaskText] = useState('');
   const [reentrySurfaceMinutes, setReentrySurfaceMinutes] = useState('25');
@@ -532,6 +554,7 @@ export default function App() {
   const reentryFloatingPromptOpenRef = useRef(false);
   const reentryFloatingPromptSentRef = useRef('');
   const reentryResumeCandidateRef = useRef(null);
+  const latestSystemEntryResumeCandidateRef = useRef(null);
   const reentrySurfaceSignatureRef = useRef('');
   const reentryStartNewAfterResolveRef = useRef(false);
   const systemEntryPendingRef = useRef(null);
@@ -874,7 +897,12 @@ export default function App() {
   );
 
   const reentryResumeCandidate = useMemo(() => {
-    if (postSessionResumeCandidate?.taskText && !isRunning && !isTimerVisible) {
+    if (
+      postSessionResumeCandidate?.taskText
+      && !isCompletedPostSessionCandidate(postSessionResumeCandidate)
+      && !isRunning
+      && !isTimerVisible
+    ) {
       return {
         ...postSessionResumeCandidate,
         recap: typeof postSessionResumeCandidate.recap === 'string' ? postSessionResumeCandidate.recap : '',
@@ -910,17 +938,18 @@ export default function App() {
       return null;
     }
 
-    return {
-      source: 'resume-later-loaded',
-      taskText: latestResumableSession.task,
-      recap: getSessionRecap(latestResumableSession) || contextNotes || '',
-      nextSteps: getSessionNextSteps(latestResumableSession) || nextStepsNotes || '',
-      notes: getSessionRecap(latestResumableSession) || contextNotes || '',
-      sessionId: latestResumableSession.id || null,
-      mode: latestResumableSession.mode === 'timed' ? 'timed' : 'freeflow',
-      carryoverSeconds: Math.max(0, Math.round((Number(latestResumableSession.durationMinutes) || 0) * 60)),
-    };
+    return buildResumeCandidateFromSession(latestResumableSession, {
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+    });
   }, [contextNotes, currentSessionId, getElapsedSeconds, isRunning, isTimerVisible, latestResumableSession, mode, nextStepsNotes, postSessionResumeCandidate, task]);
+
+  const latestSystemEntryResumeCandidate = useMemo(() => {
+    if (isRunning || isTimerVisible) return null;
+    return buildResumeCandidateFromSession(latestResumableSession);
+  }, [isRunning, isTimerVisible, latestResumableSession]);
+
+  const effectiveReentryResumeCandidate = systemEntryResumeCandidate || reentryResumeCandidate;
 
   const getDefaultReentryMinutes = useCallback(() => {
     const parsed = Number.parseInt(String(sessionMinutes || '').trim(), 10);
@@ -931,9 +960,14 @@ export default function App() {
     reentryPromptOverrideKind === 'resume-choice' || reentryPromptOverrideKind === 'start'
   )
     ? reentryPromptOverrideKind
-    : (reentryResumeCandidate ? 'resume-choice' : 'start');
-  const hasActiveResumeCandidate = Boolean(reentryResumeCandidate?.taskText);
+    : (effectiveReentryResumeCandidate ? 'resume-choice' : 'start');
+  const hasActiveResumeCandidate = Boolean(effectiveReentryResumeCandidate?.taskText);
   const systemEntryPendingActive = Boolean(systemEntryPending);
+  const startupSetupGateActive = (
+    startupGateState === 'activation'
+    || startupGateState === 'upgrade'
+    || startupGateState === 'name'
+  );
   const showSurfaceReentryPrompt = (
     reentryAttentionVisible
       && startupGateState === 'ready'
@@ -953,14 +987,14 @@ export default function App() {
       return;
     }
 
-    const signature = `${reentryPromptKind}:${reentryResumeCandidate?.sessionId || reentryResumeCandidate?.taskText || 'draft'}`;
+    const signature = `${reentryPromptKind}:${effectiveReentryResumeCandidate?.sessionId || effectiveReentryResumeCandidate?.taskText || 'draft'}`;
     if (reentrySurfaceSignatureRef.current === signature) return;
     reentrySurfaceSignatureRef.current = signature;
 
     setReentrySurfaceStage(reentryPromptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
     setReentrySurfaceTaskText(
       clampTaskText(reentryPromptKind === 'resume-choice'
-        ? (reentryResumeCandidate?.taskText || task)
+        ? (effectiveReentryResumeCandidate?.taskText || task)
         : (reentryPromptOverrideKind === 'start' ? '' : task)),
     );
     setReentrySurfaceMinutes(String(getDefaultReentryMinutes()));
@@ -968,7 +1002,7 @@ export default function App() {
     getDefaultReentryMinutes,
     reentryPromptOverrideKind,
     reentryPromptKind,
-    reentryResumeCandidate,
+    effectiveReentryResumeCandidate,
     showSurfaceReentryPrompt,
     task,
   ]);
@@ -1616,18 +1650,26 @@ export default function App() {
   const clearSystemEntryPending = useCallback(() => {
     setSystemEntryPending(null);
     setSystemEntryRevealPending(false);
+    setSystemEntryResumeCandidate(null);
   }, []);
 
-  const resolveSystemEntryPromptKind = useCallback((source = systemEntryPendingRef.current?.source) => {
+  const resolveSystemEntryPromptState = useCallback((source = systemEntryPendingRef.current?.source) => {
     const normalizedSource = typeof source === 'string' ? source.trim() : '';
     if (!normalizedSource) return null;
-    if (normalizedSource === 'login') return 'start';
-    return reentryResumeCandidateRef.current?.taskText ? 'resume-choice' : 'start';
+    if (normalizedSource !== 'login' && normalizedSource !== 'wake-resume' && normalizedSource !== 'wake-login') {
+      return null;
+    }
+
+    const resumeCandidate = reentryResumeCandidateRef.current || latestSystemEntryResumeCandidateRef.current;
+    return {
+      promptKind: resumeCandidate?.taskText ? 'resume-choice' : 'start',
+      resumeCandidate: resumeCandidate?.taskText ? resumeCandidate : null,
+    };
   }, []);
 
   const presentSystemEntryPrompt = useCallback((source = systemEntryPendingRef.current?.source) => {
-    const nextPromptKind = resolveSystemEntryPromptKind(source);
-    if (!nextPromptKind) return false;
+    const promptState = resolveSystemEntryPromptState(source);
+    if (!promptState?.promptKind) return false;
 
     reentryEligibleSinceRef.current = null;
     reentryNextCueAtRef.current = null;
@@ -1639,12 +1681,13 @@ export default function App() {
 
     setSystemEntryPending(null);
     setSystemEntryRevealPending(true);
+    setSystemEntryResumeCandidate(promptState.resumeCandidate);
     setReentryStrongActive(false);
-    setReentryPromptOverrideKind(nextPromptKind);
+    setReentryPromptOverrideKind(promptState.promptKind);
     setReentryAttentionVisible(true);
     closeFloatingReentryPrompt();
     return true;
-  }, [closeFloatingReentryPrompt, resolveSystemEntryPromptKind]);
+  }, [closeFloatingReentryPrompt, resolveSystemEntryPromptState]);
 
   const setFloatingBreakState = useCallback(({ open = false, endsAt = 0, showTimer = false } = {}) => {
     window.electronAPI.setFloatingBreakState?.({
@@ -1745,6 +1788,7 @@ export default function App() {
     }
     setReentryStrongActive(false);
     setReentryAttentionVisible(false);
+    setSystemEntryResumeCandidate(null);
     closeFloatingReentryPrompt();
     void window.electronAPI.enterFloatingMinimize?.();
   }, [closeFloatingReentryPrompt]);
@@ -1761,6 +1805,7 @@ export default function App() {
     }
     setReentryStrongActive(false);
     setReentryAttentionVisible(false);
+    setSystemEntryResumeCandidate(null);
     closeFloatingReentryPrompt();
     reentryEligibleSinceRef.current = null;
     reentryNextCueAtRef.current = null;
@@ -2723,8 +2768,12 @@ export default function App() {
   }, [getElapsedSeconds]);
 
   useEffect(() => {
-    reentryResumeCandidateRef.current = reentryResumeCandidate;
-  }, [reentryResumeCandidate]);
+    reentryResumeCandidateRef.current = effectiveReentryResumeCandidate;
+  }, [effectiveReentryResumeCandidate]);
+
+  useEffect(() => {
+    latestSystemEntryResumeCandidateRef.current = latestSystemEntryResumeCandidate;
+  }, [latestSystemEntryResumeCandidate]);
 
   useEffect(() => {
     resetCheckInScheduleRef.current = resetCheckInSchedule;
@@ -3014,6 +3063,7 @@ export default function App() {
       carryoverSeconds: 0,
       completedMinutes: elapsedSec / 60,
       completedMode: mode,
+      resolution: 'completed',
     });
   }, [clearCheckInUi, completeSessionFromCheckIn, contextNotes, getElapsedSeconds, logCheckIn, mode, nextStepsNotes, task]);
 
@@ -3088,6 +3138,12 @@ export default function App() {
     const cleanupStarted = window.electronAPI.onSystemEntryEvent?.((payload = {}) => {
       const eventType = typeof payload?.type === 'string' ? payload.type.trim() : '';
       if (eventType !== 'login' && eventType !== 'wake-resume' && eventType !== 'wake-login') return;
+      if (startupSetupGateActive) {
+        setSystemEntryRevealPending(false);
+        setSystemEntryPending(null);
+        setSystemEntryResumeCandidate(null);
+        return;
+      }
       setSystemEntryRevealPending(false);
       setSystemEntryPending({ source: eventType });
     });
@@ -3107,7 +3163,7 @@ export default function App() {
       if (cleanupReveal) cleanupReveal();
       if (cleanupOpenNow) cleanupOpenNow();
     };
-  }, [clearSystemEntryPending, presentSystemEntryPrompt]);
+  }, [clearSystemEntryPending, presentSystemEntryPrompt, startupSetupGateActive]);
 
   useEffect(() => {
     const handleMaybeReopen = () => {
@@ -3578,6 +3634,8 @@ export default function App() {
       timeUpHandledRef.current = false;
       return undefined;
     }
+    if (!isRunning || !sessionStartTime) return undefined;
+    if (systemEntryPendingActive || systemEntryRevealPending) return undefined;
     if (showTimeUpModal || showNotesModal) return undefined;
     if (timeUpHandledRef.current) return undefined;
 
@@ -3644,7 +3702,7 @@ export default function App() {
     };
 
     void showTimeUpFlow();
-  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, logMissedCheckInIfPrompting, nextStepsNotes, saveSessionWithNotes, showNotesModal, showTimeUpModal, task]);
+  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, isRunning, logMissedCheckInIfPrompting, nextStepsNotes, saveSessionWithNotes, sessionStartTime, showNotesModal, showTimeUpModal, systemEntryPendingActive, systemEntryRevealPending, task]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -3905,13 +3963,18 @@ export default function App() {
 
   useEffect(() => {
     if (!startupSystemEntryRevealSource) return;
+    if (startupSetupGateActive) {
+      setStartupSystemEntryRevealSource(null);
+      clearSystemEntryPending();
+      return;
+    }
     if (startupGateState !== 'ready') return;
     if (!sessionStateHydrated) return;
     if (!startupRevealComplete) return;
 
     presentSystemEntryPrompt(startupSystemEntryRevealSource);
     setStartupSystemEntryRevealSource(null);
-  }, [presentSystemEntryPrompt, sessionStateHydrated, startupGateState, startupRevealComplete, startupSystemEntryRevealSource]);
+  }, [clearSystemEntryPending, presentSystemEntryPrompt, sessionStateHydrated, startupGateState, startupRevealComplete, startupSetupGateActive, startupSystemEntryRevealSource]);
 
   useEffect(() => {
     if (startupGateState === 'checking') return undefined;
@@ -4449,6 +4512,22 @@ export default function App() {
     }, 100);
   }, [clearSystemEntryPending, closeFloatingReentryPrompt, handleClear, setFloatingBreakState]);
 
+  const openWhatsNextPrompt = useCallback(({ bringToFront = false } = {}) => {
+    handleClear();
+    setPostSessionStartAssist(false);
+    setReentryPromptOverrideKind('start');
+    setReentrySurfaceStage('task-entry');
+    setReentrySurfaceTaskText('');
+    setReentrySurfaceMinutes(String(getDefaultReentryMinutes()));
+    setReentryStrongActive(false);
+    setReentryAttentionVisible(true);
+    closeFloatingReentryPrompt();
+
+    if (bringToFront) {
+      window.electronAPI.bringToFront?.();
+    }
+  }, [closeFloatingReentryPrompt, getDefaultReentryMinutes, handleClear]);
+
   const beginStartSomethingNewFromResumeCandidate = useCallback(() => {
     closeFloatingReentryPrompt();
     setReentryAttentionVisible(true);
@@ -4601,6 +4680,7 @@ export default function App() {
     carryoverSeconds = 0,
     completedMinutes = 0,
     completedMode = mode,
+    resolution = 'open',
   }) => {
     const nextTaskText = clampTaskText(typeof taskText === 'string' ? taskText : '').trim();
     if (!nextTaskText) return null;
@@ -4618,6 +4698,7 @@ export default function App() {
       carryoverSeconds: Math.max(0, Math.floor(Number(carryoverSeconds) || 0)),
       completedMinutes: safeCompletedMinutes,
       completedMode: safeCompletedMode,
+      resolution: resolution === 'completed' ? 'completed' : 'open',
     };
   }, [mode]);
 
@@ -4631,6 +4712,7 @@ export default function App() {
     completedMode = mode,
     returnToCompact = false,
     returnToFloating = false,
+    resolution = 'open',
   }) => {
     const candidate = buildPostSessionResumeCandidate({
       taskText,
@@ -4640,6 +4722,7 @@ export default function App() {
       carryoverSeconds,
       completedMinutes,
       completedMode,
+      resolution,
     });
     if (!candidate) return;
 
@@ -4718,7 +4801,7 @@ export default function App() {
         task: postSessionResumeCandidate.taskText,
         duration_minutes: postSessionResumeCandidate.completedMinutes || 0,
         mode: postSessionResumeCandidate.completedMode || 'freeflow',
-        completed: false,
+        completed: isCompletedPostSessionCandidate(postSessionResumeCandidate),
         kept: false,
         notes: postSessionResumeCandidate.recap || '',
         recap: postSessionResumeCandidate.recap || '',
@@ -4767,6 +4850,7 @@ export default function App() {
           recap: splitNotes.recap,
           nextSteps: splitNotes.nextSteps,
           notes: splitNotes.recap,
+          resolution: completed ? 'completed' : 'open',
         } : prev
       ));
       await loadSessions();
@@ -4917,13 +5001,16 @@ export default function App() {
       : true;
     const breakMinutes = [5, 15, 25].includes(requestedBreakMinutes) ? requestedBreakMinutes : 5;
     const breakEndsAt = Date.now() + (breakMinutes * 60 * 1000);
+    const taskAlreadyCompleted = isCompletedPostSessionCandidate(postSessionResumeCandidate);
 
-    await updatePostSessionSession({
-      completed: false,
-      kept: true,
-      recap: postSessionResumeCandidate.recap,
-      nextSteps: postSessionResumeCandidate.nextSteps,
-    });
+    if (!taskAlreadyCompleted) {
+      await updatePostSessionSession({
+        completed: false,
+        kept: true,
+        recap: postSessionResumeCandidate.recap,
+        nextSteps: postSessionResumeCandidate.nextSteps,
+      });
+    }
 
     postSessionBreakUntilRef.current = breakEndsAt;
     postSessionBreakPromptPendingRef.current = true;
@@ -4962,12 +5049,14 @@ export default function App() {
 
   const handlePostSessionStartNewTaskMarkComplete = useCallback(async () => {
     if (postSessionResumeCandidate?.taskText) {
-      await updatePostSessionSession({
-        completed: true,
-        kept: false,
-        recap: postSessionResumeCandidate.recap,
-        nextSteps: postSessionResumeCandidate.nextSteps,
-      });
+      if (!isCompletedPostSessionCandidate(postSessionResumeCandidate)) {
+        await updatePostSessionSession({
+          completed: true,
+          kept: false,
+          recap: postSessionResumeCandidate.recap,
+          nextSteps: postSessionResumeCandidate.nextSteps,
+        });
+      }
       track('session_completed', {
         mode: postSessionResumeCandidate.completedMode || mode,
         duration_minutes: Math.round((postSessionResumeCandidate.completedMinutes || 0) * 10) / 10,
@@ -4975,8 +5064,8 @@ export default function App() {
       });
     }
     closePostSessionSurface();
-    openFreshTaskComposer({ promptTone: 'next' });
-  }, [closePostSessionSurface, mode, openFreshTaskComposer, postSessionResumeCandidate, updatePostSessionSession]);
+    openWhatsNextPrompt();
+  }, [closePostSessionSurface, mode, openWhatsNextPrompt, postSessionResumeCandidate, updatePostSessionSession]);
 
   const handlePostSessionStartNewTaskSaveForLater = useCallback(async (notes = {}) => {
     const splitNotes = normalizeSplitNotes(notes, {
@@ -4998,20 +5087,22 @@ export default function App() {
       recap: postSessionResumeCandidate?.recap,
       nextSteps: postSessionResumeCandidate?.nextSteps,
     });
-    await updatePostSessionSession({
-      completed: false,
-      kept: true,
-      recap: splitNotes.recap,
-      nextSteps: splitNotes.nextSteps,
-    });
-    setPostSessionResumeCandidate((prev) => (
-      prev ? {
-        ...prev,
+    if (!isCompletedPostSessionCandidate(postSessionResumeCandidate)) {
+      await updatePostSessionSession({
+        completed: false,
+        kept: true,
         recap: splitNotes.recap,
         nextSteps: splitNotes.nextSteps,
-        notes: splitNotes.recap,
-      } : prev
-    ));
+      });
+      setPostSessionResumeCandidate((prev) => (
+        prev ? {
+          ...prev,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+          notes: splitNotes.recap,
+        } : prev
+      ));
+    }
     closePostSessionSurface();
     void window.electronAPI.enterFloatingMinimize?.();
   }, [closePostSessionSurface, postSessionResumeCandidate, updatePostSessionSession]);
@@ -6593,9 +6684,9 @@ export default function App() {
           reentryPromptStage={reentrySurfaceStage}
           reentryPromptTaskText={reentrySurfaceTaskText}
           reentryPromptMinutes={reentrySurfaceMinutes}
-          reentryResumeTaskName={reentryResumeCandidate?.taskText || ''}
-          reentryResumeRecap={reentryResumeCandidate?.recap || ''}
-          reentryResumeNextSteps={reentryResumeCandidate?.nextSteps || ''}
+          reentryResumeTaskName={effectiveReentryResumeCandidate?.taskText || ''}
+          reentryResumeRecap={effectiveReentryResumeCandidate?.recap || ''}
+          reentryResumeNextSteps={effectiveReentryResumeCandidate?.nextSteps || ''}
           onReentryTaskTextChange={(nextValue) => setReentrySurfaceTaskText(clampTaskText(nextValue))}
           onReentryMinutesChange={setReentrySurfaceMinutes}
           onReentryStageChange={setReentrySurfaceStage}
@@ -6853,9 +6944,9 @@ export default function App() {
                   taskText={reentrySurfaceTaskText}
                   minutes={reentrySurfaceMinutes}
                   maxTaskLength={TASK_CHARACTER_LIMIT}
-                  resumeTaskName={reentryResumeCandidate?.taskText || ''}
-                  resumeRecap={reentryResumeCandidate?.recap || ''}
-                  resumeNextSteps={reentryResumeCandidate?.nextSteps || ''}
+                  resumeTaskName={effectiveReentryResumeCandidate?.taskText || ''}
+                  resumeRecap={effectiveReentryResumeCandidate?.recap || ''}
+                  resumeNextSteps={effectiveReentryResumeCandidate?.nextSteps || ''}
                   onTaskTextChange={(nextValue) => setReentrySurfaceTaskText(clampTaskText(nextValue))}
                   onMinutesChange={setReentrySurfaceMinutes}
                   onStageChange={setReentrySurfaceStage}

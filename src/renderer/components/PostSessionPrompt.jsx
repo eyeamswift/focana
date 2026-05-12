@@ -42,6 +42,7 @@ export default function PostSessionPrompt({
   const suggestedTimedMinutes = candidate?.completedMode === 'timed'
     ? clampMinutes(candidate?.completedMinutes, 25)
     : 25;
+  const taskAlreadyCompleted = candidate?.resolution === 'completed';
 
   const [stage, setStage] = useState('hub');
   const [breakMinutes, setBreakMinutes] = useState(5);
@@ -222,22 +223,31 @@ export default function PostSessionPrompt({
           type="button"
           variant="outline"
           className="post-session-action post-session-action--secondary"
-          onClick={() => moveToStage('new-task-decision')}
+          onClick={() => {
+            if (taskAlreadyCompleted) {
+              dismissFeedbackIfNeeded();
+              onStartNewTaskMarkComplete?.({ alreadyCompleted: true });
+              return;
+            }
+            moveToStage('new-task-decision');
+          }}
           data-testid="post-session-new-task"
         >
           <span>Start a new task</span>
           <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
         </Button>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="post-session-action post-session-action--secondary post-session-action--terminal"
-          onClick={() => onStartNewTaskMarkComplete?.()}
-          data-testid="post-session-mark-complete"
-        >
-          <span>Mark complete</span>
-        </Button>
+        {!taskAlreadyCompleted ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="post-session-action post-session-action--secondary post-session-action--terminal"
+            onClick={() => onStartNewTaskMarkComplete?.()}
+            data-testid="post-session-mark-complete"
+          >
+            <span>Mark complete</span>
+          </Button>
+        ) : null}
       </div>
 
       <button
