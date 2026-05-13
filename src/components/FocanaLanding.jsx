@@ -20,6 +20,9 @@ const COLORS = {
   goldenGlow: "#FCD34D",
   creamYellow: "#FEF3C7",
   beigeBorder: "#E5D4B1",
+  brandBorder: "#E7D0A9",
+  softTan: "#F6E7C7",
+  logoRust: "#B94E10",
   warmGray: "#7A6548",
 };
 
@@ -28,6 +31,104 @@ const founderProfiles = [
   { label: "LinkedIn", href: "https://www.linkedin.com/in/justinfranklin90" },
   { label: "Substack", href: "https://adhdfounder.substack.com" },
   { label: "X", href: "https://x.com/eyeamswift" },
+];
+
+const brainStates = [
+  {
+    slug: "stuck",
+    label: "Stuck",
+    buttonLabel: "Unstick me",
+    shortPain: "Difficulty starting. Too many invisible first steps.",
+    painHeadline: "You know the thing matters, but starting feels impossible.",
+    pain: "The task is real, the deadline is real, and somehow the first move is still hiding behind a wall.",
+    featureTitle: "Start with one visible task",
+    outcome: "Focana gives your brain one clean next action: type the task, start the session, and keep that intention visible while you work.",
+    featureHref: "#feature-get-started",
+    featureLinkLabel: "See the 7-second start",
+    cardBg: COLORS.softCream,
+    cardBgSoft: COLORS.warmVanilla,
+    accent: COLORS.deepAmber,
+    cardText: COLORS.warmBrown,
+    buttonBg: COLORS.warmBrown,
+    buttonText: "#FFF9E6",
+    sketch: "stuck",
+  },
+  {
+    slug: "overwhelmed",
+    label: "Overwhelmed",
+    buttonLabel: "Calm me down",
+    shortPain: "Too much to hold. Too many places to begin.",
+    painHeadline: "Your brain is juggling more than it can comfortably carry.",
+    pain: "Everything feels urgent, half-finished, or loud. Another complicated productivity system is the last thing you need.",
+    featureTitle: "No setup maze",
+    outcome: "Focana keeps the session small: one task, one timer, one place to park interruptions so you can lower the noise and begin.",
+    featureHref: "#feature-parking-lot",
+    featureLinkLabel: "See the parking lot",
+    cardBg: COLORS.creamYellow,
+    cardBgSoft: COLORS.softCream,
+    accent: COLORS.sunshineYellow,
+    cardText: COLORS.warmBrown,
+    buttonBg: COLORS.warmBrown,
+    buttonText: "#FFF9E6",
+    sketch: "overwhelmed",
+  },
+  {
+    slug: "distracted",
+    label: "Distracted",
+    buttonLabel: "Anchor me",
+    shortPain: "One tab, one ping, one quick search, and the thread is gone.",
+    painHeadline: "Your attention keeps getting pulled off-screen.",
+    pain: "You switch to Slack, Chrome, your IDE, or ChatGPT, and the original reason you opened your laptop evaporates.",
+    featureTitle: "Always-on-top task and timer",
+    outcome: "Focana floats above the apps you already use, so the thing you meant to do stays visible even when your windows change.",
+    featureHref: "#feature-always-visible",
+    featureLinkLabel: "See always visible",
+    cardBg: COLORS.warmVanilla,
+    cardBgSoft: COLORS.creamYellow,
+    accent: COLORS.logoRust,
+    cardText: COLORS.warmBrown,
+    buttonBg: COLORS.warmBrown,
+    buttonText: "#FFF9E6",
+    sketch: "timeblind",
+  },
+  {
+    slug: "time-blind",
+    label: "Time-blind",
+    buttonLabel: "Show me time",
+    shortPain: "Messy, drifting, and suddenly an hour is gone.",
+    painHeadline: "Time is passing, but your brain is not feeling it.",
+    pain: "You do not need shame or alarms. You need a gentle, visible cue that helps you notice where your attention has gone.",
+    featureTitle: "Visible timer and check-ins",
+    outcome: "Focana keeps time in view and checks in softly, so you can catch drift before the whole session disappears.",
+    featureHref: "#feature-check-ins",
+    featureLinkLabel: "See gentle check-ins",
+    cardBg: COLORS.softTan,
+    cardBgSoft: COLORS.softCream,
+    accent: COLORS.coffeeBrown,
+    cardText: COLORS.warmBrown,
+    buttonBg: COLORS.warmBrown,
+    buttonText: "#FFF9E6",
+    sketch: "distracted",
+  },
+  {
+    slug: "losing-thread",
+    label: "Losing the thread",
+    buttonLabel: "Save my place",
+    shortPain: "You stop halfway and future-you gets no handoff.",
+    painHeadline: "You know you made progress, but not where to restart.",
+    pain: "Interruptions happen. The hard part is returning later without rebuilding the whole context from scratch.",
+    featureTitle: "Parking lot plus session notes",
+    outcome: "Focana catches stray thoughts during the session and lets you leave breadcrumbs for exactly where to pick up next.",
+    featureHref: "#feature-pick-up",
+    featureLinkLabel: "See session handoff",
+    cardBg: COLORS.brandBorder,
+    cardBgSoft: COLORS.creamYellow,
+    accent: COLORS.warmBrown,
+    cardText: COLORS.warmBrown,
+    buttonBg: COLORS.warmBrown,
+    buttonText: "#FFF9E6",
+    sketch: "thread",
+  },
 ];
 
 function phCapture(event, props) {
@@ -262,6 +363,233 @@ function FeatureVideo({ src, poster, ariaLabel, preload = "metadata", behavior =
         </div>
       )}
     </div>
+  );
+}
+
+function BrainStateSketch({ variant }) {
+  return (
+    <div className={`brain-sketch product-sketch product-sketch-${variant}`} aria-hidden="true">
+      <div className="mini-app-shell">
+        <div className="mini-app-top">
+          <span className="mini-logo-mark">F</span>
+          <span className="mini-top-dot" />
+          <span className="mini-top-dot" />
+          {variant === "timeblind" && (
+            <span className="mini-header-parking">
+              <span>Parking Lot</span>
+              <span className="mini-note-badge">2</span>
+            </span>
+          )}
+        </div>
+
+        {variant === "stuck" && (
+          <div className="mini-scene mini-scene-stuck">
+            <span className="mini-field-label">one task</span>
+            <span className="mini-task-input">write launch email</span>
+            <span className="mini-start-chip">Start</span>
+          </div>
+        )}
+
+        {variant === "overwhelmed" && (
+          <div className="mini-scene mini-scene-overwhelmed">
+            <span className="mini-focus-card">
+              <span className="mini-field-label">current focus</span>
+              <span className="mini-line mini-line-long" />
+              <span className="mini-line mini-line-short" />
+            </span>
+          </div>
+        )}
+
+        {variant === "distracted" && (
+          <div className="mini-scene mini-scene-distracted">
+            <span className="mini-browser-pane">
+              <span className="mini-line mini-line-long" />
+              <span className="mini-line mini-line-mid" />
+              <span className="mini-line mini-line-short" />
+            </span>
+            <span className="mini-floating-timer">
+              <span>Focana</span>
+              <strong>12:48</strong>
+            </span>
+          </div>
+        )}
+
+        {variant === "timeblind" && (
+          <div className="mini-scene mini-scene-timeblind">
+            <span className="mini-checkin">
+              <span>Still focused on</span>
+              <span className="mini-checkin-actions">
+                <i />
+                <i />
+              </span>
+            </span>
+          </div>
+        )}
+
+        {variant === "thread" && (
+          <div className="mini-scene mini-scene-thread">
+            <span className="mini-history-card">
+              <span className="mini-field-label">Next Steps:</span>
+              <span className="mini-resume-textbox">notes for when you resume</span>
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BrainStatePicker({ onDownload }) {
+  const [selectedSlug, setSelectedSlug] = useState(brainStates[0].slug);
+  const sectionRef = useRef(null);
+  const selected = brainStates.find((state) => state.slug === selectedSlug) || brainStates[0];
+  const panelId = "brain-state-outcome";
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    let fired = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !fired) {
+          fired = true;
+          phCapture("brain_state_section_viewed");
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
+  const chooseState = (state) => {
+    setSelectedSlug(state.slug);
+    phCapture("brain_state_card_clicked", { state: state.slug });
+  };
+
+  return (
+    <section
+      id="brain-state"
+      ref={sectionRef}
+      className="brain-state-section"
+      style={{
+        padding: "92px 0 104px",
+        scrollMarginTop: "72px",
+        background: `linear-gradient(160deg, #111827 0%, ${COLORS.softBlack} 46%, ${COLORS.warmBrown} 100%)`,
+        color: COLORS.softCream,
+      }}
+    >
+      <div className="section">
+        <div style={{ maxWidth: "900px", margin: "0 auto 44px", textAlign: "center" }}>
+          <p style={{
+            fontSize: "13px",
+            fontWeight: 800,
+            color: COLORS.goldenGlow,
+            textTransform: "uppercase",
+            letterSpacing: "2px",
+            marginBottom: "14px",
+          }}>
+            Find your focus state
+          </p>
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "clamp(34px, 5vw, 64px)",
+            fontWeight: 800,
+            lineHeight: 1.02,
+            color: "#FFF9E6",
+            marginBottom: "18px",
+          }}>
+            Simple, but transformative.
+          </h2>
+          <p style={{
+            fontSize: "clamp(17px, 2vw, 21px)",
+            lineHeight: 1.65,
+            color: "#F6E7C7",
+            maxWidth: "720px",
+            margin: "0 auto",
+          }}>
+            Pick your current focus challenge and see the Focana solution.
+          </p>
+        </div>
+
+        <div className="brain-state-grid" aria-label="Choose your current focus state">
+          {brainStates.map((state, index) => {
+            const isSelected = state.slug === selected.slug;
+
+            return (
+              <button
+                key={state.slug}
+                type="button"
+                className="brain-state-card"
+                aria-pressed={isSelected}
+                aria-controls={panelId}
+                onClick={() => chooseState(state)}
+                style={{
+                  "--brain-card-bg": state.cardBg,
+                  "--brain-card-bg-soft": state.cardBgSoft,
+                  "--brain-card-accent": state.accent,
+                  "--brain-card-text": state.cardText,
+                  "--brain-card-button-bg": state.buttonBg,
+                  "--brain-card-button-text": state.buttonText,
+                  background: `linear-gradient(180deg, ${state.cardBg}, ${state.cardBgSoft})`,
+                  color: state.cardText,
+                }}
+              >
+                <span className="brain-state-number">{(index + 1).toFixed(1)}</span>
+                <BrainStateSketch variant={state.sketch} />
+                <span className="brain-state-title">{state.label}</span>
+                <span className="brain-state-copy">{state.shortPain}</span>
+                <span className="brain-state-mini-cta">
+                  {state.buttonLabel} <span aria-hidden="true">→</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          id={panelId}
+          className="brain-state-outcome"
+          role="region"
+          aria-live="polite"
+          style={{
+            "--brain-outcome-accent": selected.accent,
+          }}
+        >
+          <div className="brain-state-outcome-copy">
+            <p className="brain-state-kicker">If your brain says...</p>
+            <h3>{selected.painHeadline}</h3>
+            <p>{selected.pain}</p>
+          </div>
+
+          <div className="brain-state-outcome-copy">
+            <p className="brain-state-kicker">Focana move</p>
+            <h3>{selected.featureTitle}</h3>
+            <p>{selected.outcome}</p>
+            <div className="brain-state-actions">
+              <button
+                type="button"
+                onClick={() => onDownload(`brain_state_${selected.slug}`)}
+                className="cta-btn"
+                style={{ justifyContent: "center" }}
+              >
+                Download for free <span style={{ fontSize: "20px" }}>→</span>
+              </button>
+              <a
+                href={selected.featureHref}
+                onClick={() => phCapture("brain_state_feature_link_clicked", { state: selected.slug, target: selected.featureHref })}
+                className="brain-state-feature-link"
+              >
+                {selected.featureLinkLabel}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1604,6 +1932,433 @@ export default function FocanaLanding() {
           box-shadow: 0 12px 40px rgba(92, 64, 51, 0.1);
           border-color: ${COLORS.sunshineYellow};
         }
+        .brain-state-grid {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 18px;
+          align-items: stretch;
+        }
+        .brain-state-card {
+          position: relative;
+          min-height: 358px;
+          border: 2px solid ${COLORS.brandBorder};
+          border-radius: 22px;
+          padding: 18px 16px 22px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          cursor: pointer;
+          box-shadow: 0 22px 48px rgba(31, 31, 31, 0.2);
+          transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+          font-family: inherit;
+        }
+        .brain-state-card:hover {
+          transform: translateY(-6px);
+          border-color: var(--brain-card-accent);
+          box-shadow: 0 28px 58px rgba(31, 31, 31, 0.24);
+        }
+        .brain-state-card[aria-pressed="true"] {
+          transform: translateY(-8px);
+          border-color: var(--brain-card-accent);
+          box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.24), 0 32px 64px rgba(31, 31, 31, 0.3);
+        }
+        .brain-state-number {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          min-width: 42px;
+          padding: 6px 8px;
+          border-radius: 9px;
+          background: ${COLORS.warmBrown};
+          color: ${COLORS.softCream};
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1;
+          font-family: 'Outfit', sans-serif;
+        }
+        .brain-sketch {
+          position: relative;
+          width: min(100%, 174px);
+          height: 132px;
+          margin: 10px auto 22px;
+          background: transparent;
+          border: none;
+          border-radius: 16px;
+          overflow: visible;
+          flex-shrink: 0;
+          box-shadow: none;
+        }
+        .mini-app-shell {
+          position: absolute;
+          inset: 0;
+          border-radius: 14px;
+          border: 3px solid ${COLORS.warmBrown};
+          background: rgba(255, 254, 248, 0.72);
+          overflow: hidden;
+          box-shadow: 0 8px 0 rgba(92, 64, 51, 0.12);
+        }
+        .mini-app-top {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          height: 28px;
+          padding: 6px 8px;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          background: ${COLORS.warmBrown};
+        }
+        .mini-logo-mark {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 15px;
+          height: 15px;
+          border-radius: 4px;
+          border: 1.5px solid ${COLORS.sunshineYellow};
+          color: ${COLORS.goldenGlow};
+          font-family: 'Outfit', sans-serif;
+          font-size: 9px;
+          font-weight: 800;
+          line-height: 1;
+        }
+        .mini-top-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: rgba(255, 249, 230, 0.62);
+        }
+        .mini-header-parking {
+          margin-left: auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          color: ${COLORS.softCream};
+          font-family: 'Outfit', sans-serif;
+          font-size: 7px;
+          font-weight: 800;
+          line-height: 1;
+        }
+        .mini-note-badge {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 15px;
+          height: 15px;
+          border-radius: 5px;
+          background: ${COLORS.sunshineYellow};
+          color: ${COLORS.warmBrown};
+          font-size: 8px;
+          box-shadow: inset 0 -1px 0 rgba(92, 64, 51, 0.16);
+        }
+        .mini-note-badge::before {
+          content: "";
+          position: absolute;
+          left: 3px;
+          top: 3px;
+          width: 5px;
+          height: 6px;
+          border: 1px solid ${COLORS.warmBrown};
+          border-radius: 2px;
+          opacity: 0.75;
+        }
+        .mini-scene {
+          position: absolute;
+          inset: 28px 0 0;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 8px;
+        }
+        .mini-field-label {
+          display: block;
+          color: ${COLORS.deepAmber};
+          font-family: 'Outfit', sans-serif;
+          font-size: 8px;
+          font-weight: 800;
+          line-height: 1;
+          letter-spacing: 0.8px;
+          text-transform: uppercase;
+        }
+        .mini-task-input {
+          display: block;
+          min-height: 28px;
+          padding: 8px 9px;
+          border: 2px solid ${COLORS.deepAmber};
+          border-radius: 8px;
+          background: ${COLORS.warmVanilla};
+          color: ${COLORS.warmBrown};
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 1.1;
+          text-align: left;
+          box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
+        }
+        .mini-start-chip {
+          align-self: flex-start;
+          padding: 6px 12px;
+          border-radius: 999px;
+          background: ${COLORS.warmBrown};
+          color: ${COLORS.softCream};
+          font-family: 'Outfit', sans-serif;
+          font-size: 9px;
+          font-weight: 800;
+        }
+        .mini-focus-card,
+        .mini-park-card,
+        .mini-browser-pane,
+        .mini-floating-timer,
+        .mini-checkin,
+        .mini-history-card {
+          display: block;
+          border: 2px solid ${COLORS.warmBrown};
+          border-radius: 9px;
+          background: ${COLORS.warmVanilla};
+          box-shadow: 0 4px 0 rgba(92, 64, 51, 0.1);
+        }
+        .mini-focus-card,
+        .mini-history-card {
+          padding: 9px;
+        }
+        .mini-question-card {
+          min-height: 62px;
+          display: flex;
+          align-items: center;
+          color: ${COLORS.warmBrown};
+          font-family: 'Outfit', sans-serif;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.18;
+          text-align: left;
+        }
+        .mini-line {
+          display: block;
+          height: 6px;
+          margin-top: 6px;
+          border-radius: 999px;
+          background: ${COLORS.beigeBorder};
+        }
+        .mini-line-long { width: 86%; }
+        .mini-line-mid { width: 66%; }
+        .mini-line-short { width: 42%; }
+        .mini-park-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 7px 9px;
+          background: ${COLORS.creamYellow};
+          color: ${COLORS.warmBrown};
+          font-size: 9px;
+          font-weight: 800;
+          font-family: 'Outfit', sans-serif;
+        }
+        .mini-park-card strong {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          background: ${COLORS.deepAmber};
+          color: ${COLORS.softCream};
+          font-size: 10px;
+        }
+        .mini-scene-distracted {
+          justify-content: flex-start;
+        }
+        .mini-browser-pane {
+          height: 58px;
+          padding: 11px 10px;
+          background: linear-gradient(180deg, #FFFFFF, ${COLORS.warmVanilla});
+        }
+        .mini-floating-timer {
+          position: absolute;
+          left: 18px;
+          right: 18px;
+          bottom: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 7px 9px;
+          background: ${COLORS.warmBrown};
+          color: ${COLORS.softCream};
+          font-family: 'Outfit', sans-serif;
+          font-size: 8px;
+          font-weight: 800;
+          box-shadow: 0 8px 14px rgba(92, 64, 51, 0.22);
+        }
+        .mini-floating-timer strong {
+          color: ${COLORS.goldenGlow};
+          font-size: 12px;
+        }
+        .mini-scene-timeblind {
+          align-items: center;
+          justify-content: flex-start;
+          gap: 7px;
+          padding-bottom: 28px;
+        }
+        .mini-timer-ring {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 52px;
+          height: 52px;
+          border-radius: 999px;
+          background:
+            radial-gradient(circle at center, ${COLORS.warmVanilla} 0 52%, transparent 53%),
+            conic-gradient(${COLORS.deepAmber} 0 68%, ${COLORS.beigeBorder} 68% 100%);
+          color: ${COLORS.warmBrown};
+          font-family: 'Outfit', sans-serif;
+          font-size: 18px;
+          font-weight: 800;
+        }
+        .mini-checkin {
+          width: 100%;
+          padding: 7px 9px;
+          color: ${COLORS.warmBrown};
+          font-size: 9px;
+          font-weight: 800;
+          font-family: 'Outfit', sans-serif;
+        }
+        .mini-checkin-actions {
+          display: flex;
+          gap: 5px;
+          margin-top: 6px;
+        }
+        .mini-checkin-actions i {
+          display: block;
+          height: 7px;
+          flex: 1;
+          border-radius: 999px;
+          background: ${COLORS.goldenGlow};
+        }
+        .mini-checkin-actions i + i {
+          background: ${COLORS.beigeBorder};
+        }
+        .mini-scene-thread {
+          gap: 9px;
+        }
+        .mini-resume-textbox {
+          display: block;
+          min-height: 34px;
+          margin-top: 7px;
+          padding: 7px 8px;
+          border: 1.5px solid ${COLORS.beigeBorder};
+          border-radius: 7px;
+          background: ${COLORS.softCream};
+          color: ${COLORS.coffeeBrown};
+          font-size: 8px;
+          font-weight: 700;
+          line-height: 1.25;
+          text-align: left;
+        }
+        .brain-state-title {
+          display: block;
+          font-family: 'Outfit', sans-serif;
+          font-size: clamp(20px, 1.7vw, 25px);
+          font-weight: 800;
+          line-height: 1.08;
+          margin-bottom: 14px;
+          width: 100%;
+          overflow-wrap: normal;
+          word-break: normal;
+          hyphens: none;
+        }
+        .brain-state-copy {
+          display: block;
+          font-size: 15px;
+          line-height: 1.45;
+          margin-bottom: 18px;
+          flex: 1;
+          width: 100%;
+        }
+        .brain-state-mini-cta {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          min-height: 44px;
+          padding: 10px 16px;
+          border-radius: 999px;
+          background: var(--brain-card-button-bg);
+          color: var(--brain-card-button-text);
+          font-family: 'Outfit', sans-serif;
+          font-size: 14px;
+          font-weight: 800;
+          line-height: 1.1;
+          width: min(100%, 168px);
+        }
+        .brain-state-outcome {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+          gap: 28px;
+          max-width: 980px;
+          margin: 36px auto 0;
+          padding: 30px;
+          border-radius: 24px;
+          border: 1px solid ${COLORS.beigeBorder};
+          border-left: 8px solid var(--brain-outcome-accent);
+          background: linear-gradient(135deg, ${COLORS.softCream}, ${COLORS.warmVanilla});
+          box-shadow: 0 24px 58px rgba(31, 31, 31, 0.24);
+        }
+        .brain-state-outcome-copy h3 {
+          font-family: 'Outfit', sans-serif;
+          font-size: clamp(24px, 3vw, 34px);
+          font-weight: 800;
+          line-height: 1.15;
+          color: ${COLORS.warmBrown};
+          margin-bottom: 12px;
+        }
+        .brain-state-outcome-copy p {
+          font-size: 16px;
+          line-height: 1.7;
+          color: ${COLORS.coffeeBrown};
+          margin: 0;
+        }
+        .brain-state-kicker {
+          color: ${COLORS.deepAmber} !important;
+          font-size: 12px !important;
+          font-weight: 800;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          margin-bottom: 12px !important;
+        }
+        .brain-state-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 14px;
+          margin-top: 22px;
+        }
+        .brain-state-feature-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 52px;
+          padding: 13px 20px;
+          border-radius: 12px;
+          border: 2px solid ${COLORS.beigeBorder};
+          color: ${COLORS.warmBrown};
+          text-decoration: none;
+          font-family: 'Outfit', sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+        }
+        .brain-state-feature-link:hover {
+          background: ${COLORS.creamYellow};
+          border-color: ${COLORS.deepAmber};
+          transform: translateY(-2px);
+        }
+        @media (max-width: 1100px) {
+          .brain-state-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+        }
         .newsletter-layout {
           display: flex;
           gap: 28px;
@@ -1674,6 +2429,26 @@ export default function FocanaLanding() {
           .hero-split {
             flex-direction: column !important;
           }
+          .brain-state-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
+          .brain-state-card {
+            min-height: auto !important;
+          }
+          .brain-state-outcome {
+            grid-template-columns: 1fr !important;
+            gap: 24px !important;
+            padding: 24px !important;
+          }
+          .brain-state-actions {
+            align-items: stretch !important;
+            flex-direction: column !important;
+          }
+          .brain-state-actions .cta-btn,
+          .brain-state-feature-link {
+            width: 100% !important;
+          }
           .newsletter-layout {
             flex-direction: column !important;
             align-items: stretch !important;
@@ -1699,6 +2474,13 @@ export default function FocanaLanding() {
           }
           .pricing-card {
             padding: 24px !important;
+          }
+          .brain-state-card {
+            padding: 18px !important;
+          }
+          .brain-sketch {
+            width: min(100%, 158px) !important;
+            height: 124px !important;
           }
           .cta-btn {
             font-size: 14px !important;
@@ -2171,6 +2953,8 @@ export default function FocanaLanding() {
         </div>
       </section>
 
+      <BrainStatePicker onDownload={openTrialDownload} />
+
       {/* COMPETITOR COMPARISON */}
       <section style={{ padding: "72px 0 36px 0", background: "white" }}>
         <div className="section">
@@ -2271,26 +3055,31 @@ export default function FocanaLanding() {
 
           {[
             {
+              id: "feature-get-started",
               video: "/videos/get-started.mp4",
               headline: "Get started in 7 seconds.",
               body: <><strong>Simple to get started.</strong> Type one task. Pick your timer — or don't. Hit start. Focana shrinks to a small floating window and stays with you while you work. No account. No tutorial. No setup maze.</>,
             },
             {
+              id: "feature-check-ins",
               video: "/videos/check-in-landingpage.mp4",
               headline: "Gentle check-ins.",
               body: <><strong>Your attention buddy.</strong> Focana gently nudges you throughout your session — not to nag, just to keep you aware. And every so often, a simple check-in asks 'Still focused?' No guilt. No judgment. Just a quiet tap on the shoulder when you need it most.</>,
             },
             {
+              id: "feature-parking-lot",
               video: "/videos/Parking-lot-demo.mp4",
               headline: "Catch stray thoughts.",
               body: <><strong>Parking lot.</strong> Catch every stray thought mid-session without breaking your flow. Jot it down, close the panel, keep working. Everything's waiting for you when you're done — nothing lost, nothing derailed.</>,
             },
             {
+              id: "feature-pick-up",
               video: "/videos/pick-up-where-you-left-off.mp4",
               headline: "Pick up where you left off.",
               body: <><strong>Session History.</strong> When your session ends, leave a quick note for future you. Where you stopped, what's next, what to pick up first. Your session history keeps every breadcrumb so you never lose momentum between work sessions.</>,
             },
             {
+              id: "feature-always-visible",
               video: "/videos/always-on-top.mp4",
               headline: "Always visible while you work.",
               body: <><strong>Always on top.</strong> We've all been there...working on a task, then one new tab, a Slack ping, a quick email reply — and just like that, you're in a ChatGPT rabbit hole thinking "what was I even doing?"<br /><br />Focana stays visible across the apps you work in, so your task and timer stay in view while you move between windows. If you can see it, you can do it.</>,
@@ -2316,7 +3105,7 @@ export default function FocanaLanding() {
               </div>
             );
             return (
-              <div key={i} style={{ marginBottom: i < 4 ? "80px" : 0 }}>
+              <div id={row.id} key={row.id} style={{ marginBottom: i < 4 ? "80px" : 0, scrollMarginTop: "96px" }}>
                 <h3 style={{
                   fontFamily: "'Outfit', sans-serif",
                   fontSize: "clamp(22px, 3vw, 30px)",
