@@ -6091,7 +6091,14 @@ export default function App() {
     if (!nextText) return;
     const sessionId = await getActiveThoughtSessionId();
     setThoughts((prev) => [buildThoughtRecord(nextText, sessionId), ...prev]);
-  }, [buildThoughtRecord, getActiveThoughtSessionId]);
+    trackDailyAppActive('parking_lot_item_added');
+    track('parking_lot_item_added', {
+      source: 'manual',
+      char_count: nextText.length,
+      active_session: Boolean(sessionId),
+      mode,
+    });
+  }, [buildThoughtRecord, getActiveThoughtSessionId, mode, trackDailyAppActive]);
   const closeQuickCaptureAndRestore = useCallback(({ returnFocus = false } = {}) => {
     const shouldReturnToCompact = quickCaptureReturnToCompactRef.current;
     const shouldReturnToFloating = quickCaptureReturnToFloatingRef.current;
@@ -6134,12 +6141,19 @@ export default function App() {
     void (async () => {
       const sessionId = await getActiveThoughtSessionId();
       setThoughts((prev) => [buildThoughtRecord(nextText, sessionId), ...prev]);
+      trackDailyAppActive('parking_lot_item_added');
+      track('parking_lot_item_added', {
+        source: 'quick_capture',
+        char_count: nextText.length,
+        active_session: Boolean(sessionId),
+        mode,
+      });
       showToast('success', 'Saved to Parking Lot');
       closeQuickCaptureAndRestore({
         returnFocus: Boolean(quickCaptureFocusReturnSourceRef.current),
       });
     })();
-  }, [buildThoughtRecord, closeQuickCaptureAndRestore, getActiveThoughtSessionId, showToast]);
+  }, [buildThoughtRecord, closeQuickCaptureAndRestore, getActiveThoughtSessionId, mode, showToast, trackDailyAppActive]);
   const removeThought = useCallback((thoughtId) => {
     if (!thoughtId) return;
     setThoughts((prev) => prev.filter((thought) => thought.id !== thoughtId));
@@ -7000,7 +7014,7 @@ export default function App() {
             {enabledMainControls.parkingLot && pinnedControls.parkingLot && (
               <Button
                 aria-label="Open Parking Lot"
-                onClick={() => setDistractionJarOpen(true)}
+                onClick={handleOpenParkingLot}
                 className="full-header__nav-btn"
                 variant="ghost"
                 tabIndex={3}
@@ -7487,6 +7501,7 @@ export default function App() {
           setShowSettings(false);
           parkingLotReturnToCompactRef.current = false;
           parkingLotReturnToFloatingRef.current = false;
+          track('parking_lot_opened', { source: 'settings' });
           pushModal('settings');
           setDistractionJarOpen(true);
         }}
