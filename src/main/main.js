@@ -1164,7 +1164,9 @@ function beginSystemEntry(source, { focusFloating = false } = {}) {
     setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       if (!isFloatingMinimized) return;
-      revealMainWindow({ focusMain: true });
+      if (revealMainWindow({ focusMain: true })) {
+        notifySystemEntryReveal({ source: revealSource });
+      }
     }, 120);
     setTimeout(async () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -2452,8 +2454,8 @@ ipcMain.on('compact-context-menu', () => {
 
 ipcMain.on('floating-timer-action', (_event, action) => {
   if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
-  if (action !== 'startPause' && action !== 'stop') return;
-  if (action === 'stop') {
+  if (action !== 'startPause' && action !== 'complete') return;
+  if (action === 'complete') {
     exitFloatingIconMode();
   }
   mainWindow.webContents.send('floating-timer-action', action);

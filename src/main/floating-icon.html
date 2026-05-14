@@ -633,9 +633,9 @@
               <path d="M16 5v14" />
             </svg>
           </button>
-          <button id="timer-stop-btn" class="timer-control-btn" type="button" aria-label="Stop timer" title="Stop and save">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <rect x="7" y="7" width="10" height="10" rx="1.5" />
+          <button id="timer-complete-btn" class="timer-control-btn" type="button" aria-label="Complete task" title="Complete task">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5" />
             </svg>
           </button>
         </span>
@@ -723,7 +723,7 @@
       const timerControls = document.getElementById('timer-controls');
       const timerToggleButton = document.getElementById('timer-toggle-btn');
       const timerToggleIcon = document.getElementById('timer-toggle-icon');
-      const timerStopButton = document.getElementById('timer-stop-btn');
+      const timerCompleteButton = document.getElementById('timer-complete-btn');
       const promptShell = document.getElementById('prompt-shell');
       const promptCard = document.getElementById('prompt-card');
       const promptBackdrop = document.getElementById('prompt-backdrop');
@@ -1160,11 +1160,11 @@
         getFloatingAPI()?.timerAction?.('startPause');
       });
 
-      timerStopButton.addEventListener('click', (event) => {
+      timerCompleteButton.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         hideTimerControls();
-        getFloatingAPI()?.timerAction?.('stop');
+        getFloatingAPI()?.timerAction?.('complete');
       });
 
       promptTaskInput.addEventListener('input', () => {

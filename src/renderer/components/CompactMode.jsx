@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Square, ClipboardList, BellOff, Info } from 'lucide-react';
+import { Play, Pause, Check, ClipboardList, BellOff, Info } from 'lucide-react';
 import { formatTime } from '../utils/time';
 import ReentryPrompt from './ReentryPrompt';
 
@@ -50,7 +50,7 @@ export default function CompactMode({
   thoughtCount = 0,
   onPlay,
   onPause,
-  onStop,
+  onComplete,
   pulseEnabled = true,
   dndActive = false,
   checkInState = 'idle',
@@ -72,6 +72,7 @@ export default function CompactMode({
   onReentryOpenParkingLot,
   onReentryOpenSessionHistory,
   onReentrySnooze,
+  onReentryInteraction,
 }) {
   const [showControls, setShowControls] = useState(false);
   const [shouldPulse, setShouldPulse]   = useState(false);
@@ -443,6 +444,7 @@ export default function CompactMode({
           onOpenParkingLot={onReentryOpenParkingLot}
           onOpenSessionHistory={onReentryOpenSessionHistory}
           onSnooze={onReentrySnooze}
+          onInteraction={onReentryInteraction}
         />
       </div>
     );
@@ -539,11 +541,11 @@ export default function CompactMode({
 
               <button
                 className="pill-btn"
-                onClick={ctrl(onStop)}
-                title="Stop &amp; Save"
+                onClick={ctrl(onComplete)}
+                title="Complete"
                 disabled={!task || !task.trim()}
               >
-                <Square style={{ width: 14, height: 14 }} />
+                <Check style={{ width: 14, height: 14 }} />
               </button>
 
               <button

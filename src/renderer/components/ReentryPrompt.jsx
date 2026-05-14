@@ -29,11 +29,13 @@ export default function ReentryPrompt({
   onOpenParkingLot,
   onOpenSessionHistory,
   onSnooze,
+  onInteraction,
 }) {
   const textareaRef = useRef(null);
   const minutesInputRef = useRef(null);
   const nextStepsRef = useRef(null);
   const previousStageRef = useRef(promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
+  const resumeDraftSignatureRef = useRef('');
   const [resumeRecapDraft, setResumeRecapDraft] = useState('');
   const [resumeNextStepsDraft, setResumeNextStepsDraft] = useState('');
 
@@ -48,12 +50,21 @@ export default function ReentryPrompt({
   const showBack = stage === 'start-chooser' || stage === 'save-for-later' || stage === 'snooze-options';
   const showCompleteFromResume = stage === 'save-for-later' && promptKind === 'resume-choice';
   const showDismiss = stage !== 'snooze-options' && !showCompleteFromResume;
+  const noteInteraction = () => {
+    onInteraction?.();
+  };
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      resumeDraftSignatureRef.current = '';
+      return;
+    }
+    const signature = `${promptKind}:${safeResumeTaskName || 'this-task'}`;
+    if (resumeDraftSignatureRef.current === signature) return;
+    resumeDraftSignatureRef.current = signature;
     setResumeRecapDraft(safeResumeRecap);
     setResumeNextStepsDraft(safeResumeNextSteps);
-  }, [isOpen, safeResumeNextSteps, safeResumeRecap, safeResumeTaskName]);
+  }, [isOpen, promptKind, safeResumeNextSteps, safeResumeRecap, safeResumeTaskName]);
 
   useEffect(() => {
     if (stage !== 'snooze-options') {
@@ -109,6 +120,7 @@ export default function ReentryPrompt({
   if (!isOpen) return null;
 
   const handleBack = () => {
+    noteInteraction();
     if (stage === 'start-chooser') {
       onStageChange?.(promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
       return;
@@ -130,11 +142,13 @@ export default function ReentryPrompt({
 
   const handleAdvanceToChooser = () => {
     if (!canAdvance) return;
+    noteInteraction();
     onStageChange?.('start-chooser');
   };
 
   const handleStartTimed = () => {
     if (!safeMinutes) return;
+    noteInteraction();
     onStartSession?.({
       promptKind,
       mode: 'timed',
@@ -144,6 +158,7 @@ export default function ReentryPrompt({
   };
 
   const handleStartFreeflow = () => {
+    noteInteraction();
     onStartSession?.({
       promptKind,
       mode: 'freeflow',
@@ -163,7 +178,10 @@ export default function ReentryPrompt({
           <span className="reentry-prompt__header-spacer" aria-hidden="true" />
         )}
         {showDismiss ? (
-          <button type="button" className="reentry-prompt__header-btn" onClick={() => onStageChange?.('snooze-options')}>
+          <button type="button" className="reentry-prompt__header-btn" onClick={() => {
+            noteInteraction();
+            onStageChange?.('snooze-options');
+          }}>
             Snooze
           </button>
         ) : showCompleteFromResume ? (
@@ -171,10 +189,13 @@ export default function ReentryPrompt({
             type="button"
             className="reentry-prompt__header-btn reentry-prompt__header-btn--complete"
             data-testid="reentry-mark-complete"
-            onClick={() => onCompleteFromResume?.({
-              recap: resumeRecapDraft.trim(),
-              nextSteps: resumeNextStepsDraft.trim(),
-            })}
+            onClick={() => {
+              noteInteraction();
+              onCompleteFromResume?.({
+                recap: resumeRecapDraft.trim(),
+                nextSteps: resumeNextStepsDraft.trim(),
+              });
+            }}
           >
             Mark complete
           </button>
@@ -194,7 +215,11 @@ export default function ReentryPrompt({
               rows={2}
               maxLength={maxTaskLength}
               value={safeTaskText}
-              onChange={(event) => onTaskTextChange?.(event.target.value)}
+              onFocus={noteInteraction}
+              onChange={(event) => {
+                noteInteraction();
+                onTaskTextChange?.(event.target.value);
+              }}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter' || event.shiftKey || !canAdvance) return;
                 event.preventDefault();
@@ -206,7 +231,10 @@ export default function ReentryPrompt({
               <button
                 type="button"
                 className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
-                onClick={() => onOpenParkingLot?.()}
+                onClick={() => {
+                  noteInteraction();
+                  onOpenParkingLot?.();
+                }}
                 data-testid="reentry-open-parking"
               >
                 Parking Lot
@@ -214,7 +242,10 @@ export default function ReentryPrompt({
               <button
                 type="button"
                 className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
-                onClick={() => onOpenSessionHistory?.()}
+                onClick={() => {
+                  noteInteraction();
+                  onOpenSessionHistory?.();
+                }}
                 data-testid="reentry-open-history"
               >
                 Session History
@@ -244,14 +275,20 @@ export default function ReentryPrompt({
               <button
                 type="button"
                 className="reentry-prompt__btn reentry-prompt__btn--primary"
-                onClick={() => onStageChange?.('start-chooser')}
+                onClick={() => {
+                  noteInteraction();
+                  onStageChange?.('start-chooser');
+                }}
               >
                 Resume Previous Task
               </button>
               <button
                 type="button"
                 className="reentry-prompt__btn reentry-prompt__btn--ghost"
-                onClick={() => onStageChange?.('save-for-later')}
+                onClick={() => {
+                  noteInteraction();
+                  onStageChange?.('save-for-later');
+                }}
               >
                 Start Something New
               </button>
@@ -273,7 +310,11 @@ export default function ReentryPrompt({
                 maxLength={500}
                 name="next-steps"
                 value={resumeNextStepsDraft}
-                onChange={(event) => setResumeNextStepsDraft(event.target.value)}
+                onFocus={noteInteraction}
+                onChange={(event) => {
+                  noteInteraction();
+                  setResumeNextStepsDraft(event.target.value);
+                }}
                 placeholder="What should you do first when you come back?"
               />
             </label>
@@ -286,7 +327,11 @@ export default function ReentryPrompt({
                 maxLength={500}
                 name="recap"
                 value={resumeRecapDraft}
-                onChange={(event) => setResumeRecapDraft(event.target.value)}
+                onFocus={noteInteraction}
+                onChange={(event) => {
+                  noteInteraction();
+                  setResumeRecapDraft(event.target.value);
+                }}
                 placeholder="Links, completed pieces, reminders, useful details..."
               />
             </label>
@@ -295,10 +340,13 @@ export default function ReentryPrompt({
               <button
                 type="button"
                 className="reentry-prompt__btn reentry-prompt__btn--primary"
-                onClick={() => onSaveForLaterFromResume?.({
-                  recap: resumeRecapDraft.trim(),
-                  nextSteps: resumeNextStepsDraft.trim(),
-                })}
+                onClick={() => {
+                  noteInteraction();
+                  onSaveForLaterFromResume?.({
+                    recap: resumeRecapDraft.trim(),
+                    nextSteps: resumeNextStepsDraft.trim(),
+                  });
+                }}
               >
                 Save and continue
               </button>
@@ -319,7 +367,10 @@ export default function ReentryPrompt({
                   key={value}
                   type="button"
                   className={`reentry-prompt__chip${safeMinutes === value ? ' is-active' : ''}`}
-                  onClick={() => onMinutesChange?.(String(value))}
+                  onClick={() => {
+                    noteInteraction();
+                    onMinutesChange?.(String(value));
+                  }}
                 >
                   {value}m
                 </button>
@@ -327,7 +378,10 @@ export default function ReentryPrompt({
               <button
                 type="button"
                 className={`reentry-prompt__chip${safeMinutes !== 15 && safeMinutes !== 25 && safeMinutes !== 45 ? ' is-active' : ''}`}
-                onClick={() => minutesInputRef.current?.focus()}
+                onClick={() => {
+                  noteInteraction();
+                  minutesInputRef.current?.focus();
+                }}
               >
                 Custom
               </button>
@@ -342,7 +396,11 @@ export default function ReentryPrompt({
                 max="240"
                 step="1"
                 value={minutes}
-                onChange={(event) => onMinutesChange?.(event.target.value)}
+                onFocus={noteInteraction}
+                onChange={(event) => {
+                  noteInteraction();
+                  onMinutesChange?.(event.target.value);
+                }}
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter') return;
                   event.preventDefault();
@@ -376,19 +434,34 @@ export default function ReentryPrompt({
             <h2 className="reentry-prompt__title">Snooze reminder</h2>
             <p className="reentry-prompt__copy">Pick when this should come back.</p>
             <div className="reentry-prompt__actions reentry-prompt__actions--column">
-              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => onSnooze?.('10m')}>
+              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => {
+                noteInteraction();
+                onSnooze?.('10m');
+              }}>
                 10 minutes
               </button>
-              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => onSnooze?.('30m')}>
+              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => {
+                noteInteraction();
+                onSnooze?.('30m');
+              }}>
                 30 minutes
               </button>
-              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => onSnooze?.('60m')}>
+              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => {
+                noteInteraction();
+                onSnooze?.('60m');
+              }}>
                 1 hour
               </button>
-              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => onSnooze?.('120m')}>
+              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--soft" onClick={() => {
+                noteInteraction();
+                onSnooze?.('120m');
+              }}>
                 2 hours
               </button>
-              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--ghost" onClick={() => onSnooze?.('reopen')}>
+              <button type="button" className="reentry-prompt__btn reentry-prompt__btn--ghost" onClick={() => {
+                noteInteraction();
+                onSnooze?.('reopen');
+              }}>
                 Until I reopen
               </button>
             </div>
