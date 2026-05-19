@@ -178,7 +178,7 @@ function getBuilderArgs(mode, version) {
     return [...args, '--mac', 'zip', '--universal'];
   }
 
-  return [...args, '--mac'];
+  return [...args, '--mac', 'zip', '--x64', '--arm64'];
 }
 
 function runCommand(command, args, options = {}) {
@@ -219,10 +219,14 @@ function runElectronBuilder(args) {
   const binName = process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder';
   const builderBin = path.join(projectRoot, 'node_modules', '.bin', binName);
   const command = fs.existsSync(builderBin) ? builderBin : 'electron-builder';
+  const env = {
+    ...process.env,
+    TMPDIR: process.env.FOCANA_RELEASE_TMPDIR || '/private/tmp/',
+  };
 
   console.log(`[release] Running ${path.basename(command)} ${args.join(' ')}`);
 
-  const result = runCommand(command, args, { allowFailure: true });
+  const result = runCommand(command, args, { allowFailure: true, env });
   if (result.error) {
     console.error('[release] Failed to execute electron-builder:', result.error.message);
     process.exit(1);
@@ -311,6 +315,38 @@ function findBuiltDmgs(version) {
     .filter((name) => dmgPattern.test(name))
     .map((name) => path.join(releaseDir, name))
     .sort();
+}
+
+function createManualDmgs(version) {
+  const productName = getProductName();
+  const appByArch = [
+    { arch: 'x64', appPath: path.join(releaseDir, 'mac', `${productName}.app`) },
+    { arch: 'arm64', appPath: path.join(releaseDir, 'mac-arm64', `${productName}.app`) },
+  ];
+
+  for (const { arch, appPath } of appByArch) {
+    if (!fs.existsSync(appPath)) {
+      console.error(`[release] Missing packaged app for manual DMG: ${path.relative(projectRoot, appPath)}`);
+      process.exit(1);
+    }
+
+    const dmgPath = path.join(releaseDir, `${productName}-${version}-mac-${arch}.dmg`);
+    if (fs.existsSync(dmgPath)) {
+      fs.unlinkSync(dmgPath);
+    }
+
+    console.log(`[release] Creating DMG: ${path.relative(projectRoot, dmgPath)}`);
+    runCommand('hdiutil', [
+      'create',
+      '-srcfolder', appPath,
+      '-volname', productName,
+      '-anyowners',
+      '-nospotlight',
+      '-format', 'UDZO',
+      '-fs', 'APFS',
+      dmgPath,
+    ]);
+  }
 }
 
 function validateNotarizedApps() {
@@ -553,9 +589,12 @@ const manifestPath = verifyMacUpdateManifest(version);
 validateNotarizedApps();
 
 if (mode === 'full') {
+  createManualDmgs(version);
   notarizeDmgs(version);
   const dmgPaths = stapleAndValidateDmgs(version);
-  refreshUpdaterManifest(manifestPath, dmgPaths);
+  if (dmgPaths.length > 0 && fs.readFileSync(manifestPath, 'utf8').includes(path.basename(dmgPaths[0]))) {
+    refreshUpdaterManifest(manifestPath, dmgPaths);
+  }
   removeStaleDmgBlockmaps(version);
 }
 

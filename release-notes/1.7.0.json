@@ -1,0 +1,17 @@
+{
+  "version": "1.7.0",
+  "publishedAt": "2026-05-19",
+  "summary": "Focana 1.7.0 makes returning to work more deliberate, with smarter re-entry after interruptions, a clearer app-managed trial and upgrade path, and a more useful pause flow that can wrap, resume, or save the active session.",
+  "improvements": [
+    "Added an auto re-entry rule so interrupted work can come back in the right surface without asking you to rebuild context from scratch.",
+    "Added an app-managed trial and upgrade flow that makes activation, upgrade prompts, and packaged release behavior clearer.",
+    "Improved resident app flows so relaunching, waking, quitting, and returning from compact or floating mode preserve focus more intentionally.",
+    "Pause now opens a dismissible Session Wrap, letting you keep working, mark the task complete, take a break, start something new, or save the paused session for later."
+  ],
+  "fixes": [
+    "Fixed direct completion and wake re-entry paths so saved work and next-step prompts stay aligned after interruptions.",
+    "Fixed compact quit behavior and startup window selection edge cases that could leave Focana in the wrong surface.",
+    "Improved shortcut and check-in focus handling so temporary global actions return attention to the right place.",
+    "Added release safeguards for analytics configuration and expanded packaged-flow coverage around floating, compact, and pause session states."
+  ]
+}

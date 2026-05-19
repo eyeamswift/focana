@@ -2454,8 +2454,8 @@ ipcMain.on('compact-context-menu', () => {
 
 ipcMain.on('floating-timer-action', (_event, action) => {
   if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
-  if (action !== 'startPause' && action !== 'complete') return;
-  if (action === 'complete') {
+  if (action !== 'startPause' && action !== 'pause' && action !== 'complete') return;
+  if (action === 'pause' || action === 'complete') {
     exitFloatingIconMode();
   }
   mainWindow.webContents.send('floating-timer-action', action);

@@ -24,8 +24,10 @@ function formatSaveTitle(taskText) {
 export default function PostSessionPrompt({
   isOpen,
   candidate,
+  dismissible = false,
   feedbackEnabled = false,
   onLayoutChange,
+  onDismiss,
   onKeepWorking,
   onTakeBreak,
   onStartNewTaskMarkComplete,
@@ -138,6 +140,23 @@ export default function PostSessionPrompt({
     onFeedbackSelect?.(value);
   };
 
+  const handleDismiss = () => {
+    if (!dismissible) return;
+    dismissFeedbackIfNeeded();
+    onDismiss?.();
+  };
+
+  useEffect(() => {
+    if (!isOpen || !dismissible) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      handleDismiss();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dismissible, feedbackEnabled, feedbackState, isOpen, onDismiss]);
+
   if (!isOpen || !candidate?.taskText) {
     return null;
   }
@@ -155,6 +174,18 @@ export default function PostSessionPrompt({
 
   const renderHub = () => (
     <>
+      {dismissible ? (
+        <button
+          type="button"
+          className="post-session-panel__dismiss"
+          onClick={handleDismiss}
+          aria-label="Dismiss Session Wrap"
+          data-testid="post-session-dismiss"
+        >
+          <X style={{ width: 16, height: 16 }} />
+        </button>
+      ) : null}
+
       <div className="post-session-panel__header">
         <span className="post-session-panel__eyebrow" data-testid="post-session-eyebrow">Session wrap</span>
         <h2 className="post-session-panel__heading" data-testid="post-session-heading">Nice work.</h2>
@@ -496,7 +527,7 @@ export default function PostSessionPrompt({
     >
       <div
         ref={frameRef}
-        className={`post-session-panel__frame${isChildStage ? ' post-session-panel__frame--child' : ''}`}
+        className={`post-session-panel__frame${isChildStage ? ' post-session-panel__frame--child' : ''}${dismissible ? ' post-session-panel__frame--dismissible' : ''}`}
       >
         {content}
       </div>

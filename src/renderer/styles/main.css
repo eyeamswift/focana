@@ -2483,6 +2483,33 @@ html[data-window-mode='pill'] #root {
   gap: 0.4rem;
 }
 
+.post-session-panel__frame--dismissible .post-session-panel__header {
+  padding-right: 2.45rem;
+}
+
+.post-session-panel__dismiss {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.post-session-panel__dismiss:hover {
+  background: color-mix(in srgb, var(--brand-primary) 9%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--brand-action) 48%, var(--border-strong));
+  color: var(--text-primary);
+}
+
 .post-session-panel__eyebrow {
   font-size: 0.72rem;
   font-weight: 700;

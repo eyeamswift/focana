@@ -1157,7 +1157,7 @@
         event.preventDefault();
         event.stopPropagation();
         showTimerControls();
-        getFloatingAPI()?.timerAction?.('startPause');
+        getFloatingAPI()?.timerAction?.(currentRunning ? 'pause' : 'startPause');
       });
 
       timerCompleteButton.addEventListener('click', (event) => {

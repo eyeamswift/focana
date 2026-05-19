@@ -1974,6 +1974,7 @@ test('timed session expiry opens session wrap and Enter from keep working restar
 
     await setTimeOffset(page, 65000);
     await expectPostSessionPrompt(page, 'timeup-audit');
+    await expect(page.getByTestId('post-session-dismiss')).toHaveCount(0);
     await page.getByTestId('post-session-primary').click();
     await expect(page.getByRole('heading', { name: 'Keep working on timeup-audit.' })).toBeVisible();
     await expect(page.getByTestId('post-session-keep-working-minutes')).toHaveValue('1');
@@ -2528,6 +2529,48 @@ test("completing from the floating timer restores the main window and opens What
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     const completedSession = savedSessions.find((session) => session?.task === 'floating-complete');
     expect(completedSession?.completed).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('floating pause opens dismissible session wrap and returns to the floating paused timer', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'floating pause wrap');
+
+    await page.evaluate(() => {
+      window.electronAPI.toggleFloatingMinimize();
+    });
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => floatingWindow.evaluate(() => ({
+      mode: document.body.dataset.mode,
+      toggleLabel: document.getElementById('timer-toggle-btn')?.getAttribute('aria-label') || '',
+    })), { timeout: 7000 }).toMatchObject({
+      mode: 'timer',
+      toggleLabel: 'Pause timer',
+    });
+
+    await floatingWindow.locator('#icon-button').click();
+    await floatingWindow.locator('#timer-toggle-btn').click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expectPostSessionPrompt(page, 'floating pause wrap');
+
+    await page.getByTestId('post-session-dismiss').click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => floatingWindow.evaluate(() => ({
+      mode: document.body.dataset.mode,
+      toggleLabel: document.getElementById('timer-toggle-btn')?.getAttribute('aria-label') || '',
+    })), { timeout: 7000 }).toMatchObject({
+      mode: 'timer',
+      toggleLabel: 'Resume timer',
+    });
   } finally {
     await cleanup();
   }
@@ -3135,19 +3178,158 @@ test('fullscreen running state shows the locked hero card and explains locked ed
   }
 });
 
-test('fullscreen paused state restores the editable composer and resuming restores the hero card', async () => {
+test('fullscreen pause opens dismissible session wrap and returns to the paused composer', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
     await startFreeflowSession(page, 'paused hero state');
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Pause Timer' }).click();
+    await expectPostSessionPrompt(page, 'paused hero state');
+    await expect(page.getByTestId('post-session-dismiss')).toBeVisible();
+    await page.getByTestId('post-session-dismiss').click();
+
+    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
     await expect(page.locator('.focus-hero')).toHaveCount(0);
     await expect(page.locator('.task-composer.task-composer--paused')).toBeVisible();
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('paused hero state');
     await page.getByRole('button', { name: 'Resume Timer' }).click();
     await expect(page.locator('.focus-hero')).toBeVisible();
     await expect(page.locator('.focus-hero')).toContainText('paused hero state');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('fullscreen pause session wrap dismisses with Escape', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'pause escape dismiss');
+    await exitCompactMode(page);
+    await page.getByRole('button', { name: 'Pause Timer' }).click();
+    await expectPostSessionPrompt(page, 'pause escape dismiss');
+
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expect(page.locator('.task-composer.task-composer--paused')).toBeVisible();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('pause escape dismiss');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact pause opens dismissible session wrap and returns to compact paused state', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'compact pause wrap');
+    await page.locator('.pill').click();
+    await page.locator('button[title="Pause"]').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expectPostSessionPrompt(page, 'compact pause wrap');
+    await page.getByTestId('post-session-dismiss').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expect(page.locator(PILL_TASK_SELECTOR)).toContainText('compact pause wrap');
+  } finally {
+    await cleanup();
+  }
+});
+
+test("pause session wrap mark complete saves the task and opens What's next", async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'pause mark complete');
+    await exitCompactMode(page);
+    await page.getByRole('button', { name: 'Pause Timer' }).click();
+    await expectPostSessionPrompt(page, 'pause mark complete');
+
+    await page.getByTestId('post-session-mark-complete').click();
+
+    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expectWhatsNextPrompt(page);
+    const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
+    const completedSession = savedSessions.find((session) => session?.task === 'pause mark complete');
+    expect(completedSession?.completed).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('pause session wrap keep working resumes the same active session', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'pause keep working');
+    await exitCompactMode(page);
+    const sessionIdBefore = await page.evaluate(async () => {
+      const timerState = await window.electronAPI.storeGet('timerState');
+      return timerState?.currentSessionId || null;
+    });
+    expect(sessionIdBefore).toBeTruthy();
+
+    await page.getByRole('button', { name: 'Pause Timer' }).click();
+    await expectPostSessionPrompt(page, 'pause keep working');
+    await page.getByTestId('post-session-primary').click();
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await expect(page.locator('.focus-hero')).toBeVisible();
+    await expect(page.locator('.focus-hero')).toContainText('pause keep working');
+    const stateAfter = await page.evaluate(async () => {
+      const [timerState, sessions] = await Promise.all([
+        window.electronAPI.storeGet('timerState'),
+        window.electronAPI.storeGet('sessions'),
+      ]);
+      return {
+        timerState,
+        matchingCount: sessions.filter((session) => session?.task === 'pause keep working').length,
+      };
+    });
+    expect(stateAfter.timerState?.isRunning).toBe(true);
+    expect(stateAfter.timerState?.currentSessionId).toBe(sessionIdBefore);
+    expect(stateAfter.matchingCount).toBe(1);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('pause session wrap Done for now saves a kept session and clears the active timer', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await startFreeflowSession(page, 'pause done for now');
+    await exitCompactMode(page);
+    await page.getByRole('button', { name: 'Pause Timer' }).click();
+    await expectPostSessionPrompt(page, 'pause done for now');
+    await page.getByTestId('post-session-done').click();
+    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
+    await fillSplitSessionNotes(page, {
+      nextSteps: 'return through the saved handoff',
+      recap: 'paused work is safely saved',
+    });
+    await page.getByRole('button', { name: 'Done for now' }).click();
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    const savedState = await page.evaluate(async () => {
+      const [timerState, sessions] = await Promise.all([
+        window.electronAPI.storeGet('timerState'),
+        window.electronAPI.storeGet('sessions'),
+      ]);
+      const matchingSession = sessions.find((session) => session?.task === 'pause done for now') || null;
+      return { timerState, matchingSession };
+    });
+    expect(savedState.timerState?.timerVisible).toBe(false);
+    expect(savedState.timerState?.isRunning).toBe(false);
+    expect(savedState.matchingSession?.kept).toBe(true);
+    expect(savedState.matchingSession?.completed).toBe(false);
+    expect(savedState.matchingSession?.nextSteps).toBe('return through the saved handoff');
+    expect(savedState.matchingSession?.recap).toBe('paused work is safely saved');
   } finally {
     await cleanup();
   }

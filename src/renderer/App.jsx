@@ -390,6 +390,7 @@ export default function App() {
   const [showPostSessionPrompt, setShowPostSessionPrompt] = useState(false);
   const [postSessionLayoutVersion, setPostSessionLayoutVersion] = useState(0);
   const [postSessionResumeCandidate, setPostSessionResumeCandidate] = useState(null);
+  const [postSessionSurfaceKind, setPostSessionSurfaceKind] = useState('post-session');
   const [postSessionFeedbackEnabled, setPostSessionFeedbackEnabled] = useState(false);
   const [postSessionStartAssist, setPostSessionStartAssist] = useState(false);
   const [parkingLotTaskSwitchConfirm, setParkingLotTaskSwitchConfirm] = useState(null);
@@ -524,6 +525,7 @@ export default function App() {
   const postSessionReturnToCompactRef = useRef(false);
   const postSessionReturnToFloatingRef = useRef(false);
   const openPostSessionTransitionRef = useRef(() => {});
+  const openPauseSessionWrapRef = useRef(() => {});
   const completeActiveSessionDirectRef = useRef(async () => null);
   const sessionFeedbackFlowRef = useRef({ id: 0, captured: false });
   const sessionFeedbackPendingActionRef = useRef(null);
@@ -2773,6 +2775,7 @@ export default function App() {
     postSessionParkingLotReturnToFloatingRef.current = false;
     timeUpReturnToCompactRef.current = false;
     timeUpReturnToFloatingRef.current = false;
+    setPostSessionSurfaceKind('post-session');
     setIsRunning(false);
     setTime(0);
     setTask('');
@@ -4214,10 +4217,10 @@ export default function App() {
     resumeActiveTimer('compact play');
   }, [task, isTimerVisible, resumeActiveTimer]);
 
-  const handlePause = useCallback(() => {
+  const handlePause = useCallback((options = {}) => {
     if (!isRunning) return;
-    pauseActiveTimer();
-  }, [isRunning, pauseActiveTimer]);
+    void openPauseSessionWrapRef.current(options);
+  }, [isRunning]);
 
   const handleStop = useCallback(async (options = {}) => {
     if (!task.trim()) return;
@@ -4332,6 +4335,12 @@ export default function App() {
 
   useEffect(() => {
     const cleanup = window.electronAPI.onFloatingTimerAction?.((action) => {
+      if (action === 'pause') {
+        if (isRunning) {
+          handlePause({ returnToFloating: true, bringToFront: true });
+        }
+        return;
+      }
       if (action === 'startPause') {
         if (isRunning) {
           handlePause();
@@ -4871,6 +4880,7 @@ export default function App() {
   }, [handleFloatingBreakAction]);
 
   const buildPostSessionResumeCandidate = useCallback(({
+    source = 'post-session',
     taskText,
     recap = '',
     nextSteps = '',
@@ -4884,9 +4894,10 @@ export default function App() {
     if (!nextTaskText) return null;
     const safeCompletedMode = completedMode === 'timed' ? 'timed' : 'freeflow';
     const safeCompletedMinutes = Math.max(1, Math.round(Number(completedMinutes) || 0));
+    const safeSource = source === 'paused-current' ? 'paused-current' : 'post-session';
 
     return {
-      source: 'post-session',
+      source: safeSource,
       taskText: nextTaskText,
       recap: typeof recap === 'string' ? recap : '',
       nextSteps: typeof nextSteps === 'string' ? nextSteps : '',
@@ -4899,6 +4910,76 @@ export default function App() {
       resolution: resolution === 'completed' ? 'completed' : 'open',
     };
   }, [mode]);
+
+  const openPauseSessionWrap = useCallback(async ({
+    returnToCompact = null,
+    returnToFloating = false,
+    bringToFront = false,
+  } = {}) => {
+    const trimmedTask = task.trim();
+    if (!trimmedTask) return;
+
+    const shouldReturnToFloating = returnToFloating === true;
+    const shouldReturnToCompact = shouldReturnToFloating
+      ? false
+      : returnToCompact === null
+        ? isCompact
+        : returnToCompact === true;
+    const shouldExitCompactForPrompt = shouldReturnToCompact
+      || isCompact
+      || document.documentElement.getAttribute('data-window-mode') === 'pill'
+      || windowModeDesiredRef.current === 'pill'
+      || windowModeActualRef.current === 'pill';
+    const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
+    const pauseSessionId = currentSessionId || await ensureCurrentSessionId('pause session wrap');
+    const candidate = buildPostSessionResumeCandidate({
+      source: 'paused-current',
+      taskText: trimmedTask,
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+      sessionId: pauseSessionId,
+      carryoverSeconds: elapsedSeconds,
+      completedMinutes: elapsedSeconds / 60,
+      completedMode: mode,
+    });
+    if (!candidate) return;
+
+    setShowNotesModal(false);
+    setShowTimeUpModal(false);
+    setSessionNotesMode('complete');
+    setPostSessionResumeCandidate(candidate);
+    setPostSessionSurfaceKind('pause');
+    setPostSessionFeedbackEnabled(false);
+    setPostSessionStartAssist(false);
+    setShowPostSessionPrompt(true);
+    postSessionReturnToCompactRef.current = shouldReturnToCompact;
+    postSessionReturnToFloatingRef.current = shouldReturnToFloating;
+    postSessionBreakUntilRef.current = 0;
+    postSessionBreakPromptPendingRef.current = false;
+    setFloatingBreakState({ open: false });
+
+    if (shouldExitCompactForPrompt) {
+      handleExitCompact();
+    }
+    if (bringToFront) {
+      window.electronAPI.bringToFront?.();
+    }
+  }, [
+    buildPostSessionResumeCandidate,
+    contextNotes,
+    currentSessionId,
+    ensureCurrentSessionId,
+    getElapsedSeconds,
+    handleExitCompact,
+    isCompact,
+    isRunning,
+    mode,
+    nextStepsNotes,
+    pauseActiveTimer,
+    setFloatingBreakState,
+    task,
+  ]);
+  openPauseSessionWrapRef.current = openPauseSessionWrap;
 
   const openPostSessionTransition = useCallback(({
     taskText,
@@ -4927,6 +5008,7 @@ export default function App() {
     setShowNotesModal(false);
     setSessionNotesMode('complete');
     setPostSessionResumeCandidate(candidate);
+    setPostSessionSurfaceKind('post-session');
     setPostSessionFeedbackEnabled(false);
     setPostSessionStartAssist(false);
     setShowPostSessionPrompt(true);
@@ -4971,6 +5053,7 @@ export default function App() {
 
   const closePostSessionSurface = useCallback(({ keepFloatingBreakOpen = false } = {}) => {
     setShowPostSessionPrompt(false);
+    setPostSessionSurfaceKind('post-session');
     setPostSessionFeedbackEnabled(false);
     setPostSessionStartAssist(false);
     postSessionReturnToCompactRef.current = false;
@@ -5058,6 +5141,87 @@ export default function App() {
       return sessionId;
     }
   }, [ensurePostSessionSessionId, loadSessions, postSessionResumeCandidate]);
+
+  const savePausedPostSessionChoice = useCallback(async ({
+    completed = false,
+    kept = true,
+    notes = {},
+  } = {}) => {
+    if (!postSessionResumeCandidate?.taskText) return null;
+
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: postSessionResumeCandidate.recap ?? contextNotes,
+      nextSteps: postSessionResumeCandidate.nextSteps ?? nextStepsNotes,
+    });
+    const elapsedSeconds = Math.max(
+      0,
+      Number(postSessionResumeCandidate.carryoverSeconds) || getElapsedSeconds(),
+    );
+    const sessionId = postSessionResumeCandidate.sessionId
+      || currentSessionId
+      || await ensureCurrentSessionId('pause session wrap action');
+
+    sessionToSave.current = {
+      duration: elapsedSeconds / 60,
+      completed,
+      kept,
+      sessionId,
+    };
+
+    const savedSessionId = await saveSessionWithNotes(splitNotes);
+    setPostSessionResumeCandidate((prev) => (
+      prev ? {
+        ...prev,
+        sessionId: savedSessionId || sessionId || prev.sessionId,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+        notes: splitNotes.recap,
+        resolution: completed ? 'completed' : 'open',
+      } : prev
+    ));
+    return savedSessionId || sessionId || null;
+  }, [
+    contextNotes,
+    currentSessionId,
+    ensureCurrentSessionId,
+    getElapsedSeconds,
+    nextStepsNotes,
+    postSessionResumeCandidate,
+    saveSessionWithNotes,
+  ]);
+
+  const clearPausedPostSessionTimerState = useCallback((notes = {}) => {
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: postSessionResumeCandidate?.recap ?? contextNotes,
+      nextSteps: postSessionResumeCandidate?.nextSteps ?? nextStepsNotes,
+    });
+    const taskText = postSessionResumeCandidate?.taskText || task;
+
+    elapsedBeforeRunRef.current = 0;
+    clearCompactSessionCues();
+    setIsRunning(false);
+    setTime(0);
+    setInitialTime(0);
+    setIsTimerVisible(false);
+    setSessionStartTime(null);
+    setCurrentSessionId(null);
+    setContextNotes(splitNotes.recap);
+    setNextStepsNotes(splitNotes.nextSteps);
+    persistIdleTimerSnapshot({
+      taskText,
+      recapText: splitNotes.recap,
+      nextStepsText: splitNotes.nextSteps,
+      nextMode: 'freeflow',
+      sessionId: null,
+    });
+  }, [
+    clearCompactSessionCues,
+    contextNotes,
+    nextStepsNotes,
+    persistIdleTimerSnapshot,
+    postSessionResumeCandidate,
+    task,
+  ]);
 
   const saveResumeCandidateForLater = useCallback(async (notes = {}, candidate = reentryResumeCandidateRef.current) => {
     if (!candidate?.taskText) return null;
@@ -5188,6 +5352,9 @@ export default function App() {
     });
   }, [completeResumeCandidate, finishDirectCompletion, mode]);
 
+  const postSessionIsPauseWrap = postSessionSurfaceKind === 'pause'
+    && postSessionResumeCandidate?.source === 'paused-current';
+
   const handleTakePostSessionBreak = useCallback(async (payload = {}) => {
     if (!postSessionResumeCandidate?.taskText) return;
 
@@ -5202,12 +5369,27 @@ export default function App() {
     const taskAlreadyCompleted = isCompletedPostSessionCandidate(postSessionResumeCandidate);
 
     if (!taskAlreadyCompleted) {
-      await updatePostSessionSession({
-        completed: false,
-        kept: true,
-        recap: postSessionResumeCandidate.recap,
-        nextSteps: postSessionResumeCandidate.nextSteps,
-      });
+      if (postSessionIsPauseWrap) {
+        await savePausedPostSessionChoice({
+          completed: false,
+          kept: true,
+          notes: {
+            recap: postSessionResumeCandidate.recap,
+            nextSteps: postSessionResumeCandidate.nextSteps,
+          },
+        });
+        clearPausedPostSessionTimerState({
+          recap: postSessionResumeCandidate.recap,
+          nextSteps: postSessionResumeCandidate.nextSteps,
+        });
+      } else {
+        await updatePostSessionSession({
+          completed: false,
+          kept: true,
+          recap: postSessionResumeCandidate.recap,
+          nextSteps: postSessionResumeCandidate.nextSteps,
+        });
+      }
     }
 
     postSessionBreakUntilRef.current = breakEndsAt;
@@ -5219,7 +5401,7 @@ export default function App() {
     });
     closePostSessionSurface({ keepFloatingBreakOpen: true });
     void window.electronAPI.enterFloatingMinimize?.();
-  }, [closePostSessionSurface, postSessionResumeCandidate, setFloatingBreakState, updatePostSessionSession]);
+  }, [clearPausedPostSessionTimerState, closePostSessionSurface, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, setFloatingBreakState, updatePostSessionSession]);
 
   const handlePostSessionKeepWorking = useCallback(async ({ mode: nextMode, minutes = 25 } = {}) => {
     if (!postSessionResumeCandidate?.taskText) return;
@@ -5233,6 +5415,85 @@ export default function App() {
     const returnToFloating = postSessionReturnToFloatingRef.current;
     const returnToCompact = returnToFloating ? false : postSessionReturnToCompactRef.current;
 
+    if (postSessionIsPauseWrap) {
+      const sessionId = postSessionResumeCandidate.sessionId || currentSessionId || null;
+      const nextTaskText = postSessionResumeCandidate.taskText;
+      const nextNotes = postSessionResumeCandidate.recap || '';
+      const nextNextSteps = postSessionResumeCandidate.nextSteps || '';
+      const carryoverSeconds = Math.max(
+        0,
+        Math.floor(Number(postSessionResumeCandidate.carryoverSeconds) || getElapsedSeconds()),
+      );
+      let initialSeconds = 0;
+
+      closePostSessionSurface();
+      setPostSessionResumeCandidate(null);
+      setTask(nextTaskText);
+      setContextNotes(nextNotes);
+      setNextStepsNotes(nextNextSteps);
+      if (sessionId && sessionId !== currentSessionId) {
+        setCurrentSessionId(sessionId);
+      }
+
+      try {
+        if (sessionId) {
+          await SessionStore.update(sessionId, {
+            task: nextTaskText,
+            mode: selectedMode,
+            completed: false,
+            kept: false,
+            notes: nextNotes,
+            recap: nextNotes,
+            nextSteps: nextNextSteps,
+          });
+          await loadSessions();
+        }
+      } catch (error) {
+        console.error('Failed to resume paused session from Session Wrap:', error);
+      }
+
+      setMode(selectedMode);
+      elapsedBeforeRunRef.current = carryoverSeconds;
+      if (selectedMode === 'freeflow') {
+        setInitialTime(0);
+        setTime(carryoverSeconds);
+      } else {
+        initialSeconds = safeMinutes * 60;
+        setInitialTime(carryoverSeconds + initialSeconds);
+        setTime(initialSeconds);
+      }
+      setIsTimerVisible(true);
+      setIsRunning(true);
+      setSessionStartTime(Date.now());
+      trackDailyAppActive('session_resumed');
+      track('session_resumed', {
+        source: 'pause_session_wrap',
+        mode: selectedMode,
+        elapsed_minutes: Math.round((carryoverSeconds / 60) * 10) / 10,
+      });
+
+      clearCompactSessionCues();
+      if (selectedMode === 'timed') {
+        setTimedCueSegment(carryoverSeconds, initialSeconds);
+      }
+      resetCheckInSchedule(
+        selectedMode,
+        selectedMode === 'timed' ? carryoverSeconds + initialSeconds : initialSeconds,
+        carryoverSeconds,
+        { restartTimedSegment: selectedMode === 'timed' },
+      );
+      resetCompactPulseSchedule(
+        selectedMode,
+        selectedMode === 'timed' ? carryoverSeconds + initialSeconds : initialSeconds,
+        carryoverSeconds,
+        { restartTimedSegment: selectedMode === 'timed' },
+      );
+      window.setTimeout(() => {
+        restoreDisplayMode({ returnToCompact, returnToFloating });
+      }, 40);
+      return;
+    }
+
     closePostSessionSurface();
     await handleStartSession(selectedMode, safeMinutes, {
       taskText: postSessionResumeCandidate.taskText,
@@ -5243,43 +5504,78 @@ export default function App() {
       returnToCompact,
       returnToFloating,
     });
-  }, [closePostSessionSurface, handleStartSession, postSessionResumeCandidate]);
+  }, [
+    clearCompactSessionCues,
+    closePostSessionSurface,
+    currentSessionId,
+    getElapsedSeconds,
+    handleStartSession,
+    loadSessions,
+    postSessionIsPauseWrap,
+    postSessionResumeCandidate,
+    resetCheckInSchedule,
+    resetCompactPulseSchedule,
+    restoreDisplayMode,
+    setTimedCueSegment,
+    trackDailyAppActive,
+  ]);
 
   const handlePostSessionStartNewTaskMarkComplete = useCallback(async () => {
     let completedSessionId = postSessionResumeCandidate?.sessionId || null;
     if (postSessionResumeCandidate?.taskText) {
       if (!isCompletedPostSessionCandidate(postSessionResumeCandidate)) {
-        completedSessionId = await updatePostSessionSession({
-          completed: true,
-          kept: false,
-          recap: postSessionResumeCandidate.recap,
-          nextSteps: postSessionResumeCandidate.nextSteps,
-        });
+        if (postSessionIsPauseWrap) {
+          completedSessionId = await savePausedPostSessionChoice({
+            completed: true,
+            kept: false,
+            notes: {
+              recap: postSessionResumeCandidate.recap,
+              nextSteps: postSessionResumeCandidate.nextSteps,
+            },
+          });
+        } else {
+          completedSessionId = await updatePostSessionSession({
+            completed: true,
+            kept: false,
+            recap: postSessionResumeCandidate.recap,
+            nextSteps: postSessionResumeCandidate.nextSteps,
+          });
+        }
       }
     }
     closePostSessionSurface();
     await finishDirectCompletion({
       completedSessionId,
-      durationMin: postSessionResumeCandidate?.completedMinutes || 0,
-      source: 'post_session_new_task',
+      durationMin: postSessionIsPauseWrap
+        ? (Math.max(0, Number(postSessionResumeCandidate?.carryoverSeconds) || 0) / 60)
+        : (postSessionResumeCandidate?.completedMinutes || 0),
+      source: postSessionIsPauseWrap ? 'pause_session_wrap' : 'post_session_new_task',
       completedMode: postSessionResumeCandidate?.completedMode || mode,
     });
-  }, [closePostSessionSurface, finishDirectCompletion, mode, postSessionResumeCandidate, updatePostSessionSession]);
+  }, [closePostSessionSurface, finishDirectCompletion, mode, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
 
   const handlePostSessionStartNewTaskSaveForLater = useCallback(async (notes = {}) => {
     const splitNotes = normalizeSplitNotes(notes, {
       recap: postSessionResumeCandidate?.recap,
       nextSteps: postSessionResumeCandidate?.nextSteps,
     });
-    await updatePostSessionSession({
-      completed: false,
-      kept: true,
-      recap: splitNotes.recap,
-      nextSteps: splitNotes.nextSteps,
-    });
+    if (postSessionIsPauseWrap) {
+      await savePausedPostSessionChoice({
+        completed: false,
+        kept: true,
+        notes: splitNotes,
+      });
+    } else {
+      await updatePostSessionSession({
+        completed: false,
+        kept: true,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+      });
+    }
     closePostSessionSurface();
     openFreshTaskComposer({ promptTone: 'first' });
-  }, [closePostSessionSurface, openFreshTaskComposer, postSessionResumeCandidate, updatePostSessionSession]);
+  }, [closePostSessionSurface, openFreshTaskComposer, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
 
   const handlePostSessionDoneForNow = useCallback(async (notes = {}) => {
     const splitNotes = normalizeSplitNotes(notes, {
@@ -5287,12 +5583,21 @@ export default function App() {
       nextSteps: postSessionResumeCandidate?.nextSteps,
     });
     if (!isCompletedPostSessionCandidate(postSessionResumeCandidate)) {
-      await updatePostSessionSession({
-        completed: false,
-        kept: true,
-        recap: splitNotes.recap,
-        nextSteps: splitNotes.nextSteps,
-      });
+      if (postSessionIsPauseWrap) {
+        await savePausedPostSessionChoice({
+          completed: false,
+          kept: true,
+          notes: splitNotes,
+        });
+        clearPausedPostSessionTimerState(splitNotes);
+      } else {
+        await updatePostSessionSession({
+          completed: false,
+          kept: true,
+          recap: splitNotes.recap,
+          nextSteps: splitNotes.nextSteps,
+        });
+      }
       setPostSessionResumeCandidate((prev) => (
         prev ? {
           ...prev,
@@ -5304,7 +5609,19 @@ export default function App() {
     }
     closePostSessionSurface();
     void window.electronAPI.enterFloatingMinimize?.();
-  }, [closePostSessionSurface, postSessionResumeCandidate, updatePostSessionSession]);
+  }, [clearPausedPostSessionTimerState, closePostSessionSurface, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
+
+  const handleDismissPauseSessionWrap = useCallback(() => {
+    if (!postSessionIsPauseWrap) return;
+    const returnToFloating = postSessionReturnToFloatingRef.current;
+    const returnToCompact = returnToFloating ? false : postSessionReturnToCompactRef.current;
+
+    closePostSessionSurface();
+    setPostSessionResumeCandidate(null);
+    window.setTimeout(() => {
+      restoreDisplayMode({ returnToCompact, returnToFloating });
+    }, 40);
+  }, [closePostSessionSurface, postSessionIsPauseWrap, restoreDisplayMode]);
 
   useEffect(() => {
     if (!showPostSessionPrompt) return;
@@ -7185,8 +7502,10 @@ export default function App() {
                   <PostSessionPrompt
                     isOpen={showPostSessionPrompt}
                     candidate={postSessionResumeCandidate}
+                    dismissible={postSessionIsPauseWrap}
                     feedbackEnabled={postSessionFeedbackEnabled}
                     onLayoutChange={handlePostSessionLayoutChange}
+                    onDismiss={handleDismissPauseSessionWrap}
                     onKeepWorking={handlePostSessionKeepWorking}
                     onTakeBreak={handleTakePostSessionBreak}
                     onStartNewTaskMarkComplete={handlePostSessionStartNewTaskMarkComplete}

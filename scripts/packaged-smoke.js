@@ -11,12 +11,7 @@ const START_CHOOSER_INPUT_SELECTOR = '.start-chooser__input'
 const ACTIVATION_HEADING = 'Activate Focana on this Mac'
 const NAME_GATE_HEADING = 'One more thing. What should we call you?'
 const DEFAULT_LICENSE_KEY = process.env.FOCANA_SMOKE_LICENSE_KEY || 'password'
-const STOP_BUTTON_SELECTOR = [
-  'button[aria-label="End Session"]',
-  'button[aria-label="Stop and Save Session"]',
-  'button[title="Stop & Save Session"]',
-  'button[title="Stop & Save"]',
-].join(', ')
+const PAUSE_BUTTON_SELECTOR = 'button[aria-label="Pause Timer"]'
 
 function parseArgs(argv) {
   const parsed = {}
@@ -245,8 +240,8 @@ async function runFreeflowSmoke(page, electronApp) {
     description: 'task text to survive floating round-trip',
   })
 
-  info('Stopping session and verifying Session Wrap plus save-for-later notes handoff')
-  await page.locator(STOP_BUTTON_SELECTOR).first().click()
+  info('Pausing session and verifying Session Wrap plus save-for-later notes handoff')
+  await page.locator(PAUSE_BUTTON_SELECTOR).first().click()
   await expectPostSessionPrompt(page, taskName)
 
   await page.getByTestId('post-session-new-task').click()
