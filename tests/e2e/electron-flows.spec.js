@@ -3316,6 +3316,10 @@ test('pause session wrap Done for now saves a kept session and clears the active
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect(floatingWindow.locator('#icon-button')).toBeVisible();
+    await expect.poll(async () => floatingWindow.evaluate(() => document.body.dataset.mode), { timeout: 7000 })
+      .toBe('icon');
     const savedState = await page.evaluate(async () => {
       const [timerState, sessions] = await Promise.all([
         window.electronAPI.storeGet('timerState'),

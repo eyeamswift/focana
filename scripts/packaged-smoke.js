@@ -103,6 +103,18 @@ async function readFloatingWindowBounds(electronApp) {
   })
 }
 
+async function readWindowVisibilityState(electronApp) {
+  return electronApp.evaluate(({ BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows()
+    const main = windows.find((win) => !win.webContents.getURL().includes('floating-icon.html'))
+    const floating = windows.find((win) => win.webContents.getURL().includes('floating-icon.html'))
+    return {
+      mainVisible: Boolean(main && main.isVisible()),
+      floatingVisible: Boolean(floating && floating.isVisible()),
+    }
+  })
+}
+
 async function expectPostSessionPrompt(page, taskName = null) {
   await page.getByRole('region', { name: 'Session Wrap' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByTestId('post-session-eyebrow').waitFor({ state: 'visible', timeout: 10000 })
@@ -240,21 +252,34 @@ async function runFreeflowSmoke(page, electronApp) {
     description: 'task text to survive floating round-trip',
   })
 
-  info('Pausing session and verifying Session Wrap plus save-for-later notes handoff')
+  info('Pausing session and verifying Session Wrap Done for now floating handoff')
   await page.locator(PAUSE_BUTTON_SELECTOR).first().click()
   await expectPostSessionPrompt(page, taskName)
 
-  await page.getByTestId('post-session-new-task').click()
-  await page.getByRole('heading', { name: 'Start a new task' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Save for later' }).click()
-  await page.getByRole('heading', { name: `Save “${taskName}” for later` }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.locator('textarea[name="next-steps"]').fill('Restart with the packaging follow-up')
-  await page.locator('textarea[name="recap"]').fill('Dragged floating bubble, returned to full view, and saved for later')
-  await page.getByRole('button', { name: 'Save and continue' }).click()
-  await taskInput.waitFor({ state: 'visible', timeout: 10000 })
-  await poll(async () => (await taskInput.inputValue().catch(() => '')) === '', {
+  await page.getByTestId('post-session-done').click()
+  await page.getByRole('heading', { name: 'Done for now' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Done for now' }).click()
+  const doneFloatingWindow = await poll(async () => {
+    const windows = electronApp.windows().filter((win) => win.url().includes('floating-icon.html'))
+    return windows.length > 0 ? windows[0] : null
+  }, {
     timeoutMs: 10000,
-    description: 'clean composer after save-for-later handoff',
+    description: 'floating window to appear after Done for now',
+  })
+  await doneFloatingWindow.locator('#icon-button').waitFor({ state: 'visible', timeout: 10000 })
+  await poll(async () => {
+    const state = await readWindowVisibilityState(electronApp)
+    return !state.mainVisible && state.floatingVisible
+  }, {
+    timeoutMs: 10000,
+    description: 'Done for now to hide the main window and leave floating visible',
+  })
+
+  await doneFloatingWindow.evaluate(() => window.floatingAPI.expand())
+  await taskInput.waitFor({ state: 'visible', timeout: 10000 })
+  await poll(async () => (await taskInput.inputValue().catch(() => '')).includes(taskName), {
+    timeoutMs: 10000,
+    description: 'paused task to remain available after floating expand',
   })
   await page.getByRole('button', { name: 'Open Parking Lot' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByRole('button', { name: 'Open Session History' }).waitFor({ state: 'visible', timeout: 10000 })

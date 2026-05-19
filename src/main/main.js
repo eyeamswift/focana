@@ -71,7 +71,13 @@ const isDev = (process.env.FOCANA_DEV === '1' || !app.isPackaged) && process.env
 const isE2EBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
 const isE2E = process.env.FOCANA_E2E === '1';
 const shouldCreateTray = !isE2E || process.env.FOCANA_ENABLE_TRAY_IN_E2E === '1';
-const usePanelWindows = process.platform === 'darwin' && !isE2E;
+// Electron 41 on macOS 26 can create AppKit's unsupported nonactivating-panel
+// style when BrowserWindow uses type: 'panel'. Normal frameless windows still
+// support the always-on-top/fullscreen-space behavior we need without that
+// native window warning or the rare SIGTRAP crash it can precede.
+const usePanelWindows = process.platform === 'darwin'
+  && !isE2E
+  && process.env.FOCANA_USE_PANEL_WINDOWS === '1';
 const FULL_MIN_WIDTH = 432;
 const FULL_MIN_HEIGHT = 120;
 const STARTUP_SAFE_HEIGHT = 520;
@@ -1823,6 +1829,18 @@ function createFloatingIconWindow() {
   });
 }
 
+function showFloatingIconWindow({ focusFloating = true } = {}) {
+  if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
+
+  floatingIconWindow.show();
+  if (focusFloating) {
+    floatingIconWindow.focus();
+  }
+  if (typeof floatingIconWindow.moveTop === 'function') {
+    floatingIconWindow.moveTop();
+  }
+}
+
 function enterFloatingIconMode({ focusFloating = true } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -1841,15 +1859,18 @@ function enterFloatingIconMode({ focusFloating = true } = {}) {
   awaitingInitialMainWindowShow = false;
   startFloatingStateSync({ preservePosition: false, anchorBounds: mainWindow.getBounds() });
   mainWindow.hide();
-  if (focusFloating && typeof floatingIconWindow.show === 'function') {
-    floatingIconWindow.show();
-    floatingIconWindow.focus();
-  } else if (typeof floatingIconWindow.showInactive === 'function') {
-    floatingIconWindow.showInactive();
-  } else {
-    floatingIconWindow.show();
-  }
+  showFloatingIconWindow({ focusFloating });
   isFloatingMinimized = true;
+
+  // macOS can occasionally leave the transparent floating window behind the
+  // just-hidden main window during modal-to-floating transitions. Reassert the
+  // visible floating shell on the next tick so actions like "Done for now"
+  // never feel like the app simply disappeared.
+  setTimeout(() => {
+    if (!isFloatingMinimized || !floatingIconWindow || floatingIconWindow.isDestroyed()) return;
+    syncFloatingWindowState({ preservePosition: true });
+    showFloatingIconWindow({ focusFloating });
+  }, 80);
 }
 
 function exitFloatingIconMode({ focusMain = true } = {}) {
