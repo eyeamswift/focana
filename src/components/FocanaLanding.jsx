@@ -37,7 +37,6 @@ const brainStates = [
   {
     slug: "stuck",
     label: "Stuck",
-    buttonLabel: "Unstick me",
     shortPain: "Difficulty starting. Too many invisible first steps.",
     painHeadline: "You know the thing matters, but starting feels impossible.",
     pain: "The task is real, the deadline is real, and somehow the first move is still hiding behind a wall.",
@@ -49,14 +48,11 @@ const brainStates = [
     cardBgSoft: COLORS.warmVanilla,
     accent: COLORS.deepAmber,
     cardText: COLORS.warmBrown,
-    buttonBg: COLORS.warmBrown,
-    buttonText: "#FFF9E6",
     sketch: "stuck",
   },
   {
     slug: "overwhelmed",
     label: "Overwhelmed",
-    buttonLabel: "Calm me down",
     shortPain: "Too much to hold. Too many places to begin.",
     painHeadline: "Your brain is juggling more than it can comfortably carry.",
     pain: "Everything feels urgent, half-finished, or loud. Another complicated productivity system is the last thing you need.",
@@ -68,14 +64,11 @@ const brainStates = [
     cardBgSoft: COLORS.softCream,
     accent: COLORS.sunshineYellow,
     cardText: COLORS.warmBrown,
-    buttonBg: COLORS.warmBrown,
-    buttonText: "#FFF9E6",
     sketch: "stuck",
   },
   {
     slug: "distracted",
     label: "Distracted",
-    buttonLabel: "Anchor me",
     shortPain: "One tab, one ping, one quick search, and the thread is gone.",
     painHeadline: "Your attention keeps getting pulled off-screen.",
     pain: "You switch to Slack, Chrome, your IDE, or ChatGPT, and the original reason you opened your laptop evaporates.",
@@ -87,14 +80,11 @@ const brainStates = [
     cardBgSoft: COLORS.creamYellow,
     accent: COLORS.logoRust,
     cardText: COLORS.warmBrown,
-    buttonBg: COLORS.warmBrown,
-    buttonText: "#FFF9E6",
     sketch: "timeblind",
   },
   {
     slug: "time-blind",
     label: "Time-blind",
-    buttonLabel: "Show me time",
     shortPain: "Messy, drifting, and suddenly an hour is gone.",
     painHeadline: "Time is passing, but your brain is not feeling it.",
     pain: "You do not need shame or alarms. You need a gentle, visible cue that helps you notice where your attention has gone.",
@@ -106,14 +96,11 @@ const brainStates = [
     cardBgSoft: COLORS.softCream,
     accent: COLORS.coffeeBrown,
     cardText: COLORS.warmBrown,
-    buttonBg: COLORS.warmBrown,
-    buttonText: "#FFF9E6",
     sketch: "distracted",
   },
   {
     slug: "losing-thread",
     label: "Losing the thread",
-    buttonLabel: "Save my place",
     shortPain: "You stop halfway and future-you gets no handoff.",
     painHeadline: "You know you made progress, but not where to restart.",
     pain: "Interruptions happen. The hard part is returning later without rebuilding the whole context from scratch.",
@@ -125,8 +112,6 @@ const brainStates = [
     cardBgSoft: COLORS.creamYellow,
     accent: COLORS.warmBrown,
     cardText: COLORS.warmBrown,
-    buttonBg: COLORS.warmBrown,
-    buttonText: "#FFF9E6",
     sketch: "thread",
   },
 ];
@@ -532,17 +517,12 @@ function BrainStatePicker({ onDownload }) {
                   "--brain-card-bg-soft": state.cardBgSoft,
                   "--brain-card-accent": state.accent,
                   "--brain-card-text": state.cardText,
-                  "--brain-card-button-bg": state.buttonBg,
-                  "--brain-card-button-text": state.buttonText,
                   background: `linear-gradient(180deg, ${state.cardBg}, ${state.cardBgSoft})`,
                   color: state.cardText,
                 }}
               >
                 <span className="brain-state-title">{state.label}</span>
                 <span className="brain-state-copy">{state.shortPain}</span>
-                <span className="brain-state-mini-cta">
-                  {state.buttonLabel} <span aria-hidden="true">→</span>
-                </span>
               </button>
             );
           })}
@@ -1949,21 +1929,22 @@ export default function FocanaLanding() {
         .brain-state-grid {
           display: grid;
           grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 18px;
+          gap: 14px;
           align-items: stretch;
         }
         .brain-state-card {
           position: relative;
-          min-height: 276px;
+          min-height: 212px;
           border: 2px solid ${COLORS.brandBorder};
-          border-radius: 22px;
-          padding: 34px 18px 24px;
+          border-radius: 18px;
+          padding: 26px 16px 24px;
           display: flex;
           flex-direction: column;
           align-items: center;
+          justify-content: center;
           text-align: center;
           cursor: pointer;
-          box-shadow: 0 22px 48px rgba(31, 31, 31, 0.2);
+          box-shadow: 0 18px 38px rgba(31, 31, 31, 0.18);
           transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
           font-family: inherit;
         }
@@ -2263,10 +2244,10 @@ export default function FocanaLanding() {
         }
         .brain-state-title {
           font-family: 'Outfit', sans-serif;
-          font-size: clamp(24px, 2vw, 30px);
+          font-size: clamp(20px, 1.7vw, 26px);
           font-weight: 800;
           line-height: 1.08;
-          margin-bottom: 18px;
+          margin-bottom: 14px;
           min-height: 2.16em;
           width: 100%;
           display: flex;
@@ -2278,28 +2259,10 @@ export default function FocanaLanding() {
         }
         .brain-state-copy {
           display: block;
-          font-size: 15px;
-          line-height: 1.45;
-          margin-bottom: 22px;
-          flex: 1;
-          width: 100%;
-        }
-        .brain-state-mini-cta {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          min-height: 44px;
-          padding: 10px 16px;
-          border-radius: 999px;
-          background: var(--brain-card-button-bg);
-          color: var(--brain-card-button-text);
-          font-family: 'Outfit', sans-serif;
           font-size: 14px;
-          font-weight: 800;
-          line-height: 1.1;
-          width: min(100%, 168px);
-          margin-top: auto;
+          line-height: 1.45;
+          margin-bottom: 0;
+          width: 100%;
         }
         .brain-state-outcome {
           display: grid;
