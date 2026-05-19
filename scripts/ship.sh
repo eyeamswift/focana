@@ -383,7 +383,7 @@ print_release_confirmation() {
   grep -Fq "const redirectUrl = new URL('/download', window.location.origin);" <<<"$friends_html" || fail "Final confirmation failed: friends-and-family slug no longer redirects successful checkout to /download"
   gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1 || fail "Final confirmation failed: GitHub release $TAG is not reachable"
   grep -Fq "version: $VERSION" <<<"$manifest_html" || fail "Final confirmation failed: latest-mac.yml does not advertise version $VERSION"
-  for manifest_asset in "$ARM64_ZIP" "$X64_ZIP" "$ARM64_DMG" "$X64_DMG"; do
+  for manifest_asset in "$ARM64_ZIP" "$X64_ZIP"; do
     grep -Fq "$manifest_asset" <<<"$manifest_html" || fail "Final confirmation failed: latest-mac.yml does not list $manifest_asset"
   done
   grep -Fq "Version $VERSION" <<<"$updates_html" || fail "Final confirmation failed: /updates does not show Version $VERSION"
@@ -399,7 +399,7 @@ print_release_confirmation() {
   printf '%s\n' "It exposes the live CTA path ${friends_checkout_path}?..."
   printf '%s\n' "The page script redirects successful checkout to /download, so this slug now lands on the updated $VERSION download page."
   printf '%s\n' "The GitHub release is live at $TAG."
-  printf '%s\n' "The updater manifest latest-mac.yml is public and set to version: $VERSION with the $VERSION assets, so auto-updater has what it needs."
+  printf '%s\n' "The updater manifest latest-mac.yml is public and set to version: $VERSION with the $VERSION ZIP updater assets, so auto-updater has what it needs."
   printf '%s\n' "focana.app/updates is live with Version $VERSION and the approved release notes under Product > Updates."
   printf '\n'
 }
