@@ -146,9 +146,17 @@ async function setTimeOffset(page, offsetMs) {
 
 async function ensureStartupReady(page, licenseKey) {
   const taskInput = page.locator(TASK_INPUT_SELECTOR).first()
+  const runningTask = page.locator(RUNNING_TASK_SELECTOR).first()
+  const pillTask = page.locator(PILL_TASK_SELECTOR).first()
 
   await poll(async () => {
     if (await taskInput.isVisible().catch(() => false)) {
+      return true
+    }
+    if (await runningTask.isVisible().catch(() => false)) {
+      return true
+    }
+    if (await pillTask.isVisible().catch(() => false)) {
       return true
     }
 
@@ -173,6 +181,37 @@ async function ensureStartupReady(page, licenseKey) {
     timeoutMs: 45000,
     description: 'packaged app startup gates to complete',
   })
+}
+
+async function launchPackagedApp(appBundlePath, storeDir) {
+  const executablePath = getExecutablePath(appBundlePath)
+  if (!fs.existsSync(executablePath)) {
+    fail(`Missing packaged executable: ${executablePath}`)
+  }
+
+  return electron.launch({
+    executablePath,
+    env: {
+      ...process.env,
+      FOCANA_STORE_CWD: storeDir,
+      FOCANA_ALLOW_DEV_TEST_LICENSE: '1',
+      ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
+    },
+  })
+}
+
+async function prepareSmokePage(electronApp, licenseKey, version) {
+  const page = await electronApp.firstWindow()
+  page.setDefaultTimeout(15000)
+  await ensureStartupReady(page, licenseKey)
+  await installTimeOffsetControl(page)
+
+  const runtimeInfo = await page.evaluate(() => window.electronAPI.getRuntimeInfo?.())
+  if (!runtimeInfo || runtimeInfo.version !== version) {
+    fail(`Packaged app reported version ${runtimeInfo?.version || 'unknown'} instead of ${version}`)
+  }
+
+  return page
 }
 
 async function runFreeflowSmoke(page, electronApp) {
@@ -295,22 +334,37 @@ async function runTimedSmoke(page) {
   info('Starting timed session and forcing Session Wrap expiry handoff')
   const taskInput = page.locator(TASK_INPUT_SELECTOR).first()
   const taskName = 'Packaged timed smoke task'
+  await poll(async () => {
+    const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'))
+    return timerState?.timerVisible === false && timerState?.isRunning === false
+  }, {
+    timeoutMs: 10000,
+    description: 'fresh timed smoke state',
+  })
+
+  await taskInput.waitFor({ state: 'visible', timeout: 10000 })
   await taskInput.fill(taskName)
   await taskInput.press('Enter')
 
   const minutesInput = page.locator(START_CHOOSER_INPUT_SELECTOR).first()
+  await page.locator('.start-chooser').first().waitFor({ state: 'visible', timeout: 10000 })
+  await minutesInput.waitFor({ state: 'visible', timeout: 10000 })
   await minutesInput.fill('1')
-  await minutesInput.press('Enter')
+  await minutesInput.focus()
+  await page.keyboard.press('Enter')
 
   await poll(async () => {
     const mode = await readWindowMode(page)
     const chooserVisible = await page.locator('.start-chooser').first().isVisible().catch(() => false)
     const currentTask = await readDisplayedTaskText(page)
+    const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'))
     return (mode === 'pill' || mode === 'full')
       && !chooserVisible
+      && timerState?.isRunning === true
+      && timerState?.mode === 'timed'
       && currentTask.includes(taskName)
   }, {
-    timeoutMs: 15000,
+    timeoutMs: 20000,
     description: 'timed session to enter the running shell',
   })
 
@@ -356,7 +410,15 @@ async function relaunchSmoke(appBundlePath, storeDir, version, licenseKey) {
       fail(`Packaged relaunch reported version ${runtimeInfo?.version || 'unknown'} instead of ${version}`)
     }
 
-    await page.locator(TASK_INPUT_SELECTOR).waitFor({ state: 'visible', timeout: 10000 })
+    await poll(async () => {
+      if (await page.locator(TASK_INPUT_SELECTOR).first().isVisible().catch(() => false)) {
+        return true
+      }
+      return (await readDisplayedTaskText(page)).length > 0
+    }, {
+      timeoutMs: 10000,
+      description: 'packaged relaunch surface to be usable',
+    })
   } finally {
     await electronApp.close()
   }
@@ -373,49 +435,36 @@ async function main() {
   if (!fs.existsSync(appBundlePath)) fail(`Missing app bundle: ${appBundlePath}`)
   if (!licenseKey) fail('Missing smoke license key. Set FOCANA_SMOKE_LICENSE_KEY or pass --license-key.')
 
-  const storeDir = createStoreDir()
+  const freeflowStoreDir = createStoreDir()
+  const timedStoreDir = createStoreDir()
   let electronApp = null
 
   try {
-    const executablePath = getExecutablePath(appBundlePath)
-    if (!fs.existsSync(executablePath)) {
-      fail(`Missing packaged executable: ${executablePath}`)
-    }
-
     info(`Launching packaged app from ${appBundlePath}`)
-    electronApp = await electron.launch({
-      executablePath,
-      env: {
-        ...process.env,
-        FOCANA_STORE_CWD: storeDir,
-        FOCANA_ALLOW_DEV_TEST_LICENSE: '1',
-        ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
-      },
-    })
+    electronApp = await launchPackagedApp(appBundlePath, freeflowStoreDir)
+    const freeflowPage = await prepareSmokePage(electronApp, licenseKey, version)
 
-    const page = await electronApp.firstWindow()
-    page.setDefaultTimeout(15000)
-    await ensureStartupReady(page, licenseKey)
-    await installTimeOffsetControl(page)
-
-    const runtimeInfo = await page.evaluate(() => window.electronAPI.getRuntimeInfo?.())
-    if (!runtimeInfo || runtimeInfo.version !== version) {
-      fail(`Packaged app reported version ${runtimeInfo?.version || 'unknown'} instead of ${version}`)
-    }
-
-    await runFreeflowSmoke(page, electronApp)
-    await runTimedSmoke(page)
+    await runFreeflowSmoke(freeflowPage, electronApp)
 
     await electronApp.close()
     electronApp = null
 
-    await relaunchSmoke(appBundlePath, storeDir, version, licenseKey)
+    info('Relaunching packaged app with a fresh store for timed checks')
+    electronApp = await launchPackagedApp(appBundlePath, timedStoreDir)
+    const timedPage = await prepareSmokePage(electronApp, licenseKey, version)
+    await runTimedSmoke(timedPage)
+
+    await electronApp.close()
+    electronApp = null
+
+    await relaunchSmoke(appBundlePath, timedStoreDir, version, licenseKey)
     info('Packaged smoke checks passed')
   } finally {
     if (electronApp) {
       await electronApp.close().catch(() => {})
     }
-    fs.rmSync(storeDir, { recursive: true, force: true })
+    fs.rmSync(freeflowStoreDir, { recursive: true, force: true })
+    fs.rmSync(timedStoreDir, { recursive: true, force: true })
   }
 }
 
