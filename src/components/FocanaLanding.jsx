@@ -3020,92 +3020,8 @@ export default function FocanaLanding() {
 
       {SHOW_BRAIN_STATE_SECTION && <BrainStatePicker onDownload={openTrialDownload} />}
 
-      {/* COMPETITOR COMPARISON */}
-      <section style={{ padding: "72px 0 36px 0", background: "white" }}>
-        <div className="section">
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "24px",
-          }}>
-            Why don't most productivity apps work for ADHD brains?
-          </h2>
-          <p style={{
-            fontSize: "19px",
-            lineHeight: 1.7,
-            color: COLORS.coffeeBrown,
-            maxWidth: "760px",
-            margin: "0 auto 48px",
-            textAlign: "center",
-          }}>
-            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need a system that anchors your attention.
-          </p>
-
-          <div style={{
-            display: "flex",
-            gap: "24px",
-            maxWidth: "960px",
-            margin: "0 auto 48px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}>
-            {[
-              { title: "Distraction Blockers", body: "Block apps you actually need, and fights your brain instead of working with it." },
-              { title: "Browser Extensions", body: <span>Disappear the moment you switch tabs.<br /><em>Out of sight, out of mind.</em></span> },
-              { title: "Pomodoro Timers", body: "A countdown and nothing else. No check-ins, no thought capture, no context when you come back." },
-            ].map((card) => (
-              <div key={card.title} style={{
-                flex: "1 1 280px",
-                background: "white",
-                borderRadius: "20px",
-                border: `1px solid ${COLORS.beigeBorder}`,
-                boxShadow: "0 8px 24px rgba(92, 64, 51, 0.06)",
-                padding: "36px 28px",
-              }}>
-                <h3 style={{
-                  fontFamily: "'Outfit', sans-serif",
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: COLORS.warmBrown,
-                  marginBottom: "12px",
-                }}>{card.title}</h3>
-                <p style={{
-                  fontSize: "16px",
-                  lineHeight: 1.6,
-                  color: COLORS.coffeeBrown,
-                  margin: 0,
-                }}>{card.body}</p>
-              </div>
-            ))}
-          </div>
-
-          <p style={{
-            fontSize: "clamp(18px, 2vw, 22px)",
-            fontWeight: 600,
-            color: COLORS.warmBrown,
-            textAlign: "center",
-            marginBottom: "28px",
-          }}>
-            Focana replaces all three. 7 ADHD coping mechanisms. One calm system.
-          </p>
-
-          <div style={{ textAlign: "center" }}>
-            <button onClick={() => openTrialDownload("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Download for free <span style={{ fontSize: "22px" }}>→</span>
-            </button>
-            <p style={{
-              fontSize: "15px",
-              color: COLORS.coffeeBrown,
-              marginTop: "14px",
-            }}>
-              Try every feature free for 30 days · macOS
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* FEATURES */}
-      <section id="features" style={{ padding: "72px 0 100px 0", background: COLORS.softCream }}>
+      <section id="features" style={{ padding: "72px 0 100px 0", background: "white" }}>
         <div className="section">
           <p style={{
             fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
@@ -3200,6 +3116,90 @@ export default function FocanaLanding() {
             <button onClick={() => openTrialDownload("mid_page")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
               Download for free
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* COMPETITOR COMPARISON */}
+      <section style={{ padding: "72px 0 36px 0", background: COLORS.softCream }}>
+        <div className="section">
+          <h2 style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
+            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
+            textAlign: "center", marginBottom: "24px",
+          }}>
+            Why don't most productivity apps work for ADHD brains?
+          </h2>
+          <p style={{
+            fontSize: "19px",
+            lineHeight: 1.7,
+            color: COLORS.coffeeBrown,
+            maxWidth: "760px",
+            margin: "0 auto 48px",
+            textAlign: "center",
+          }}>
+            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need a system that anchors your attention.
+          </p>
+
+          <div style={{
+            display: "flex",
+            gap: "24px",
+            maxWidth: "960px",
+            margin: "0 auto 48px",
+            flexWrap: "wrap",
+            justifyContent: "center",
+          }}>
+            {[
+              { title: "Distraction Blockers", body: "Block apps you actually need, and fights your brain instead of working with it." },
+              { title: "Browser Extensions", body: <span>Disappear the moment you switch tabs.<br /><em>Out of sight, out of mind.</em></span> },
+              { title: "Pomodoro Timers", body: "A countdown and nothing else. No check-ins, no thought capture, no context when you come back." },
+            ].map((card) => (
+              <div key={card.title} style={{
+                flex: "1 1 280px",
+                background: "white",
+                borderRadius: "20px",
+                border: `1px solid ${COLORS.beigeBorder}`,
+                boxShadow: "0 8px 24px rgba(92, 64, 51, 0.06)",
+                padding: "36px 28px",
+              }}>
+                <h3 style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: COLORS.warmBrown,
+                  marginBottom: "12px",
+                }}>{card.title}</h3>
+                <p style={{
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                  color: COLORS.coffeeBrown,
+                  margin: 0,
+                }}>{card.body}</p>
+              </div>
+            ))}
+          </div>
+
+          <p style={{
+            fontSize: "clamp(18px, 2vw, 22px)",
+            fontWeight: 600,
+            color: COLORS.warmBrown,
+            textAlign: "center",
+            marginBottom: "28px",
+          }}>
+            Focana replaces all three. 7 ADHD coping mechanisms. One calm system.
+          </p>
+
+          <div style={{ textAlign: "center" }}>
+            <button onClick={() => openTrialDownload("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
+              Download for free <span style={{ fontSize: "22px" }}>→</span>
+            </button>
+            <p style={{
+              fontSize: "15px",
+              color: COLORS.coffeeBrown,
+              marginTop: "14px",
+            }}>
+              Try every feature free for 30 days · macOS
+            </p>
           </div>
         </div>
       </section>
