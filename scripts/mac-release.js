@@ -335,11 +335,12 @@ function createManualDmgs(version) {
       fs.unlinkSync(dmgPath);
     }
 
+    const volumeName = `${productName}-${version}-${arch}`;
     console.log(`[release] Creating DMG: ${path.relative(projectRoot, dmgPath)}`);
     runCommand('hdiutil', [
       'create',
       '-srcfolder', appPath,
-      '-volname', productName,
+      '-volname', volumeName,
       '-anyowners',
       '-nospotlight',
       '-format', 'UDZO',
