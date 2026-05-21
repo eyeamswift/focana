@@ -1,0 +1,11 @@
+{
+  "version": "1.7.1",
+  "publishedAt": "2026-05-21",
+  "summary": "Focana 1.7.1 is a stability hotfix for the 1.7 release, focused on making wake, pause, and floating-mode handoffs feel dependable again.",
+  "fixes": [
+    "Fixed a macOS window issue that could make Focana close unexpectedly during floating or Session Wrap handoffs.",
+    "Fixed the Done for now path from Pause so Focana reliably returns to the floating icon instead of disappearing from view.",
+    "Fixed wake re-entry timing so Focana opens the return-to-work prompt promptly after your Mac wakes.",
+    "Improved packaged smoke coverage for pause, floating, and wake-related handoffs so these flows are checked before release."
+  ]
+}
