@@ -3024,7 +3024,8 @@ export default function FocanaLanding() {
       <section id="features" style={{
         padding: "48px 0 100px 0",
         background: "white",
-        boxShadow: "inset 0 16px 28px rgba(92, 64, 51, 0.035)",
+        borderTop: `1px solid ${COLORS.beigeBorder}`,
+        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.035)",
       }}>
         <div className="section">
           {[
@@ -3128,92 +3129,13 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      {/* COMPETITOR COMPARISON */}
-      <section style={{ padding: "72px 0 36px 0", background: COLORS.softCream }}>
-        <div className="section">
-          <h2 style={{
-            fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
-            fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15,
-            textAlign: "center", marginBottom: "24px",
-          }}>
-            Why don't most productivity apps work for ADHD brains?
-          </h2>
-          <p style={{
-            fontSize: "19px",
-            lineHeight: 1.7,
-            color: COLORS.coffeeBrown,
-            maxWidth: "760px",
-            margin: "0 auto 48px",
-            textAlign: "center",
-          }}>
-            Hustle culture sold you apps that track more, schedule more, and guilt you into doing more. You don't need more. You need a system that anchors your attention.
-          </p>
-
-          <div style={{
-            display: "flex",
-            gap: "24px",
-            maxWidth: "960px",
-            margin: "0 auto 48px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}>
-            {[
-              { title: "Distraction Blockers", body: "Block apps you actually need, and fights your brain instead of working with it." },
-              { title: "Browser Extensions", body: <span>Disappear the moment you switch tabs.<br /><em>Out of sight, out of mind.</em></span> },
-              { title: "Pomodoro Timers", body: "A countdown and nothing else. No check-ins, no thought capture, no context when you come back." },
-            ].map((card) => (
-              <div key={card.title} style={{
-                flex: "1 1 280px",
-                background: "white",
-                borderRadius: "20px",
-                border: `1px solid ${COLORS.beigeBorder}`,
-                boxShadow: "0 8px 24px rgba(92, 64, 51, 0.06)",
-                padding: "36px 28px",
-              }}>
-                <h3 style={{
-                  fontFamily: "'Outfit', sans-serif",
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: COLORS.warmBrown,
-                  marginBottom: "12px",
-                }}>{card.title}</h3>
-                <p style={{
-                  fontSize: "16px",
-                  lineHeight: 1.6,
-                  color: COLORS.coffeeBrown,
-                  margin: 0,
-                }}>{card.body}</p>
-              </div>
-            ))}
-          </div>
-
-          <p style={{
-            fontSize: "clamp(18px, 2vw, 22px)",
-            fontWeight: 600,
-            color: COLORS.warmBrown,
-            textAlign: "center",
-            marginBottom: "28px",
-          }}>
-            Focana replaces all three. 7 ADHD coping mechanisms. One calm system.
-          </p>
-
-          <div style={{ textAlign: "center" }}>
-            <button onClick={() => openTrialDownload("comparison")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Download for free <span style={{ fontSize: "22px" }}>→</span>
-            </button>
-            <p style={{
-              fontSize: "15px",
-              color: COLORS.coffeeBrown,
-              marginTop: "14px",
-            }}>
-              Try every feature free for 30 days · macOS
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* FOUNDER STORY */}
-      <section id="founder-story" style={{ padding: "88px 0 100px", background: "white" }}>
+      <section id="founder-story" style={{
+        padding: "88px 0 100px",
+        background: COLORS.softCream,
+        borderTop: `1px solid ${COLORS.beigeBorder}`,
+        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.035)",
+      }}>
         <div className="section">
           <div style={{ maxWidth: "980px", margin: "0 auto" }}>
             <h2 style={{
@@ -3236,7 +3158,7 @@ export default function FocanaLanding() {
             }}>Founder Story</p>
 
             <div style={{
-              background: COLORS.softCream,
+              background: "white",
               borderRadius: "24px",
               padding: "32px",
               border: `1px solid ${COLORS.beigeBorder}`,
@@ -3377,6 +3299,8 @@ export default function FocanaLanding() {
       <section id="difference" style={{
         padding: "100px 0",
         background: `linear-gradient(160deg, ${COLORS.warmBrown}, ${COLORS.softBlack})`,
+        borderTop: `1px solid ${COLORS.warmBrown}44`,
+        boxShadow: "inset 0 22px 40px rgba(31, 31, 31, 0.12)",
       }}>
         <div className="section">
           <div style={{ textAlign: "center", maxWidth: "760px", margin: "0 auto 56px" }}>
@@ -3491,7 +3415,12 @@ export default function FocanaLanding() {
       </section>
 
       {/* NEWSLETTER CTA */}
-      <section id="newsletter-cta" style={{ padding: "88px 0", background: COLORS.warmVanilla }}>
+      <section id="newsletter-cta" style={{
+        padding: "88px 0",
+        background: COLORS.warmVanilla,
+        borderTop: `1px solid ${COLORS.beigeBorder}`,
+        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.04)",
+      }}>
         <div className="section" style={{ maxWidth: "980px" }}>
           <div
             style={{
@@ -3548,7 +3477,12 @@ export default function FocanaLanding() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" style={{ padding: "100px 0", background: "white" }}>
+      <section id="pricing" style={{
+        padding: "100px 0",
+        background: "white",
+        borderTop: `1px solid ${COLORS.beigeBorder}`,
+        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.03)",
+      }}>
         <div className="section" style={{ maxWidth: "960px" }}>
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
             <h2 style={{
@@ -3689,7 +3623,12 @@ export default function FocanaLanding() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" style={{ padding: "100px 0", background: COLORS.softCream }}>
+      <section id="faq" style={{
+        padding: "100px 0",
+        background: COLORS.softCream,
+        borderTop: `1px solid ${COLORS.beigeBorder}`,
+        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.035)",
+      }}>
         <div className="section" style={{ maxWidth: "760px" }}>
           <div style={{ textAlign: "center", marginBottom: "50px" }}>
             <h2 style={{
@@ -3741,6 +3680,8 @@ export default function FocanaLanding() {
         background: `linear-gradient(160deg, ${COLORS.warmBrown}, ${COLORS.softBlack})`,
         position: "relative",
         overflow: "hidden",
+        borderTop: `1px solid ${COLORS.warmBrown}44`,
+        boxShadow: "inset 0 22px 40px rgba(31, 31, 31, 0.12)",
       }}>
         <div style={{
           position: "absolute", top: "-50%", left: "50%", transform: "translateX(-50%)",
