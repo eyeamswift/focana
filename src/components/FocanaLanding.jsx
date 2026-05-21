@@ -26,6 +26,8 @@ const COLORS = {
   warmGray: "#7A6548",
 };
 
+const SHOW_BRAIN_STATE_SECTION = false;
+
 const founderProfiles = [
   { label: "About Justin", href: siteFounder.aboutHref },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/justinfranklin90" },
@@ -3016,7 +3018,7 @@ export default function FocanaLanding() {
         </div>
       </section>
 
-      <BrainStatePicker onDownload={openTrialDownload} />
+      {SHOW_BRAIN_STATE_SECTION && <BrainStatePicker onDownload={openTrialDownload} />}
 
       {/* COMPETITOR COMPARISON */}
       <section style={{ padding: "72px 0 36px 0", background: "white" }}>
