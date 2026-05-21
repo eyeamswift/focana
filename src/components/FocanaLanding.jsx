@@ -3021,14 +3021,12 @@ export default function FocanaLanding() {
       {SHOW_BRAIN_STATE_SECTION && <BrainStatePicker onDownload={openTrialDownload} />}
 
       {/* FEATURES */}
-      <section id="features" style={{ padding: "72px 0 100px 0", background: "white" }}>
+      <section id="features" style={{
+        padding: "48px 0 100px 0",
+        background: "white",
+        boxShadow: "inset 0 16px 28px rgba(92, 64, 51, 0.035)",
+      }}>
         <div className="section">
-          <p style={{
-            fontSize: "13px", fontWeight: 700, color: COLORS.deepAmber,
-            textAlign: "center", marginBottom: "48px",
-            textTransform: "uppercase", letterSpacing: "2px",
-          }}>How it works</p>
-
           {[
             {
               id: "feature-get-started",
@@ -3082,6 +3080,16 @@ export default function FocanaLanding() {
             );
             return (
               <div id={row.id} key={row.id} style={{ marginBottom: i < 4 ? "80px" : 0, scrollMarginTop: "96px" }}>
+                {i === 0 && (
+                  <p style={{
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: COLORS.deepAmber,
+                    marginBottom: "14px",
+                    textTransform: "uppercase",
+                    letterSpacing: "2px",
+                  }}>How it works</p>
+                )}
                 <h3 style={{
                   fontFamily: "'Outfit', sans-serif",
                   fontSize: "clamp(22px, 3vw, 30px)",
