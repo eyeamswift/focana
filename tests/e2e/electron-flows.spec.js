@@ -1200,6 +1200,33 @@ test("wake plus resume with nothing resumable floats first, then opens What's ne
   }
 });
 
+test("wake uses the short default delay before opening What's next", async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: true,
+    waitForTaskInput: false,
+  });
+
+  try {
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: false }));
+    await page.waitForTimeout(600);
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
 test('wake plus resume with an interrupted active session floats first, then opens Ready to resume', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
@@ -5028,6 +5055,7 @@ test('timed system sleep past the remaining duration wakes into Ready to resume 
     background: false,
     extraEnv: {
       FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+      FOCANA_E2E_WAKE_SYSTEM_ENTRY_DELAY_MS: '1800',
     },
   });
 

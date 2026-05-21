@@ -102,13 +102,25 @@ const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'snooze-options': 378,
 };
 const FOCUS_RETURN_TTL_MS = 2 * 60 * 1000;
-const SYSTEM_ENTRY_DELAY_MS = (() => {
-  const rawValue = Number.parseInt(String(process.env.FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS || '').trim(), 10);
-  if (Number.isFinite(rawValue) && rawValue >= 0) {
-    return rawValue;
+function readDelayMsFromEnv(envNames, fallbackMs) {
+  for (const envName of envNames) {
+    const rawValue = Number.parseInt(String(process.env[envName] || '').trim(), 10);
+    if (Number.isFinite(rawValue) && rawValue >= 0) {
+      return rawValue;
+    }
   }
-  return 90 * 1000;
-})();
+  return fallbackMs;
+}
+
+const SYSTEM_ENTRY_DELAY_MS = readDelayMsFromEnv([
+  'FOCANA_SYSTEM_ENTRY_DELAY_MS',
+  'FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS',
+], 90 * 1000);
+const WAKE_SYSTEM_ENTRY_DELAY_MS = readDelayMsFromEnv([
+  'FOCANA_WAKE_SYSTEM_ENTRY_DELAY_MS',
+  'FOCANA_E2E_WAKE_SYSTEM_ENTRY_DELAY_MS',
+  'FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS',
+], 3000);
 const WAKE_UNLOCK_CLASSIFY_WINDOW_MS = (() => {
   const rawValue = Number.parseInt(String(
     process.env.FOCANA_E2E_WAKE_UNLOCK_CLASSIFY_WINDOW_MS
@@ -1118,6 +1130,13 @@ function clearPendingSystemEntryReveal() {
   }
 }
 
+function getSystemEntryDelayMs(source) {
+  const normalizedSource = typeof source === 'string' ? source.trim() : '';
+  return normalizedSource.startsWith('wake-')
+    ? WAKE_SYSTEM_ENTRY_DELAY_MS
+    : SYSTEM_ENTRY_DELAY_MS;
+}
+
 function primeHiddenRendererWhileFloating() {
   if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
   if (mainWindowRendererLoaded) return;
@@ -1193,7 +1212,7 @@ function beginSystemEntry(source, { focusFloating = false } = {}) {
         console.warn('Could not rescue blank system-entry window:', error);
       }
     }, 1800);
-  }, SYSTEM_ENTRY_DELAY_MS);
+  }, getSystemEntryDelayMs(normalizedSource));
   return true;
 }
 
