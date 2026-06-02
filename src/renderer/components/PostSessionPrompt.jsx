@@ -17,6 +17,11 @@ function formatWrappedCopy(minutes, taskText) {
   return `You wrapped ${safeMinutes} min on ${taskText}.`;
 }
 
+function formatPausedCopy(minutes, taskText) {
+  const safeMinutes = Math.max(1, Math.round(Number(minutes) || 0));
+  return `Paused after ${safeMinutes} min on ${taskText}.`;
+}
+
 function formatSaveTitle(taskText) {
   return `Save “${taskText}” for later`;
 }
@@ -25,6 +30,7 @@ export default function PostSessionPrompt({
   isOpen,
   candidate,
   dismissible = false,
+  surfaceKind = 'post-session',
   feedbackEnabled = false,
   onLayoutChange,
   onDismiss,
@@ -45,6 +51,7 @@ export default function PostSessionPrompt({
     ? clampMinutes(candidate?.completedMinutes, 25)
     : 25;
   const taskAlreadyCompleted = candidate?.resolution === 'completed';
+  const isPauseSurface = surfaceKind === 'pause' || candidate?.source === 'paused-current' || dismissible;
 
   const [stage, setStage] = useState('hub');
   const [breakMinutes, setBreakMinutes] = useState(5);
@@ -162,7 +169,13 @@ export default function PostSessionPrompt({
   }
 
   const feedbackVisible = stage === 'hub' && feedbackEnabled && ['ready', 'saved', 'dimmed'].includes(feedbackState);
-  const bodyCopy = formatWrappedCopy(completedMinutes, safeTaskText);
+  const bodyCopy = isPauseSurface
+    ? formatPausedCopy(completedMinutes, safeTaskText)
+    : formatWrappedCopy(completedMinutes, safeTaskText);
+  const eyebrowCopy = isPauseSurface ? 'Paused session' : 'Session wrap';
+  const headingCopy = isPauseSurface ? "You're paused." : 'Nice work.';
+  const dismissLabel = isPauseSurface ? 'Close paused session options' : 'Dismiss Session Wrap';
+  const regionLabel = isPauseSurface ? 'Paused Session' : 'Session Wrap';
   const isChildStage = stage !== 'hub';
 
   const startTimedKeepWorking = () => {
@@ -179,7 +192,7 @@ export default function PostSessionPrompt({
           type="button"
           className="post-session-panel__dismiss"
           onClick={handleDismiss}
-          aria-label="Dismiss Session Wrap"
+          aria-label={dismissLabel}
           data-testid="post-session-dismiss"
         >
           <X style={{ width: 16, height: 16 }} />
@@ -187,8 +200,8 @@ export default function PostSessionPrompt({
       ) : null}
 
       <div className="post-session-panel__header">
-        <span className="post-session-panel__eyebrow" data-testid="post-session-eyebrow">Session wrap</span>
-        <h2 className="post-session-panel__heading" data-testid="post-session-heading">Nice work.</h2>
+        <span className="post-session-panel__eyebrow" data-testid="post-session-eyebrow">{eyebrowCopy}</span>
+        <h2 className="post-session-panel__heading" data-testid="post-session-heading">{headingCopy}</h2>
         <div className="post-session-panel__body-row">
           <p className="post-session-panel__body line-clamp-2" data-testid="post-session-body">
             {bodyCopy}
@@ -255,6 +268,20 @@ export default function PostSessionPrompt({
           variant="outline"
           className="post-session-action post-session-action--secondary"
           onClick={() => {
+            dismissFeedbackIfNeeded();
+            setStage('done-notes');
+          }}
+          data-testid="post-session-done"
+        >
+          <span>Save and continue later</span>
+          <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="post-session-action post-session-action--secondary"
+          onClick={() => {
             if (taskAlreadyCompleted) {
               dismissFeedbackIfNeeded();
               onStartNewTaskMarkComplete?.({ alreadyCompleted: true });
@@ -280,18 +307,6 @@ export default function PostSessionPrompt({
           </Button>
         ) : null}
       </div>
-
-      <button
-        type="button"
-        className="post-session-link"
-        onClick={() => {
-          dismissFeedbackIfNeeded();
-          setStage('done-notes');
-        }}
-        data-testid="post-session-done"
-      >
-        Done for now
-      </button>
     </>
   );
 
@@ -304,7 +319,7 @@ export default function PostSessionPrompt({
             type="button"
             className="post-session-child__close"
             onClick={onClose}
-            aria-label="Back to Session Wrap"
+            aria-label={isPauseSurface ? 'Back to paused session options' : 'Back to Session Wrap'}
           >
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -512,8 +527,8 @@ export default function PostSessionPrompt({
     });
   } else if (stage === 'done-notes') {
     content = renderNotes({
-      title: 'Done for now',
-      ctaLabel: 'Done for now',
+      title: 'Save and continue later',
+      ctaLabel: 'Save for later',
       onClose: null,
       onSubmit: onDoneForNow,
     });
@@ -523,7 +538,7 @@ export default function PostSessionPrompt({
     <section
       className={`post-session-panel${isChildStage ? ' post-session-panel--child-stage' : ' post-session-panel--hub-stage'}`}
       role="region"
-      aria-label="Session Wrap"
+      aria-label={regionLabel}
     >
       <div
         ref={frameRef}

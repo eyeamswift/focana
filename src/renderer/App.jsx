@@ -59,7 +59,14 @@ const WINDOW_SIZES = {
   baseWidth: 460,
   runningWidth: 432,
   idleHeight: 124,
-  reentryPromptHeight: 340,
+  reentryPromptHeight: 430,
+  reentryPromptStageHeights: {
+    taskEntry: 430,
+    resumeChoice: 340,
+    startChooser: 400,
+    saveForLater: 540,
+    snoozeOptions: 500,
+  },
   startupCheckingHeight: 220,
   startupNameHeight: 380,
   startupActivationHeight: 460,
@@ -85,6 +92,13 @@ const WINDOW_SIZES = {
     quitResidentInfo: [440, 320],
   },
 };
+function getReentryPromptHeightForStage(stage) {
+  if (stage === 'resume-choice') return WINDOW_SIZES.reentryPromptStageHeights.resumeChoice;
+  if (stage === 'start-chooser') return WINDOW_SIZES.reentryPromptStageHeights.startChooser;
+  if (stage === 'save-for-later') return WINDOW_SIZES.reentryPromptStageHeights.saveForLater;
+  if (stage === 'snooze-options') return WINDOW_SIZES.reentryPromptStageHeights.snoozeOptions;
+  return WINDOW_SIZES.reentryPromptStageHeights.taskEntry;
+}
 const TASK_CHARACTER_LIMIT = 96;
 const clampTaskText = (value) => {
   if (typeof value !== 'string') return '';
@@ -576,6 +590,15 @@ export default function App() {
   const windowModeSyncingRef = useRef(false);
   const backgroundLicenseValidationRef = useRef(null);
   const taskInputResizeTimerRef = useRef(null);
+
+  const scheduleReentryCueFromNow = useCallback((delayMs = REENTRY_DELAY_MS) => {
+    const now = Date.now();
+    const safeDelayMs = Math.max(0, Math.floor(Number(delayMs) || 0));
+    reentryEligibleSinceRef.current = now;
+    reentryNextCueAtRef.current = now + safeDelayMs;
+    reentryRemainingMsRef.current = null;
+  }, []);
+
   const handleTaskChange = useCallback((nextValue) => {
     const normalizedValue = clampTaskText(nextValue);
     setTask(normalizedValue);
@@ -1041,6 +1064,12 @@ export default function App() {
       )
   );
   showSurfaceReentryPromptRef.current = showSurfaceReentryPrompt;
+
+  useEffect(() => {
+    if (!showSurfaceReentryPrompt) return;
+    if (Number.isFinite(reentryNextCueAtRef.current)) return;
+    scheduleReentryCueFromNow();
+  }, [scheduleReentryCueFromNow, showSurfaceReentryPrompt]);
 
   useEffect(() => {
     if (!showSurfaceReentryPrompt) {
@@ -1762,9 +1791,7 @@ export default function App() {
     const promptState = resolveSystemEntryPromptState(source);
     if (!promptState?.promptKind) return false;
 
-    reentryEligibleSinceRef.current = null;
-    reentryNextCueAtRef.current = null;
-    reentryRemainingMsRef.current = null;
+    scheduleReentryCueFromNow();
     reentrySnoozeUntilRef.current = 0;
     reentrySnoozeUntilReopenRef.current = false;
     clearPostSessionSurfaceForSystemEntry();
@@ -1777,7 +1804,7 @@ export default function App() {
     setReentryAttentionVisible(true);
     closeFloatingReentryPrompt();
     return true;
-  }, [clearPostSessionSurfaceForSystemEntry, closeFloatingReentryPrompt, resolveSystemEntryPromptState]);
+  }, [clearPostSessionSurfaceForSystemEntry, closeFloatingReentryPrompt, resolveSystemEntryPromptState, scheduleReentryCueFromNow]);
 
   const reconcilePendingSystemEntryReveal = useCallback(async () => {
     if (startupSetupGateActive) return false;
@@ -1913,10 +1940,10 @@ export default function App() {
       clearTimeout(reentryStrongTimeoutRef.current);
       reentryStrongTimeoutRef.current = null;
     }
-    if (reentryAttentionVisibleRef.current) {
-      reentryRemainingMsRef.current = 0;
-    } else if (Number.isFinite(reentryNextCueAtRef.current)) {
+    if (Number.isFinite(reentryNextCueAtRef.current)) {
       reentryRemainingMsRef.current = Math.max(0, reentryNextCueAtRef.current - now);
+    } else if (reentryAttentionVisibleRef.current) {
+      reentryRemainingMsRef.current = REENTRY_DELAY_MS;
     }
     setReentryStrongActive(false);
     setReentryAttentionVisible(false);
@@ -1979,8 +2006,10 @@ export default function App() {
     }, 260);
 
     // Store desired full-view size and apply right after exit-pill-mode resolves.
-    pendingCompactExitHeightRef.current = exitTargetHeight;
-  }, [checkInState, hasSavedContext, isCompact, isRunning, isStartModalOpen, isTimerVisible, task]);
+    pendingCompactExitHeightRef.current = showSurfaceReentryPrompt
+      ? getReentryPromptHeightForStage(reentrySurfaceStage)
+      : exitTargetHeight;
+  }, [checkInState, hasSavedContext, isCompact, isRunning, isStartModalOpen, isTimerVisible, reentrySurfaceStage, showSurfaceReentryPrompt, task]);
 
   const captureCompactReturnBounds = useCallback(() => {
     window.electronAPI.capturePillRestoreBounds?.();
@@ -3274,8 +3303,13 @@ export default function App() {
       }
 
       if (showSurfaceReentryPromptRef.current || reentryFloatingPromptOpenRef.current) {
-        reentryEligibleSinceRef.current = null;
-        reentryNextCueAtRef.current = now + REENTRY_LOOP_MS;
+        if (!Number.isFinite(reentryNextCueAtRef.current)) {
+          reentryEligibleSinceRef.current = now;
+          reentryNextCueAtRef.current = now + REENTRY_DELAY_MS;
+        } else if (!reentryStrongActiveRef.current && now >= reentryNextCueAtRef.current) {
+          fireReentryCue();
+          reentryNextCueAtRef.current = now + REENTRY_LOOP_MS;
+        }
         reentryRemainingMsRef.current = null;
         const isFloatingMinimized = await window.electronAPI.getFloatingMinimized?.();
         if (cancelled) return;
@@ -3503,10 +3537,18 @@ export default function App() {
     if (mode === 'timed') {
       const thresholds = compactPulseThresholdsRef.current;
       const segmentElapsed = getTimedCueSegmentElapsed(elapsed);
+      const segmentDuration = getTimedCueSegmentDuration(initialTime);
       const previousSegmentElapsed = timedPulseLastSegmentElapsedRef.current;
       let crossedThreshold = false;
 
       if (!thresholds.length) {
+        timedPulseLastElapsedRef.current = elapsed;
+        timedPulseLastSegmentElapsedRef.current = segmentElapsed;
+        return;
+      }
+
+      if (segmentElapsed >= segmentDuration) {
+        compactPulseIndexRef.current = thresholds.length;
         timedPulseLastElapsedRef.current = elapsed;
         timedPulseLastSegmentElapsedRef.current = segmentElapsed;
         return;
@@ -3541,7 +3583,7 @@ export default function App() {
     timedPulseLastSegmentElapsedRef.current = 0;
   // Note: checkInStateRef (not checkInState) is used for pulse suppression to
   // avoid stale-state races where a pulse and check-in fire in the same render.
-  }, [time, isRunning, mode, getElapsedSeconds, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
+  }, [time, isRunning, mode, initialTime, getElapsedSeconds, getTimedCueSegmentDuration, getTimedCueSegmentElapsed, isCompact, pulseSettings.compactEnabled, dndEnabled, hasBlockingWindowOpen, triggerPulse]);
 
   useEffect(() => {
     if (!isRunning || !task.trim() || !checkInSettings.enabled) {
@@ -3719,6 +3761,8 @@ export default function App() {
     if (timeUpTriggerKeyRef.current === triggerKey) return undefined;
     timeUpTriggerKeyRef.current = triggerKey;
     timeUpHandledRef.current = true;
+    lastInteractionTimeRef.current = Date.now();
+    scheduleReentryCueFromNow();
 
     const wasCompact = isCompact;
 
@@ -3772,7 +3816,7 @@ export default function App() {
     };
 
     void showTimeUpFlow();
-  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, isRunning, logMissedCheckInIfPrompting, nextStepsNotes, saveSessionWithNotes, sessionStartTime, showNotesModal, showTimeUpModal, systemEntryPendingActive, systemEntryRevealPending, task]);
+  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, isRunning, logMissedCheckInIfPrompting, nextStepsNotes, saveSessionWithNotes, scheduleReentryCueFromNow, sessionStartTime, showNotesModal, showTimeUpModal, systemEntryPendingActive, systemEntryRevealPending, task]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -3947,12 +3991,16 @@ export default function App() {
     return WINDOW_SIZES.timerHeight;
   }, [checkInState, hasSavedContext, showCenteredFullWindowCheckInToast]);
 
+  const getReentryPromptDefaultHeight = useCallback(() => {
+    return getReentryPromptHeightForStage(reentrySurfaceStage);
+  }, [reentrySurfaceStage]);
+
   const getIdleScreenDefaultHeight = useCallback(() => {
     if (startupGateState !== 'ready') return getStartupGateFallbackHeight();
-    if (showSurfaceReentryPrompt) return WINDOW_SIZES.reentryPromptHeight;
+    if (showSurfaceReentryPrompt) return getReentryPromptDefaultHeight();
     if (showPostSessionPrompt) return WINDOW_SIZES.modal.postSessionPrompt[1];
     return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
-  }, [getStartupGateFallbackHeight, isStartModalOpen, showPostSessionPrompt, showSurfaceReentryPrompt, startupGateState]);
+  }, [getReentryPromptDefaultHeight, getStartupGateFallbackHeight, isStartModalOpen, showPostSessionPrompt, showSurfaceReentryPrompt, startupGateState]);
 
   const getStartupTargetHeight = useCallback(() => {
     if (startupGateState !== 'ready') return measureStartupGateHeight();
@@ -4026,10 +4074,11 @@ export default function App() {
 
     if (hasActiveResumeCandidate) {
       setReentryPromptOverrideKind('resume-choice');
+      scheduleReentryCueFromNow();
       setReentryAttentionVisible(true);
     }
     setStartupLaunchSource(null);
-  }, [hasActiveResumeCandidate, sessionStateHydrated, startupGateState, startupLaunchSource, startupLaunchSourceHydrated, startupRevealComplete]);
+  }, [hasActiveResumeCandidate, scheduleReentryCueFromNow, sessionStateHydrated, startupGateState, startupLaunchSource, startupLaunchSourceHydrated, startupRevealComplete]);
 
   useEffect(() => {
     if (!startupSystemEntryRevealSource) return;
@@ -4191,9 +4240,10 @@ export default function App() {
     if (isRunning) return;
     if (isTimerVisible) return;
     if (showSurfaceReentryPrompt) {
-      ensureWindowSizeForCurrentScreen(WINDOW_SIZES.reentryPromptHeight);
+      const targetHeight = getReentryPromptDefaultHeight();
+      ensureWindowSizeForCurrentScreen(targetHeight);
       const promptTimer = setTimeout(() => {
-        ensureWindowSizeForCurrentScreen(WINDOW_SIZES.reentryPromptHeight);
+        ensureWindowSizeForCurrentScreen(targetHeight);
       }, 100);
       return () => clearTimeout(promptTimer);
     }
@@ -4205,7 +4255,7 @@ export default function App() {
       ensureWindowSizeForCurrentScreen(WINDOW_SIZES.idleHeight);
     }, 100);
     return () => clearTimeout(t);
-  }, [ensureWindowSizeForCurrentScreen, hasSavedContext, showSurfaceReentryPrompt, startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, task]);
+  }, [ensureWindowSizeForCurrentScreen, getReentryPromptDefaultHeight, hasSavedContext, showSurfaceReentryPrompt, startupRevealComplete, startupGateState, isCompact, isRunning, isTimerVisible, isStartModalOpen, task]);
 
   const handlePlay = useCallback(() => {
     const trimmedTask = task.trim();
@@ -4559,6 +4609,7 @@ export default function App() {
   };
 
   const openFreshTaskComposer = useCallback(({ bringToFront = false, promptTone = 'first' } = {}) => {
+    lastInteractionTimeRef.current = Date.now();
     reentryStartNewAfterResolveRef.current = false;
     postSessionNotesActionRef.current = null;
     sessionToSave.current = null;
@@ -4598,6 +4649,7 @@ export default function App() {
     setReentrySurfaceStage('task-entry');
     setReentrySurfaceTaskText('');
     setReentrySurfaceMinutes(String(getDefaultReentryMinutes()));
+    scheduleReentryCueFromNow();
     setReentryStrongActive(false);
     setReentryAttentionVisible(true);
     closeFloatingReentryPrompt();
@@ -4605,7 +4657,7 @@ export default function App() {
     if (bringToFront) {
       window.electronAPI.bringToFront?.();
     }
-  }, [closeFloatingReentryPrompt, getDefaultReentryMinutes, handleClear]);
+  }, [closeFloatingReentryPrompt, getDefaultReentryMinutes, handleClear, scheduleReentryCueFromNow]);
 
   const finishDirectCompletion = useCallback(async ({
     completedSessionId = null,
@@ -4717,13 +4769,14 @@ export default function App() {
     const candidate = reentryResumeCandidateRef.current;
     reentrySurfaceSignatureRef.current = `resume-choice:${candidate?.sessionId || candidate?.taskText || 'draft'}`;
     closeFloatingReentryPrompt();
+    scheduleReentryCueFromNow();
     setReentryAttentionVisible(true);
     setReentryStrongActive(false);
     setReentrySurfaceStage('save-for-later');
     setReentrySurfaceTaskText(clampTaskText(candidate?.taskText || task));
     setIsCompact(false);
     window.electronAPI.bringToFront?.();
-  }, [closeFloatingReentryPrompt, task]);
+  }, [closeFloatingReentryPrompt, scheduleReentryCueFromNow, task]);
 
   const startSessionFromReentryPrompt = useCallback((payload = {}, { bringToFront = false } = {}) => {
     const promptKind = payload?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
@@ -4791,14 +4844,11 @@ export default function App() {
     const action = typeof eventPayload?.action === 'string' ? eventPayload.action : '';
     if (action !== 'resume-now') return;
 
-    const now = Date.now();
     postSessionBreakUntilRef.current = 0;
     postSessionBreakPromptPendingRef.current = false;
     reentrySnoozeUntilRef.current = 0;
     reentrySnoozeUntilReopenRef.current = false;
-    reentryEligibleSinceRef.current = now;
-    reentryNextCueAtRef.current = now + REENTRY_LOOP_MS;
-    reentryRemainingMsRef.current = null;
+    scheduleReentryCueFromNow();
 
     if (reentryStrongTimeoutRef.current) {
       clearTimeout(reentryStrongTimeoutRef.current);
@@ -4809,7 +4859,7 @@ export default function App() {
     setReentryStrongActive(false);
     setReentryAttentionVisible(true);
     showFloatingReentryPrompt();
-  }, [setFloatingBreakState, showFloatingReentryPrompt]);
+  }, [scheduleReentryCueFromNow, setFloatingBreakState, showFloatingReentryPrompt]);
 
   const handleFloatingReentryAction = useCallback((eventPayload = {}) => {
     const action = typeof eventPayload?.action === 'string' ? eventPayload.action : '';
@@ -5148,6 +5198,8 @@ export default function App() {
     notes = {},
   } = {}) => {
     if (!postSessionResumeCandidate?.taskText) return null;
+    const taskText = clampTaskText(postSessionResumeCandidate.taskText).trim();
+    if (!taskText) return null;
 
     const splitNotes = normalizeSplitNotes(notes, {
       recap: postSessionResumeCandidate.recap ?? contextNotes,
@@ -5161,33 +5213,66 @@ export default function App() {
       || currentSessionId
       || await ensureCurrentSessionId('pause session wrap action');
 
-    sessionToSave.current = {
-      duration: elapsedSeconds / 60,
-      completed,
-      kept,
-      sessionId,
+    const durationMinutes = elapsedSeconds / 60;
+    const normalizedMode = postSessionResumeCandidate.completedMode === 'timed'
+      || postSessionResumeCandidate.mode === 'timed'
+      || mode === 'timed'
+      ? 'timed'
+      : 'freeflow';
+    const sessionPatch = {
+      task: taskText,
+      durationMinutes,
+      mode: normalizedMode,
+      completed: Boolean(completed),
+      kept: Boolean(kept),
+      notes: splitNotes.recap,
+      recap: splitNotes.recap,
+      nextSteps: splitNotes.nextSteps,
     };
+    let savedSessionId = sessionId || null;
+    sessionToSave.current = null;
 
-    const savedSessionId = await saveSessionWithNotes(splitNotes);
-    setPostSessionResumeCandidate((prev) => (
-      prev ? {
-        ...prev,
-        sessionId: savedSessionId || sessionId || prev.sessionId,
-        recap: splitNotes.recap,
-        nextSteps: splitNotes.nextSteps,
-        notes: splitNotes.recap,
-        resolution: completed ? 'completed' : 'open',
-      } : prev
-    ));
-    return savedSessionId || sessionId || null;
+    try {
+      if (sessionId) {
+        const updated = await SessionStore.update(sessionId, sessionPatch);
+        savedSessionId = updated?.id || null;
+      }
+
+      if (!savedSessionId) {
+        const created = await SessionStore.create({
+          ...sessionPatch,
+          duration_minutes: durationMinutes,
+        });
+        savedSessionId = created?.id || null;
+      }
+
+      if (savedSessionId) {
+        setPostSessionResumeCandidate((prev) => (
+          prev ? {
+            ...prev,
+            sessionId: savedSessionId,
+            recap: splitNotes.recap,
+            nextSteps: splitNotes.nextSteps,
+            notes: splitNotes.recap,
+            resolution: completed ? 'completed' : 'open',
+          } : prev
+        ));
+      }
+      await loadSessions();
+      return savedSessionId || sessionId || null;
+    } catch (error) {
+      console.error('Failed to save paused post-session choice:', error);
+      return sessionId || null;
+    }
   }, [
     contextNotes,
     currentSessionId,
     ensureCurrentSessionId,
     getElapsedSeconds,
+    loadSessions,
+    mode,
     nextStepsNotes,
     postSessionResumeCandidate,
-    saveSessionWithNotes,
   ]);
 
   const clearPausedPostSessionTimerState = useCallback((notes = {}) => {
@@ -5625,8 +5710,9 @@ export default function App() {
 
   useEffect(() => {
     if (!showPostSessionPrompt) return;
+    if (postSessionIsPauseWrap) return;
     triggerConfetti(1200);
-  }, [showPostSessionPrompt, triggerConfetti]);
+  }, [postSessionIsPauseWrap, showPostSessionPrompt, triggerConfetti]);
 
   useEffect(() => {
     let cancelled = false;
@@ -7503,6 +7589,7 @@ export default function App() {
                     isOpen={showPostSessionPrompt}
                     candidate={postSessionResumeCandidate}
                     dismissible={postSessionIsPauseWrap}
+                    surfaceKind={postSessionSurfaceKind}
                     feedbackEnabled={postSessionFeedbackEnabled}
                     onLayoutChange={handlePostSessionLayoutChange}
                     onDismiss={handleDismissPauseSessionWrap}

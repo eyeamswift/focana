@@ -1,6 +1,6 @@
 {
   "name": "focana",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Desktop Focus App for ADHD",
   "main": "src/main/main.js",
   "scripts": {

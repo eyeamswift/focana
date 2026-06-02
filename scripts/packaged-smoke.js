@@ -115,10 +115,11 @@ async function readWindowVisibilityState(electronApp) {
   })
 }
 
-async function expectPostSessionPrompt(page, taskName = null) {
-  await page.getByRole('region', { name: 'Session Wrap' }).waitFor({ state: 'visible', timeout: 10000 })
+async function expectPostSessionPrompt(page, taskName = null, { surface = 'wrap' } = {}) {
+  const isPause = surface === 'pause'
+  await page.getByRole('region', { name: isPause ? 'Paused Session' : 'Session Wrap' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByTestId('post-session-eyebrow').waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByTestId('post-session-heading').filter({ hasText: 'Nice work.' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByTestId('post-session-heading').filter({ hasText: isPause ? "You're paused." : 'Nice work.' }).waitFor({ state: 'visible', timeout: 10000 })
   await page.getByTestId('post-session-primary').waitFor({ state: 'visible', timeout: 10000 })
   await page.getByTestId('post-session-break').waitFor({ state: 'visible', timeout: 10000 })
   await page.getByTestId('post-session-new-task').waitFor({ state: 'visible', timeout: 10000 })
@@ -291,19 +292,19 @@ async function runFreeflowSmoke(page, electronApp) {
     description: 'task text to survive floating round-trip',
   })
 
-  info('Pausing session and verifying Session Wrap Done for now floating handoff')
+  info('Pausing session and verifying Save and continue later floating handoff')
   await page.locator(PAUSE_BUTTON_SELECTOR).first().click()
-  await expectPostSessionPrompt(page, taskName)
+  await expectPostSessionPrompt(page, taskName, { surface: 'pause' })
 
   await page.getByTestId('post-session-done').click()
-  await page.getByRole('heading', { name: 'Done for now' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Done for now' }).click()
+  await page.getByRole('heading', { name: 'Save and continue later' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Save for later' }).click()
   const doneFloatingWindow = await poll(async () => {
     const windows = electronApp.windows().filter((win) => win.url().includes('floating-icon.html'))
     return windows.length > 0 ? windows[0] : null
   }, {
     timeoutMs: 10000,
-    description: 'floating window to appear after Done for now',
+    description: 'floating window to appear after Save and continue later',
   })
   await doneFloatingWindow.locator('#icon-button').waitFor({ state: 'visible', timeout: 10000 })
   await poll(async () => {
@@ -311,7 +312,7 @@ async function runFreeflowSmoke(page, electronApp) {
     return !state.mainVisible && state.floatingVisible
   }, {
     timeoutMs: 10000,
-    description: 'Done for now to hide the main window and leave floating visible',
+    description: 'Save and continue later to hide the main window and leave floating visible',
   })
 
   await doneFloatingWindow.evaluate(() => window.floatingAPI.expand())
@@ -328,6 +329,13 @@ async function runFreeflowSmoke(page, electronApp) {
   await historyDialog.waitFor({ state: 'visible', timeout: 10000 })
   await historyDialog.getByText(taskName, { exact: true }).waitFor({ state: 'visible', timeout: 10000 })
   await page.locator('.dialog-close-btn').first().click()
+  await historyDialog.waitFor({ state: 'hidden', timeout: 10000 })
+  await poll(async () => (
+    await page.locator('.dialog-overlay').count().catch(() => 0)
+  ) === 0, {
+    timeoutMs: 10000,
+    description: 'Session History overlay to close before pausing',
+  })
 }
 
 async function runTimedSmoke(page) {

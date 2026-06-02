@@ -2612,23 +2612,6 @@ html[data-window-mode='pill'] #root {
   color: var(--text-primary);
 }
 
-.post-session-link {
-  align-self: flex-start;
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: var(--text-secondary);
-  font-size: 0.98rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 0.16s ease, text-decoration-color 0.16s ease;
-}
-
-.post-session-link:hover {
-  color: var(--brand-action);
-  text-decoration: underline;
-}
-
 .post-session-child__header {
   display: flex;
   align-items: flex-start;

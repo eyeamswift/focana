@@ -543,10 +543,11 @@ async function fillSplitSessionNotes(page, {
   }
 }
 
-async function expectPostSessionPrompt(page, taskName = null) {
-  await expect(page.getByRole('region', { name: 'Session Wrap' })).toBeVisible();
-  await expect(page.getByTestId('post-session-eyebrow')).toHaveText(/Session wrap/i);
-  await expect(page.getByTestId('post-session-heading')).toHaveText('Nice work.');
+async function expectPostSessionPrompt(page, taskName = null, { surface = 'wrap' } = {}) {
+  const isPause = surface === 'pause';
+  await expect(page.getByRole('region', { name: isPause ? 'Paused Session' : 'Session Wrap' })).toBeVisible();
+  await expect(page.getByTestId('post-session-eyebrow')).toHaveText(isPause ? /Paused session/i : /Session wrap/i);
+  await expect(page.getByTestId('post-session-heading')).toHaveText(isPause ? "You're paused." : 'Nice work.');
   await expect(page.getByTestId('post-session-primary')).toBeVisible();
   await expect(page.getByTestId('post-session-break')).toBeVisible();
   await expect(page.getByTestId('post-session-new-task')).toBeVisible();
@@ -554,6 +555,12 @@ async function expectPostSessionPrompt(page, taskName = null) {
   if (taskName) {
     await expect(page.getByTestId('post-session-body')).toContainText(taskName);
   }
+}
+
+async function expectPauseSessionPrompt(page, taskName = null) {
+  await expectPostSessionPrompt(page, taskName, { surface: 'pause' });
+  await expect(page.getByTestId('post-session-dismiss')).toBeVisible();
+  await expect(page.locator('.confetti-overlay')).toHaveCount(0);
 }
 
 async function openTimedSessionWrap(page, taskName, minutes = 1) {
@@ -567,6 +574,56 @@ async function expectWhatsNextPrompt(page) {
   await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
   await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
   await expect(page.getByText('Start something new, or pull from Parking Lot or History.')).toBeVisible();
+  const nextButton = page.getByRole('button', { name: 'Next' });
+  await expect(nextButton).toBeVisible();
+  await expectLocatorFullyInViewport(nextButton);
+}
+
+async function expectLocatorFullyInViewport(locator, { bottomPadding = 8 } = {}) {
+  await expect.poll(async () => locator.evaluate((element, padding) => {
+    const rect = element.getBoundingClientRect();
+    return (
+      rect.top >= 0
+      && rect.left >= 0
+      && rect.right <= window.innerWidth
+      && rect.bottom <= window.innerHeight - padding
+    );
+  }, bottomPadding), { timeout: 7000 }).toBe(true);
+}
+
+async function installAttentionPulseObserver(page) {
+  await page.evaluate(() => {
+    window.__focanaE2EAttentionPulseHits = [];
+    window.__focanaE2EAttentionPulseObserver?.disconnect?.();
+
+    const pulseSelectors = [
+      '.animate-pulse-gentle',
+      '.animate-pulse-celebration',
+      '.reentry-prompt--attention',
+      '.task-composer--reentry-strong',
+    ];
+    const recordPulse = () => {
+      const selector = pulseSelectors.find((candidate) => document.querySelector(candidate));
+      if (!selector) return;
+      window.__focanaE2EAttentionPulseHits.push({
+        selector,
+        at: Date.now(),
+      });
+    };
+
+    const observer = new MutationObserver(recordPulse);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true,
+    });
+    recordPulse();
+    window.__focanaE2EAttentionPulseObserver = observer;
+  });
+}
+
+async function readAttentionPulseHits(page) {
+  return page.evaluate(() => window.__focanaE2EAttentionPulseHits || []);
 }
 
 async function seedPreviousSession(page, overrides = {}) {
@@ -1200,7 +1257,7 @@ test("wake plus resume with nothing resumable floats first, then opens What's ne
   }
 });
 
-test("wake uses the short default delay before opening What's next", async () => {
+test('wake default delay keeps the app floating past the old prompt-immediately window', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: true,
     waitForTaskInput: false,
@@ -1219,9 +1276,10 @@ test("wake uses the short default delay before opening What's next", async () =>
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+    await page.waitForTimeout(4200);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 2000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -1255,7 +1313,7 @@ test('wake plus resume with an interrupted active session floats first, then ope
   }
 });
 
-test('wake reveal replaces an open Done for now notes panel with Ready to resume', async () => {
+test('wake reveal replaces an open Save and continue later notes panel with Ready to resume', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
     extraEnv: {
@@ -1264,9 +1322,9 @@ test('wake reveal replaces an open Done for now notes panel with Ready to resume
   });
 
   try {
-    await openTimedSessionWrap(page, 'wake-done-for-now-surface');
+    await openTimedSessionWrap(page, 'wake-save-for-later-surface');
     await page.getByTestId('post-session-done').click();
-    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
 
     await electronApp.evaluate(({ powerMonitor }) => {
       powerMonitor.emit('suspend');
@@ -1278,10 +1336,10 @@ test('wake reveal replaces an open Done for now notes panel with Ready to resume
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect(page.getByRole('heading', { name: 'Done for now' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Save and continue later' })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
-    await expect(page.getByText('wake-done-for-now-surface')).toBeVisible();
+    await expect(page.getByText('wake-save-for-later-surface')).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1562,7 +1620,7 @@ test('idle re-entry prompt stays stable in full window and hands off to floating
     await expect.poll(async () => {
       const bounds = await readMainWindowBounds(electronApp);
       return bounds?.height || 0;
-    }, { timeout: 7000 }).toBeGreaterThanOrEqual(320);
+    }, { timeout: 7000 }).toBeGreaterThanOrEqual(430);
 
     await page.waitForTimeout(6500);
     await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
@@ -1799,18 +1857,18 @@ test('floating idle re-entry prompt can open Session History from the task-entry
   }
 });
 
-test('done-for-now manual reopen stays in the idle shell until a system re-entry prompt is triggered', async () => {
+test('save and continue later manual reopen stays in the idle shell until a system re-entry prompt is triggered', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
-    await openTimedSessionWrap(page, 'done-for-now-default-resume');
+    await openTimedSessionWrap(page, 'save-for-later-default-resume');
     await page.getByTestId('post-session-done').click();
-    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
     await fillSplitSessionNotes(page, {
       nextSteps: 'pick this up tomorrow',
       recap: 'final QA pass still open',
     });
-    await page.getByRole('button', { name: 'Done for now' }).click();
+    await page.getByRole('button', { name: 'Save for later' }).click();
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
@@ -1823,25 +1881,25 @@ test('done-for-now manual reopen stays in the idle shell until a system re-entry
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
     await expect(page.locator(TASK_INPUT_SELECTOR)).toBeVisible();
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('done-for-now-default-resume');
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('save-for-later-default-resume');
   } finally {
     await cleanup();
   }
 });
 
-test('floating resumable re-entry comes back after done-for-now and start something new captures save-for-later notes first', async () => {
+test('floating resumable re-entry comes back after save and continue later and start something new captures notes first', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await openTimedSessionWrap(page, 'resume-choice-task');
     await page.getByTestId('post-session-done').click();
-    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
-    await page.getByRole('button', { name: 'Done for now' }).click();
+    await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
+    await page.getByRole('button', { name: 'Save for later' }).click();
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
-    await expect.poll(async () => page.evaluate(() => window.electronAPI.getFloatingMinimized()), { timeout: 7000, message: 'main window should already be minimized after Done for now' })
+    await expect.poll(async () => page.evaluate(() => window.electronAPI.getFloatingMinimized()), { timeout: 7000, message: 'main window should already be minimized after Save and continue later' })
       .toBe(true);
     await page.waitForTimeout(1200);
     await setTimeOffset(page, ONE_MINUTE_TIMED_WRAP_OFFSET_MS + (5 * 60 * 1000) + 2000);
@@ -1882,8 +1940,8 @@ test("resume save-for-later can mark complete with confetti and hand off directl
   try {
     await openTimedSessionWrap(page, 'resume-mark-complete');
     await page.getByTestId('post-session-done').click();
-    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
-    await page.getByRole('button', { name: 'Done for now' }).click();
+    await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
+    await page.getByRole('button', { name: 'Save for later' }).click();
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
@@ -1953,6 +2011,34 @@ test("full-window complete button saves the task and opens What's next", async (
   }
 });
 
+test("What's next waits before pulsing after direct completion", async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'whats-next-delayed-pulse');
+    await exitCompactMode(page);
+    await installAttentionPulseObserver(page);
+
+    await page.getByRole('button', { name: 'Complete Task' }).click();
+    await expectWhatsNextPrompt(page);
+    await page.waitForTimeout(900);
+    expect(await readAttentionPulseHits(page)).toEqual([]);
+
+    await setTimeOffset(page, (5 * 60 * 1000) + 1500);
+    await expect.poll(async () => {
+      const hits = await readAttentionPulseHits(page);
+      return hits.some((hit) => (
+        hit.selector === '.animate-pulse-gentle'
+        || hit.selector === '.reentry-prompt--attention'
+        || hit.selector === '.task-composer--reentry-strong'
+      ));
+    }, { timeout: 4000 }).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("compact complete button saves the task and opens What's next", async () => {
   const { page, cleanup } = await launchApp();
 
@@ -1987,6 +2073,24 @@ test("complete shortcut saves the task and opens What's next", async () => {
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     const completedSession = savedSessions.find((session) => session?.task === 'shortcut-complete-direct');
     expect(completedSession?.completed).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed session expiry opens session wrap without an immediate pulse', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startTimedSession(page, 'timeup-no-immediate-pulse', 1);
+    await exitCompactMode(page);
+    await installAttentionPulseObserver(page);
+
+    await setTimeOffset(page, 65000);
+    await expectPostSessionPrompt(page, 'timeup-no-immediate-pulse');
+    await page.waitForTimeout(900);
+    expect(await readAttentionPulseHits(page)).toEqual([]);
   } finally {
     await cleanup();
   }
@@ -2585,7 +2689,7 @@ test('floating pause opens dismissible session wrap and returns to the floating 
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expectPostSessionPrompt(page, 'floating pause wrap');
+    await expectPauseSessionPrompt(page, 'floating pause wrap');
 
     await page.getByTestId('post-session-dismiss').click();
 
@@ -3212,11 +3316,11 @@ test('fullscreen pause opens dismissible session wrap and returns to the paused 
     await startFreeflowSession(page, 'paused hero state');
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Pause Timer' }).click();
-    await expectPostSessionPrompt(page, 'paused hero state');
+    await expectPauseSessionPrompt(page, 'paused hero state');
     await expect(page.getByTestId('post-session-dismiss')).toBeVisible();
     await page.getByTestId('post-session-dismiss').click();
 
-    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Paused Session' })).toHaveCount(0);
     await expect(page.locator('.focus-hero')).toHaveCount(0);
     await expect(page.locator('.task-composer.task-composer--paused')).toBeVisible();
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('paused hero state');
@@ -3235,11 +3339,11 @@ test('fullscreen pause session wrap dismisses with Escape', async () => {
     await startFreeflowSession(page, 'pause escape dismiss');
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Pause Timer' }).click();
-    await expectPostSessionPrompt(page, 'pause escape dismiss');
+    await expectPauseSessionPrompt(page, 'pause escape dismiss');
 
     await page.keyboard.press('Escape');
 
-    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Paused Session' })).toHaveCount(0);
     await expect(page.locator('.task-composer.task-composer--paused')).toBeVisible();
     await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('pause escape dismiss');
   } finally {
@@ -3256,11 +3360,11 @@ test('compact pause opens dismissible session wrap and returns to compact paused
     await page.locator('button[title="Pause"]').click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
-    await expectPostSessionPrompt(page, 'compact pause wrap');
+    await expectPauseSessionPrompt(page, 'compact pause wrap');
     await page.getByTestId('post-session-dismiss').click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
-    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Paused Session' })).toHaveCount(0);
     await expect(page.locator(PILL_TASK_SELECTOR)).toContainText('compact pause wrap');
   } finally {
     await cleanup();
@@ -3274,11 +3378,11 @@ test("pause session wrap mark complete saves the task and opens What's next", as
     await startFreeflowSession(page, 'pause mark complete');
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Pause Timer' }).click();
-    await expectPostSessionPrompt(page, 'pause mark complete');
+    await expectPauseSessionPrompt(page, 'pause mark complete');
 
     await page.getByTestId('post-session-mark-complete').click();
 
-    await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Paused Session' })).toHaveCount(0);
     await expectWhatsNextPrompt(page);
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     const completedSession = savedSessions.find((session) => session?.task === 'pause mark complete');
@@ -3301,7 +3405,7 @@ test('pause session wrap keep working resumes the same active session', async ()
     expect(sessionIdBefore).toBeTruthy();
 
     await page.getByRole('button', { name: 'Pause Timer' }).click();
-    await expectPostSessionPrompt(page, 'pause keep working');
+    await expectPauseSessionPrompt(page, 'pause keep working');
     await page.getByTestId('post-session-primary').click();
     await page.getByRole('button', { name: 'Freeflow' }).click();
 
@@ -3325,21 +3429,21 @@ test('pause session wrap keep working resumes the same active session', async ()
   }
 });
 
-test('pause session wrap Done for now saves a kept session and clears the active timer', async () => {
+test('pause session wrap Save and continue later saves a kept session and clears the active timer', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
-    await startFreeflowSession(page, 'pause done for now');
+    await startFreeflowSession(page, 'pause save for later');
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Pause Timer' }).click();
-    await expectPostSessionPrompt(page, 'pause done for now');
+    await expectPauseSessionPrompt(page, 'pause save for later');
     await page.getByTestId('post-session-done').click();
-    await expect(page.getByRole('heading', { name: 'Done for now' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
     await fillSplitSessionNotes(page, {
       nextSteps: 'return through the saved handoff',
       recap: 'paused work is safely saved',
     });
-    await page.getByRole('button', { name: 'Done for now' }).click();
+    await page.getByRole('button', { name: 'Save for later' }).click();
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
@@ -3352,7 +3456,7 @@ test('pause session wrap Done for now saves a kept session and clears the active
         window.electronAPI.storeGet('timerState'),
         window.electronAPI.storeGet('sessions'),
       ]);
-      const matchingSession = sessions.find((session) => session?.task === 'pause done for now') || null;
+      const matchingSession = sessions.find((session) => session?.task === 'pause save for later') || null;
       return { timerState, matchingSession };
     });
     expect(savedState.timerState?.timerVisible).toBe(false);

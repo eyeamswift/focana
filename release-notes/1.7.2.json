@@ -1,0 +1,14 @@
+{
+  "version": "1.7.2",
+  "publishedAt": "2026-06-02",
+  "summary": "Focana 1.7.2 makes wake, pause, and next-task flows calmer and more reliable.",
+  "fixes": [
+    "Focana now waits longer before opening the resume prompt after your Mac wakes.",
+    "The What's next? screen now fits properly, including the Next button.",
+    "Resume prompts no longer pulse right away when they appear.",
+    "Timer-end prompts no longer pulse unnecessarily as the timer finishes.",
+    "Pausing a session now shows clearer paused-session language.",
+    "Done for now is now Save and continue later, making it clearer that your task will be waiting when you come back.",
+    "Saving a paused session for later now keeps it available to resume reliably."
+  ]
+}
