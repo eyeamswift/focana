@@ -1,0 +1,9 @@
+{
+  "version": "1.7.3",
+  "publishedAt": "2026-06-12",
+  "summary": "Focana 1.7.3 tightens the handoff back into work after saving a session or moving into floating mode.",
+  "fixes": [
+    "Saving a resumed task for later now takes you straight to the What's next? screen so you can choose the next focus without seeing the resume prompt again.",
+    "Manually minimizing Focana to floating mode now stays quiet instead of immediately opening an overdue What's next? or Ready to resume? prompt."
+  ]
+}
