@@ -3843,9 +3843,16 @@ export default function App() {
     }
   }, []);
 
-  const handleMinimizeToFloating = () => {
+  const handleMinimizeToFloating = useCallback(() => {
+    lastInteractionTimeRef.current = Date.now();
+    if (!showSurfaceReentryPromptRef.current && !reentryFloatingPromptOpenRef.current) {
+      scheduleReentryCueFromNow();
+      setReentryStrongActive(false);
+      setReentryAttentionVisible(false);
+      closeFloatingReentryPrompt();
+    }
     window.electronAPI.toggleFloatingMinimize?.();
-  };
+  }, [closeFloatingReentryPrompt, scheduleReentryCueFromNow]);
 
   const handleQuitApp = () => {
     window.electronAPI.quitApp?.();
@@ -5370,8 +5377,8 @@ export default function App() {
 
   const handleSaveForLaterFromResumeCandidate = useCallback(async (notes = {}) => {
     await saveResumeCandidateForLater(notes);
-    openFreshTaskComposer({ bringToFront: true, promptTone: 'first' });
-  }, [openFreshTaskComposer, saveResumeCandidateForLater]);
+    openWhatsNextPrompt({ bringToFront: true });
+  }, [openWhatsNextPrompt, saveResumeCandidateForLater]);
 
   const completeResumeCandidate = useCallback(async (notes = {}, candidate = reentryResumeCandidateRef.current) => {
     if (!candidate?.taskText) return null;

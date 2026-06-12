@@ -1927,8 +1927,7 @@ test('floating resumable re-entry comes back after save and continue later and s
       recap: 'latest notes captured from the floating resume prompt',
     });
     await page.getByRole('button', { name: 'Save and continue' }).click();
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('');
-    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveAttribute('placeholder', 'Where are we focusing first?');
+    await expectWhatsNextPrompt(page);
   } finally {
     await cleanup();
   }
@@ -5228,6 +5227,25 @@ test('minimize to floating icon restores idle task text', async () => {
     });
     expect(restoredTask).toBe('floating-state-test');
     await expect(mainPage.locator(TASK_INPUT_SELECTOR)).toHaveValue('floating-state-test');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('manual minimize to floating does not immediately open an overdue re-entry prompt', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await setTimeOffset(page, (5 * 60 * 1000) + 5000);
+
+    await page.locator('button[aria-label="Minimize to Floating"]').click();
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 3000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
   } finally {
     await cleanup();
   }
