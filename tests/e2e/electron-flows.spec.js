@@ -1443,6 +1443,25 @@ test('wake plus resume with a saved resumable task floats first, then opens Read
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
     await expect(page.getByText('wake-resume-saved-task')).toBeVisible();
+    await expect.poll(async () => page.evaluate(async () => {
+      const settings = await window.electronAPI.storeGet('settings');
+      return settings?.systemEntryPromptedSavedResumeSignatures || [];
+    }), { timeout: 7000 }).toContain('session:wake-resume-saved-session');
+
+    await page.getByRole('button', { name: 'Snooze' }).click();
+    await page.getByRole('button', { name: '10 minutes' }).click();
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
+
+    await electronApp.evaluate(({ powerMonitor }) => {
+      powerMonitor.emit('suspend');
+      powerMonitor.emit('resume');
+    });
+
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
+    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -3898,6 +3917,7 @@ test("freeflow full-window check-in hands off directly into What's next after Fi
     await installTimeOffsetControl(page);
     await startFreeflowSession(page, 'full-window-checkin-finished');
     await exitCompactMode(page);
+    await installAttentionPulseObserver(page);
 
     await setTimeOffset(page, 301000);
 
@@ -3907,16 +3927,139 @@ test("freeflow full-window check-in hands off directly into What's next after Fi
 
     await page.getByRole('button', { name: 'No', exact: true }).click();
     await expect(page.getByText('What happened?')).toBeVisible();
+    await page.evaluate(() => {
+      window.__focanaE2EAttentionPulseHits = [];
+    });
     await page.getByRole('button', { name: 'Finished' }).click();
 
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Start a new task' })).toHaveCount(0);
     await expect(page.getByText('What should happen to')).toHaveCount(0);
     await expectWhatsNextPrompt(page);
+    await page.waitForTimeout(900);
+    await expect(page.locator('.animate-pulse-gentle, .animate-pulse-celebration, .reentry-prompt--attention, .task-composer--reentry-strong')).toHaveCount(0);
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     const completedSession = savedSessions.find((session) => session?.task === 'full-window-checkin-finished');
     expect(completedSession?.completed).toBe(true);
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('missed freeflow check-in pauses, then repeats Ready to resume until resumed', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'missed-checkin-resume-loop');
+    await exitCompactMode(page);
+
+    const checkInAt = 301000;
+    await setTimeOffset(page, checkInAt);
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expect(page.getByText('Still focused on')).toBeVisible();
+    await expect(page.getByText('missed-checkin-resume-loop?')).toBeVisible();
+
+    await setTimeOffset(page, checkInAt + 61000);
+    await expect(page.getByText('Still focused on')).toHaveCount(0, { timeout: 7000 });
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+
+    const pausedState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(pausedState?.timerVisible).toBe(true);
+    expect(pausedState?.isRunning).toBe(false);
+    expect(pausedState?.currentSessionId).toBeTruthy();
+
+    const missedRows = await page.evaluate((sessionId) => (
+      window.electronAPI.checkInGetBySession(sessionId)
+    ), pausedState.currentSessionId);
+    expect(missedRows.filter((row) => row?.status === 'missed')).toHaveLength(1);
+
+    const firstResumeAt = checkInAt + 61000 + (3 * 60 * 1000) + 1000;
+    await setTimeOffset(page, firstResumeAt);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
+    await expect(page.getByText('missed-checkin-resume-loop')).toBeVisible();
+
+    await setTimeOffset(page, firstResumeAt + 61000);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0, { timeout: 7000 });
+
+    const rowsAfterIgnoredResume = await page.evaluate((sessionId) => (
+      window.electronAPI.checkInGetBySession(sessionId)
+    ), pausedState.currentSessionId);
+    expect(rowsAfterIgnoredResume.filter((row) => row?.status === 'missed')).toHaveLength(1);
+
+    const secondResumeAt = firstResumeAt + 61000 + (3 * 60 * 1000) + 1000;
+    await setTimeOffset(page, secondResumeAt);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
+
+    await page.getByRole('button', { name: 'Resume Previous Task' }).click();
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+    await expect.poll(async () => {
+      const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+      return JSON.stringify({
+        timerVisible: timerState?.timerVisible ?? null,
+        isRunning: timerState?.isRunning ?? null,
+        currentSessionId: timerState?.currentSessionId ?? null,
+      });
+    }, { timeout: 7000 }).toBe(JSON.stringify({
+      timerVisible: true,
+      isRunning: true,
+      currentSessionId: pausedState.currentSessionId,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('missed check-in Ready to resume snooze cancels the three-minute retry loop', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      settings: {
+        checkInEnabled: true,
+        checkInIntervalFreeflow: 5,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'missed-checkin-snooze-loop');
+    await exitCompactMode(page);
+
+    const checkInAt = 301000;
+    await setTimeOffset(page, checkInAt);
+    await expect(page.getByText('Still focused on')).toBeVisible();
+
+    const missedAt = checkInAt + 61000;
+    await setTimeOffset(page, missedAt);
+    await expect(page.getByText('Still focused on')).toHaveCount(0, { timeout: 7000 });
+
+    const firstResumeAt = missedAt + (3 * 60 * 1000) + 1000;
+    await setTimeOffset(page, firstResumeAt);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
+
+    await page.getByRole('button', { name: 'Snooze' }).click();
+    await expect(page.getByRole('heading', { name: 'Snooze reminder' })).toBeVisible();
+    await page.getByRole('button', { name: '10 minutes' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+
+    await setTimeOffset(page, firstResumeAt + (4 * 60 * 1000));
+    await page.waitForTimeout(1200);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+
+    await setTimeOffset(page, firstResumeAt + (10 * 60 * 1000) + 1000);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
   } finally {
     await cleanup();
   }

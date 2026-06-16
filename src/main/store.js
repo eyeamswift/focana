@@ -164,6 +164,11 @@ const schema = {
       doNotDisturbEnabled: { type: 'boolean', default: false },
       doNotDisturbUntil: { type: ['string', 'null'], default: null },
       launchOnStartup: { type: 'boolean', default: true },
+      systemEntryPromptedSavedResumeSignatures: {
+        type: 'array',
+        default: [],
+        items: { type: 'string' },
+      },
     },
     default: {},
   },

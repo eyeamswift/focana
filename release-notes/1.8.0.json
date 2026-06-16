@@ -1,0 +1,14 @@
+{
+  "version": "1.8.0",
+  "publishedAt": "2026-06-16",
+  "summary": "Focana 1.8.0 makes check-ins and resume prompts calmer when you step away.",
+  "improvements": [
+    "Missed check-ins now pause your timer and bring back Ready to resume a few minutes later.",
+    "Ready to resume keeps checking back until you resume or snooze."
+  ],
+  "fixes": [
+    "Ready to resume no longer keeps appearing for the same saved task after you have already seen it.",
+    "Fixed a lingering pulse after finishing a check-in.",
+    "Smoothed out wake and resume handoffs."
+  ]
+}

@@ -154,6 +154,8 @@ const TIMED_CHECKIN_PERCENTS = [0.4, 0.8];
 const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60 + 3; // +3s offset to avoid check-in collision
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
+const MISSED_CHECKIN_RESPONSE_TIMEOUT_MS = 60 * 1000;
+const MISSED_CHECKIN_RETRY_INTERVAL_MS = 3 * 60 * 1000;
 const COMPACT_SUCCESS_CUE_MS = 800;
 const REENTRY_DELAY_MS = 5 * 60 * 1000;
 const REENTRY_LOOP_MS = 30 * 1000;
@@ -248,6 +250,24 @@ const findLatestResumableSession = (sessions = []) => (
 );
 
 const isCompletedPostSessionCandidate = (candidate) => candidate?.resolution === 'completed';
+const SAVED_RESUME_PROMPT_HISTORY_LIMIT = 100;
+
+const normalizeSavedResumePromptHistory = (value) => (
+  Array.isArray(value)
+    ? value
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => entry.trim())
+      .slice(0, SAVED_RESUME_PROMPT_HISTORY_LIMIT)
+    : []
+);
+
+function getSavedResumePromptSignature(candidate) {
+  if (candidate?.source === 'paused-current' || candidate?.source === 'post-session') return '';
+  const sessionId = typeof candidate?.sessionId === 'string' ? candidate.sessionId.trim() : '';
+  if (sessionId) return `session:${sessionId}`;
+  const taskText = typeof candidate?.taskText === 'string' ? candidate.taskText.trim().toLowerCase() : '';
+  return taskText ? `task:${taskText}` : '';
+}
 
 function buildResumeCandidateFromSession(session, fallbacks = {}) {
   const taskText = typeof session?.task === 'string' ? session.task.trim() : '';
@@ -527,6 +547,7 @@ export default function App() {
   const checkInForcedNextRef = useRef(null);
   const checkInShortIntervalRef = useRef(false);
   const checkInPromptCooldownUntilRef = useRef(0);
+  const checkInResponseDeadlineRef = useRef(null);
   const checkInStateRef = useRef('idle');
   const compactEnteredAtRef = useRef(null);
   const historyResumeCarryoverSecondsRef = useRef(0);
@@ -572,6 +593,9 @@ export default function App() {
   const reentryRemainingMsRef = useRef(null);
   const reentrySnoozeUntilRef = useRef(0);
   const reentrySnoozeUntilReopenRef = useRef(false);
+  const missedCheckInRetryAtRef = useRef(null);
+  const missedCheckInResumePromptDeadlineRef = useRef(null);
+  const missedCheckInResumeLoopActiveRef = useRef(false);
   const postSessionBreakUntilRef = useRef(0);
   const postSessionBreakPromptPendingRef = useRef(false);
   const reentryStrongTimeoutRef = useRef(null);
@@ -581,6 +605,7 @@ export default function App() {
   const reentryFloatingPromptSentRef = useRef('');
   const reentryResumeCandidateRef = useRef(null);
   const latestSystemEntryResumeCandidateRef = useRef(null);
+  const promptedSavedResumeSignaturesRef = useRef(new Set());
   const reentrySurfaceSignatureRef = useRef('');
   const reentryStartNewAfterResolveRef = useRef(false);
   const systemEntryPendingRef = useRef(null);
@@ -1066,6 +1091,12 @@ export default function App() {
   showSurfaceReentryPromptRef.current = showSurfaceReentryPrompt;
 
   useEffect(() => {
+    if (!reentryAttentionVisible) return;
+    if (reentryPromptKind !== 'resume-choice') return;
+    markSavedResumePromptPresented(effectiveReentryResumeCandidate);
+  }, [effectiveReentryResumeCandidate, reentryAttentionVisible, reentryPromptKind]);
+
+  useEffect(() => {
     if (!showSurfaceReentryPrompt) return;
     if (Number.isFinite(reentryNextCueAtRef.current)) return;
     scheduleReentryCueFromNow();
@@ -1079,6 +1110,9 @@ export default function App() {
     const signature = `${reentryPromptKind}:${effectiveReentryResumeCandidate?.sessionId || effectiveReentryResumeCandidate?.taskText || 'draft'}`;
     if (reentrySurfaceSignatureRef.current === signature) return;
     reentrySurfaceSignatureRef.current = signature;
+    if (reentryPromptKind === 'resume-choice') {
+      markSavedResumePromptPresented(effectiveReentryResumeCandidate);
+    }
 
     setReentrySurfaceStage(reentryPromptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
     setReentrySurfaceTaskText(
@@ -1106,6 +1140,13 @@ export default function App() {
   }, [getElapsedSeconds, syncDisplayedTime]);
 
   const resumeActiveTimer = useCallback((source = 'unknown') => {
+    missedCheckInRetryAtRef.current = null;
+    missedCheckInResumePromptDeadlineRef.current = null;
+    missedCheckInResumeLoopActiveRef.current = false;
+    reentrySurfaceSignatureRef.current = '';
+    setReentryPromptOverrideKind(null);
+    setReentryAttentionVisible(false);
+    setReentryStrongActive(false);
     const resumedAt = Date.now();
     const resumedElapsedMinutes = Math.round((Math.max(0, Number(elapsedBeforeRunRef.current) || 0) / 60) * 10) / 10;
     setSessionStartTime(resumedAt);
@@ -1730,6 +1771,18 @@ export default function App() {
   }, []);
 
   // Pulse animation
+  const clearPulse = useCallback(() => {
+    if (pulseIntervalRef.current) {
+      clearInterval(pulseIntervalRef.current);
+      pulseIntervalRef.current = null;
+    }
+    if (pulseTimeoutRef.current) {
+      clearTimeout(pulseTimeoutRef.current);
+      pulseTimeoutRef.current = null;
+    }
+    setIsPulsing(false);
+  }, []);
+
   const triggerPulse = useCallback((type = 'gentle', repeats = 2) => {
     if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
     if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
@@ -1773,6 +1826,30 @@ export default function App() {
     setPostSessionStartAssist(false);
   }, []);
 
+  function markSavedResumePromptPresented(candidate) {
+    const signature = getSavedResumePromptSignature(candidate);
+    if (!signature) return;
+
+    const existing = Array.from(promptedSavedResumeSignaturesRef.current || []);
+    const nextHistory = [
+      signature,
+      ...existing.filter((entry) => entry !== signature),
+    ].slice(0, SAVED_RESUME_PROMPT_HISTORY_LIMIT);
+
+    promptedSavedResumeSignaturesRef.current = new Set(nextHistory);
+    void (async () => {
+      try {
+        const settings = await window.electronAPI.storeGet?.('settings') || {};
+        await window.electronAPI.storeSet?.('settings', {
+          ...settings,
+          systemEntryPromptedSavedResumeSignatures: nextHistory,
+        });
+      } catch (error) {
+        console.warn('Failed to persist saved resume prompt history:', error);
+      }
+    })();
+  }
+
   const resolveSystemEntryPromptState = useCallback((source = systemEntryPendingRef.current?.source) => {
     const normalizedSource = typeof source === 'string' ? source.trim() : '';
     if (!normalizedSource) return null;
@@ -1781,9 +1858,18 @@ export default function App() {
     }
 
     const resumeCandidate = reentryResumeCandidateRef.current || latestSystemEntryResumeCandidateRef.current;
+    const savedResumeSignature = getSavedResumePromptSignature(resumeCandidate);
+    const shouldPromptResume = Boolean(
+      resumeCandidate?.taskText
+      && (
+        !savedResumeSignature
+        || !promptedSavedResumeSignaturesRef.current.has(savedResumeSignature)
+      ),
+    );
+
     return {
-      promptKind: resumeCandidate?.taskText ? 'resume-choice' : 'start',
-      resumeCandidate: resumeCandidate?.taskText ? resumeCandidate : null,
+      promptKind: shouldPromptResume ? 'resume-choice' : 'start',
+      resumeCandidate: shouldPromptResume ? resumeCandidate : null,
     };
   }, []);
 
@@ -1802,6 +1888,9 @@ export default function App() {
     setReentryStrongActive(false);
     setReentryPromptOverrideKind(promptState.promptKind);
     setReentryAttentionVisible(true);
+    if (promptState.promptKind === 'resume-choice') {
+      markSavedResumePromptPresented(promptState.resumeCandidate);
+    }
     closeFloatingReentryPrompt();
     return true;
   }, [clearPostSessionSurfaceForSystemEntry, closeFloatingReentryPrompt, resolveSystemEntryPromptState, scheduleReentryCueFromNow]);
@@ -1906,7 +1995,21 @@ export default function App() {
     reentryRemainingMsRef.current = null;
   }, []);
 
+  const clearMissedCheckInResumeLoop = useCallback(({ hidePrompt = false } = {}) => {
+    missedCheckInRetryAtRef.current = null;
+    missedCheckInResumePromptDeadlineRef.current = null;
+    missedCheckInResumeLoopActiveRef.current = false;
+
+    if (!hidePrompt) return;
+    reentrySurfaceSignatureRef.current = '';
+    setReentryPromptOverrideKind(null);
+    setReentryAttentionVisible(false);
+    setReentryStrongActive(false);
+    closeFloatingReentryPrompt();
+  }, [closeFloatingReentryPrompt]);
+
   const snoozeReentryAttention = useCallback((kind = '10m') => {
+    clearMissedCheckInResumeLoop();
     const now = Date.now();
     if (kind === 'reopen') {
       reentrySnoozeUntilRef.current = 0;
@@ -1933,7 +2036,7 @@ export default function App() {
     reentrySurfaceSignatureRef.current = '';
     closeFloatingReentryPrompt();
     void window.electronAPI.enterFloatingMinimize?.();
-  }, [closeFloatingReentryPrompt]);
+  }, [clearMissedCheckInResumeLoop, closeFloatingReentryPrompt]);
 
   const pauseReentryAttention = useCallback((now = Date.now()) => {
     if (reentryStrongTimeoutRef.current) {
@@ -2208,6 +2311,15 @@ export default function App() {
         thoughtsLoadedRef.current = true;
 
         const settings = await window.electronAPI.storeGet('settings') || {};
+        const savedResumePromptHistory = normalizeSavedResumePromptHistory(settings.systemEntryPromptedSavedResumeSignatures);
+        promptedSavedResumeSignaturesRef.current = new Set(savedResumePromptHistory);
+        if (
+          !Array.isArray(settings.systemEntryPromptedSavedResumeSignatures)
+          || settings.systemEntryPromptedSavedResumeSignatures.length !== savedResumePromptHistory.length
+          || settings.systemEntryPromptedSavedResumeSignatures.some((entry, index) => entry !== savedResumePromptHistory[index])
+        ) {
+          await window.electronAPI.storeSet('settings.systemEntryPromptedSavedResumeSignatures', savedResumePromptHistory);
+        }
         const persistedTheme = settings.theme === 'dark' ? 'dark' : 'light';
         const hasStoredThemePreference = typeof settings.themeManual === 'boolean';
         if (hasStoredThemePreference) {
@@ -2553,6 +2665,7 @@ export default function App() {
     checkInResolveTimeoutRef.current = null;
     if (compactSuccessReturnTimerRef.current) clearTimeout(compactSuccessReturnTimerRef.current);
     compactSuccessReturnTimerRef.current = null;
+    checkInResponseDeadlineRef.current = null;
     checkInPromptSurfaceRef.current = 'full';
     pendingCompactCheckInPromptRef.current = false;
     checkInStateRef.current = 'idle';
@@ -2572,8 +2685,12 @@ export default function App() {
     checkInForcedNextRef.current = null;
     checkInShortIntervalRef.current = false;
     checkInPromptCooldownUntilRef.current = 0;
+    checkInResponseDeadlineRef.current = null;
     checkInReturnToCompactRef.current = false;
     checkInReturnToFloatingRef.current = false;
+    missedCheckInRetryAtRef.current = null;
+    missedCheckInResumePromptDeadlineRef.current = null;
+    missedCheckInResumeLoopActiveRef.current = false;
     checkInPromptSurfaceRef.current = 'full';
     pendingCompactCheckInPromptRef.current = false;
     clearCheckInUi();
@@ -2827,13 +2944,14 @@ export default function App() {
     resetSessionFeedbackFlow();
     postSessionBreakUntilRef.current = 0;
     postSessionBreakPromptPendingRef.current = false;
+    clearMissedCheckInResumeLoop();
 
     clearSystemEntryPending();
     setReentryPromptOverrideKind(null);
     clearCompactSessionCues();
     resetReentryAttention();
     setFloatingBreakState({ open: false });
-  }, [clearCompactSessionCues, clearSystemEntryPending, invalidatePendingSessionCreation, resetReentryAttention, resetSessionFeedbackFlow, setFloatingBreakState]);
+  }, [clearCompactSessionCues, clearMissedCheckInResumeLoop, clearSystemEntryPending, invalidatePendingSessionCreation, resetReentryAttention, resetSessionFeedbackFlow, setFloatingBreakState]);
 
   useEffect(() => {
     handleClearRef.current = handleClear;
@@ -2915,6 +3033,7 @@ export default function App() {
     checkInPromptSurfaceRef.current = 'compact';
     pendingCompactCheckInPromptRef.current = false;
     checkInStateRef.current = 'prompting';
+    checkInResponseDeadlineRef.current = Date.now() + MISSED_CHECKIN_RESPONSE_TIMEOUT_MS;
     setCheckInState('prompting');
     setCheckInMessage('');
     setCheckInCelebrating(false);
@@ -2941,6 +3060,7 @@ export default function App() {
 
   const logMissedCheckInIfPrompting = useCallback((elapsedSec) => {
     if (checkInStateRef.current !== 'prompting') return false;
+    checkInResponseDeadlineRef.current = null;
     void logCheckIn('missed', elapsedSec);
     track('checkin_responded', { response: 'missed' });
     clearCheckInUi();
@@ -3193,6 +3313,89 @@ export default function App() {
     isStartModalOpen ||
     systemEntryPendingActive;
 
+  const scheduleMissedCheckInResumeRetry = useCallback((delayMs = MISSED_CHECKIN_RETRY_INTERVAL_MS) => {
+    if (!missedCheckInResumeLoopActiveRef.current) return false;
+    missedCheckInRetryAtRef.current = Date.now() + Math.max(0, Math.floor(Number(delayMs) || 0));
+    missedCheckInResumePromptDeadlineRef.current = null;
+    reentryEligibleSinceRef.current = null;
+    reentryNextCueAtRef.current = null;
+    reentryRemainingMsRef.current = null;
+    reentrySurfaceSignatureRef.current = '';
+    setSystemEntryResumeCandidate(null);
+    setReentryPromptOverrideKind(null);
+    setReentryAttentionVisible(false);
+    setReentryStrongActive(false);
+    closeFloatingReentryPrompt();
+    return true;
+  }, [closeFloatingReentryPrompt]);
+
+  const presentMissedCheckInResumePrompt = useCallback(() => {
+    if (!missedCheckInResumeLoopActiveRef.current) return false;
+    if (isRunning || !isTimerVisible || !task.trim()) {
+      clearMissedCheckInResumeLoop({ hidePrompt: true });
+      return false;
+    }
+    if (startupSetupGateActive || showPostSessionPrompt || isStartModalOpen || hasBlockingWindowOpen || dndEnabled) {
+      return false;
+    }
+
+    missedCheckInRetryAtRef.current = null;
+    missedCheckInResumePromptDeadlineRef.current = Date.now() + MISSED_CHECKIN_RESPONSE_TIMEOUT_MS;
+    reentrySnoozeUntilRef.current = 0;
+    reentrySnoozeUntilReopenRef.current = false;
+    clearSystemEntryPending();
+    setSystemEntryResumeCandidate(null);
+    setReentryPromptOverrideKind('resume-choice');
+    setReentrySurfaceStage('resume-choice');
+    scheduleReentryCueFromNow(0);
+    setReentryAttentionVisible(true);
+    setReentryStrongActive(true);
+    return true;
+  }, [
+    clearMissedCheckInResumeLoop,
+    clearSystemEntryPending,
+    dndEnabled,
+    hasBlockingWindowOpen,
+    isRunning,
+    isStartModalOpen,
+    isTimerVisible,
+    scheduleReentryCueFromNow,
+    showPostSessionPrompt,
+    startupSetupGateActive,
+    task,
+  ]);
+
+  const handleMissedCheckInResponseTimeout = useCallback(async () => {
+    if (checkInStateRef.current !== 'prompting') {
+      checkInResponseDeadlineRef.current = null;
+      return;
+    }
+
+    checkInResponseDeadlineRef.current = null;
+    const elapsedSec = getElapsedSeconds();
+    const sessionId = currentSessionId || await ensureCurrentSessionId('missed check-in pause');
+    if (sessionId && sessionId !== currentSessionId) {
+      setCurrentSessionId(sessionId);
+    }
+
+    await logCheckIn('missed', elapsedSec);
+    track('checkin_responded', { response: 'missed' });
+
+    const pausedElapsed = isRunningRef.current ? pauseActiveTimer() : elapsedSec;
+    elapsedBeforeRunRef.current = Math.max(0, Math.floor(Number(pausedElapsed) || 0));
+    clearCheckInUi();
+    missedCheckInResumeLoopActiveRef.current = true;
+    scheduleMissedCheckInResumeRetry(MISSED_CHECKIN_RETRY_INTERVAL_MS);
+  }, [
+    clearCheckInUi,
+    currentSessionId,
+    ensureCurrentSessionId,
+    getElapsedSeconds,
+    logCheckIn,
+    pauseActiveTimer,
+    scheduleMissedCheckInResumeRetry,
+  ]);
+
   useEffect(() => {
     if (!systemEntryRevealPending) return;
     if (!showSurfaceReentryPrompt) return;
@@ -3291,6 +3494,17 @@ export default function App() {
       }
 
       if (postSessionBreakUntilRef.current > now) {
+        closeFloatingReentryPrompt();
+        setReentryAttentionVisible(false);
+        setReentryStrongActive(false);
+        return;
+      }
+
+      if (
+        missedCheckInResumeLoopActiveRef.current
+        && Number.isFinite(missedCheckInRetryAtRef.current)
+        && now < missedCheckInRetryAtRef.current
+      ) {
         closeFloatingReentryPrompt();
         setReentryAttentionVisible(false);
         setReentryStrongActive(false);
@@ -3400,6 +3614,7 @@ export default function App() {
       checkInPromptSurfaceRef.current = 'full';
       pendingCompactCheckInPromptRef.current = false;
       checkInStateRef.current = 'prompting';
+      checkInResponseDeadlineRef.current = Date.now() + MISSED_CHECKIN_RESPONSE_TIMEOUT_MS;
       setCheckInState('prompting');
       setCheckInMessage('');
       setCheckInCelebrating(false);
@@ -3456,6 +3671,51 @@ export default function App() {
   useEffect(() => {
     checkInStateRef.current = checkInState;
   }, [checkInState]);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+
+      if (
+        Number.isFinite(checkInResponseDeadlineRef.current)
+        && now >= checkInResponseDeadlineRef.current
+      ) {
+        void handleMissedCheckInResponseTimeout();
+      }
+
+      if (
+        missedCheckInResumeLoopActiveRef.current
+        && Number.isFinite(missedCheckInRetryAtRef.current)
+        && now >= missedCheckInRetryAtRef.current
+      ) {
+        presentMissedCheckInResumePrompt();
+      }
+
+      if (
+        missedCheckInResumeLoopActiveRef.current
+        && Number.isFinite(missedCheckInResumePromptDeadlineRef.current)
+        && now >= missedCheckInResumePromptDeadlineRef.current
+      ) {
+        missedCheckInResumePromptDeadlineRef.current = null;
+
+        if (
+          reentrySurfaceStage === 'resume-choice'
+          || reentryFloatingPromptOpenRef.current
+        ) {
+          scheduleMissedCheckInResumeRetry(MISSED_CHECKIN_RETRY_INTERVAL_MS);
+        }
+      }
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [
+    handleMissedCheckInResponseTimeout,
+    presentMissedCheckInResumePrompt,
+    reentrySurfaceStage,
+    scheduleMissedCheckInResumeRetry,
+  ]);
 
   useEffect(() => {
     if (!isCompact) return;
@@ -4505,6 +4765,7 @@ export default function App() {
     const nextTaskText = clampTaskText(typeof rawTaskText === 'string' ? rawTaskText : task).trim();
     if (!nextTaskText) return;
 
+    clearMissedCheckInResumeLoop();
     clearSystemEntryPending();
     setReentryPromptOverrideKind(null);
     postSessionBreakUntilRef.current = 0;
@@ -4651,6 +4912,7 @@ export default function App() {
 
   const openWhatsNextPrompt = useCallback(({ bringToFront = false } = {}) => {
     handleClear();
+    clearPulse();
     setPostSessionStartAssist(false);
     setReentryPromptOverrideKind('start');
     setReentrySurfaceStage('task-entry');
@@ -4664,7 +4926,7 @@ export default function App() {
     if (bringToFront) {
       window.electronAPI.bringToFront?.();
     }
-  }, [closeFloatingReentryPrompt, getDefaultReentryMinutes, handleClear, scheduleReentryCueFromNow]);
+  }, [clearPulse, closeFloatingReentryPrompt, getDefaultReentryMinutes, handleClear, scheduleReentryCueFromNow]);
 
   const finishDirectCompletion = useCallback(async ({
     completedSessionId = null,
