@@ -1933,6 +1933,14 @@ export default function FocanaLanding() {
           border-color: ${COLORS.deepAmber};
           background: ${COLORS.softCream};
         }
+        .hero-cta-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+          width: 100%;
+        }
         .feature-card {
           background: white;
           border-radius: 20px;
@@ -2500,6 +2508,15 @@ export default function FocanaLanding() {
           .hero-split {
             flex-direction: column !important;
           }
+          .hero-cta-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .hero-cta-row .cta-btn,
+          .hero-cta-row .ghost-btn {
+            width: 100% !important;
+            justify-content: center !important;
+          }
           .brain-state-grid {
             grid-template-columns: 1fr !important;
             gap: 16px !important;
@@ -3001,9 +3018,14 @@ export default function FocanaLanding() {
                 gap: "12px",
                 width: "100%",
               }}>
-                <button onClick={() => openPricingSection("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
-                  Download for free <span style={{ fontSize: "22px" }}>→</span>
-                </button>
+                <div className="hero-cta-row">
+                  <a href="#features" className="ghost-btn" style={{ fontSize: "18px", padding: "16px 34px", textDecoration: "none", justifyContent: "center" }}>
+                    See How it Works
+                  </a>
+                  <button onClick={() => openPricingSection("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
+                    Download for free <span style={{ fontSize: "22px" }}>→</span>
+                  </button>
+                </div>
                 <p style={{
                   fontSize: "15px",
                   color: COLORS.coffeeBrown,
