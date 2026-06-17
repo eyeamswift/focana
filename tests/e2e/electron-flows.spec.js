@@ -513,7 +513,16 @@ async function startTimedSession(page, taskName, minutes) {
 }
 
 async function exitCompactMode(page) {
-  await page.locator('.pill').dblclick();
+  await expect(page.locator('.pill')).toBeVisible();
+  await expect.poll(async () => page.locator('.pill-mode--transitioning').count()).toBe(0);
+  const pillBox = await page.locator('.pill').boundingBox();
+  const pillHeight = pillBox?.height || 72;
+  await page.locator('.pill').dblclick({
+    position: {
+      x: 12,
+      y: Math.max(8, Math.min(pillHeight / 2, pillHeight - 8)),
+    },
+  });
   await expect.poll(() => readWindowMode(page)).toBe('full');
 }
 
@@ -3502,6 +3511,240 @@ test('fullscreen hero keeps timed session context after exiting compact mode', a
   }
 });
 
+test('session builder captures subtasks and hands off to the next top-level task', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('Prepare launch email');
+    await expect(page.getByTestId('session-builder')).toBeVisible();
+    await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('session-builder-toggle')).toContainText('Optional steps and next-up tasks');
+
+    await page.getByTestId('session-builder-toggle').click();
+    await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'true');
+
+    await page.getByTestId('session-builder-add-subtask').click();
+    await page.getByTestId('session-builder-subtask-input').nth(0).fill('Draft subject line');
+    await page.getByTestId('session-builder-add-subtask').click();
+    await page.getByTestId('session-builder-subtask-input').nth(1).fill('Polish hero copy');
+    await page.getByTestId('session-builder-add-next').click();
+    await page.getByTestId('session-builder-next-input').nth(0).fill('Update Product Hunt checklist');
+
+    await expect(page.getByTestId('session-builder-toggle')).toContainText('2 subtasks - 1 next-up task');
+
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await expect.poll(async () => {
+      const currentTask = await page.evaluate(() => window.electronAPI.storeGet('currentTask'));
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      const next = Array.isArray(plan.items) ? plan.items.find((item) => item.id !== plan.activeTaskId) : null;
+      return JSON.stringify({
+        task: currentTask?.text || '',
+        activeTitle: active?.title || '',
+        subtaskTitles: (active?.subtasks || []).map((item) => item.title),
+        nextTitle: next?.title || '',
+      });
+    }).toBe(JSON.stringify({
+      task: 'Prepare launch email',
+      activeTitle: 'Prepare launch email',
+      subtaskTitles: ['Draft subject line', 'Polish hero copy'],
+      nextTitle: 'Update Product Hunt checklist',
+    }));
+
+    await exitCompactMode(page);
+    await expect(page.getByTestId('running-task-plan')).toBeVisible();
+    await expect(page.getByTestId('running-task-plan')).toContainText('Draft subject line');
+    await expect(page.getByTestId('running-task-plan')).toContainText('Polish hero copy');
+    await expect(page.getByTestId('running-task-plan')).toContainText('Next: Update Product Hunt checklist');
+
+    await page.getByLabel('Draft subject line').check();
+    await expect(page.getByTestId('task-plan-complete-prompt')).toHaveCount(0);
+    await page.getByLabel('Polish hero copy').check();
+    await expect(page.getByTestId('task-plan-complete-prompt')).toBeVisible();
+    await expect(page.getByTestId('task-plan-complete-prompt')).toContainText('Mark Prepare launch email complete?');
+
+    await page.getByTestId('task-plan-complete-prompt').getByRole('button', { name: 'Mark complete' }).click();
+    await expect(page.getByTestId('task-plan-transition')).toBeVisible();
+    await expect(page.getByTestId('task-plan-transition')).toContainText('Prepare launch email is done.');
+    await expect(page.getByTestId('task-plan-transition')).toContainText('Next up: Update Product Hunt checklist');
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const [currentTask, timerState, sessions] = await Promise.all([
+        window.electronAPI.storeGet('currentTask'),
+        window.electronAPI.storeGet('timerState'),
+        window.electronAPI.storeGet('sessions'),
+      ]);
+      const completedSession = (sessions || []).find((session) => session?.task === 'Prepare launch email');
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      return JSON.stringify({
+        currentTask: currentTask?.text || '',
+        activeTitle: active?.title || '',
+        isRunning: Boolean(timerState?.isRunning),
+        completed: Boolean(completedSession?.completed),
+        completedPlanTask: Boolean(completedSession?.taskPlan?.items?.[0]?.completed),
+      });
+    })).toBe(JSON.stringify({
+      currentTask: 'Update Product Hunt checklist',
+      activeTitle: 'Update Product Hunt checklist',
+      isRunning: false,
+      completed: true,
+      completedPlanTask: true,
+    }));
+
+    await page.getByTestId('task-plan-continue-next').click();
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('Update Product Hunt checklist');
+    await expect(page.locator('.start-chooser')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Freeflow' })).toBeVisible();
+    await expect.poll(async () => {
+      const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+      return Boolean(timerState?.isRunning);
+    }).toBe(false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('session builder completes a next-up-only plan from the normal complete button', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('Primary without subtasks');
+    await page.getByTestId('session-builder-toggle').click();
+    await page.getByTestId('session-builder-add-next').click();
+    await page.getByTestId('session-builder-next-input').nth(0).fill('Follow-up task');
+
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await exitCompactMode(page);
+    await page.getByRole('button', { name: 'Complete Task' }).click();
+
+    await expect(page.getByTestId('task-plan-transition')).toBeVisible();
+    await expect(page.getByTestId('task-plan-transition')).toContainText('Primary without subtasks is done.');
+    await expect(page.getByTestId('task-plan-transition')).toContainText('Next up: Follow-up task');
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const [currentTask, timerState, sessions] = await Promise.all([
+        window.electronAPI.storeGet('currentTask'),
+        window.electronAPI.storeGet('timerState'),
+        window.electronAPI.storeGet('sessions'),
+      ]);
+      const completedSession = (sessions || []).find((session) => session?.task === 'Primary without subtasks');
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      return JSON.stringify({
+        currentTask: currentTask?.text || '',
+        activeTitle: active?.title || '',
+        isRunning: Boolean(timerState?.isRunning),
+        completed: Boolean(completedSession?.completed),
+        completedPlanTask: Boolean(completedSession?.taskPlan?.items?.[0]?.completed),
+      });
+    })).toBe(JSON.stringify({
+      currentTask: 'Follow-up task',
+      activeTitle: 'Follow-up task',
+      isRunning: false,
+      completed: true,
+      completedPlanTask: true,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('session builder compact preview reveals current plan detail', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await page.locator(TASK_INPUT_SELECTOR).fill('Compact planned task');
+    await page.getByTestId('session-builder-toggle').click();
+    await page.getByTestId('session-builder-add-subtask').click();
+    await page.getByTestId('session-builder-subtask-input').nth(0).fill('Draft opener');
+    await page.getByTestId('session-builder-add-next').click();
+    await page.getByTestId('session-builder-next-input').nth(0).fill('Review launch metrics');
+
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await expect(page.locator('.pill-task-plan-summary')).toContainText('1 subtask - 1 next');
+    await page.locator('.pill-task').focus();
+    await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
+    await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Draft opener');
+    await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Next: Review launch metrics');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('session builder restores plan details after restarting during a planned session', async () => {
+  const storeDir = createStoreDir();
+  let firstLaunch = null;
+  let secondLaunch = null;
+
+  try {
+    firstLaunch = await launchApp({ background: false, storeDir });
+    await firstLaunch.page.locator(TASK_INPUT_SELECTOR).fill('Restart planned task');
+    await firstLaunch.page.getByTestId('session-builder-toggle').click();
+    await firstLaunch.page.getByTestId('session-builder-add-subtask').click();
+    await firstLaunch.page.getByTestId('session-builder-subtask-input').nth(0).fill('Draft cold open');
+    await firstLaunch.page.getByTestId('session-builder-add-next').click();
+    await firstLaunch.page.getByTestId('session-builder-next-input').nth(0).fill('Review launch metrics');
+
+    await firstLaunch.page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await firstLaunch.page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(firstLaunch.page)).toBe('pill');
+
+    await expect.poll(async () => {
+      const currentTask = await firstLaunch.page.evaluate(() => window.electronAPI.storeGet('currentTask'));
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      const next = Array.isArray(plan.items) ? plan.items.find((item) => item.id !== plan.activeTaskId) : null;
+      return JSON.stringify({
+        task: currentTask?.text || '',
+        subtask: active?.subtasks?.[0]?.title || '',
+        next: next?.title || '',
+      });
+    }).toBe(JSON.stringify({
+      task: 'Restart planned task',
+      subtask: 'Draft cold open',
+      next: 'Review launch metrics',
+    }));
+
+    await firstLaunch.cleanup({ deleteStoreDir: false });
+    firstLaunch = null;
+
+    const storedAfterQuit = JSON.parse(fs.readFileSync(path.join(storeDir, 'config.json'), 'utf8'));
+    expect(storedAfterQuit.currentTask?.text).toBe('Restart planned task');
+    expect(storedAfterQuit.currentTask?.taskPlan?.items?.[0]?.subtasks?.[0]?.title).toBe('Draft cold open');
+    expect(storedAfterQuit.currentTask?.taskPlan?.items?.[1]?.title).toBe('Review launch metrics');
+
+    secondLaunch = await launchApp({ background: false, storeDir });
+    await expect(secondLaunch.page.locator(TASK_INPUT_SELECTOR)).toHaveValue('Restart planned task');
+
+    await secondLaunch.page.getByRole('button', { name: 'Resume Timer' }).click();
+    await expect.poll(async () => {
+      const timerState = await secondLaunch.page.evaluate(() => window.electronAPI.storeGet('timerState'));
+      return Boolean(timerState?.isRunning);
+    }).toBe(true);
+    if (await readWindowMode(secondLaunch.page) === 'pill') {
+      await exitCompactMode(secondLaunch.page);
+    }
+
+    await expect(secondLaunch.page.getByTestId('running-task-plan')).toBeVisible();
+    await expect(secondLaunch.page.getByTestId('running-task-plan')).toContainText('Draft cold open');
+    await expect(secondLaunch.page.getByTestId('running-task-plan')).toContainText('Next: Review launch metrics');
+  } finally {
+    if (firstLaunch) await firstLaunch.cleanup({ deleteStoreDir: false });
+    if (secondLaunch) await secondLaunch.cleanup({ deleteStoreDir: false });
+    removeStoreDir(storeDir);
+  }
+});
+
 test('quitting while a timer is running restores the task with a paused timer on relaunch', async () => {
   const storeDir = createStoreDir();
   let firstLaunch = null;
@@ -4977,6 +5220,11 @@ test('post-session break keeps the app quiet until the preset ends, then shows t
     await setTimeOffset(page, ONE_MINUTE_TIMED_WRAP_OFFSET_MS + (5 * 60 * 1000) + 2000);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+    await expect(floatingWindow.locator('#prompt-dismiss-btn')).toHaveText('Back to Break Mode');
+
+    await floatingWindow.locator('#prompt-dismiss-btn').click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'break-timer', stage: null }));
   } finally {
     await cleanup();
   }
@@ -4996,12 +5244,69 @@ test('post-session break can hide the timer and minimize to the quiet logo', asy
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, ONE_MINUTE_TIMED_WRAP_OFFSET_MS + (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+    await expect(floatingWindow.locator('#prompt-dismiss-btn')).toHaveText('Back to Break Mode');
+
+    await floatingWindow.locator('#prompt-dismiss-btn').click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
   } finally {
     await cleanup();
   }
 });
 
-test('post-session hidden break icon single click peeks the timer temporarily, and double click opens the resume prompt', async () => {
+test('post-session custom break minutes validate and restore hidden break mode', async () => {
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await openTimedSessionWrap(page, 'post-session-break-custom');
+
+    await page.getByTestId('post-session-break').click();
+    await expect(page.getByRole('heading', { name: 'You deserve a break.' })).toBeVisible();
+
+    const brbButton = page.getByRole('button', { name: 'BRB' });
+    const customMinutesInput = page.getByTestId('post-session-break-custom-minutes');
+    await customMinutesInput.fill('0');
+    await expect(brbButton).toBeDisabled();
+    await customMinutesInput.fill('241');
+    await expect(brbButton).toBeDisabled();
+    await customMinutesInput.fill('7');
+    await expect(brbButton).toBeEnabled();
+    await expect(page.locator('.post-session-break-duration__hint')).toHaveText(/Resume around/);
+
+    await page.getByRole('button', { name: 'Hide timer' }).click();
+    await brbButton.click();
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    const customBreakExpiresOffset = ONE_MINUTE_TIMED_WRAP_OFFSET_MS + (7 * 60 * 1000) + 2000;
+    await setTimeOffset(page, customBreakExpiresOffset);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+    await expect(floatingWindow.locator('#prompt-dismiss-btn')).toHaveText('Back to Break Mode');
+
+    await floatingWindow.locator('#prompt-dismiss-btn').click();
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, customBreakExpiresOffset + (5 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 3000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
+
+    await setTimeOffset(page, customBreakExpiresOffset + (7 * 60 * 1000) + 2000);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('post-session hidden break icon single click peeks the timer temporarily without ending the break', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -5024,14 +5329,14 @@ test('post-session hidden break icon single click peeks the timer temporarily, a
       .toBe(JSON.stringify({ mode: 'icon', stage: null }));
 
     await floatingWindow.locator('#icon-button').dblclick();
-    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 3000 })
+      .toBe(JSON.stringify({ mode: 'icon', stage: null }));
   } finally {
     await cleanup();
   }
 });
 
-test('post-session visible break timer single click opens the resume prompt', async () => {
+test('post-session visible break timer single click keeps the break running', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -5046,8 +5351,8 @@ test('post-session visible break timer single click opens the resume prompt', as
       .toBe(JSON.stringify({ mode: 'break-timer', stage: null }));
 
     await floatingWindow.locator('#icon-button').click();
-    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
-      .toBe(JSON.stringify({ mode: 'prompt', stage: 'resume-choice' }));
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 3000 })
+      .toBe(JSON.stringify({ mode: 'break-timer', stage: null }));
   } finally {
     await cleanup();
   }
@@ -5476,16 +5781,21 @@ test('floating drag can clamp flush to the left work area edge', async () => {
     await floatingWindow.evaluate(() => {
       window.floatingAPI.dragStart();
       window.floatingAPI.dragMove(-4000, 0);
-      window.floatingAPI.dragEnd();
     });
 
-    await expect.poll(async () => electronApp.evaluate(({ BrowserWindow, screen }) => {
+    const isClampedToLeftEdge = () => electronApp.evaluate(({ BrowserWindow, screen }) => {
       const floating = BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes('floating-icon.html'));
       if (!floating) return false;
       const bounds = floating.getBounds();
       const workArea = screen.getDisplayMatching(bounds).workArea;
       return Math.abs(bounds.x - workArea.x) <= 2;
-    }), { timeout: 7000 }).toBe(true);
+    });
+
+    await expect.poll(isClampedToLeftEdge, { timeout: 7000, intervals: [25, 50, 100] }).toBe(true);
+    await floatingWindow.evaluate(() => {
+      window.floatingAPI.dragEnd();
+    });
+    await expect.poll(isClampedToLeftEdge, { timeout: 7000 }).toBe(true);
   } finally {
     await cleanup();
   }

@@ -5,11 +5,32 @@ import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
 
 const BREAK_OPTIONS = [5, 15, 25];
+const BREAK_MIN_MINUTES = 1;
+const BREAK_MAX_MINUTES = 240;
 
 function clampMinutes(value, fallback = 25) {
   const parsed = Math.floor(Number(value));
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(parsed, 1), 240);
+  return Math.min(Math.max(parsed, BREAK_MIN_MINUTES), BREAK_MAX_MINUTES);
+}
+
+function parseWholeMinutes(value) {
+  const normalized = String(value ?? '').trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed) || parsed < BREAK_MIN_MINUTES || parsed > BREAK_MAX_MINUTES) {
+    return null;
+  }
+  return parsed;
+}
+
+function formatResumeAround(minutes) {
+  if (!Number.isFinite(minutes)) return '';
+  const resumeAt = new Date(Date.now() + (minutes * 60 * 1000));
+  return resumeAt.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function formatWrappedCopy(minutes, taskText) {
@@ -55,6 +76,8 @@ export default function PostSessionPrompt({
 
   const [stage, setStage] = useState('hub');
   const [breakMinutes, setBreakMinutes] = useState(5);
+  const [breakDurationMode, setBreakDurationMode] = useState('preset');
+  const [customBreakMinutes, setCustomBreakMinutes] = useState('');
   const [breakShowsTimer, setBreakShowsTimer] = useState(true);
   const [timedMinutes, setTimedMinutes] = useState(String(suggestedTimedMinutes));
   const [nextSteps, setNextSteps] = useState('');
@@ -66,6 +89,8 @@ export default function PostSessionPrompt({
     if (!isOpen) return;
     setStage('hub');
     setBreakMinutes(5);
+    setBreakDurationMode('preset');
+    setCustomBreakMinutes('');
     setBreakShowsTimer(true);
     setTimedMinutes(String(suggestedTimedMinutes));
     setNextSteps(typeof candidate?.nextSteps === 'string' ? candidate.nextSteps : '');
@@ -184,6 +209,17 @@ export default function PostSessionPrompt({
       minutes: clampMinutes(timedMinutes, suggestedTimedMinutes),
     });
   };
+
+  const parsedCustomBreakMinutes = parseWholeMinutes(customBreakMinutes);
+  const resolvedBreakMinutes = breakDurationMode === 'custom'
+    ? parsedCustomBreakMinutes
+    : breakMinutes;
+  const canStartBreak = Number.isInteger(resolvedBreakMinutes)
+    && resolvedBreakMinutes >= BREAK_MIN_MINUTES
+    && resolvedBreakMinutes <= BREAK_MAX_MINUTES;
+  const resumeAroundCopy = canStartBreak
+    ? `Resume around ${formatResumeAround(resolvedBreakMinutes)}`
+    : `Enter ${BREAK_MIN_MINUTES}-${BREAK_MAX_MINUTES} minutes.`;
 
   const renderHub = () => (
     <>
@@ -388,13 +424,40 @@ export default function PostSessionPrompt({
             <button
               key={option}
               type="button"
-              className={`post-session-break-option${breakMinutes === option ? ' is-selected' : ''}`}
-              onClick={() => setBreakMinutes(option)}
+              className={`post-session-break-option${breakDurationMode === 'preset' && breakMinutes === option ? ' is-selected' : ''}`}
+              onClick={() => {
+                setBreakMinutes(option);
+                setBreakDurationMode('preset');
+                setCustomBreakMinutes('');
+              }}
             >
               {option} min
             </button>
           ))}
         </div>
+        <label className="post-session-break-custom">
+          <span className="post-session-fieldset__label">Custom</span>
+          <span className="post-session-break-custom__row">
+            <Input
+              type="number"
+              min={BREAK_MIN_MINUTES}
+              max={BREAK_MAX_MINUTES}
+              step="1"
+              inputMode="numeric"
+              value={customBreakMinutes}
+              onChange={(event) => {
+                setBreakDurationMode('custom');
+                setCustomBreakMinutes(event.target.value);
+              }}
+              className="post-session-break-custom__input"
+              placeholder="10"
+              aria-label="Custom break length in minutes"
+              data-testid="post-session-break-custom-minutes"
+            />
+            <span className="post-session-break-custom__unit">min</span>
+          </span>
+        </label>
+        <p className="post-session-break-duration__hint">{resumeAroundCopy}</p>
         <div className="post-session-break-visibility">
           <span className="post-session-fieldset__label">Break window</span>
           <div
@@ -426,8 +489,9 @@ export default function PostSessionPrompt({
         <Button
           type="button"
           className="post-session-pill-button"
+          disabled={!canStartBreak}
           onClick={() => onTakeBreak?.({
-            minutes: breakMinutes,
+            minutes: resolvedBreakMinutes,
             showTimer: breakShowsTimer,
           })}
         >

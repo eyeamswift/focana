@@ -43,6 +43,7 @@ let floatingReentryState = {
   defaultTaskText: '',
   defaultMinutes: 25,
   strongActive: false,
+  breakModeAvailable: false,
 };
 let floatingBreakState = {
   open: false,
@@ -735,6 +736,7 @@ function sanitizeStoreValue(key, value) {
           ? value.recap
           : (typeof value.contextNote === 'string' ? value.contextNote : ''),
         nextSteps: typeof value.nextSteps === 'string' ? value.nextSteps : '',
+        taskPlan: ensurePlainObject(value.taskPlan) ? value.taskPlan : {},
         startedAt: sanitizeOptionalIsoTimestamp(value.startedAt),
       };
     case 'timerState':
@@ -1646,6 +1648,7 @@ function getFloatingWindowState() {
       defaultTaskText: floatingReentryState.defaultTaskText,
       defaultMinutes: floatingReentryState.defaultMinutes,
       strongActive: floatingReentryState.strongActive === true,
+      breakModeAvailable: floatingReentryState.breakModeAvailable === true,
     };
   }
 
@@ -1706,6 +1709,7 @@ function sanitizeFloatingReentryState(nextState = {}) {
       : '',
     defaultMinutes: clampNumber(safeState.defaultMinutes, 1, 240, 25),
     strongActive: safeState.strongActive === true,
+    breakModeAvailable: safeState.breakModeAvailable === true,
   };
 }
 

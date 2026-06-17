@@ -51,6 +51,7 @@ export const SessionStore = {
       notes: typeof data?.notes === 'string' ? data.notes : '',
       recap: typeof data?.recap === 'string' ? data.recap : (typeof data?.notes === 'string' ? data.notes : ''),
       nextSteps: typeof data?.nextSteps === 'string' ? data.nextSteps : '',
+      taskPlan: data?.taskPlan && typeof data.taskPlan === 'object' ? data.taskPlan : null,
       sessionFeedback: data?.sessionFeedback === 'down' ? 'down' : (data?.sessionFeedback === 'up' ? 'up' : null),
       createdAt: new Date().toISOString(),
     };

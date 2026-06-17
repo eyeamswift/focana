@@ -29,6 +29,8 @@ export default function ReentryPrompt({
   onOpenParkingLot,
   onOpenSessionHistory,
   onSnooze,
+  breakModeAvailable = false,
+  onBackToBreakMode,
   onInteraction,
 }) {
   const textareaRef = useRef(null);
@@ -50,6 +52,7 @@ export default function ReentryPrompt({
   const showBack = stage === 'start-chooser' || stage === 'save-for-later' || stage === 'snooze-options';
   const showCompleteFromResume = stage === 'save-for-later' && promptKind === 'resume-choice';
   const showDismiss = stage !== 'snooze-options' && !showCompleteFromResume;
+  const showBackToBreakMode = breakModeAvailable && promptKind === 'resume-choice' && stage === 'resume-choice';
   const noteInteraction = () => {
     onInteraction?.();
   };
@@ -178,11 +181,20 @@ export default function ReentryPrompt({
           <span className="reentry-prompt__header-spacer" aria-hidden="true" />
         )}
         {showDismiss ? (
-          <button type="button" className="reentry-prompt__header-btn" onClick={() => {
-            noteInteraction();
-            onStageChange?.('snooze-options');
-          }}>
-            Snooze
+          <button
+            type="button"
+            className="reentry-prompt__header-btn"
+            data-testid={showBackToBreakMode ? 'reentry-back-to-break-mode' : 'reentry-snooze'}
+            onClick={() => {
+              noteInteraction();
+              if (showBackToBreakMode) {
+                onBackToBreakMode?.();
+                return;
+              }
+              onStageChange?.('snooze-options');
+            }}
+          >
+            {showBackToBreakMode ? 'Back to Break Mode' : 'Snooze'}
           </button>
         ) : showCompleteFromResume ? (
           <button

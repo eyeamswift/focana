@@ -248,6 +248,7 @@
         color: var(--prompt-ghost-text);
         font-size: 0.75rem;
         font-weight: 700;
+        white-space: nowrap;
         cursor: pointer;
       }
 
@@ -756,7 +757,6 @@
       const dragThresholdPx = 6;
       const clickDelayMs = 220;
       const controlsHideMs = 3000;
-      const breakPromptCooldownMs = 320;
       let dragActive = false;
       let dragMoved = false;
       let dragStartScreenX = 0;
@@ -768,13 +768,13 @@
       let currentBreakActive = false;
       let currentPromptKind = 'start';
       let currentPromptStage = 'task-entry';
+      let currentBreakModeAvailable = false;
       let promptStageBeforeSnooze = 'task-entry';
       let currentPromptKey = null;
       let currentPromptStrongActive = false;
       let currentResumeTaskName = '';
       let localTaskText = '';
       let localMinutes = '25';
-      let lastBreakPromptAt = 0;
 
       function getFloatingAPI() {
         return window.floatingAPI;
@@ -794,15 +794,6 @@
           peekBreakTimer();
           clickTimer = null;
         }, clickDelayMs);
-      }
-
-      function promptBreakIsOver() {
-        const now = Date.now();
-        if ((now - lastBreakPromptAt) < breakPromptCooldownMs) return;
-        lastBreakPromptAt = now;
-        clearPendingClick();
-        hideTimerControls();
-        getFloatingAPI()?.breakAction?.('resume-now');
       }
 
       function emitReentryAction(action, payload = {}) {
@@ -907,8 +898,14 @@
         const trimmedTask = localTaskText.trim();
         promptTaskNextButton.disabled = trimmedTask.length === 0;
         const canGoBack = currentPromptStage === 'start-chooser' || currentPromptStage === 'snooze-options';
+        const showBackToBreakMode = currentBreakModeAvailable
+          && currentPromptKind === 'resume-choice'
+          && currentPromptStage === 'resume-choice';
         promptBackButton.style.visibility = canGoBack ? 'visible' : 'hidden';
         promptDismissButton.style.visibility = currentPromptStage === 'snooze-options' ? 'hidden' : 'visible';
+        promptDismissButton.textContent = showBackToBreakMode ? 'Back to Break Mode' : 'Snooze';
+        promptDismissButton.setAttribute('aria-label', showBackToBreakMode ? 'Back to Break Mode' : 'Snooze');
+        promptDismissButton.setAttribute('title', showBackToBreakMode ? 'Back to Break Mode' : 'Snooze');
         promptCard.classList.toggle('prompt-card--attention', currentMode === 'prompt' && currentPromptStrongActive);
         syncQuickChips();
       }
@@ -988,6 +985,7 @@
           const promptKeyChanged = currentPromptKey !== state?.promptKey;
           const promptKindChanged = currentPromptKind !== state?.promptKind;
           currentPromptKind = state?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
+          currentBreakModeAvailable = state?.breakModeAvailable === true && currentPromptKind === 'resume-choice';
           currentResumeTaskName = typeof state?.resumeTaskName === 'string' ? state.resumeTaskName.trim() : '';
           if (promptKeyChanged || promptKindChanged) {
             currentPromptKey = state?.promptKey ?? null;
@@ -1004,11 +1002,12 @@
 
         currentPromptKey = null;
         currentPromptStrongActive = false;
+        currentBreakModeAvailable = false;
         hideTimerControls();
         const iconLabel = currentBreakActive && nextMode === 'icon'
           ? 'Show Focana break timer'
           : currentBreakActive && nextMode === 'break-timer'
-            ? `Break timer ${nextTimeText}. End break early.`
+            ? `Break timer ${nextTimeText}.`
             : nextMode === 'timer'
               ? `Expand Focana timer ${nextTimeText}`
               : nextMode === 'break-timer'
@@ -1085,7 +1084,7 @@
         }
         if (currentBreakActive && currentMode === 'break-timer') {
           event.preventDefault();
-          promptBreakIsOver();
+          clearPendingClick();
           return;
         }
         if (currentMode === 'timer') {
@@ -1101,7 +1100,6 @@
         dragMoved = false;
         clearPendingClick();
         if (currentBreakActive) {
-          promptBreakIsOver();
           return;
         }
         expandMainWindow();
@@ -1128,7 +1126,7 @@
           if (currentBreakActive && currentMode === 'icon') {
             peekBreakTimer();
           } else if (currentBreakActive && currentMode === 'break-timer') {
-            promptBreakIsOver();
+            hideTimerControls();
           } else if (currentMode === 'timer') {
             showTimerControls();
           } else {
@@ -1246,6 +1244,13 @@
       });
 
       promptDismissButton.addEventListener('click', () => {
+        const showBackToBreakMode = currentBreakModeAvailable
+          && currentPromptKind === 'resume-choice'
+          && currentPromptStage === 'resume-choice';
+        if (showBackToBreakMode) {
+          emitReentryAction('back-to-break-mode');
+          return;
+        }
         openSnoozeOptions();
       });
 

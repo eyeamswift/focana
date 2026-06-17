@@ -8,9 +8,10 @@ const schema = {
       contextNote: { type: 'string', default: '' },
       recap: { type: 'string', default: '' },
       nextSteps: { type: 'string', default: '' },
+      taskPlan: { type: 'object', default: {} },
       startedAt: { type: ['string', 'null'], default: null },
     },
-    default: { text: '', contextNote: '', recap: '', nextSteps: '', startedAt: null },
+    default: { text: '', contextNote: '', recap: '', nextSteps: '', taskPlan: {}, startedAt: null },
   },
   timerState: {
     type: 'object',

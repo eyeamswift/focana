@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "publishedAt": "2026-06-17",
+  "summary": "Focana 2.0.0 introduces Session Builder, a structured way to enter a primary focus, optional subtasks, and next-up tasks before you start.",
+  "improvements": [
+    "Added a collapsible Session Builder below the primary task field for optional subtasks and next-up tasks.",
+    "Running sessions now show plan details, let you check off subtasks individually, and reveal overflow plan items when space is tight.",
+    "Completing all subtasks now prompts you before closing the parent task, then hands off to the next top-level task without auto-starting it.",
+    "Structured task plans now persist through active sessions, session history, compact mode, and app restarts while preserving existing single-task labels.",
+    "Post-session breaks now support custom whole-minute durations from 1 to 240 minutes while keeping the existing quick presets."
+  ],
+  "fixes": [
+    "Back to Break Mode now restores the prior break timer or quiet-logo state instead of ending the break.",
+    "Break timer clicks no longer stop the break countdown.",
+    "Re-entry flows from Session History and Parking Lot now restore the correct prompt state after modal round trips.",
+    "Floating drag smoke coverage now waits for the app to settle at the clamped edge before ending the drag."
+  ]
+}

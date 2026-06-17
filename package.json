@@ -1,6 +1,6 @@
 {
   "name": "focana",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "Desktop Focus App for ADHD",
   "main": "src/main/main.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "dev:first-run": "node scripts/patch-dev-plist.js && concurrently --kill-others-on-fail \"vite\" \"wait-on http://localhost:5173 && FOCANA_DEV=1 FOCANA_FORCE_LICENSE_GATE=1 FOCANA_RESET_LICENSE=1 electron .\"",
     "start": "node scripts/patch-dev-plist.js && FOCANA_DEV=1 electron .",
     "metrics:report": "node scripts/analytics-report.js",
+    "test:unit": "node --experimental-vm-modules --test tests/*.test.js tests/*.test.mjs",
     "test:e2e": "npm run build:renderer && playwright test",
     "build": "npm run build:renderer && electron-builder --config electron-builder.config.js",
     "build:renderer": "node scripts/build-renderer.js",

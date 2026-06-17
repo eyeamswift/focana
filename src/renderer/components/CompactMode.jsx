@@ -15,6 +15,10 @@ const TASK_DOCK_GAP = 8;
 
 const TASK_MIN_W = 64;
 const TASK_MAX_W = 220; // max task width before wrapping
+const PLAN_PREVIEW_W = 340;
+const PLAN_PREVIEW_H = 176;
+const PLAN_PREVIEW_HOVER_MS = 320;
+const PLAN_PREVIEW_LONG_PRESS_MS = 480;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
 const REENTRY_PROMPT_SIZES = {
@@ -41,6 +45,8 @@ const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 export default function CompactMode({
   task,
+  taskPlanSummary = '',
+  taskPlanDetails = [],
   isRunning,
   time,
   pulseSignal = 0,
@@ -63,6 +69,7 @@ export default function CompactMode({
   reentryResumeTaskName = '',
   reentryResumeRecap = '',
   reentryResumeNextSteps = '',
+  reentryBreakReturnAvailable = false,
   onReentryTaskTextChange,
   onReentryMinutesChange,
   onReentryStageChange,
@@ -72,6 +79,7 @@ export default function CompactMode({
   onReentryOpenParkingLot,
   onReentryOpenSessionHistory,
   onReentrySnooze,
+  onReentryBackToBreakMode,
   onReentryInteraction,
 }) {
   const [showControls, setShowControls] = useState(false);
@@ -79,12 +87,16 @@ export default function CompactMode({
   const [showSuccessCue, setShowSuccessCue] = useState(false);
   const [successCueBurstId, setSuccessCueBurstId] = useState(0);
   const [showHelpHint, setShowHelpHint] = useState(false);
+  const [showPlanPreview, setShowPlanPreview] = useState(false);
   const [taskMetrics, setTaskMetrics]   = useState({ width: TASK_MIN_W, height: PILL_BASE_H });
 
   const clickTimerRef    = useRef(null);
   const controlsHideRef  = useRef(null);
   const pulseResetTimeoutRef = useRef(null);
   const successCueTimeoutRef = useRef(null);
+  const planPreviewHoverRef = useRef(null);
+  const planPreviewLongPressRef = useRef(null);
+  const planPreviewSuppressClickRef = useRef(false);
   const taskMeasureInlineRef = useRef(null);
   const taskMeasureBlockRef = useRef(null);
   const dragMoveHandlerRef = useRef(null);
@@ -96,6 +108,11 @@ export default function CompactMode({
   const lastSuccessCueSignalRef = useRef(successCueSignal);
 
   const taskLabel = task || '';
+  const safeTaskPlanSummary = typeof taskPlanSummary === 'string' ? taskPlanSummary.trim() : '';
+  const safeTaskPlanDetails = Array.isArray(taskPlanDetails)
+    ? taskPlanDetails.filter((item) => typeof item?.label === 'string' && item.label.trim())
+    : [];
+  const hasTaskPlanDetails = safeTaskPlanDetails.length > 0;
   const hasTaskLabel = taskLabel.trim().length > 0;
   const isTaskVisible = hasTaskLabel;
 
@@ -134,6 +151,7 @@ export default function CompactMode({
     [],
   );
   const checkInPromptActive = checkInState === 'prompting';
+  const planPreviewActive = showPlanPreview && hasTaskPlanDetails && !showControls && !checkInPromptActive;
   const reentryPromptActive = reentryPromptVisible === true;
   const activeReentryPromptSize = useMemo(
     () => REENTRY_PROMPT_SIZES[reentryPromptStage] || REENTRY_PROMPT_SIZES['task-entry'],
@@ -155,8 +173,12 @@ export default function CompactMode({
     [basePillW, visibleTaskWidth, checkInPromptActive],
   );
   const settledWinW = useMemo(
-    () => (reentryPromptActive ? activeReentryPromptSize.width : (isTaskVisible ? restWinW : baseWinW)),
-    [activeReentryPromptSize.width, baseWinW, isTaskVisible, reentryPromptActive, restWinW],
+    () => {
+      if (reentryPromptActive) return activeReentryPromptSize.width;
+      const compactWidth = isTaskVisible ? restWinW : baseWinW;
+      return planPreviewActive ? Math.max(compactWidth, PLAN_PREVIEW_W) : compactWidth;
+    },
+    [activeReentryPromptSize.width, baseWinW, isTaskVisible, planPreviewActive, reentryPromptActive, restWinW],
   );
   const pillH = useMemo(
     () => (isTaskVisible ? taskMetrics.height : PILL_BASE_H),
@@ -165,9 +187,10 @@ export default function CompactMode({
   const winH = useMemo(
     () => {
       if (reentryPromptActive) return activeReentryPromptSize.height;
-      return checkInPromptActive ? Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H) : pillH;
+      if (checkInPromptActive) return Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H);
+      return planPreviewActive ? Math.max(pillH + PLAN_PREVIEW_H, PILL_BASE_H + PLAN_PREVIEW_H) : pillH;
     },
-    [activeReentryPromptSize.height, checkInPromptActive, pillH, reentryPromptActive],
+    [activeReentryPromptSize.height, checkInPromptActive, pillH, planPreviewActive, reentryPromptActive],
   );
   const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive;
 
@@ -211,6 +234,7 @@ export default function CompactMode({
     if (!window.electronAPI?.beginCompactTransient || !window.electronAPI?.endCompactTransient) return undefined;
 
     if (showControls) {
+      setShowPlanPreview(false);
       window.electronAPI.beginCompactTransient('compact-controls');
       return undefined;
     }
@@ -218,6 +242,26 @@ export default function CompactMode({
     window.electronAPI.endCompactTransient('compact-controls', 210);
     return undefined;
   }, [showControls]);
+
+  useEffect(() => {
+    if (!hasTaskPlanDetails) {
+      setShowPlanPreview(false);
+    }
+  }, [hasTaskPlanDetails]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.beginCompactTransient || !window.electronAPI?.endCompactTransient) return undefined;
+
+    if (planPreviewActive) {
+      window.electronAPI.beginCompactTransient('compact-plan-preview');
+      return () => {
+        window.electronAPI.endCompactTransient('compact-plan-preview', 180);
+      };
+    }
+
+    window.electronAPI.endCompactTransient('compact-plan-preview', 180);
+    return undefined;
+  }, [planPreviewActive]);
 
   // ---------------------------------------------------------------------------
   // Sync window size with pill state via IPC
@@ -249,7 +293,7 @@ export default function CompactMode({
     if (reentryPromptActive) {
       pushPillSize(activeReentryPromptSize.width, activeReentryPromptSize.height);
     } else if (isTaskVisible) {
-      pushPillSize(restWinW, winH);
+      pushPillSize(settledWinW, winH);
     } else {
       // Shrinking: wait for CSS transition to finish before resizing
       const t = setTimeout(() => {
@@ -257,7 +301,7 @@ export default function CompactMode({
       }, 210);
       return () => clearTimeout(t);
     }
-  }, [activeReentryPromptSize.height, activeReentryPromptSize.width, baseWinW, isTaskVisible, reentryPromptActive, restWinW, settledWinW, winH]);
+  }, [activeReentryPromptSize.height, activeReentryPromptSize.width, baseWinW, isTaskVisible, reentryPromptActive, settledWinW, winH]);
 
   useEffect(() => {
     if (pulseSignal === lastPulseSignalRef.current) return;
@@ -295,9 +339,12 @@ export default function CompactMode({
     if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
     if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
     if (successCueTimeoutRef.current) clearTimeout(successCueTimeoutRef.current);
+    if (planPreviewHoverRef.current) clearTimeout(planPreviewHoverRef.current);
+    if (planPreviewLongPressRef.current) clearTimeout(planPreviewLongPressRef.current);
     if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
     if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
     if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
+    window.electronAPI?.endCompactTransient?.('compact-plan-preview', 0);
   }, []);
 
   // Reset controls auto-hide timer (call after any button interaction)
@@ -389,6 +436,10 @@ export default function CompactMode({
   // Single click — debounced 220ms to avoid collision with double-click
   const handlePillClick = (e) => {
     if (isDraggingRef.current) return; // suppress click that follows a drag
+    if (planPreviewSuppressClickRef.current) {
+      planPreviewSuppressClickRef.current = false;
+      return;
+    }
     e.stopPropagation();
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
     clickTimerRef.current = setTimeout(() => {
@@ -406,6 +457,54 @@ export default function CompactMode({
       clickTimerRef.current = null;
     }
     onDoubleClick();
+  };
+
+  const clearPlanPreviewLongPress = () => {
+    if (!planPreviewLongPressRef.current) return;
+    clearTimeout(planPreviewLongPressRef.current);
+    planPreviewLongPressRef.current = null;
+  };
+
+  const clearPlanPreviewHover = () => {
+    if (!planPreviewHoverRef.current) return;
+    clearTimeout(planPreviewHoverRef.current);
+    planPreviewHoverRef.current = null;
+  };
+
+  const showPlanPreviewIfAvailable = () => {
+    if (!hasTaskPlanDetails) return;
+    clearPlanPreviewHover();
+    setShowControls(false);
+    setShowPlanPreview(true);
+  };
+
+  const hidePlanPreview = () => {
+    clearPlanPreviewHover();
+    clearPlanPreviewLongPress();
+    setShowPlanPreview(false);
+  };
+
+  const handlePlanPreviewMouseEnter = () => {
+    if (!hasTaskPlanDetails) return;
+    clearPlanPreviewHover();
+    planPreviewHoverRef.current = setTimeout(() => {
+      planPreviewHoverRef.current = null;
+      showPlanPreviewIfAvailable();
+    }, PLAN_PREVIEW_HOVER_MS);
+  };
+
+  const handlePlanPreviewPointerDown = (e) => {
+    if (!hasTaskPlanDetails || e.button !== 0) return;
+    clearPlanPreviewLongPress();
+    planPreviewLongPressRef.current = setTimeout(() => {
+      planPreviewLongPressRef.current = null;
+      planPreviewSuppressClickRef.current = true;
+      showPlanPreviewIfAvailable();
+    }, PLAN_PREVIEW_LONG_PRESS_MS);
+  };
+
+  const handlePlanPreviewPointerEnd = () => {
+    clearPlanPreviewLongPress();
   };
 
   // Wrap a control button: stop propagation + reset auto-hide timer
@@ -435,6 +534,7 @@ export default function CompactMode({
           resumeTaskName={reentryResumeTaskName}
           resumeRecap={reentryResumeRecap}
           resumeNextSteps={reentryResumeNextSteps}
+          breakModeAvailable={reentryBreakReturnAvailable}
           onTaskTextChange={onReentryTaskTextChange}
           onMinutesChange={onReentryMinutesChange}
           onStageChange={onReentryStageChange}
@@ -444,6 +544,7 @@ export default function CompactMode({
           onOpenParkingLot={onReentryOpenParkingLot}
           onOpenSessionHistory={onReentryOpenSessionHistory}
           onSnooze={onReentrySnooze}
+          onBackToBreakMode={onReentryBackToBreakMode}
           onInteraction={onReentryInteraction}
         />
       </div>
@@ -452,7 +553,7 @@ export default function CompactMode({
 
   return (
     <div
-      className={`pill pill--logo${isPulseAnimating ? ' animate-pulse-compact pill--pulse-active' : ''}`}
+      className={`pill pill--logo${planPreviewActive ? ' pill--plan-preview' : ''}${isPulseAnimating ? ' animate-pulse-compact pill--pulse-active' : ''}`}
       style={pillStyle}
       onPointerDown={handlePointerDown}
       onDragStart={(e) => e.preventDefault()}
@@ -484,12 +585,27 @@ export default function CompactMode({
         </span>
       ) : null}
 
-      <div className={`pill-content${isPulseAnimating ? ' pill-content--pulse' : ''}${showControls ? ' pill-content--controls' : ''}`}>
+      <div
+        className={`pill-content${isPulseAnimating ? ' pill-content--pulse' : ''}${showControls ? ' pill-content--controls' : ''}`}
+        onDoubleClick={handlePillDoubleClick}
+      >
         <div
           className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}
           style={{ maxWidth: isTaskVisible ? taskMetrics.width : 0 }}
+          tabIndex={hasTaskPlanDetails ? 0 : -1}
+          aria-describedby={planPreviewActive ? 'pill-task-plan-preview' : undefined}
+          onMouseEnter={handlePlanPreviewMouseEnter}
+          onMouseLeave={hidePlanPreview}
+          onFocus={showPlanPreviewIfAvailable}
+          onBlur={hidePlanPreview}
+          onPointerDown={handlePlanPreviewPointerDown}
+          onPointerUp={handlePlanPreviewPointerEnd}
+          onPointerCancel={handlePlanPreviewPointerEnd}
         >
           <span className="pill-task-text">{taskLabel}</span>
+          {safeTaskPlanSummary ? (
+            <span className="pill-task-plan-summary">{safeTaskPlanSummary}</span>
+          ) : null}
         </div>
 
         <div className="pill-dock">
@@ -507,7 +623,7 @@ export default function CompactMode({
             <span
               className="pill-help electron-no-drag"
               onClick={(e) => e.stopPropagation()}
-              onDoubleClick={(e) => e.stopPropagation()}
+              onDoubleClick={handlePillDoubleClick}
               onMouseEnter={() => setShowHelpHint(true)}
               onMouseLeave={() => setShowHelpHint(false)}
             >
@@ -568,6 +684,36 @@ export default function CompactMode({
           </span>
         )}
       </div>
+
+      {planPreviewActive ? (
+        <div
+          id="pill-task-plan-preview"
+          className="pill-task-plan-preview electron-no-drag"
+          data-testid="compact-task-plan-preview"
+          role="tooltip"
+          onMouseEnter={showPlanPreviewIfAvailable}
+          onMouseLeave={hidePlanPreview}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
+          <div className="pill-task-plan-preview__title">Current plan</div>
+          <ul className="pill-task-plan-preview__list">
+            {safeTaskPlanDetails.slice(0, 6).map((item) => (
+              <li
+                key={`${item.type}-${item.id}`}
+                className={item.completed ? 'is-complete' : ''}
+              >
+                {item.label}
+              </li>
+            ))}
+          </ul>
+          {safeTaskPlanDetails.length > 6 ? (
+            <div className="pill-task-plan-preview__more">
+              +{safeTaskPlanDetails.length - 6} more
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="pill-task-measure" aria-hidden="true">
         <span ref={taskMeasureInlineRef} className="pill-task-text pill-task-text--measure-inline" />

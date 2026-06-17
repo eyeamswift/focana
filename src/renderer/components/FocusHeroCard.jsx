@@ -5,6 +5,7 @@ export default function FocusHeroCard({
   timerText = '',
   controls = null,
   onLockedInteraction,
+  children = null,
 }) {
   const taskLabel = typeof task === 'string' && task.trim()
     ? task.trim()
@@ -29,6 +30,7 @@ export default function FocusHeroCard({
           </div>
         ) : null}
       </div>
+      {children ? <div className="focus-hero__plan">{children}</div> : null}
     </div>
   );
 }
