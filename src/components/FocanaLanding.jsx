@@ -1934,12 +1934,38 @@ export default function FocanaLanding() {
           background: ${COLORS.softCream};
         }
         .hero-cta-row {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 14px;
           width: 100%;
+          max-width: 620px;
+        }
+        .hero-cta-row .cta-btn,
+        .hero-cta-row .hero-secondary-btn {
+          min-width: 0;
+          white-space: nowrap;
+        }
+        .hero-secondary-btn {
+          background: ${COLORS.goldenGlow};
+          color: ${COLORS.warmBrown};
+          border: none;
+          padding: 18px 30px;
+          font-size: 18px;
+          font-weight: 700;
+          font-family: 'Outfit', sans-serif;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          text-decoration: none;
+        }
+        .hero-secondary-btn:hover {
+          background: ${COLORS.sunshineYellow};
+          transform: translateY(-2px);
+          box-shadow: 0 8px 30px rgba(245, 158, 11, 0.28);
         }
         .feature-card {
           background: white;
@@ -2509,13 +2535,16 @@ export default function FocanaLanding() {
             flex-direction: column !important;
           }
           .hero-cta-row {
-            flex-direction: column !important;
-            align-items: stretch !important;
+            gap: 10px !important;
           }
           .hero-cta-row .cta-btn,
-          .hero-cta-row .ghost-btn {
+          .hero-cta-row .hero-secondary-btn {
             width: 100% !important;
             justify-content: center !important;
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            font-size: 14px !important;
+            text-align: center !important;
           }
           .brain-state-grid {
             grid-template-columns: 1fr !important;
@@ -3019,11 +3048,11 @@ export default function FocanaLanding() {
                 width: "100%",
               }}>
                 <div className="hero-cta-row">
-                  <a href="#features" className="ghost-btn" style={{ fontSize: "18px", padding: "16px 34px", textDecoration: "none", justifyContent: "center" }}>
+                  <a href="#feature-get-started" className="hero-secondary-btn">
                     See How it Works
                   </a>
-                  <button onClick={() => openPricingSection("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px", justifyContent: "center" }}>
-                    Download for free <span style={{ fontSize: "22px" }}>→</span>
+                  <button onClick={() => openPricingSection("hero")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 28px", justifyContent: "center" }}>
+                    Download for free
                   </button>
                 </div>
                 <p style={{
