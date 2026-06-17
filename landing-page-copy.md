@@ -202,13 +202,13 @@ Start free for 7 days, start monthly now, or buy lifetime access today.
 Free trials unlock monthly and lifetime upgrade CTAs after the waiting period.
 
 Free trial — 7 days
-Full access. No card required. App-managed trial.
+7 days, no card required.
 
 Monthly — $10/month
-Start the monthly option directly through checkout.
+Your always-visible focus buddy, for less than lunch.
 
 Lifetime — $79
-One payment for long-term access.
+Pay once. Keep your focus anchored for life.
 
 [Start free trial]
 [Start monthly]

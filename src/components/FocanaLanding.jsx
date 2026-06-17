@@ -3086,9 +3086,6 @@ export default function FocanaLanding() {
                   7 days, no card required
                 </p>
               </div>
-              <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-                Download the Mac app, start your app-managed trial, and use every feature before deciding.
-              </p>
               <button onClick={() => openTrialDownload("pricing_trial")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
                 Start free trial <span style={{ fontSize: "20px" }}>→</span>
               </button>
@@ -3114,13 +3111,10 @@ export default function FocanaLanding() {
                 }}>
                   $10 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>/month</span>
                 </div>
-                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
-                  Start from the landing page
+                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px", lineHeight: 1.5 }}>
+                  Your always-visible focus buddy, for less than lunch.
                 </p>
               </div>
-              <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-                Start the monthly option directly through checkout. Your Lemon receipt includes the license key for activation.
-              </p>
               <button onClick={() => openCheckout("pricing_monthly", "monthly")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
                 Start monthly
               </button>
@@ -3146,13 +3140,10 @@ export default function FocanaLanding() {
                 }}>
                   $79 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>lifetime</span>
                 </div>
-                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
-                  One payment for long-term access
+                <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px", lineHeight: 1.5 }}>
+                  Pay once. Keep your focus anchored for life.
                 </p>
               </div>
-              <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-                Keep Focana without monthly billing. Your Lemon receipt includes the license key for activation.
-              </p>
               <button onClick={() => openCheckout("pricing_lifetime", "lifetime")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
                 Buy lifetime
               </button>
