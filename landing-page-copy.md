@@ -17,7 +17,7 @@ Start free trial
 ## HERO
 
 **Pre-headline (small text above):**
-For macOS — free 30-day trial, no card required
+For macOS — free 7-day trial, no card required
 
 **Headline:**
 You opened your laptop to do one thing.
@@ -33,11 +33,11 @@ Sound familiar?
 Focana is a floating Mac focus app that keeps your task and timer visible while you work.
 
 **CTA:**
-Start free 30-day trial →
+Start free 7-day trial →
 See How It Works
 
 **Below CTA:**
-Free for 30 days. After that, choose $10/month or $79 lifetime.
+Free for 7 days. Start monthly or buy lifetime whenever you're ready.
 
 **Secondary line:**
 Windows coming soon - join the waitlist
@@ -196,27 +196,29 @@ This is for you if...
 
 ## TRIAL-FIRST PRICING
 
-Start free. Choose later.
+Choose how to start.
 
-Download Focana first and use every feature for 30 days.
+Start free for 7 days, start monthly now, or buy lifetime access today.
+Free trials unlock monthly and lifetime upgrade CTAs after the waiting period.
 
-Free trial — 30 days
+Free trial — 7 days
 Full access. No card required. App-managed trial.
 
 Monthly — $10/month
-Flexible access for ongoing focus work.
+Start the monthly option directly through checkout.
 
 Lifetime — $79
 One payment for long-term access.
 
-[Start free 30-day trial]
-[Choose monthly]
+[Start free trial]
+[Start monthly]
 [Buy lifetime]
 
-Why the trial comes first?
-The product should earn the upgrade. Try it without a card,
-then choose the plan that fits once Focana is already part
-of your workflow.
+How the free trial works
+The free trial is app-managed and no-card. After the waiting
+period, the app shows upgrade CTAs for monthly or lifetime.
+If you already know Focana fits, you can skip the wait and
+start monthly or buy lifetime here.
 
 ---
 
@@ -258,27 +260,27 @@ macOS is live now. Windows is in development — drop your
 email and you'll be the first to know when it's ready.
 
 What does it cost?
-Start with a free 30-day trial, no card required.
-After that, choose $10/month or $79 lifetime.
+Start free for 7 days, start monthly at $10/month, or buy
+lifetime access for $79.
 Paid checkout sends you a Lemon receipt with the license
 key you use to activate the app.
 
 Do I need to pay before I download?
-No. The public download starts the free trial first.
-You only use Lemon checkout when you decide to keep Focana
-after the trial, or if you want to upgrade early.
+No. You can download and start the free trial without paying.
+If you're ready to convert now, the monthly and lifetime
+buttons on this page go straight to checkout.
 
 What if I just want to try it first?
-Download it and use the full app for 30 days.
+Download it and use the full app for 7 days.
 
 ---
 
 ## CLOSING CTA
 
 Takes 10 seconds to start your first session.
-Free for 30 days. No card required.
+Free for 7 days. No card required.
 
-Start free 30-day trial →
+Start free trial →
 
 Already know you want it?
 Choose $10/month or buy lifetime for $79.

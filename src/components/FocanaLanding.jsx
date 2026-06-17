@@ -3048,11 +3048,11 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
               fontWeight: 800, color: COLORS.warmBrown, lineHeight: 1.15, marginBottom: "20px",
             }}>
-              Start free. Choose later.
+              Choose how to start.
             </h2>
             <p style={{ fontSize: "19px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              Download Focana first and use every feature for 30 days.<br />
-              When the trial ends, keep going monthly or buy lifetime access.
+              Start free for 7 days, start monthly now, or buy lifetime access today.<br />
+              Free trials unlock monthly and lifetime upgrade CTAs after the waiting period.
             </p>
           </div>
 
@@ -3074,7 +3074,7 @@ export default function FocanaLanding() {
               <span style={{
                 fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 700,
                 color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-              }}>Trial first</span>
+              }}>Free trial</span>
               <div>
                 <div style={{
                   fontFamily: "'Outfit', sans-serif", fontSize: "clamp(40px, 5vw, 52px)",
@@ -3083,14 +3083,14 @@ export default function FocanaLanding() {
                   Free
                 </div>
                 <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
-                  30 days, no card required
+                  7 days, no card required
                 </p>
               </div>
               <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-                Download the Mac app, start your trial locally, and use the full focus system before deciding.
+                Download the Mac app, start your app-managed trial, and use every feature before deciding.
               </p>
               <button onClick={() => openTrialDownload("pricing_trial")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
-                Download for free <span style={{ fontSize: "20px" }}>→</span>
+                Start free trial <span style={{ fontSize: "20px" }}>→</span>
               </button>
             </div>
 
@@ -3106,7 +3106,7 @@ export default function FocanaLanding() {
               <span style={{
                 fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 700,
                 color: COLORS.deepAmber, textTransform: "uppercase", letterSpacing: "2px",
-              }}>After trial</span>
+              }}>Monthly</span>
               <div>
                 <div style={{
                   fontFamily: "'Outfit', sans-serif", fontSize: "clamp(38px, 5vw, 50px)",
@@ -3115,14 +3115,14 @@ export default function FocanaLanding() {
                   $10 <span style={{ fontSize: "20px", fontWeight: 500, color: COLORS.coffeeBrown }}>/month</span>
                 </div>
                 <p style={{ fontSize: "16px", color: COLORS.coffeeBrown, marginTop: "8px" }}>
-                  Flexible access for ongoing focus work
+                  Start from the landing page
                 </p>
               </div>
               <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-                Upgrade from inside the app when your trial ends, or start monthly early if you already know it fits.
+                Start the monthly option directly through checkout. Your Lemon receipt includes the license key for activation.
               </p>
               <button onClick={() => openCheckout("pricing_monthly", "monthly")} className="cta-btn" style={{ fontSize: "17px", padding: "16px 28px", justifyContent: "center", marginTop: "auto" }}>
-                Choose monthly
+                Start monthly
               </button>
             </div>
 
@@ -3167,12 +3167,12 @@ export default function FocanaLanding() {
               fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
               color: COLORS.warmBrown, marginBottom: "12px",
             }}>
-              Why the trial comes first?
+              How the free trial works
             </h3>
             <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              We want pricing to feel as calm as the product: try it first, then choose the plan that fits.
-              The free trial is app-managed and no-card. Paid checkout is only for activation after your trial
-              or for people who want to upgrade early.
+              The free trial is app-managed and no-card. After the waiting period, the app shows upgrade
+              CTAs for monthly or lifetime. If you already know Focana fits, you can skip the wait and start
+              monthly or buy lifetime here.
             </p>
             <div style={{ marginTop: "22px" }}>
               <SaasHubBadge location="pricing" />
@@ -3703,11 +3703,11 @@ export default function FocanaLanding() {
           />
           <FAQItem
             question="What does it cost?"
-            answer="Start with a free 30-day trial, no card required. After that, choose $10/month or $79 lifetime. Paid checkout sends you a Lemon receipt with the license key you use to activate the app."
+            answer="Start free for 7 days, start monthly at $10/month, or buy lifetime access for $79. Paid checkout sends you a Lemon receipt with the license key you use to activate the app."
           />
           <FAQItem
             question="Do I need to pay before I download?"
-            answer="No. The public download starts the free trial first. You only use Lemon checkout when you decide to keep Focana after the trial, or if you want to upgrade early."
+            answer="No. You can download and start the free trial without paying. If you're ready to convert now, the monthly and lifetime buttons on this page go straight to checkout."
           />
 
           <div style={{ marginTop: "48px", textAlign: "center" }}>
@@ -3741,7 +3741,7 @@ export default function FocanaLanding() {
         <div className="section" style={{ position: "relative", zIndex: 2, textAlign: "center", maxWidth: "640px" }}>
           <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#FEF3C7", marginBottom: "32px" }}>
             Takes 10 seconds to start your first session.<br />
-            Free for 30 days. No card required.
+            Free for 7 days. No card required.
           </p>
 
           <button onClick={() => openPricingSection("final_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
