@@ -3287,7 +3287,7 @@ export default function FocanaLanding() {
               Ready to try it for yourself?
             </p>
             <button onClick={() => openPricingSection("features_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Start free trial
+              Start Focusing
             </button>
           </div>
         </div>
