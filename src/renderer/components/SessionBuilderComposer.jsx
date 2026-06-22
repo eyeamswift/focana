@@ -7,6 +7,7 @@ import {
   addSubtask,
   getActiveTask,
   getTaskPlanSummary,
+  hasTaskPlanStructure,
   normalizeTaskPlan,
   removeSubtask,
   removeTask,
@@ -18,6 +19,8 @@ import {
 export default function SessionBuilderComposer({
   taskPlan,
   primaryTask = '',
+  title = 'Session Builder',
+  emptySummary = 'Optional steps and next-up tasks',
   onTaskPlanChange,
   onLayoutChange,
 }) {
@@ -27,7 +30,7 @@ export default function SessionBuilderComposer({
   const activeTask = getActiveTask(plan);
   const nextTasks = plan.items.filter((item) => item.id !== plan.activeTaskId);
   const canAddStructure = primaryTitle.trim().length > 0;
-  const summary = getTaskPlanSummary(plan);
+  const summary = hasTaskPlanStructure(plan) ? getTaskPlanSummary(plan) : emptySummary;
   const layoutSignature = useMemo(() => JSON.stringify(plan), [plan]);
 
   useEffect(() => {
@@ -71,7 +74,7 @@ export default function SessionBuilderComposer({
       >
         <span className="session-builder__toggle-main">
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span>Session Builder</span>
+          <span>{title}</span>
         </span>
         <span className="session-builder__summary">{summary}</span>
         <span className="session-builder__toggle-action">{expanded ? 'Hide' : 'Show'}</span>

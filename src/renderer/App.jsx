@@ -76,9 +76,9 @@ const WINDOW_SIZES = {
   idleHeight: 124,
   reentryPromptHeight: 430,
   reentryPromptStageHeights: {
-    taskEntry: 430,
+    taskEntry: 560,
     resumeChoice: 340,
-    startChooser: 400,
+    startChooser: 560,
     saveForLater: 540,
     snoozeOptions: 500,
   },
@@ -316,6 +316,29 @@ function getSessionNextSteps(session) {
   return typeof session.nextSteps === 'string' ? session.nextSteps : '';
 }
 
+function getSortableDateMs(value) {
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : -Infinity;
+}
+
+function formatMonthDay(date) {
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatSavedSourceDate(value, prefix = 'Saved') {
+  const timestamp = getSortableDateMs(value);
+  if (!Number.isFinite(timestamp)) return prefix;
+  const date = new Date(timestamp);
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDiff = Math.round((startOfToday - startOfDate) / (24 * 60 * 60 * 1000));
+  if (dayDiff === 0) return `${prefix} today`;
+  if (dayDiff === 1) return `${prefix} yesterday`;
+  if (dayDiff > 1 && dayDiff < 7) return `${prefix} ${date.toLocaleDateString(undefined, { weekday: 'short' })}`;
+  return `${prefix} ${formatMonthDay(date)}`;
+}
+
 function normalizeSplitNotes(rawNotes, fallback = {}) {
   const fallbackRecap = typeof fallback.recap === 'string' ? fallback.recap : '';
   const fallbackNextSteps = typeof fallback.nextSteps === 'string' ? fallback.nextSteps : '';
@@ -447,6 +470,7 @@ export default function App() {
   const [postSessionFeedbackEnabled, setPostSessionFeedbackEnabled] = useState(false);
   const [postSessionStartAssist, setPostSessionStartAssist] = useState(false);
   const [parkingLotTaskSwitchConfirm, setParkingLotTaskSwitchConfirm] = useState(null);
+  const [activeCompleteConfirmOpen, setActiveCompleteConfirmOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiBurstId, setConfettiBurstId] = useState(0);
   const [startupGateState, setStartupGateState] = useState('checking'); // checking | activation | upgrade | name | ready
@@ -496,6 +520,11 @@ export default function App() {
   const [reentrySurfaceStage, setReentrySurfaceStage] = useState('task-entry');
   const [reentrySurfaceTaskText, setReentrySurfaceTaskText] = useState('');
   const [reentrySurfaceMinutes, setReentrySurfaceMinutes] = useState('25');
+  const [reentrySurfaceSource, setReentrySurfaceSource] = useState(null);
+  const [reentrySurfaceRecap, setReentrySurfaceRecap] = useState('');
+  const [reentrySurfaceNextSteps, setReentrySurfaceNextSteps] = useState('');
+  const [reentrySurfaceTaskPlan, setReentrySurfaceTaskPlan] = useState(() => createTaskPlanFromTitle(''));
+  const [reentrySurfaceCarryoverSeconds, setReentrySurfaceCarryoverSeconds] = useState(0);
   const hasSavedContext = Boolean(contextNotes.trim() || nextStepsNotes.trim());
 
   // Pulse
@@ -1104,6 +1133,49 @@ export default function App() {
     return buildResumeCandidateFromSession(latestResumableSession);
   }, [isRunning, isTimerVisible, latestResumableSession]);
 
+  const reentryParkingLotItems = useMemo(() => thoughts
+    .filter((thought) => thought?.completed !== true && typeof thought?.text === 'string' && thought.text.trim())
+    .map((thought, index) => ({
+      id: thought.id || `parking-${index}`,
+      sourceId: `parking:${thought.id || index}`,
+      title: thought.text.trim(),
+      meta: formatSavedSourceDate(thought.createdAt, 'Saved'),
+      thought,
+      createdAtMs: getSortableDateMs(thought.createdAt),
+      originalIndex: index,
+    }))
+    .sort((a, b) => {
+      if (a.createdAtMs !== b.createdAtMs) return b.createdAtMs - a.createdAtMs;
+      return b.originalIndex - a.originalIndex;
+    }), [thoughts]);
+
+  const reentryHistoryItems = useMemo(() => sessions
+    .filter((session) => (
+      !session?.completed
+      && Boolean(session?.kept)
+      && typeof session?.task === 'string'
+      && session.task.trim()
+    ))
+    .map((session, index) => {
+      const duration = Math.max(0, Math.round(Number(session.durationMinutes) || 0));
+      const nextSteps = getSessionNextSteps(session).trim();
+      const recap = getSessionRecap(session).trim();
+      return {
+        id: session.id || `history-${index}`,
+        sourceId: `history:${session.id || index}`,
+        title: session.task.trim(),
+        meta: `${duration} min - ${formatSavedSourceDate(session.createdAt, 'left off')}`,
+        note: nextSteps ? `Next: ${nextSteps}` : (recap ? 'Has notes' : ''),
+        session,
+        createdAtMs: getSortableDateMs(session.createdAt),
+        originalIndex: index,
+      };
+    })
+    .sort((a, b) => {
+      if (a.createdAtMs !== b.createdAtMs) return b.createdAtMs - a.createdAtMs;
+      return b.originalIndex - a.originalIndex;
+    }), [sessions]);
+
   const effectiveReentryResumeCandidate = systemEntryResumeCandidate || reentryResumeCandidate;
 
   const getDefaultReentryMinutes = useCallback(() => {
@@ -1169,11 +1241,31 @@ export default function App() {
       markSavedResumePromptPresented(effectiveReentryResumeCandidate);
     }
 
+    const nextTaskText = clampTaskText(reentryPromptKind === 'resume-choice'
+      ? (effectiveReentryResumeCandidate?.taskText || task)
+      : (reentryPromptOverrideKind === 'start' ? '' : task));
+    const nextRecap = reentryPromptKind === 'resume-choice'
+      ? (typeof effectiveReentryResumeCandidate?.recap === 'string'
+        ? effectiveReentryResumeCandidate.recap
+        : (typeof effectiveReentryResumeCandidate?.notes === 'string' ? effectiveReentryResumeCandidate.notes : ''))
+      : '';
+    const nextNextSteps = reentryPromptKind === 'resume-choice' && typeof effectiveReentryResumeCandidate?.nextSteps === 'string'
+      ? effectiveReentryResumeCandidate.nextSteps
+      : '';
+    const nextTaskPlan = reentryPromptKind === 'resume-choice'
+      ? prepareTaskPlanForStart(effectiveReentryResumeCandidate?.taskPlan, nextTaskText)
+      : prepareTaskPlanForStart(null, nextTaskText);
+
     setReentrySurfaceStage(reentryPromptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
-    setReentrySurfaceTaskText(
-      clampTaskText(reentryPromptKind === 'resume-choice'
-        ? (effectiveReentryResumeCandidate?.taskText || task)
-        : (reentryPromptOverrideKind === 'start' ? '' : task)),
+    setReentrySurfaceTaskText(nextTaskText);
+    setReentrySurfaceSource(null);
+    setReentrySurfaceRecap(nextRecap);
+    setReentrySurfaceNextSteps(nextNextSteps);
+    setReentrySurfaceTaskPlan(nextTaskPlan);
+    setReentrySurfaceCarryoverSeconds(
+      reentryPromptKind === 'resume-choice'
+        ? Math.max(0, Math.floor(Number(effectiveReentryResumeCandidate?.carryoverSeconds) || 0))
+        : 0,
     );
     setReentrySurfaceMinutes(String(getDefaultReentryMinutes()));
   }, [
@@ -1872,6 +1964,15 @@ export default function App() {
     reentryFloatingPromptSentRef.current = closedState;
     window.electronAPI.setFloatingReentryState?.({ open: false });
   }, []);
+
+  const enterFloatingWithoutImmediateReentry = useCallback(() => {
+    lastInteractionTimeRef.current = Date.now();
+    scheduleReentryCueFromNow();
+    setReentryStrongActive(false);
+    setReentryAttentionVisible(false);
+    closeFloatingReentryPrompt();
+    void window.electronAPI.enterFloatingMinimize?.();
+  }, [closeFloatingReentryPrompt, scheduleReentryCueFromNow]);
 
   const clearSystemEntryPending = useCallback(() => {
     setSystemEntryPending(null);
@@ -4823,6 +4924,11 @@ export default function App() {
         return;
       }
       if (action === 'complete') {
+        if (isRunning) {
+          window.electronAPI.bringToFront?.();
+          setActiveCompleteConfirmOpen(true);
+          return;
+        }
         void completeActiveSessionDirectRef.current({ source: 'floating', bringToFront: true });
       }
     });
@@ -5261,8 +5367,23 @@ export default function App() {
   completeActiveSessionDirectRef.current = completeActiveSessionDirect;
 
   const handleActiveComplete = useCallback(() => {
+    if (isRunning) {
+      if (isCompact) handleExitCompact();
+      setActiveCompleteConfirmOpen(true);
+      return;
+    }
+    void completeActiveSessionDirect({ source: 'button' });
+  }, [completeActiveSessionDirect, handleExitCompact, isCompact, isRunning]);
+
+  const handleConfirmActiveComplete = useCallback(() => {
+    setActiveCompleteConfirmOpen(false);
     void completeActiveSessionDirect({ source: 'button' });
   }, [completeActiveSessionDirect]);
+
+  const handlePauseFromCompleteConfirm = useCallback(() => {
+    setActiveCompleteConfirmOpen(false);
+    handlePause();
+  }, [handlePause]);
 
   const handleTaskPlanChange = useCallback((nextPlan) => {
     const syncedPlan = syncActiveTaskTitle(nextPlan, task);
@@ -5272,7 +5393,9 @@ export default function App() {
   }, [task]);
 
   const handleRunningSubtaskToggle = useCallback((subtaskId, checked) => {
-    const nextPlan = toggleSubtask(persistableTaskPlan, subtaskId, checked);
+    const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
+    const nextPlan = toggleSubtask(basePlan, subtaskId, checked);
+    taskPlanRef.current = nextPlan;
     setTaskPlan(nextPlan);
     setTaskPlanCompletionDismissedFor(null);
     if (currentSessionId) {
@@ -5282,10 +5405,12 @@ export default function App() {
         console.error('Failed to persist subtask completion:', error);
       });
     }
-  }, [currentSessionId, loadSessions, persistableTaskPlan, task]);
+  }, [currentSessionId, loadSessions, task]);
 
   const handleRunningNextTaskToggle = useCallback((taskId, checked) => {
-    const nextPlan = setTaskCompleted(persistableTaskPlan, taskId, checked);
+    const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
+    const nextPlan = setTaskCompleted(basePlan, taskId, checked);
+    taskPlanRef.current = nextPlan;
     setTaskPlan(nextPlan);
     if (currentSessionId) {
       void SessionStore.update(currentSessionId, {
@@ -5294,7 +5419,7 @@ export default function App() {
         console.error('Failed to persist next-up completion:', error);
       });
     }
-  }, [currentSessionId, loadSessions, persistableTaskPlan, task]);
+  }, [currentSessionId, loadSessions, task]);
 
   const handleKeepActiveTaskGoing = useCallback(() => {
     const active = getActiveTask(persistableTaskPlan);
@@ -5337,19 +5462,22 @@ export default function App() {
 
     const nextNotes = promptKind === 'resume-choice'
       ? (typeof resumeCandidate?.recap === 'string' ? resumeCandidate.recap : (typeof resumeCandidate?.notes === 'string' ? resumeCandidate.notes : ''))
-      : '';
+      : (typeof payload?.notes === 'string' ? payload.notes : '');
     const nextNextSteps = promptKind === 'resume-choice'
       ? (typeof resumeCandidate?.nextSteps === 'string' ? resumeCandidate.nextSteps : '')
-      : '';
+      : (typeof payload?.nextSteps === 'string' ? payload.nextSteps : '');
     const nextSessionId = promptKind === 'resume-choice'
       ? (resumeCandidate?.sessionId || null)
       : null;
+    const payloadTaskPlan = payload?.taskPlan && typeof payload.taskPlan === 'object'
+      ? payload.taskPlan
+      : null;
     const nextTaskPlan = promptKind === 'resume-choice'
-      ? prepareTaskPlanForStart(resumeCandidate?.taskPlan, nextTaskText)
-      : prepareTaskPlanForStart(null, nextTaskText);
+      ? prepareTaskPlanForStart(payloadTaskPlan || resumeCandidate?.taskPlan, nextTaskText)
+      : prepareTaskPlanForStart(payloadTaskPlan, nextTaskText);
     const nextCarryoverSeconds = promptKind === 'resume-choice'
       ? Math.max(0, Math.floor(Number(resumeCandidate?.carryoverSeconds) || 0))
-      : 0;
+      : Math.max(0, Math.floor(Number(payload?.carryoverSeconds) || 0));
 
     reentryStartNewAfterResolveRef.current = false;
     reentryEligibleSinceRef.current = null;
@@ -5484,8 +5612,25 @@ export default function App() {
   }, [beginStartSomethingNewFromResumeCandidate, handleBackToBreakMode, handleFloatingReentryStart, openHistoryFromReentry, openParkingLotFromReentry, snoozeReentryAttention]);
 
   const handleSurfaceReentryStart = useCallback((payload = {}) => {
-    startSessionFromReentryPrompt(payload);
-  }, [startSessionFromReentryPrompt]);
+    const nextPayload = {
+      ...payload,
+      taskPlan: reentrySurfaceTaskPlan,
+    };
+
+    if (payload?.promptKind !== 'resume-choice') {
+      nextPayload.notes = reentrySurfaceRecap;
+      nextPayload.nextSteps = reentrySurfaceNextSteps;
+      nextPayload.carryoverSeconds = reentrySurfaceCarryoverSeconds;
+    }
+
+    startSessionFromReentryPrompt(nextPayload);
+  }, [
+    reentrySurfaceCarryoverSeconds,
+    reentrySurfaceNextSteps,
+    reentrySurfaceRecap,
+    reentrySurfaceTaskPlan,
+    startSessionFromReentryPrompt,
+  ]);
 
   const handleReentryPromptInteraction = useCallback(() => {
     settleReentryCueAfterInteraction();
@@ -5498,12 +5643,65 @@ export default function App() {
 
   const handleReentrySurfaceTaskTextChange = useCallback((nextValue) => {
     settleReentryCueAfterInteraction();
-    setReentrySurfaceTaskText(clampTaskText(nextValue));
+    const nextTaskText = clampTaskText(nextValue);
+    setReentrySurfaceTaskText(nextTaskText);
+    setReentrySurfaceSource(null);
+    setReentrySurfaceRecap('');
+    setReentrySurfaceNextSteps('');
+    setReentrySurfaceCarryoverSeconds(0);
+    setReentrySurfaceTaskPlan(prepareTaskPlanForStart(null, nextTaskText));
   }, [settleReentryCueAfterInteraction]);
 
   const handleReentrySurfaceMinutesChange = useCallback((nextValue) => {
     settleReentryCueAfterInteraction();
     setReentrySurfaceMinutes(nextValue);
+  }, [settleReentryCueAfterInteraction]);
+
+  const handleReentrySurfaceTaskPlanChange = useCallback((nextPlan) => {
+    settleReentryCueAfterInteraction();
+    const primaryTask = reentrySurfaceTaskText.trim()
+      || effectiveReentryResumeCandidate?.taskText
+      || task;
+    setReentrySurfaceTaskPlan(syncActiveTaskTitle(nextPlan, primaryTask));
+  }, [effectiveReentryResumeCandidate?.taskText, reentrySurfaceTaskText, settleReentryCueAfterInteraction, task]);
+
+  const handleSelectReentryParkingLotItem = useCallback((item) => {
+    const nextTaskText = clampTaskText(typeof item?.title === 'string' ? item.title : '').trim();
+    if (!nextTaskText) return;
+    settleReentryCueAfterInteraction();
+    setReentrySurfaceTaskText(nextTaskText);
+    setReentrySurfaceSource({
+      kind: 'parking',
+      id: typeof item?.sourceId === 'string' ? item.sourceId : `parking:${item?.id || nextTaskText}`,
+    });
+    setReentrySurfaceRecap('');
+    setReentrySurfaceNextSteps('');
+    setReentrySurfaceCarryoverSeconds(0);
+    setReentrySurfaceTaskPlan(prepareTaskPlanForStart(null, nextTaskText));
+  }, [settleReentryCueAfterInteraction]);
+
+  const handleSelectReentryHistorySession = useCallback((item) => {
+    const session = item?.session;
+    const nextTaskText = clampTaskText(
+      (typeof session?.task === 'string' && session.task)
+      || (typeof item?.title === 'string' && item.title)
+      || '',
+    ).trim();
+    if (!nextTaskText) return;
+    const nextRecap = getSessionRecap(session);
+    const nextNextSteps = getSessionNextSteps(session);
+    const carryoverSeconds = Math.max(0, Math.round((Number(session?.durationMinutes) || 0) * 60));
+
+    settleReentryCueAfterInteraction();
+    setReentrySurfaceTaskText(nextTaskText);
+    setReentrySurfaceSource({
+      kind: 'history',
+      id: typeof item?.sourceId === 'string' ? item.sourceId : `history:${item?.id || nextTaskText}`,
+    });
+    setReentrySurfaceRecap(nextRecap);
+    setReentrySurfaceNextSteps(nextNextSteps);
+    setReentrySurfaceCarryoverSeconds(carryoverSeconds);
+    setReentrySurfaceTaskPlan(prepareTaskPlanForStart(session?.taskPlan, nextTaskText));
   }, [settleReentryCueAfterInteraction]);
 
   useEffect(() => {
@@ -5556,18 +5754,23 @@ export default function App() {
 
   const openPauseSessionWrap = useCallback(async ({
     returnToCompact = null,
-    returnToFloating = false,
+    returnToFloating = null,
     bringToFront = false,
   } = {}) => {
     const trimmedTask = task.trim();
     if (!trimmedTask) return;
 
-    const shouldReturnToFloating = returnToFloating === true;
-    const shouldReturnToCompact = shouldReturnToFloating
+    const explicitReturnToFloating = returnToFloating === true;
+    const explicitStayFull = returnToFloating === false;
+    const compactReturnRequested = explicitReturnToFloating
       ? false
       : returnToCompact === null
         ? isCompact
         : returnToCompact === true;
+    const shouldReturnToFloating = explicitReturnToFloating || (!explicitStayFull && !compactReturnRequested);
+    const shouldReturnToCompact = shouldReturnToFloating
+      ? false
+      : compactReturnRequested;
     const shouldExitCompactForPrompt = shouldReturnToCompact
       || isCompact
       || document.documentElement.getAttribute('data-window-mode') === 'pill'
@@ -6317,8 +6520,8 @@ export default function App() {
       ));
     }
     closePostSessionSurface();
-    void window.electronAPI.enterFloatingMinimize?.();
-  }, [clearPausedPostSessionTimerState, closePostSessionSurface, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
+    enterFloatingWithoutImmediateReentry();
+  }, [clearPausedPostSessionTimerState, closePostSessionSurface, enterFloatingWithoutImmediateReentry, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
 
   const handleDismissPauseSessionWrap = useCallback(() => {
     if (!postSessionIsPauseWrap) return;
@@ -7959,6 +8162,40 @@ export default function App() {
       </Tooltip>
     </>
   );
+  const activeCompleteConfirmDialog = (
+    <Dialog open={activeCompleteConfirmOpen} onOpenChange={setActiveCompleteConfirmOpen}>
+      <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '24rem' }}>
+        <DialogHeader>
+          <DialogTitle>Are you sure?</DialogTitle>
+        </DialogHeader>
+        <DialogFooter style={{ marginTop: '1rem', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handlePauseFromCompleteConfirm}
+            style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+          >
+            Pause
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setActiveCompleteConfirmOpen(false)}
+            style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+          >
+            Go back
+          </Button>
+          <Button
+            type="button"
+            onClick={handleConfirmActiveComplete}
+            style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
+          >
+            Mark complete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   // Compact mode render
   if (isCompact) {
@@ -8046,6 +8283,7 @@ export default function App() {
           onAddTime={handleTimeUpAddTime}
           onSwitchToFreeflow={handleTimeUpSwitchToFreeflow}
         />
+        {activeCompleteConfirmDialog}
         <TaskPreviewModal
           isOpen={showTaskPreview}
           onClose={handleCloseTaskPreview}
@@ -8263,14 +8501,22 @@ export default function App() {
                   resumeTaskName={effectiveReentryResumeCandidate?.taskText || ''}
                   resumeRecap={effectiveReentryResumeCandidate?.recap || ''}
                   resumeNextSteps={effectiveReentryResumeCandidate?.nextSteps || ''}
+                  parkingLotItems={reentryParkingLotItems}
+                  historyItems={reentryHistoryItems}
+                  selectedSourceId={reentrySurfaceSource?.id || ''}
+                  taskPlan={reentrySurfaceTaskPlan}
                   breakModeAvailable={reentryBreakReturnAvailable && reentryPromptKind === 'resume-choice'}
                   onTaskTextChange={handleReentrySurfaceTaskTextChange}
                   onMinutesChange={handleReentrySurfaceMinutesChange}
+                  onTaskPlanChange={handleReentrySurfaceTaskPlanChange}
+                  onLayoutChange={resyncFullWindowSize}
                   onStageChange={handleReentrySurfaceStageChange}
                   onInteraction={handleReentryPromptInteraction}
                   onStartSession={handleSurfaceReentryStart}
                   onSaveForLaterFromResume={handleSaveForLaterFromResumeCandidate}
                   onCompleteFromResume={handleCompleteFromResumeCandidate}
+                  onSelectParkingLotItem={handleSelectReentryParkingLotItem}
+                  onSelectHistorySession={handleSelectReentryHistorySession}
                   onOpenParkingLot={openParkingLotFromReentry}
                   onOpenSessionHistory={openHistoryFromReentry}
                   onSnooze={snoozeReentryAttention}
@@ -8521,6 +8767,7 @@ export default function App() {
       </div>
 
       {/* Modals */}
+      {activeCompleteConfirmDialog}
       <ParkingLot
         isOpen={distractionJarOpen}
         onClose={handleCloseParkingLot}

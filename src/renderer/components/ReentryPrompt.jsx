@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import SessionBuilderComposer from './SessionBuilderComposer';
 
 const QUICK_MINUTES = [15, 25, 45];
 
@@ -20,12 +21,20 @@ export default function ReentryPrompt({
   resumeTaskName = '',
   resumeRecap = '',
   resumeNextSteps = '',
+  parkingLotItems = [],
+  historyItems = [],
+  selectedSourceId = '',
+  taskPlan = null,
   onTaskTextChange,
   onMinutesChange,
+  onTaskPlanChange,
+  onLayoutChange,
   onStageChange,
   onStartSession,
   onSaveForLaterFromResume,
   onCompleteFromResume,
+  onSelectParkingLotItem,
+  onSelectHistorySession,
   onOpenParkingLot,
   onOpenSessionHistory,
   onSnooze,
@@ -53,6 +62,9 @@ export default function ReentryPrompt({
   const showCompleteFromResume = stage === 'save-for-later' && promptKind === 'resume-choice';
   const showDismiss = stage !== 'snooze-options' && !showCompleteFromResume;
   const showBackToBreakMode = breakModeAvailable && promptKind === 'resume-choice' && stage === 'resume-choice';
+  const showDashboard = surface === 'full' && promptKind === 'start' && stage === 'task-entry';
+  const safeParkingLotItems = Array.isArray(parkingLotItems) ? parkingLotItems : [];
+  const safeHistoryItems = Array.isArray(historyItems) ? historyItems : [];
   const noteInteraction = () => {
     onInteraction?.();
   };
@@ -157,6 +169,7 @@ export default function ReentryPrompt({
       mode: 'timed',
       minutes: safeMinutes,
       taskText: trimmedTaskText,
+      taskPlan,
     });
   };
 
@@ -167,113 +180,245 @@ export default function ReentryPrompt({
       mode: 'freeflow',
       minutes: 0,
       taskText: trimmedTaskText,
+      taskPlan,
     });
   };
 
-  return (
-    <div className={`reentry-prompt reentry-prompt--${surface}${strongActive ? ' reentry-prompt--attention' : ''}`}>
-      <div className="reentry-prompt__header electron-no-drag">
-        {showBack ? (
-          <button type="button" className="reentry-prompt__header-btn" onClick={handleBack}>
-            Back
-          </button>
-        ) : (
-          <span className="reentry-prompt__header-spacer" aria-hidden="true" />
-        )}
-        {showDismiss ? (
-          <button
-            type="button"
-            className="reentry-prompt__header-btn"
-            data-testid={showBackToBreakMode ? 'reentry-back-to-break-mode' : 'reentry-snooze'}
-            onClick={() => {
-              noteInteraction();
-              if (showBackToBreakMode) {
-                onBackToBreakMode?.();
-                return;
-              }
-              onStageChange?.('snooze-options');
-            }}
-          >
-            {showBackToBreakMode ? 'Back to Break Mode' : 'Snooze'}
-          </button>
-        ) : showCompleteFromResume ? (
-          <button
-            type="button"
-            className="reentry-prompt__header-btn reentry-prompt__header-btn--complete"
-            data-testid="reentry-mark-complete"
-            onClick={() => {
-              noteInteraction();
-              onCompleteFromResume?.({
-                recap: resumeRecapDraft.trim(),
-                nextSteps: resumeNextStepsDraft.trim(),
-              });
-            }}
-          >
-            Mark complete
-          </button>
-        ) : (
-          <span className="reentry-prompt__header-spacer" aria-hidden="true" />
+  const openSnoozeOptions = () => {
+    noteInteraction();
+    onStageChange?.('snooze-options');
+  };
+
+  const renderSourcePanel = ({ title, count, items, emptyCopy, testId, onViewAll, onSelect }) => (
+    <article className="reentry-prompt__source-panel">
+      <header className="reentry-prompt__source-panel-header">
+        <div className="reentry-prompt__source-panel-title">
+          <span>{title}</span>
+          <span className="reentry-prompt__source-count">{count}</span>
+        </div>
+        <button
+          type="button"
+          className="reentry-prompt__source-view-all"
+          onClick={() => {
+            noteInteraction();
+            onViewAll?.();
+          }}
+          data-testid={testId}
+        >
+          View all
+        </button>
+      </header>
+      <div className="reentry-prompt__source-list">
+        {items.length ? items.map((item) => {
+          const sourceId = typeof item?.sourceId === 'string' ? item.sourceId : String(item?.id || item?.title || '');
+          const titleText = typeof item?.title === 'string' ? item.title : '';
+          const metaText = typeof item?.meta === 'string' ? item.meta : '';
+          const noteText = typeof item?.note === 'string' ? item.note : '';
+          const isSelected = sourceId && sourceId === selectedSourceId;
+
+          return (
+            <button
+              key={sourceId || titleText}
+              type="button"
+              className={`reentry-prompt__source-item${isSelected ? ' is-selected' : ''}`}
+              onClick={() => {
+                noteInteraction();
+                onSelect?.(item);
+              }}
+            >
+              <span className="reentry-prompt__source-item-body">
+                <span className="reentry-prompt__source-item-title">{titleText}</span>
+                {metaText ? <span className="reentry-prompt__source-item-meta">{metaText}</span> : null}
+                {noteText ? <span className="reentry-prompt__source-item-note">{noteText}</span> : null}
+              </span>
+              <span className="reentry-prompt__source-item-arrow" aria-hidden="true">›</span>
+            </button>
+          );
+        }) : (
+          <div className="reentry-prompt__source-empty">
+            <span className="reentry-prompt__source-empty-mark" aria-hidden="true" />
+            <p>{emptyCopy}</p>
+          </div>
         )}
       </div>
+    </article>
+  );
+
+  return (
+    <div className={`reentry-prompt reentry-prompt--${surface}${showDashboard ? ' reentry-prompt--dashboard' : ''}${strongActive ? ' reentry-prompt--attention' : ''}`}>
+      {!showDashboard ? (
+        <div className="reentry-prompt__header electron-no-drag">
+          {showBack ? (
+            <button type="button" className="reentry-prompt__header-btn" onClick={handleBack}>
+              Back
+            </button>
+          ) : (
+            <span className="reentry-prompt__header-spacer" aria-hidden="true" />
+          )}
+          {showDismiss ? (
+            <button
+              type="button"
+              className="reentry-prompt__header-btn"
+              data-testid={showBackToBreakMode ? 'reentry-back-to-break-mode' : 'reentry-snooze'}
+              onClick={() => {
+                noteInteraction();
+                if (showBackToBreakMode) {
+                  onBackToBreakMode?.();
+                  return;
+                }
+                onStageChange?.('snooze-options');
+              }}
+            >
+              {showBackToBreakMode ? 'Back to Break Mode' : 'Snooze'}
+            </button>
+          ) : showCompleteFromResume ? (
+            <button
+              type="button"
+              className="reentry-prompt__header-btn reentry-prompt__header-btn--complete"
+              data-testid="reentry-mark-complete"
+              onClick={() => {
+                noteInteraction();
+                onCompleteFromResume?.({
+                  recap: resumeRecapDraft.trim(),
+                  nextSteps: resumeNextStepsDraft.trim(),
+                });
+              }}
+            >
+              Mark complete
+            </button>
+          ) : (
+            <span className="reentry-prompt__header-spacer" aria-hidden="true" />
+          )}
+        </div>
+      ) : null}
 
       <div className="reentry-prompt__body electron-no-drag">
         {stage === 'task-entry' ? (
-          <section className="reentry-prompt__step reentry-prompt__step--task-entry">
-            <h2 className="reentry-prompt__title">What&apos;s next?</h2>
-            <p className="reentry-prompt__copy">Start something new, or pull from Parking Lot or History.</p>
-            <textarea
-              ref={textareaRef}
-              className="reentry-prompt__textarea"
-              rows={2}
-              maxLength={maxTaskLength}
-              value={safeTaskText}
-              onFocus={noteInteraction}
-              onChange={(event) => {
-                noteInteraction();
-                onTaskTextChange?.(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || !canAdvance) return;
-                event.preventDefault();
-                handleAdvanceToChooser();
-              }}
-              placeholder="What are we focusing on next?"
-            />
-            <div className="reentry-prompt__source-row">
-              <button
-                type="button"
-                className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
-                onClick={() => {
+          showDashboard ? (
+            <section className="reentry-prompt__step reentry-prompt__step--task-entry reentry-prompt__step--dashboard">
+              <div className="reentry-prompt__dashboard-head">
+                <h2 className="reentry-prompt__title">What&apos;s next?</h2>
+                <button
+                  type="button"
+                  className="reentry-prompt__header-btn reentry-prompt__dashboard-snooze"
+                  data-testid="reentry-snooze"
+                  onClick={openSnoozeOptions}
+                >
+                  Snooze
+                </button>
+              </div>
+
+              <div className="reentry-prompt__source-grid">
+                {renderSourcePanel({
+                  title: 'Parking Lot',
+                  count: safeParkingLotItems.length,
+                  items: safeParkingLotItems,
+                  emptyCopy: 'Nothing parked right now.',
+                  testId: 'reentry-open-parking',
+                  onViewAll: onOpenParkingLot,
+                  onSelect: onSelectParkingLotItem,
+                })}
+                {renderSourcePanel({
+                  title: 'Session History',
+                  count: safeHistoryItems.length,
+                  items: safeHistoryItems,
+                  emptyCopy: 'No saved sessions to resume yet.',
+                  testId: 'reentry-open-history',
+                  onViewAll: onOpenSessionHistory,
+                  onSelect: onSelectHistorySession,
+                })}
+              </div>
+
+              <div className="reentry-prompt__new-task-row">
+                <label className="reentry-prompt__new-task-label" htmlFor="reentry-dashboard-task">
+                  Start new task
+                </label>
+                <input
+                  id="reentry-dashboard-task"
+                  ref={textareaRef}
+                  className="reentry-prompt__new-task-input"
+                  maxLength={maxTaskLength}
+                  value={safeTaskText}
+                  onFocus={noteInteraction}
+                  onChange={(event) => {
+                    noteInteraction();
+                    onTaskTextChange?.(event.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' || !canAdvance) return;
+                    event.preventDefault();
+                    handleAdvanceToChooser();
+                  }}
+                  placeholder="What are we focusing on next?"
+                />
+                <button
+                  type="button"
+                  className="reentry-prompt__btn reentry-prompt__btn--primary reentry-prompt__new-task-next"
+                  onClick={handleAdvanceToChooser}
+                  disabled={!canAdvance}
+                >
+                  Next
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className="reentry-prompt__step reentry-prompt__step--task-entry">
+              <h2 className="reentry-prompt__title">What&apos;s next?</h2>
+              <p className="reentry-prompt__copy">Start something new, or pull from Parking Lot or History.</p>
+              <textarea
+                ref={textareaRef}
+                className="reentry-prompt__textarea"
+                rows={2}
+                maxLength={maxTaskLength}
+                value={safeTaskText}
+                onFocus={noteInteraction}
+                onChange={(event) => {
                   noteInteraction();
-                  onOpenParkingLot?.();
+                  onTaskTextChange?.(event.target.value);
                 }}
-                data-testid="reentry-open-parking"
-              >
-                Parking Lot
-              </button>
-              <button
-                type="button"
-                className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
-                onClick={() => {
-                  noteInteraction();
-                  onOpenSessionHistory?.();
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.shiftKey || !canAdvance) return;
+                  event.preventDefault();
+                  handleAdvanceToChooser();
                 }}
-                data-testid="reentry-open-history"
-              >
-                Session History
-              </button>
-            </div>
-            <div className="reentry-prompt__actions">
-              <button
-                type="button"
-                className="reentry-prompt__btn reentry-prompt__btn--primary"
-                onClick={handleAdvanceToChooser}
-                disabled={!canAdvance}
-              >
-                Next
-              </button>
-            </div>
-          </section>
+                placeholder="What are we focusing on next?"
+              />
+              <div className="reentry-prompt__source-row">
+                <button
+                  type="button"
+                  className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
+                  onClick={() => {
+                    noteInteraction();
+                    onOpenParkingLot?.();
+                  }}
+                  data-testid="reentry-open-parking"
+                >
+                  Parking Lot
+                </button>
+                <button
+                  type="button"
+                  className="reentry-prompt__btn reentry-prompt__btn--ghost reentry-prompt__btn--shortcut"
+                  onClick={() => {
+                    noteInteraction();
+                    onOpenSessionHistory?.();
+                  }}
+                  data-testid="reentry-open-history"
+                >
+                  Session History
+                </button>
+              </div>
+              <div className="reentry-prompt__actions">
+                <button
+                  type="button"
+                  className="reentry-prompt__btn reentry-prompt__btn--primary"
+                  onClick={handleAdvanceToChooser}
+                  disabled={!canAdvance}
+                >
+                  Next
+                </button>
+              </div>
+            </section>
+          )
         ) : null}
 
         {stage === 'resume-choice' ? (
@@ -372,6 +517,20 @@ export default function ReentryPrompt({
               <span className="reentry-prompt__task-label">Focusing on:</span>
               <span className="reentry-prompt__task-value">{effectiveTaskName}</span>
             </div>
+
+            {surface === 'full' ? (
+              <div className="reentry-prompt__builder">
+                <p className="reentry-prompt__builder-helper">Add steps only if they would help you start.</p>
+                <SessionBuilderComposer
+                  taskPlan={taskPlan}
+                  primaryTask={effectiveTaskName}
+                  title="Optional: Session Builder"
+                  emptySummary="No steps added yet"
+                  onTaskPlanChange={onTaskPlanChange}
+                  onLayoutChange={onLayoutChange}
+                />
+              </div>
+            ) : null}
 
             <div className="reentry-prompt__chip-row">
               {QUICK_MINUTES.map((value) => (

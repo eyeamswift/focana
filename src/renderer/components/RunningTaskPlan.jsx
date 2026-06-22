@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { Checkbox } from './ui/Checkbox';
 import { Button } from './ui/Button';
@@ -10,6 +10,12 @@ import {
   hasTaskPlanStructure,
   normalizeTaskPlan,
 } from '../utils/taskPlan';
+
+const COMPLETION_BUFFER_MS = 1800;
+
+function getPlanItemKey(item) {
+  return `${item?.type || 'item'}:${item?.id || ''}`;
+}
 
 export default function RunningTaskPlan({
   task,
@@ -25,6 +31,8 @@ export default function RunningTaskPlan({
   onLayoutChange,
 }) {
   const [overflowPinned, setOverflowPinned] = useState(false);
+  const [pendingCompletionKeys, setPendingCompletionKeys] = useState([]);
+  const completionTimersRef = useRef(new Map());
   const plan = normalizeTaskPlan(taskPlan, task);
   const activeTask = getActiveTask(plan);
   const nextTask = getNextUnfinishedTask(plan);
@@ -32,12 +40,97 @@ export default function RunningTaskPlan({
   const structured = hasTaskPlanStructure(plan);
   const layoutSignature = useMemo(() => JSON.stringify(plan), [plan]);
 
+  const clearPendingCompletion = useCallback((key) => {
+    const timer = completionTimersRef.current.get(key);
+    if (timer) window.clearTimeout(timer);
+    completionTimersRef.current.delete(key);
+    setPendingCompletionKeys((prev) => prev.filter((itemKey) => itemKey !== key));
+  }, []);
+
+  const schedulePendingCompletion = useCallback((item) => {
+    if (!item?.id || item.completed) return;
+    const key = getPlanItemKey(item);
+    clearPendingCompletion(key);
+    setPendingCompletionKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+
+    const timer = window.setTimeout(() => {
+      completionTimersRef.current.delete(key);
+      if (item.type === 'subtask') {
+        onSubtaskToggle?.(item.id, true);
+      } else {
+        onNextTaskToggle?.(item.id, true);
+      }
+      setPendingCompletionKeys((prev) => prev.filter((itemKey) => itemKey !== key));
+    }, COMPLETION_BUFFER_MS);
+    completionTimersRef.current.set(key, timer);
+  }, [clearPendingCompletion, onNextTaskToggle, onSubtaskToggle]);
+
+  const handleItemToggle = useCallback((item, checked) => {
+    const key = getPlanItemKey(item);
+    if (checked) {
+      schedulePendingCompletion(item);
+      return;
+    }
+
+    if (pendingCompletionKeys.includes(key)) {
+      clearPendingCompletion(key);
+      return;
+    }
+
+    if (item.type === 'subtask') {
+      onSubtaskToggle?.(item.id, false);
+    } else {
+      onNextTaskToggle?.(item.id, false);
+    }
+  }, [clearPendingCompletion, onNextTaskToggle, onSubtaskToggle, pendingCompletionKeys, schedulePendingCompletion]);
+
   useEffect(() => {
     const resizeTimer = window.setTimeout(() => {
       onLayoutChange?.();
     }, 20);
     return () => window.clearTimeout(resizeTimer);
-  }, [layoutSignature, onLayoutChange, overflowPinned, showCompletionPrompt]);
+  }, [layoutSignature, onLayoutChange, overflowPinned, pendingCompletionKeys, showCompletionPrompt]);
+
+  useEffect(() => () => {
+    completionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    completionTimersRef.current.clear();
+  }, []);
+
+  const renderPlanItem = (item, { overflowItem = false } = {}) => {
+    const key = getPlanItemKey(item);
+    const isSubtask = item.type === 'subtask';
+    const label = isSubtask ? item.title : `Next: ${item.title}`;
+    const checkboxId = `running-plan${overflowItem ? '-overflow' : ''}-${item.type}-${item.id}`;
+    const pending = pendingCompletionKeys.includes(key);
+    const checked = item.completed || pending;
+
+    return (
+      <div
+        key={key}
+        className={`${overflowItem ? 'running-plan__overflow-item' : `running-plan__item running-plan__item--${item.type}`}${item.completed ? ' is-complete' : ''}${pending ? ' is-pending' : ''}`}
+      >
+        <Checkbox
+          id={checkboxId}
+          checked={checked}
+          onCheckedChange={(nextChecked) => handleItemToggle(item, nextChecked)}
+        />
+        <label htmlFor={checkboxId} className="running-plan__item-label">
+          <span>{label}</span>
+        </label>
+        {pending ? (
+          <button
+            type="button"
+            className="running-plan__undo-btn"
+            onClick={() => clearPendingCompletion(key)}
+            aria-label={`Undo completing ${label}`}
+            data-testid="running-plan-pending-completion"
+          >
+            Undo
+          </button>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <div className="running-plan">
@@ -50,24 +143,7 @@ export default function RunningTaskPlan({
         {structured ? (
           <div className="running-plan__details electron-no-drag" data-testid="running-task-plan">
             <div className="running-plan__list">
-              {visible.map((item) => {
-                const isSubtask = item.type === 'subtask';
-                return (
-                  <label
-                    key={`${item.type}-${item.id}`}
-                    className={`running-plan__item running-plan__item--${item.type}${item.completed ? ' is-complete' : ''}`}
-                  >
-                    <Checkbox
-                      id={`running-plan-${item.type}-${item.id}`}
-                      checked={item.completed}
-                      onCheckedChange={(checked) => (
-                        isSubtask ? onSubtaskToggle?.(item.id, checked) : onNextTaskToggle?.(item.id, checked)
-                      )}
-                    />
-                    <span>{isSubtask ? item.title : `Next: ${item.title}`}</span>
-                  </label>
-                );
-              })}
+              {visible.map((item) => renderPlanItem(item))}
               {nextTask && !visible.some((item) => item.type === 'next' && item.id === nextTask.id) ? (
                 <button
                   type="button"
@@ -95,21 +171,7 @@ export default function RunningTaskPlan({
             {overflowPinned && overflow.length ? (
               <div className="running-plan__overflow" data-testid="running-plan-overflow-popover">
                 <div className="running-plan__overflow-title">More in this plan</div>
-                {overflow.map((item) => {
-                  const isSubtask = item.type === 'subtask';
-                  return (
-                    <label key={`${item.type}-${item.id}`} className="running-plan__overflow-item">
-                      <Checkbox
-                        id={`running-plan-overflow-${item.type}-${item.id}`}
-                        checked={item.completed}
-                        onCheckedChange={(checked) => (
-                          isSubtask ? onSubtaskToggle?.(item.id, checked) : onNextTaskToggle?.(item.id, checked)
-                        )}
-                      />
-                      <span>{isSubtask ? item.title : `Next: ${item.title}`}</span>
-                    </label>
-                  );
-                })}
+                {overflow.map((item) => renderPlanItem(item, { overflowItem: true }))}
               </div>
             ) : null}
           </div>

@@ -8,6 +8,8 @@ const APP_VERSION = JSON.parse(
   fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')
 ).version;
 const TASK_INPUT_SELECTOR = '[data-testid="task-input"]';
+const TASK_INPUT_MAX_LENGTH = 96;
+const SELECT_ALL_SHORTCUT = process.platform === 'darwin' ? 'Meta+A' : 'Control+A';
 const RUNNING_TASK_SELECTOR = '.focus-hero__task';
 const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text';
 const NAME_GATE_HEADING = 'One more thing. What should we call you?';
@@ -479,15 +481,53 @@ async function readDisplayedTaskText(page) {
   return '';
 }
 
+async function setTextControlValue(page, locator, value, { maxLength = null } = {}) {
+  const rawValue = String(value ?? '');
+  const expectedValue = Number.isFinite(maxLength) ? rawValue.slice(0, maxLength) : rawValue;
+  await expect(locator).toBeVisible();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await locator.click();
+    await page.keyboard.press(SELECT_ALL_SHORTCUT);
+    await page.keyboard.press('Backspace');
+    await page.keyboard.insertText(rawValue);
+    await page.waitForTimeout(25);
+    if ((await locator.inputValue().catch(() => '')) === expectedValue) {
+      return expectedValue;
+    }
+  }
+
+  await locator.evaluate((input, nextValue) => {
+    const proto = input instanceof window.HTMLTextAreaElement
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+    const valueSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (valueSetter) {
+      valueSetter.call(input, nextValue);
+    } else {
+      input.value = nextValue;
+    }
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    input.dispatchEvent(new window.Event('change', { bubbles: true }));
+  }, expectedValue);
+  await expect(locator).toHaveValue(expectedValue);
+  return expectedValue;
+}
+
+async function setTaskComposerValue(page, taskName) {
+  const taskInput = page.locator(TASK_INPUT_SELECTOR).first();
+  return setTextControlValue(page, taskInput, taskName, { maxLength: TASK_INPUT_MAX_LENGTH });
+}
+
 async function startFreeflowSession(page, taskName) {
-  await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
+  await setTaskComposerValue(page, taskName);
   await page.locator(TASK_INPUT_SELECTOR).press('Enter');
   await page.getByRole('button', { name: 'Freeflow' }).click();
   await expect.poll(() => readWindowMode(page)).toBe('pill');
 }
 
 async function startTimedSession(page, taskName, minutes) {
-  await page.locator(TASK_INPUT_SELECTOR).fill(taskName);
+  await setTaskComposerValue(page, taskName);
   await page.locator(TASK_INPUT_SELECTOR).press('Enter');
   const minutesInput = page.locator('.start-chooser__input').first();
   await expect(page.locator('.start-chooser').first()).toBeVisible();
@@ -582,8 +622,10 @@ async function openTimedSessionWrap(page, taskName, minutes = 1) {
 async function expectWhatsNextPrompt(page) {
   await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
   await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
-  await expect(page.getByText('Start something new, or pull from Parking Lot or History.')).toBeVisible();
-  const nextButton = page.getByRole('button', { name: 'Next' });
+  await expect(page.getByText('Start new task')).toBeVisible();
+  await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'Parking Lot' })).toBeVisible();
+  await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'Session History' })).toBeVisible();
+  const nextButton = page.getByRole('button', { name: 'Next', exact: true });
   await expect(nextButton).toBeVisible();
   await expectLocatorFullyInViewport(nextButton);
 }
@@ -1383,7 +1425,7 @@ test('wake resume start-new keeps the save-for-later draft stable through the re
     await expect(page.getByText('Where did you leave off?')).toBeVisible();
 
     const nextSteps = page.locator('textarea[name="next-steps"]');
-    await nextSteps.fill('draft survives the reminder loop');
+    await setTextControlValue(page, nextSteps, 'draft survives the reminder loop', { maxLength: 500 });
     await expect(nextSteps).toHaveValue('draft survives the reminder loop');
     await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
 
@@ -1641,14 +1683,14 @@ test('idle re-entry prompt stays stable in full window and hands off to floating
     await expect.poll(async () => await prompt.count(), { timeout: 7000 }).toBe(1);
     await expect(prompt).toBeVisible();
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-    await expect(page.getByText('Start something new, or pull from Parking Lot or History.')).toBeVisible();
+    await expect(page.getByText('Start new task')).toBeVisible();
     await expect(page.getByTestId('reentry-open-parking')).toBeVisible();
     await expect(page.getByTestId('reentry-open-history')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Next' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeVisible();
     await expect.poll(async () => {
       const bounds = await readMainWindowBounds(electronApp);
       return bounds?.height || 0;
-    }, { timeout: 7000 }).toBeGreaterThanOrEqual(430);
+    }, { timeout: 7000 }).toBeGreaterThanOrEqual(520);
 
     await page.waitForTimeout(6500);
     await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
@@ -1699,7 +1741,7 @@ test('compact idle re-entry prompt grows for each stage and restores the pill si
     const compactPrompt = page.locator('.reentry-prompt--compact').first();
     await expect(compactPrompt).toBeVisible();
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Next' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeVisible();
     const taskEntryBounds = await readMainWindowBounds(electronApp);
     expect(taskEntryBounds?.height).toBeGreaterThanOrEqual(320);
 
@@ -1748,6 +1790,117 @@ test('idle re-entry prompt can open Session History and Parking Lot from the tas
     await page.getByRole('button', { name: 'Close Parking Lot' }).click();
 
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
+
+test("what's next dashboard previews saved work and keeps session builder optional", async () => {
+  const historyTaskPlan = {
+    version: 1,
+    activeTaskId: 'task-history-active',
+    items: [
+      {
+        id: 'task-history-active',
+        title: 'Resume dashboard task',
+        completed: false,
+        completedAt: null,
+        subtasks: [
+          {
+            id: 'subtask-history-1',
+            title: 'Open source notes',
+            completed: false,
+            completedAt: null,
+          },
+        ],
+      },
+      {
+        id: 'task-history-next',
+        title: 'Send update note',
+        completed: false,
+        completedAt: null,
+        subtasks: [],
+      },
+    ],
+  };
+  const seedThought = {
+    id: 'parking-dashboard-1',
+    text: 'Parked dashboard task',
+    completed: false,
+    createdAt: new Date('2026-01-01T10:00:00.000Z').toISOString(),
+  };
+  const seedSession = {
+    id: 'history-dashboard-1',
+    task: 'Resume dashboard task',
+    durationMinutes: 22,
+    mode: 'freeflow',
+    completed: false,
+    kept: true,
+    recap: 'Found the rough outline.',
+    nextSteps: 'Open source notes',
+    taskPlan: historyTaskPlan,
+    createdAt: new Date('2026-01-02T10:00:00.000Z').toISOString(),
+  };
+  const { page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: {
+      thoughts: [seedThought],
+      sessions: [seedSession],
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await setTimeOffset(page, ONE_MINUTE_TIMED_WRAP_OFFSET_MS + (5 * 60 * 1000) + 2000);
+
+    await expectWhatsNextPrompt(page);
+    await expect(page.getByRole('button', { name: /Parked dashboard task/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Resume dashboard task/ })).toBeVisible();
+
+    await page.getByRole('button', { name: /Parked dashboard task/ }).click();
+    await expect(page.getByLabel('Start new task')).toHaveValue('Parked dashboard task');
+
+    await page.getByRole('button', { name: /Resume dashboard task/ }).click();
+    await expect(page.getByLabel('Start new task')).toHaveValue('Resume dashboard task');
+
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText('Optional: Session Builder')).toBeVisible();
+    await expect(page.getByText('Add steps only if they would help you start.')).toBeVisible();
+    await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('session-builder-toggle')).toContainText('1 subtask - 1 next-up task');
+
+    await page.getByTestId('session-builder-toggle').click();
+    await page.getByTestId('session-builder-add-subtask').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').last(), 'Gather invoice details');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(async () => page.evaluate(async () => {
+      const [currentTask, sessions, thoughts] = await Promise.all([
+        window.electronAPI.storeGet('currentTask'),
+        window.electronAPI.storeGet('sessions'),
+        window.electronAPI.storeGet('thoughts'),
+      ]);
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      const original = (sessions || []).find((session) => session?.id === 'history-dashboard-1') || null;
+      const spawned = (sessions || []).filter((session) => session?.id !== 'history-dashboard-1' && session?.task === 'Resume dashboard task');
+      return JSON.stringify({
+        currentTask: currentTask?.text || '',
+        subtasks: (active?.subtasks || []).map((subtask) => subtask.title),
+        nextTasks: (plan.items || []).filter((item) => item.id !== plan.activeTaskId).map((item) => item.title),
+        originalDuration: original?.durationMinutes || 0,
+        spawnedCount: spawned.length,
+        thoughtKept: (thoughts || []).some((thought) => thought?.id === 'parking-dashboard-1' && thought?.text === 'Parked dashboard task'),
+      });
+    })).toBe(JSON.stringify({
+      currentTask: 'Resume dashboard task',
+      subtasks: ['Open source notes', 'Gather invoice details'],
+      nextTasks: ['Send update note'],
+      originalDuration: 22,
+      spawnedCount: 1,
+      thoughtKept: true,
+    }));
   } finally {
     await cleanup();
   }
@@ -3515,7 +3668,7 @@ test('session builder captures subtasks and hands off to the next top-level task
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
-    await page.locator(TASK_INPUT_SELECTOR).fill('Prepare launch email');
+    await setTaskComposerValue(page, 'Prepare launch email');
     await expect(page.getByTestId('session-builder')).toBeVisible();
     await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('session-builder-toggle')).toContainText('Optional steps and next-up tasks');
@@ -3524,11 +3677,11 @@ test('session builder captures subtasks and hands off to the next top-level task
     await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'true');
 
     await page.getByTestId('session-builder-add-subtask').click();
-    await page.getByTestId('session-builder-subtask-input').nth(0).fill('Draft subject line');
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Draft subject line');
     await page.getByTestId('session-builder-add-subtask').click();
-    await page.getByTestId('session-builder-subtask-input').nth(1).fill('Polish hero copy');
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(1), 'Polish hero copy');
     await page.getByTestId('session-builder-add-next').click();
-    await page.getByTestId('session-builder-next-input').nth(0).fill('Update Product Hunt checklist');
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Update Product Hunt checklist');
 
     await expect(page.getByTestId('session-builder-toggle')).toContainText('2 subtasks - 1 next-up task');
 
@@ -3612,10 +3765,10 @@ test('session builder completes a next-up-only plan from the normal complete but
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
-    await page.locator(TASK_INPUT_SELECTOR).fill('Primary without subtasks');
+    await setTaskComposerValue(page, 'Primary without subtasks');
     await page.getByTestId('session-builder-toggle').click();
     await page.getByTestId('session-builder-add-next').click();
-    await page.getByTestId('session-builder-next-input').nth(0).fill('Follow-up task');
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Follow-up task');
 
     await page.locator(TASK_INPUT_SELECTOR).press('Enter');
     await page.getByRole('button', { name: 'Freeflow' }).click();
@@ -3660,12 +3813,12 @@ test('session builder compact preview reveals current plan detail', async () => 
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
-    await page.locator(TASK_INPUT_SELECTOR).fill('Compact planned task');
+    await setTaskComposerValue(page, 'Compact planned task');
     await page.getByTestId('session-builder-toggle').click();
     await page.getByTestId('session-builder-add-subtask').click();
-    await page.getByTestId('session-builder-subtask-input').nth(0).fill('Draft opener');
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Draft opener');
     await page.getByTestId('session-builder-add-next').click();
-    await page.getByTestId('session-builder-next-input').nth(0).fill('Review launch metrics');
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Review launch metrics');
 
     await page.locator(TASK_INPUT_SELECTOR).press('Enter');
     await page.getByRole('button', { name: 'Freeflow' }).click();
@@ -3688,12 +3841,12 @@ test('session builder restores plan details after restarting during a planned se
 
   try {
     firstLaunch = await launchApp({ background: false, storeDir });
-    await firstLaunch.page.locator(TASK_INPUT_SELECTOR).fill('Restart planned task');
+    await setTaskComposerValue(firstLaunch.page, 'Restart planned task');
     await firstLaunch.page.getByTestId('session-builder-toggle').click();
     await firstLaunch.page.getByTestId('session-builder-add-subtask').click();
-    await firstLaunch.page.getByTestId('session-builder-subtask-input').nth(0).fill('Draft cold open');
+    await setTextControlValue(firstLaunch.page, firstLaunch.page.getByTestId('session-builder-subtask-input').nth(0), 'Draft cold open');
     await firstLaunch.page.getByTestId('session-builder-add-next').click();
-    await firstLaunch.page.getByTestId('session-builder-next-input').nth(0).fill('Review launch metrics');
+    await setTextControlValue(firstLaunch.page, firstLaunch.page.getByTestId('session-builder-next-input').nth(0), 'Review launch metrics');
 
     await firstLaunch.page.locator(TASK_INPUT_SELECTOR).press('Enter');
     await firstLaunch.page.getByRole('button', { name: 'Freeflow' }).click();
@@ -5645,7 +5798,7 @@ test('minimize to floating icon restores idle task text', async () => {
     let mainPage = page;
     const taskInput = mainPage.locator(TASK_INPUT_SELECTOR);
     const minimizeFloatingButton = mainPage.locator('button[aria-label="Minimize to Floating"]');
-    await taskInput.fill('floating-state-test');
+    await setTaskComposerValue(mainPage, 'floating-state-test');
     await expect(taskInput).toHaveValue('floating-state-test');
 
     await expect(minimizeFloatingButton).toBeVisible();

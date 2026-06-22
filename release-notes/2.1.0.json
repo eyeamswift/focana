@@ -1,0 +1,16 @@
+{
+  "version": "2.1.0",
+  "publishedAt": "2026-06-22",
+  "summary": "Focana 2.1.0 makes it easier to choose what to do next, restart saved work, and avoid accidental completions.",
+  "improvements": [
+    "What's next? now shows unfinished Parking Lot items, resumable Session History, and a Start new task row in one calmer dashboard.",
+    "Choosing a Parking Lot item or resumable History session now fills the task row first, so you can review it before starting.",
+    "Session Builder is now available as an optional step after choosing a task, with subtasks and next-up tasks carried into the session.",
+    "Running checklist items now give you a short Undo window after checking them off."
+  ],
+  "fixes": [
+    "Clicking complete while a timer is running now asks Are you sure? with Pause, Go back, and Mark complete options.",
+    "Saving next-step notes from a paused task now returns Focana to the minimized float instead of immediately showing Ready to resume.",
+    "The minimized float now stays quiet after that pause handoff until the normal re-entry reminder cadence."
+  ]
+}
