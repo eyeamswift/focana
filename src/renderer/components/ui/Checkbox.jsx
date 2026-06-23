@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function Checkbox({ id, checked = false, onCheckedChange, onClick, className = '' }) {
+export function Checkbox({ id, checked = false, onCheckedChange, onClick, className = '', ...props }) {
   return (
     <input
       type="checkbox"
@@ -9,6 +9,7 @@ export function Checkbox({ id, checked = false, onCheckedChange, onClick, classN
       onChange={() => onCheckedChange?.(!checked)}
       onClick={onClick}
       className={`checkbox ${className}`}
+      {...props}
     />
   );
 }

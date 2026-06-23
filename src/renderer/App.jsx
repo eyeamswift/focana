@@ -325,6 +325,12 @@ function formatMonthDay(date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function formatNumericMonthDay(value) {
+  const timestamp = getSortableDateMs(value);
+  if (!Number.isFinite(timestamp)) return '';
+  return new Date(timestamp).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
+}
+
 function formatSavedSourceDate(value, prefix = 'Saved') {
   const timestamp = getSortableDateMs(value);
   if (!Number.isFinite(timestamp)) return prefix;
@@ -1139,7 +1145,7 @@ export default function App() {
       id: thought.id || `parking-${index}`,
       sourceId: `parking:${thought.id || index}`,
       title: thought.text.trim(),
-      meta: formatSavedSourceDate(thought.createdAt, 'Saved'),
+      meta: formatNumericMonthDay(thought.createdAt),
       thought,
       createdAtMs: getSortableDateMs(thought.createdAt),
       originalIndex: index,
@@ -1156,21 +1162,16 @@ export default function App() {
       && typeof session?.task === 'string'
       && session.task.trim()
     ))
-    .map((session, index) => {
-      const duration = Math.max(0, Math.round(Number(session.durationMinutes) || 0));
-      const nextSteps = getSessionNextSteps(session).trim();
-      const recap = getSessionRecap(session).trim();
-      return {
-        id: session.id || `history-${index}`,
-        sourceId: `history:${session.id || index}`,
-        title: session.task.trim(),
-        meta: `${duration} min - ${formatSavedSourceDate(session.createdAt, 'left off')}`,
-        note: nextSteps ? `Next: ${nextSteps}` : (recap ? 'Has notes' : ''),
-        session,
-        createdAtMs: getSortableDateMs(session.createdAt),
-        originalIndex: index,
-      };
-    })
+    .map((session, index) => ({
+      id: session.id || `history-${index}`,
+      sourceId: `history:${session.id || index}`,
+      title: session.task.trim(),
+      meta: '',
+      note: '',
+      session,
+      createdAtMs: getSortableDateMs(session.createdAt),
+      originalIndex: index,
+    }))
     .sort((a, b) => {
       if (a.createdAtMs !== b.createdAtMs) return b.createdAtMs - a.createdAtMs;
       return b.originalIndex - a.originalIndex;
@@ -2148,12 +2149,11 @@ export default function App() {
     }
     setReentryAttentionVisible(true);
     setReentryStrongActive(true);
-    triggerPulse('gentle', 2);
     reentryStrongTimeoutRef.current = window.setTimeout(() => {
       setReentryStrongActive(false);
       reentryStrongTimeoutRef.current = null;
     }, REENTRY_STRONG_MS);
-  }, [triggerPulse]);
+  }, []);
 
   const settleReentryCueAfterInteraction = useCallback(() => {
     const now = Date.now();
@@ -3543,7 +3543,7 @@ export default function App() {
     showTimerValidationModal ||
     showQuitResidentInfo;
   const reentryModalBlockerOpen = (reentryReturnAfterModal || reentryReturnAfterModalRef.current)
-    && (showHistoryModal || distractionJarOpen);
+    && (showHistoryModal || showTaskPreview || distractionJarOpen);
 
   const reentryHardResetRequired =
     !sessionStateHydrated ||
@@ -4925,6 +4925,7 @@ export default function App() {
       }
       if (action === 'complete') {
         if (isRunning) {
+          handleExitCompact();
           window.electronAPI.bringToFront?.();
           setActiveCompleteConfirmOpen(true);
           return;
@@ -4933,7 +4934,7 @@ export default function App() {
       }
     });
     return () => { if (cleanup) cleanup(); };
-  }, [handlePause, handlePlay, isRunning]);
+  }, [handleExitCompact, handlePause, handlePlay, isRunning]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.onSystemSuspendPaused?.((payload) => {
@@ -5392,6 +5393,21 @@ export default function App() {
     setTaskPlanCompletionDismissedFor(null);
   }, [task]);
 
+  const handleRunningTaskPlanChange = useCallback((nextPlan) => {
+    const syncedPlan = syncActiveTaskTitle(nextPlan, task);
+    taskPlanRef.current = syncedPlan;
+    setTaskPlan(syncedPlan);
+    setTaskPlanCompletionDismissedFor(null);
+
+    if (currentSessionId) {
+      void SessionStore.update(currentSessionId, {
+        taskPlan: prepareTaskPlanForStart(syncedPlan, task),
+      }).then(() => loadSessions()).catch((error) => {
+        console.error('Failed to persist running plan edit:', error);
+      });
+    }
+  }, [currentSessionId, loadSessions, task]);
+
   const handleRunningSubtaskToggle = useCallback((subtaskId, checked) => {
     const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
     const nextPlan = toggleSubtask(basePlan, subtaskId, checked);
@@ -5612,9 +5628,12 @@ export default function App() {
   }, [beginStartSomethingNewFromResumeCandidate, handleBackToBreakMode, handleFloatingReentryStart, openHistoryFromReentry, openParkingLotFromReentry, snoozeReentryAttention]);
 
   const handleSurfaceReentryStart = useCallback((payload = {}) => {
+    const payloadTaskPlan = payload?.taskPlan && typeof payload.taskPlan === 'object'
+      ? payload.taskPlan
+      : null;
     const nextPayload = {
       ...payload,
-      taskPlan: reentrySurfaceTaskPlan,
+      taskPlan: payloadTaskPlan || reentrySurfaceTaskPlan,
     };
 
     if (payload?.promptKind !== 'resume-choice') {
@@ -5680,28 +5699,19 @@ export default function App() {
     setReentrySurfaceTaskPlan(prepareTaskPlanForStart(null, nextTaskText));
   }, [settleReentryCueAfterInteraction]);
 
-  const handleSelectReentryHistorySession = useCallback((item) => {
+  const handleOpenReentryHistoryDetails = useCallback((item) => {
     const session = item?.session;
-    const nextTaskText = clampTaskText(
-      (typeof session?.task === 'string' && session.task)
-      || (typeof item?.title === 'string' && item.title)
-      || '',
-    ).trim();
-    if (!nextTaskText) return;
-    const nextRecap = getSessionRecap(session);
-    const nextNextSteps = getSessionNextSteps(session);
-    const carryoverSeconds = Math.max(0, Math.round((Number(session?.durationMinutes) || 0) * 60));
+    if (!session || typeof session !== 'object') return;
 
     settleReentryCueAfterInteraction();
-    setReentrySurfaceTaskText(nextTaskText);
-    setReentrySurfaceSource({
-      kind: 'history',
-      id: typeof item?.sourceId === 'string' ? item.sourceId : `history:${item?.id || nextTaskText}`,
-    });
-    setReentrySurfaceRecap(nextRecap);
-    setReentrySurfaceNextSteps(nextNextSteps);
-    setReentrySurfaceCarryoverSeconds(carryoverSeconds);
-    setReentrySurfaceTaskPlan(prepareTaskPlanForStart(session?.taskPlan, nextTaskText));
+    reentryReturnAfterModalRef.current = true;
+    reentryForceRestoreAfterModalRef.current = true;
+    setReentryReturnAfterModal(true);
+    setPreviewSession(session);
+    setPreviewUseTaskEnabled(true);
+    setPreviewRestoreEnabled(false);
+    setShowHistoryModal(false);
+    setShowTaskPreview(true);
   }, [settleReentryCueAfterInteraction]);
 
   useEffect(() => {
@@ -7134,12 +7144,26 @@ export default function App() {
     setShowHistoryModal(false);
   };
 
-  const handleCloseTaskPreview = () => {
+  const handleCloseTaskPreview = useCallback(() => {
     setShowTaskPreview(false);
     setPreviewUseTaskEnabled(true);
     setPreviewRestoreEnabled(false);
-    popAndOpenPrevModal();
-  };
+    const reopenedPrevModal = popAndOpenPrevModal();
+    if (!reopenedPrevModal && showSurfaceReentryPromptRef.current) {
+      reentryReturnAfterModalRef.current = false;
+      reentryForceRestoreAfterModalRef.current = false;
+      setReentryReturnAfterModal(false);
+      return;
+    }
+    const shouldForceRestoreIdleReentry = reentryForceRestoreAfterModalRef.current
+      && !task.trim()
+      && !isRunning
+      && !isTimerVisible
+      && reentrySurfaceStage === 'task-entry';
+    if (!reopenedPrevModal) {
+      restoreReentryPromptAfterModal(shouldForceRestoreIdleReentry);
+    }
+  }, [isRunning, isTimerVisible, popAndOpenPrevModal, reentrySurfaceStage, restoreReentryPromptAfterModal, task]);
 
   const handleRestoreSession = useCallback(async (session) => {
     const sessionId = typeof session === 'string' ? session : session?.id;
@@ -8107,6 +8131,8 @@ export default function App() {
   const draftTaskPlaceholder = postSessionStartAssist
     ? 'What are we focusing on next?'
     : 'Where are we focusing first?';
+  const showDraftTaskPlanBuilder = fullScreenTaskState === 'draft' && !isStartModalOpen && task.trim().length > 0;
+  const visibleFullScreenTaskHelper = showDraftTaskPlanBuilder ? '' : fullScreenTaskHelper;
   const fullScreenTimerControls = (
     <>
       {!isRunning ? (
@@ -8213,6 +8239,7 @@ export default function App() {
           pulseSignal={compactPulseSignal}
           successCueSignal={compactSuccessCueSignal}
           onDoubleClick={handleExitCompact}
+          onEditTaskPlan={handleExitCompact}
           onOpenDistractionJar={handleOpenParkingLot}
           thoughtCount={thoughts.length}
           onPlay={handlePlay}
@@ -8479,10 +8506,11 @@ export default function App() {
                   task={activeTaskLabel}
                   timerText={formatTime(time)}
                   controls={fullScreenTimerControls}
-                  taskPlan={persistableTaskPlan}
+                  taskPlan={taskPlan}
                   onLockedInteraction={handleLockedTaskInputInteraction}
                   onSubtaskToggle={handleRunningSubtaskToggle}
                   onNextTaskToggle={handleRunningNextTaskToggle}
+                  onTaskPlanChange={handleRunningTaskPlanChange}
                   showCompletionPrompt={showTaskPlanCompletionPrompt}
                   onMarkComplete={handleMarkActivePlanTaskComplete}
                   onKeepGoing={handleKeepActiveTaskGoing}
@@ -8516,7 +8544,7 @@ export default function App() {
                   onSaveForLaterFromResume={handleSaveForLaterFromResumeCandidate}
                   onCompleteFromResume={handleCompleteFromResumeCandidate}
                   onSelectParkingLotItem={handleSelectReentryParkingLotItem}
-                  onSelectHistorySession={handleSelectReentryHistorySession}
+                  onSelectHistorySession={handleOpenReentryHistoryDetails}
                   onOpenParkingLot={openParkingLotFromReentry}
                   onOpenSessionHistory={openHistoryFromReentry}
                   onSnooze={snoozeReentryAttention}
@@ -8550,7 +8578,7 @@ export default function App() {
                   onSaveLater={handleTaskPlanTransitionSaveLater}
                 />
               ) : (
-                <>
+                <div className="draft-task-builder" data-testid={showDraftTaskPlanBuilder ? 'session-builder' : undefined}>
                   <TaskInput
                     ref={taskInputRef}
                     task={task}
@@ -8559,28 +8587,42 @@ export default function App() {
                     isActive={isNoteFocused || isStartModalOpen || fullScreenTaskState === 'paused'}
                     visualState={fullScreenTaskState}
                     eyebrowText={fullScreenTaskEyebrow}
-                    helperText={fullScreenTaskHelper}
+                    helperText={visibleFullScreenTaskHelper}
                     placeholderText={draftTaskPlaceholder}
                     checkInPromptActive={checkInState === 'prompting' || checkInState === 'detour-choice'}
                     checkInCelebrating={checkInCelebrating}
                     checkInCelebrationType={checkInCelebrationType}
                     reentryPromptActive={showReentryTaskHint}
                     reentryStrongActive={reentryStrongActive}
+                    footer={showDraftTaskPlanBuilder ? (
+                      <SessionBuilderComposer
+                        taskPlan={draftTaskPlan}
+                        primaryTask={task}
+                        sections="subtasks"
+                        variant="embedded"
+                        testId="session-builder-subtasks"
+                        onTaskPlanChange={handleTaskPlanChange}
+                        onLayoutChange={resyncFullWindowSize}
+                      />
+                    ) : null}
                     onFocus={() => setIsNoteFocused(true)}
                     onBlur={() => setIsNoteFocused(false)}
                     onTaskSubmit={handleTaskSubmit}
                     onLockedInteraction={handleLockedTaskInputInteraction}
                     onHeightChange={handleTaskInputHeightChange}
                   />
-                  {fullScreenTaskState === 'draft' && !isStartModalOpen ? (
+                  {showDraftTaskPlanBuilder ? (
                     <SessionBuilderComposer
                       taskPlan={draftTaskPlan}
                       primaryTask={task}
+                      sections="next"
+                      variant="separate"
+                      testId="session-builder-next"
                       onTaskPlanChange={handleTaskPlanChange}
                       onLayoutChange={resyncFullWindowSize}
                     />
                   ) : null}
-                </>
+                </div>
               )}
 
               {isStartModalOpen && !showPostSessionPrompt && (

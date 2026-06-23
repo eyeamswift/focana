@@ -1,0 +1,16 @@
+{
+  "version": "2.2.0",
+  "publishedAt": "2026-06-23",
+  "summary": "Focana 2.2.0 makes planning and restarting work calmer, cleaner, and easier to adjust mid-session.",
+  "improvements": [
+    "What's next? is simpler, with Start new task, Session History, and Parking Lot in a calmer stacked layout.",
+    "Session History now shows task names only; click one to review details before starting.",
+    "Session Builder is cleaner, with subtasks and Next-up tasks separated more clearly.",
+    "Subtasks can now be edited while the timer is running, with an Edit plan path from compact mode."
+  ],
+  "fixes": [
+    "Spaces now work in subtask fields.",
+    "Enter now adds the next subtask row.",
+    "Subtasks now save correctly when continuing through Ready to resume."
+  ]
+}

@@ -1795,7 +1795,7 @@ test('idle re-entry prompt can open Session History and Parking Lot from the tas
   }
 });
 
-test("what's next dashboard previews saved work and keeps session builder optional", async () => {
+test("what's next dashboard opens saved work details and keeps session builder lightweight", async () => {
   const historyTaskPlan = {
     version: 1,
     activeTaskId: 'task-history-active',
@@ -1861,15 +1861,14 @@ test("what's next dashboard previews saved work and keeps session builder option
     await expect(page.getByLabel('Start new task')).toHaveValue('Parked dashboard task');
 
     await page.getByRole('button', { name: /Resume dashboard task/ }).click();
-    await expect(page.getByLabel('Start new task')).toHaveValue('Resume dashboard task');
+    await expect(page.getByText('Immediate next step')).toBeVisible();
+    await expect(page.getByText('Open source notes')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await expect(page.getByText('Optional: Session Builder')).toBeVisible();
-    await expect(page.getByText('Add steps only if they would help you start.')).toBeVisible();
-    await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByTestId('session-builder-toggle')).toContainText('1 subtask - 1 next-up task');
+    await expect(page.getByTestId('session-builder-add-subtask')).toBeVisible();
+    await expect(page.getByText('Next-up tasks')).toBeVisible();
 
-    await page.getByTestId('session-builder-toggle').click();
     await page.getByTestId('session-builder-add-subtask').click();
     await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').last(), 'Gather invoice details');
     await page.getByRole('button', { name: 'Freeflow' }).click();
@@ -1894,11 +1893,11 @@ test("what's next dashboard previews saved work and keeps session builder option
         thoughtKept: (thoughts || []).some((thought) => thought?.id === 'parking-dashboard-1' && thought?.text === 'Parked dashboard task'),
       });
     })).toBe(JSON.stringify({
-      currentTask: 'Resume dashboard task',
-      subtasks: ['Open source notes', 'Gather invoice details'],
-      nextTasks: ['Send update note'],
+      currentTask: 'Parked dashboard task',
+      subtasks: ['Gather invoice details'],
+      nextTasks: [],
       originalDuration: 22,
-      spawnedCount: 1,
+      spawnedCount: 0,
       thoughtKept: true,
     }));
   } finally {
@@ -1916,10 +1915,10 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
       window.electronAPI.toggleFloatingMinimize();
     });
 
-    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 10000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
-    const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
       .toBe(JSON.stringify({ mode: 'icon', stage: null }));
 
@@ -2180,6 +2179,7 @@ test("full-window complete button saves the task and opens What's next", async (
     await exitCompactMode(page);
 
     await page.getByRole('button', { name: 'Complete Task' }).click();
+    await page.getByRole('button', { name: 'Mark complete' }).click();
 
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
     await expectWhatsNextPrompt(page);
@@ -2201,6 +2201,7 @@ test("What's next waits before pulsing after direct completion", async () => {
     await installAttentionPulseObserver(page);
 
     await page.getByRole('button', { name: 'Complete Task' }).click();
+    await page.getByRole('button', { name: 'Mark complete' }).click();
     await expectWhatsNextPrompt(page);
     await page.waitForTimeout(900);
     expect(await readAttentionPulseHits(page)).toEqual([]);
@@ -2227,6 +2228,7 @@ test("compact complete button saves the task and opens What's next", async () =>
 
     await page.locator('.pill').click();
     await page.locator('button[title="Complete"]').click();
+    await page.getByRole('button', { name: 'Mark complete' }).click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
@@ -2835,6 +2837,7 @@ test("completing from the floating timer restores the main window and opens What
     await floatingWindow.locator('#timer-complete-btn').click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await page.getByRole('button', { name: 'Mark complete' }).click();
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
     await expectWhatsNextPrompt(page);
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
@@ -3670,11 +3673,9 @@ test('session builder captures subtasks and hands off to the next top-level task
   try {
     await setTaskComposerValue(page, 'Prepare launch email');
     await expect(page.getByTestId('session-builder')).toBeVisible();
-    await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByTestId('session-builder-toggle')).toContainText('Optional steps and next-up tasks');
-
-    await page.getByTestId('session-builder-toggle').click();
-    await expect(page.getByTestId('session-builder-toggle')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByText('Focusing on:')).toHaveCount(0);
+    await expect(page.getByTestId('session-builder-add-subtask')).toBeVisible();
+    await expect(page.getByText('Next-up tasks')).toBeVisible();
 
     await page.getByTestId('session-builder-add-subtask').click();
     await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Draft subject line');
@@ -3683,7 +3684,8 @@ test('session builder captures subtasks and hands off to the next top-level task
     await page.getByTestId('session-builder-add-next').click();
     await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Update Product Hunt checklist');
 
-    await expect(page.getByTestId('session-builder-toggle')).toContainText('2 subtasks - 1 next-up task');
+    await expect(page.getByTestId('session-builder-subtask-input')).toHaveCount(2);
+    await expect(page.getByTestId('session-builder-next-input')).toHaveCount(1);
 
     await page.locator(TASK_INPUT_SELECTOR).press('Enter');
     await page.getByRole('button', { name: 'Freeflow' }).click();
@@ -3709,13 +3711,13 @@ test('session builder captures subtasks and hands off to the next top-level task
 
     await exitCompactMode(page);
     await expect(page.getByTestId('running-task-plan')).toBeVisible();
-    await expect(page.getByTestId('running-task-plan')).toContainText('Draft subject line');
-    await expect(page.getByTestId('running-task-plan')).toContainText('Polish hero copy');
-    await expect(page.getByTestId('running-task-plan')).toContainText('Next: Update Product Hunt checklist');
+    await expect(page.getByTestId('running-plan-subtask-input').nth(0)).toHaveValue('Draft subject line');
+    await expect(page.getByTestId('running-plan-subtask-input').nth(1)).toHaveValue('Polish hero copy');
+    await expect(page.getByTestId('running-plan-next-input').nth(0)).toHaveValue('Update Product Hunt checklist');
 
-    await page.getByLabel('Draft subject line').check();
+    await page.getByTestId('running-plan-subtask-checkbox').nth(0).check();
     await expect(page.getByTestId('task-plan-complete-prompt')).toHaveCount(0);
-    await page.getByLabel('Polish hero copy').check();
+    await page.getByTestId('running-plan-subtask-checkbox').nth(1).check();
     await expect(page.getByTestId('task-plan-complete-prompt')).toBeVisible();
     await expect(page.getByTestId('task-plan-complete-prompt')).toContainText('Mark Prepare launch email complete?');
 
@@ -3766,7 +3768,6 @@ test('session builder completes a next-up-only plan from the normal complete but
 
   try {
     await setTaskComposerValue(page, 'Primary without subtasks');
-    await page.getByTestId('session-builder-toggle').click();
     await page.getByTestId('session-builder-add-next').click();
     await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Follow-up task');
 
@@ -3776,6 +3777,7 @@ test('session builder completes a next-up-only plan from the normal complete but
 
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Complete Task' }).click();
+    await page.getByRole('button', { name: 'Mark complete' }).click();
 
     await expect(page.getByTestId('task-plan-transition')).toBeVisible();
     await expect(page.getByTestId('task-plan-transition')).toContainText('Primary without subtasks is done.');
@@ -3814,7 +3816,6 @@ test('session builder compact preview reveals current plan detail', async () => 
 
   try {
     await setTaskComposerValue(page, 'Compact planned task');
-    await page.getByTestId('session-builder-toggle').click();
     await page.getByTestId('session-builder-add-subtask').click();
     await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Draft opener');
     await page.getByTestId('session-builder-add-next').click();
@@ -3842,7 +3843,6 @@ test('session builder restores plan details after restarting during a planned se
   try {
     firstLaunch = await launchApp({ background: false, storeDir });
     await setTaskComposerValue(firstLaunch.page, 'Restart planned task');
-    await firstLaunch.page.getByTestId('session-builder-toggle').click();
     await firstLaunch.page.getByTestId('session-builder-add-subtask').click();
     await setTextControlValue(firstLaunch.page, firstLaunch.page.getByTestId('session-builder-subtask-input').nth(0), 'Draft cold open');
     await firstLaunch.page.getByTestId('session-builder-add-next').click();
@@ -3889,8 +3889,8 @@ test('session builder restores plan details after restarting during a planned se
     }
 
     await expect(secondLaunch.page.getByTestId('running-task-plan')).toBeVisible();
-    await expect(secondLaunch.page.getByTestId('running-task-plan')).toContainText('Draft cold open');
-    await expect(secondLaunch.page.getByTestId('running-task-plan')).toContainText('Next: Review launch metrics');
+    await expect(secondLaunch.page.getByTestId('running-plan-subtask-input').nth(0)).toHaveValue('Draft cold open');
+    await expect(secondLaunch.page.getByTestId('running-plan-next-input').nth(0)).toHaveValue('Review launch metrics');
   } finally {
     if (firstLaunch) await firstLaunch.cleanup({ deleteStoreDir: false });
     if (secondLaunch) await secondLaunch.cleanup({ deleteStoreDir: false });

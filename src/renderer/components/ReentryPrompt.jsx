@@ -61,6 +61,7 @@ export default function ReentryPrompt({
   const showBack = stage === 'start-chooser' || stage === 'save-for-later' || stage === 'snooze-options';
   const showCompleteFromResume = stage === 'save-for-later' && promptKind === 'resume-choice';
   const showDismiss = stage !== 'snooze-options' && !showCompleteFromResume;
+  const showSnoozeAction = showDismiss && stage !== 'start-chooser';
   const showBackToBreakMode = breakModeAvailable && promptKind === 'resume-choice' && stage === 'resume-choice';
   const showDashboard = surface === 'full' && promptKind === 'start' && stage === 'task-entry';
   const safeParkingLotItems = Array.isArray(parkingLotItems) ? parkingLotItems : [];
@@ -168,7 +169,7 @@ export default function ReentryPrompt({
       promptKind,
       mode: 'timed',
       minutes: safeMinutes,
-      taskText: trimmedTaskText,
+      taskText: effectiveTaskName,
       taskPlan,
     });
   };
@@ -179,7 +180,7 @@ export default function ReentryPrompt({
       promptKind,
       mode: 'freeflow',
       minutes: 0,
-      taskText: trimmedTaskText,
+      taskText: effectiveTaskName,
       taskPlan,
     });
   };
@@ -255,7 +256,7 @@ export default function ReentryPrompt({
           ) : (
             <span className="reentry-prompt__header-spacer" aria-hidden="true" />
           )}
-          {showDismiss ? (
+          {showSnoozeAction ? (
             <button
               type="button"
               className="reentry-prompt__header-btn"
@@ -308,27 +309,6 @@ export default function ReentryPrompt({
                 </button>
               </div>
 
-              <div className="reentry-prompt__source-grid">
-                {renderSourcePanel({
-                  title: 'Parking Lot',
-                  count: safeParkingLotItems.length,
-                  items: safeParkingLotItems,
-                  emptyCopy: 'Nothing parked right now.',
-                  testId: 'reentry-open-parking',
-                  onViewAll: onOpenParkingLot,
-                  onSelect: onSelectParkingLotItem,
-                })}
-                {renderSourcePanel({
-                  title: 'Session History',
-                  count: safeHistoryItems.length,
-                  items: safeHistoryItems,
-                  emptyCopy: 'No saved sessions to resume yet.',
-                  testId: 'reentry-open-history',
-                  onViewAll: onOpenSessionHistory,
-                  onSelect: onSelectHistorySession,
-                })}
-              </div>
-
               <div className="reentry-prompt__new-task-row">
                 <label className="reentry-prompt__new-task-label" htmlFor="reentry-dashboard-task">
                   Start new task
@@ -359,6 +339,27 @@ export default function ReentryPrompt({
                 >
                   Next
                 </button>
+              </div>
+
+              <div className="reentry-prompt__source-stack">
+                {renderSourcePanel({
+                  title: 'Session History',
+                  count: safeHistoryItems.length,
+                  items: safeHistoryItems,
+                  emptyCopy: 'No saved sessions to resume yet.',
+                  testId: 'reentry-open-history',
+                  onViewAll: onOpenSessionHistory,
+                  onSelect: onSelectHistorySession,
+                })}
+                {renderSourcePanel({
+                  title: 'Parking Lot',
+                  count: safeParkingLotItems.length,
+                  items: safeParkingLotItems,
+                  emptyCopy: 'Nothing parked right now.',
+                  testId: 'reentry-open-parking',
+                  onViewAll: onOpenParkingLot,
+                  onSelect: onSelectParkingLotItem,
+                })}
               </div>
             </section>
           ) : (
@@ -513,19 +514,19 @@ export default function ReentryPrompt({
 
         {stage === 'start-chooser' ? (
           <section className="reentry-prompt__step reentry-prompt__step--chooser">
-            <div className="reentry-prompt__task-card">
-              <span className="reentry-prompt__task-label">Focusing on:</span>
-              <span className="reentry-prompt__task-value">{effectiveTaskName}</span>
-            </div>
+            {surface !== 'full' ? (
+              <div className="reentry-prompt__task-card">
+                <span className="reentry-prompt__task-label">Focusing on:</span>
+                <span className="reentry-prompt__task-value">{effectiveTaskName}</span>
+              </div>
+            ) : null}
 
             {surface === 'full' ? (
               <div className="reentry-prompt__builder">
-                <p className="reentry-prompt__builder-helper">Add steps only if they would help you start.</p>
                 <SessionBuilderComposer
                   taskPlan={taskPlan}
                   primaryTask={effectiveTaskName}
-                  title="Optional: Session Builder"
-                  emptySummary="No steps added yet"
+                  showPrimaryTask
                   onTaskPlanChange={onTaskPlanChange}
                   onLayoutChange={onLayoutChange}
                 />

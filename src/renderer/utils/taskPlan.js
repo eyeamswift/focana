@@ -5,6 +5,11 @@ function trimTitle(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeEditableTitle(value, { trim = false } = {}) {
+  if (typeof value !== 'string') return '';
+  return trim ? value.trim() : value;
+}
+
 export function createTaskPlanId(prefix = DEFAULT_ID_PREFIX) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -15,8 +20,8 @@ function normalizeCompletedAt(value, completed) {
 }
 
 function normalizeSubtask(rawSubtask, index = 0, { trimEmpty = false } = {}) {
-  const title = trimTitle(rawSubtask?.title);
-  if (!title && trimEmpty) return null;
+  const title = normalizeEditableTitle(rawSubtask?.title, { trim: trimEmpty });
+  if (!trimTitle(rawSubtask?.title) && trimEmpty) return null;
   const completed = rawSubtask?.completed === true;
   return {
     id: typeof rawSubtask?.id === 'string' && rawSubtask.id.trim()
@@ -30,8 +35,8 @@ function normalizeSubtask(rawSubtask, index = 0, { trimEmpty = false } = {}) {
 
 function normalizeItem(rawItem, index = 0, options = {}) {
   const { trimEmpty = false } = options;
-  const title = trimTitle(rawItem?.title);
-  if (!title && trimEmpty) return null;
+  const title = normalizeEditableTitle(rawItem?.title, { trim: trimEmpty });
+  if (!trimTitle(rawItem?.title) && trimEmpty) return null;
   const completed = rawItem?.completed === true;
   const subtasks = Array.isArray(rawItem?.subtasks)
     ? rawItem.subtasks.map((subtask, subtaskIndex) => normalizeSubtask(subtask, subtaskIndex, options)).filter(Boolean)

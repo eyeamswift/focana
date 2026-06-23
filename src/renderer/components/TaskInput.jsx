@@ -19,6 +19,7 @@ const TaskInput = forwardRef(({
   checkInCelebrationType = 'none',
   reentryPromptActive = false,
   reentryStrongActive = false,
+  footer = null,
   onFocus,
   onBlur,
   onTaskSubmit,
@@ -162,6 +163,7 @@ const TaskInput = forwardRef(({
           </span>
         )}
       </div>
+      {footer ? <div className="task-composer__footer">{footer}</div> : null}
       {helperText ? <p className="task-composer__helper">{helperText}</p> : null}
     </div>
   );

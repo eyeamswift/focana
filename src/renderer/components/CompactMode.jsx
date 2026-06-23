@@ -52,6 +52,7 @@ export default function CompactMode({
   pulseSignal = 0,
   successCueSignal = 0,
   onDoubleClick,
+  onEditTaskPlan,
   onOpenDistractionJar,
   thoughtCount = 0,
   onPlay,
@@ -711,6 +712,19 @@ export default function CompactMode({
             <div className="pill-task-plan-preview__more">
               +{safeTaskPlanDetails.length - 6} more
             </div>
+          ) : null}
+          {typeof onEditTaskPlan === 'function' ? (
+            <button
+              type="button"
+              className="pill-task-plan-preview__edit"
+              onClick={(event) => {
+                event.stopPropagation();
+                hidePlanPreview();
+                onEditTaskPlan();
+              }}
+            >
+              Edit plan
+            </button>
           ) : null}
         </div>
       ) : null}

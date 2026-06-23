@@ -1,13 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import {
   addNextTask,
   addSubtask,
   getActiveTask,
-  getTaskPlanSummary,
-  hasTaskPlanStructure,
   normalizeTaskPlan,
   removeSubtask,
   removeTask,
@@ -19,19 +17,30 @@ import {
 export default function SessionBuilderComposer({
   taskPlan,
   primaryTask = '',
-  title = 'Session Builder',
-  emptySummary = 'Optional steps and next-up tasks',
+  showPrimaryTask = false,
+  sections = 'all',
+  variant = 'standard',
+  testId = 'session-builder',
   onTaskPlanChange,
   onLayoutChange,
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const subtaskInputRefs = useRef(new Map());
+  const nextInputRefs = useRef(new Map());
+  const pendingFocusRef = useRef(null);
   const primaryTitle = typeof primaryTask === 'string' ? primaryTask : '';
   const plan = syncActiveTaskTitle(normalizeTaskPlan(taskPlan, primaryTitle), primaryTitle);
   const activeTask = getActiveTask(plan);
   const nextTasks = plan.items.filter((item) => item.id !== plan.activeTaskId);
   const canAddStructure = primaryTitle.trim().length > 0;
-  const summary = hasTaskPlanStructure(plan) ? getTaskPlanSummary(plan) : emptySummary;
   const layoutSignature = useMemo(() => JSON.stringify(plan), [plan]);
+  const showSubtasks = sections === 'all' || sections === 'subtasks';
+  const showNextTasks = sections === 'all' || sections === 'next';
+  const builderClasses = [
+    'session-builder',
+    'electron-no-drag',
+    (showPrimaryTask || variant === 'separate') ? 'session-builder--with-focus' : '',
+    variant === 'embedded' ? 'session-builder--embedded' : '',
+  ].filter(Boolean).join(' ');
 
   useEffect(() => {
     if (!primaryTitle.trim()) return;
@@ -46,64 +55,101 @@ export default function SessionBuilderComposer({
       onLayoutChange?.();
     }, 20);
     return () => window.clearTimeout(resizeTimer);
-  }, [expanded, layoutSignature, onLayoutChange]);
+  }, [layoutSignature, onLayoutChange]);
 
-  const updatePlan = (nextPlan, { open = false } = {}) => {
+  useEffect(() => {
+    const pendingFocus = pendingFocusRef.current;
+    if (!pendingFocus) return;
+
+    const inputMap = pendingFocus.kind === 'next' ? nextInputRefs.current : subtaskInputRefs.current;
+    const items = pendingFocus.kind === 'next' ? nextTasks : (activeTask?.subtasks || []);
+    const targetId = pendingFocus.id || items[items.length - 1]?.id || '';
+    const input = targetId ? inputMap.get(targetId) : null;
+    if (!input) return;
+
+    pendingFocusRef.current = null;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [activeTask?.subtasks, layoutSignature, nextTasks]);
+
+  const updatePlan = (nextPlan) => {
     onTaskPlanChange?.(syncActiveTaskTitle(nextPlan, primaryTitle));
-    if (open) setExpanded(true);
   };
 
   const handleAddSubtask = () => {
     if (!canAddStructure) return;
-    updatePlan(addSubtask(plan, ''), { open: true });
+    pendingFocusRef.current = { kind: 'subtask' };
+    updatePlan(addSubtask(plan, ''));
   };
 
   const handleAddNextTask = () => {
     if (!canAddStructure) return;
-    updatePlan(addNextTask(plan, ''), { open: true });
+    pendingFocusRef.current = { kind: 'next' };
+    updatePlan(addNextTask(plan, ''));
+  };
+
+  const handleSubtaskKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+    event.preventDefault();
+    handleAddSubtask();
+  };
+
+  const handleNextTaskKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+    event.preventDefault();
+    handleAddNextTask();
   };
 
   return (
-    <section className="session-builder electron-no-drag" data-testid="session-builder">
-      <button
-        type="button"
-        className="session-builder__toggle"
-        onClick={() => setExpanded((prev) => !prev)}
-        aria-expanded={expanded}
-        data-testid="session-builder-toggle"
-      >
-        <span className="session-builder__toggle-main">
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span>{title}</span>
-        </span>
-        <span className="session-builder__summary">{summary}</span>
-        <span className="session-builder__toggle-action">{expanded ? 'Hide' : 'Show'}</span>
-      </button>
-
-      {expanded ? (
-        <div className="session-builder__body">
-          <div className="session-builder__section">
-            <div className="session-builder__section-header">
-              <span>Subtasks</span>
-              <Button
-                type="button"
-                variant="outline"
-                className="session-builder__add-btn"
-                onClick={handleAddSubtask}
-                disabled={!canAddStructure}
-                data-testid="session-builder-add-subtask"
-              >
-                <Plus size={14} />
-                Add subtask
-              </Button>
-            </div>
+    <section className={builderClasses} data-testid={testId}>
+      <div className="session-builder__body">
+        {showSubtasks ? (
+          <div className="session-builder__section session-builder__section--subtasks">
+            {showPrimaryTask ? (
+              <div className="session-builder__focus-header">
+                <div className="session-builder__focus-copy">
+                  <span className="session-builder__focus-label">Focusing on:</span>
+                  <span className="session-builder__focus-title">{primaryTitle || 'Untitled task'}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="session-builder__add-btn session-builder__add-btn--primary"
+                  onClick={handleAddSubtask}
+                  disabled={!canAddStructure}
+                  data-testid="session-builder-add-subtask"
+                >
+                  <Plus size={14} />
+                  Add subtask
+                </Button>
+              </div>
+            ) : (
+              <div className="session-builder__section-header session-builder__section-header--subtasks">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="session-builder__add-btn session-builder__add-btn--primary"
+                  onClick={handleAddSubtask}
+                  disabled={!canAddStructure}
+                  data-testid="session-builder-add-subtask"
+                >
+                  <Plus size={14} />
+                  Add subtask
+                </Button>
+              </div>
+            )}
             {(activeTask?.subtasks || []).length ? (
               <div className="session-builder__rows">
                 {activeTask.subtasks.map((subtask, index) => (
                   <div className="session-builder__row" key={subtask.id}>
                     <Input
+                      ref={(node) => {
+                        if (node) subtaskInputRefs.current.set(subtask.id, node);
+                        else subtaskInputRefs.current.delete(subtask.id);
+                      }}
                       value={subtask.title}
                       onChange={(event) => updatePlan(updateSubtaskTitle(plan, subtask.id, event.target.value))}
+                      onKeyDown={handleSubtaskKeyDown}
                       placeholder={`Subtask ${index + 1}`}
                       className="session-builder__input"
                       data-testid="session-builder-subtask-input"
@@ -119,15 +165,12 @@ export default function SessionBuilderComposer({
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="session-builder__empty">
-                <strong>No subtasks yet</strong>
-                <span>Add smaller steps only if they would help you start.</span>
-              </div>
-            )}
+            ) : null}
           </div>
+        ) : null}
 
-          <div className="session-builder__section">
+        {showNextTasks ? (
+          <div className="session-builder__section session-builder__section--next">
             <div className="session-builder__section-header">
               <span>Next-up tasks</span>
               <Button
@@ -147,8 +190,13 @@ export default function SessionBuilderComposer({
                 {nextTasks.map((item, index) => (
                   <div className="session-builder__row" key={item.id}>
                     <Input
+                      ref={(node) => {
+                        if (node) nextInputRefs.current.set(item.id, node);
+                        else nextInputRefs.current.delete(item.id);
+                      }}
                       value={item.title}
                       onChange={(event) => updatePlan(updateTaskTitle(plan, item.id, event.target.value))}
+                      onKeyDown={handleNextTaskKeyDown}
                       placeholder={`Next task ${index + 1}`}
                       className="session-builder__input"
                       data-testid="session-builder-next-input"
@@ -164,15 +212,10 @@ export default function SessionBuilderComposer({
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="session-builder__empty">
-                <strong>No next-up tasks yet</strong>
-                <span>Add one only if you already know what comes after this.</span>
-              </div>
-            )}
+            ) : null}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </section>
   );
 }
