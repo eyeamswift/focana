@@ -660,10 +660,9 @@ export default function App() {
   const reentryBreakReturnAvailableRef = useRef(false);
   const reentryStrongTimeoutRef = useRef(null);
   const reentryStrongActiveRef = useRef(false);
+  const reentryPromptKeyRef = useRef(0);
   const reentryFloatingPromptOpenRef = useRef(false);
   const reentryFloatingPromptSentRef = useRef('');
-  const reentryFloatingPulseCueRef = useRef(0);
-  const reentryFloatingPulseSentRef = useRef(0);
   const reentryResumeCandidateRef = useRef(null);
   const reentryReturnAfterModalRef = useRef(false);
   const reentryPausedVisibleByBlockerRef = useRef(false);
@@ -2087,13 +2086,40 @@ export default function App() {
     });
   }, []);
 
-  const cueFloatingReentryAttention = useCallback(() => {
-    closeFloatingReentryPrompt();
-    const cueId = reentryFloatingPulseCueRef.current;
-    if (!cueId || reentryFloatingPulseSentRef.current === cueId) return;
-    reentryFloatingPulseSentRef.current = cueId;
-    window.electronAPI.triggerFloatingPulse?.();
-  }, [closeFloatingReentryPrompt]);
+  const showFloatingReentryPrompt = useCallback(() => {
+    const resumeCandidate = reentryResumeCandidateRef.current;
+    const promptKind = (
+      reentryPromptOverrideKind === 'resume-choice' || reentryPromptOverrideKind === 'start'
+    )
+      ? reentryPromptOverrideKind
+      : (resumeCandidate ? 'resume-choice' : 'start');
+    const defaultMinutes = (() => {
+      const parsed = Number.parseInt(String(sessionMinutes || '').trim(), 10);
+      return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 240) : 25;
+    })();
+
+    if (!reentryFloatingPromptOpenRef.current) {
+      reentryPromptKeyRef.current += 1;
+    }
+    reentryFloatingPromptOpenRef.current = true;
+
+    const nextPromptState = {
+      open: true,
+      promptKey: reentryPromptKeyRef.current,
+      promptKind,
+      breakModeAvailable: reentryBreakReturnAvailableRef.current === true && promptKind === 'resume-choice',
+      resumeTaskName: resumeCandidate?.taskText || '',
+      defaultTaskText: promptKind === 'resume-choice'
+        ? (resumeCandidate?.taskText || task)
+        : (reentryPromptOverrideKind === 'start' ? '' : task),
+      defaultMinutes,
+      strongActive: reentryStrongActiveRef.current === true,
+    };
+    const serialized = JSON.stringify(nextPromptState);
+    if (reentryFloatingPromptSentRef.current === serialized) return;
+    reentryFloatingPromptSentRef.current = serialized;
+    window.electronAPI.setFloatingReentryState?.(nextPromptState);
+  }, [reentryPromptOverrideKind, sessionMinutes, task]);
 
   const resetReentryAttention = useCallback(({ preserveSnooze = false, preserveSystemEntry = false } = {}) => {
     if (reentryStrongTimeoutRef.current) {
@@ -2126,7 +2152,6 @@ export default function App() {
     if (reentryStrongTimeoutRef.current) {
       clearTimeout(reentryStrongTimeoutRef.current);
     }
-    reentryFloatingPulseCueRef.current += 1;
     setReentryAttentionVisible(true);
     setReentryStrongActive(true);
     reentryStrongTimeoutRef.current = window.setTimeout(() => {
@@ -3755,7 +3780,7 @@ export default function App() {
         const isFloatingMinimized = await window.electronAPI.getFloatingMinimized?.();
         if (cancelled) return;
         if (reentryAttentionVisibleRef.current && isFloatingMinimized) {
-          cueFloatingReentryAttention();
+          showFloatingReentryPrompt();
         } else {
           closeFloatingReentryPrompt();
         }
@@ -3792,7 +3817,7 @@ export default function App() {
       if (cancelled) return;
 
       if (reentryAttentionVisibleRef.current && isFloatingMinimized) {
-        cueFloatingReentryAttention();
+        showFloatingReentryPrompt();
       } else {
         closeFloatingReentryPrompt();
       }
@@ -3809,9 +3834,9 @@ export default function App() {
     };
   }, [
     closeFloatingReentryPrompt,
-    cueFloatingReentryAttention,
     fireReentryCue,
     pauseReentryAttention,
+    showFloatingReentryPrompt,
     showPostSessionPrompt,
     reentryHardResetRequired,
     systemEntryPendingActive,
@@ -5561,9 +5586,8 @@ export default function App() {
     setFloatingBreakState({ open: false });
     setReentryStrongActive(false);
     setReentryAttentionVisible(true);
-    reentryFloatingPulseCueRef.current += 1;
-    cueFloatingReentryAttention();
-  }, [cueFloatingReentryAttention, scheduleReentryCueFromNow, setFloatingBreakState, updateReentryBreakReturnAvailable]);
+    showFloatingReentryPrompt();
+  }, [scheduleReentryCueFromNow, setFloatingBreakState, showFloatingReentryPrompt, updateReentryBreakReturnAvailable]);
 
   const handleFloatingReentryAction = useCallback((eventPayload = {}) => {
     const action = typeof eventPayload?.action === 'string' ? eventPayload.action : '';

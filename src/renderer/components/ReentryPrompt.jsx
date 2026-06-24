@@ -323,6 +323,7 @@ export default function ReentryPrompt({
                   id="reentry-dashboard-task"
                   ref={textareaRef}
                   className="reentry-prompt__new-task-input"
+                  data-testid="reentry-task-input"
                   maxLength={maxTaskLength}
                   value={safeTaskText}
                   onFocus={noteInteraction}
@@ -375,6 +376,7 @@ export default function ReentryPrompt({
               <textarea
                 ref={textareaRef}
                 className="reentry-prompt__textarea"
+                data-testid="reentry-task-input"
                 rows={2}
                 maxLength={maxTaskLength}
                 value={safeTaskText}

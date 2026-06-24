@@ -1,0 +1,20 @@
+{
+  "version": "2.2.1",
+  "publishedAt": "2026-06-24",
+  "summary": "Focana 2.2.1 tightens the task planning screens from 2.2.0, with cleaner compact previews and more reliable start and edit paths.",
+  "improvements": [
+    "What's next? now keeps Start new task, the input, and Next together, with full-width Session History and Parking Lot lists below.",
+    "Session History details now include the session builder, so subtasks and Next-up tasks can be adjusted before restarting.",
+    "Active timer and session builder lists now show three rows by default, with scrolling, View all, and Show less when there is more.",
+    "Compact mode now separates task and timer actions: click the task to expand Subtasks and Next up, or click the time for controls.",
+    "Compact previews now support checking off subtasks and use clearer Subtasks and Next up sections.",
+    "Quick start is now visible in the task builder when a task is ready to begin.",
+    "Notes are now one field for immediate next steps, links, resources, or return notes."
+  ],
+  "fixes": [
+    "The floating X now follows the delayed pulse path instead of immediately reopening the old What's next? screen.",
+    "Ready-to-resume and history restore now keep task plans, subtasks, and Next-up tasks attached.",
+    "Compact previews now keep the three-row cap visible, scroll correctly, and avoid clipped list items.",
+    "The compact task summary is now centered inside the outlined task area."
+  ]
+}

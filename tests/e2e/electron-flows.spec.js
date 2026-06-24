@@ -8,6 +8,7 @@ const APP_VERSION = JSON.parse(
   fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')
 ).version;
 const TASK_INPUT_SELECTOR = '[data-testid="task-input"]';
+const REENTRY_TASK_INPUT_SELECTOR = '[data-testid="reentry-task-input"]';
 const TASK_INPUT_MAX_LENGTH = 96;
 const SELECT_ALL_SHORTCUT = process.platform === 'darwin' ? 'Meta+A' : 'Control+A';
 const RUNNING_TASK_SELECTOR = '.focus-hero__task';
@@ -619,7 +620,7 @@ async function openTimedSessionWrap(page, taskName, minutes = 1) {
 
 async function expectWhatsNextPrompt(page) {
   await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-  await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
+  await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toBeVisible();
   await expect(page.getByText('Start new task')).toBeVisible();
   await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'Parking Lot' })).toBeVisible();
   await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'Session History' })).toBeVisible();
@@ -1122,7 +1123,7 @@ test("login launch floats first, then opens What's next after the system-entry d
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-    await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
+    await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Freeflow' })).toHaveCount(0);
   } finally {
     await cleanup();
@@ -1269,7 +1270,7 @@ test("wake plus login with nothing resumable floats first, then opens What's nex
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-    await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
+    await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1300,7 +1301,7 @@ test("wake plus resume with nothing resumable floats first, then opens What's ne
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-    await expect(page.getByPlaceholder('What are we focusing on next?')).toBeVisible();
+    await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1859,7 +1860,7 @@ test("what's next dashboard opens saved work details and keeps session builder l
     await expect(page.getByLabel('Start new task')).toHaveValue('Parked dashboard task');
 
     await page.getByRole('button', { name: /Resume dashboard task/ }).click();
-    await expect(page.getByText('Notes')).toBeVisible();
+    await expect(page.getByText('Notes', { exact: true })).toBeVisible();
     await expect(page.getByText('Open source notes')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
@@ -2224,7 +2225,7 @@ test("compact complete button saves the task and opens What's next", async () =>
   try {
     await startFreeflowSession(page, 'compact-complete-direct');
 
-    await page.locator('.pill').click();
+    await page.locator('.pill-timer-button').click();
     await page.locator('button[title="Complete"]').click();
     await page.getByRole('button', { name: 'Mark complete' }).click();
 
@@ -2898,7 +2899,7 @@ test('compact controls reveal in-place and auto-hide without shifting the pill w
     expect(baseBounds).toBeTruthy();
 
     const completeButton = page.locator('button[title="Complete"]');
-    await page.locator('.pill').click();
+    await page.locator('.pill-timer-button').click();
     await expect(completeButton).toBeVisible();
 
     await expect.poll(async () => {
@@ -3422,7 +3423,7 @@ test('compact mode keeps the info icon at rest and hides it when controls are op
     await helpButton.hover();
     await expect(page.locator('.pill-help-hint')).toBeVisible();
 
-    await page.locator('.pill').click();
+    await page.locator('.pill-timer-button').click();
     await expect(page.locator('.pill-controls--visible')).toBeVisible();
     await expect(helpButton).toBeHidden();
     await expect(page.locator('.pill-help-hint')).toHaveCount(0);
@@ -3537,7 +3538,7 @@ test('compact pause opens dismissible session wrap and returns to compact paused
 
   try {
     await startFreeflowSession(page, 'compact pause wrap');
-    await page.locator('.pill').click();
+    await page.locator('.pill-timer-button').click();
     await page.locator('button[title="Pause"]').click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
@@ -3828,10 +3829,11 @@ test('session builder compact preview reveals current plan detail', async () => 
     await expect.poll(() => readWindowMode(page)).toBe('pill');
 
     await expect(page.locator('.pill-task-plan-summary')).toContainText('1 subtask - 1 next');
-    await page.locator('.pill-task').focus();
+    await page.locator('.pill-task').click();
     await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Draft opener');
-    await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Next: Review launch metrics');
+    await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Next up');
+    await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Review launch metrics');
   } finally {
     await cleanup();
   }
@@ -3891,6 +3893,7 @@ test('session builder restores plan details after restarting during a planned se
     }
 
     await expect(secondLaunch.page.getByTestId('running-task-plan')).toBeVisible();
+    await secondLaunch.page.getByTestId('running-plan-builder-toggle').click();
     await expect(secondLaunch.page.getByTestId('running-plan-subtask-input').nth(0)).toHaveValue('Draft cold open');
     await expect(secondLaunch.page.getByTestId('running-plan-next-input').nth(0)).toHaveValue('Review launch metrics');
   } finally {
