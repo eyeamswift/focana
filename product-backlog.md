@@ -33,6 +33,16 @@
 - Notes: Do a holistic polish pass across the session-boundary surfaces rather than treating pre-session and post-session as unrelated tweaks. Refine the ready/start flow so beginning work feels crisp, then tighten `Session Wrap`, `Save for Later`, and adjacent copy/actions so ending a session always scripts the next obvious move. Prefer visible-state clarity over extra ceremony, keep the highest-confidence next action easy to choose, and make the before and after screens feel like one coherent loop instead of separate features that happen to touch the timer. Acceptance should verify clean manual startup into the ready shell, predictable start-task handoff, polished `Session Wrap` child paths, and save-for-later transitions that preserve context without awkward dead ends.
 - Commits: —
 
+### UX-018 — What's Next should make the start action obvious while planning
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: If the `What's next?` options are confusing or the visible start arrow disappears while someone is typing, the screen can look like there is no way to begin. Users should not have to discover that Enter starts the task by accident.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/renderer/components/SessionBuilderComposer.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-014`, `UX-016`, `TASK-002`, `UX-005`
+- Notes: Revisit the `What's next?` screen options and labels so the choices feel direct, distinct, and low-friction. Add a visible `Quick start` button next to `Add subtask` on the planning surface so a user who is typing still sees an obvious way to begin, even when the arrow affordance is hidden and Enter is the keyboard shortcut. The button should start the current typed task/plan through the same path as Enter, preserve the subtask planning context, and stay stable at supported window sizes. Acceptance should verify the confusing options are simplified, typing never leaves the screen without an obvious start control, `Quick start` works with mouse, keyboard, and screen readers, and the layout does not overflow in full, compact-origin, or floating re-entry paths.
+- Commits: —
+
 ### UX-016 — Re-entry nudges should never interrupt active typing
 - Priority: High
 - Status: Next Up
@@ -113,6 +123,16 @@
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TaskInput.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`
 - Notes: Finish the shared re-entry timer hardening after `1.4.0`: persist remaining delay and snooze state across relaunch, keep remaining time consistent across full-window and floating surfaces, suppress nudges immediately for Do Not Disturb, paused sessions, update/license blockers, and pause countdown across system sleep/hibernate so wake resumes from the remaining awake time instead of treating sleep as idle.
+- Commits: —
+
+### UX-017 — Long focus sessions should offer a gentle take-a-break nudge
+- Priority: Medium
+- Status: Later
+- Version: TBD
+- Why it matters: Long uninterrupted sessions can help users stay locked in, but after a while they may need a humane prompt to pause, reset, hydrate, stretch, or decide intentionally to keep going.
+- Files: `src/renderer/App.jsx`, active timer/check-in surfaces, break timer surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-015`, `UX-006`, `UX-007B`, `SES-003`
+- Notes: Add a calm long-session nudge after sustained focus, starting with a `90 minutes` threshold and copy like `You've been at it for 90 minutes. Want to take a real break?` This should be an invitation, not an interruption or warning: offer `Take a break`, `Keep going`, and a lightweight snooze option, respect Do Not Disturb and active typing/editing, and avoid resetting the user's task context. The nudge should work across full, compact, and floating timer surfaces, and should not fire repeatedly after the user responds. Acceptance should verify threshold timing, snooze/keep-going behavior, break handoff, relaunch persistence, and no surprise prompts during paused sessions, system sleep, modal flows, or active text entry.
 - Commits: —
 
 ### SES-003 — Running timers should support adding more time before time is up
