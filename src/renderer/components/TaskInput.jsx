@@ -110,6 +110,9 @@ const TaskInput = forwardRef(({
     checkInCelebrating ? `task-composer--celebrating task-composer--celebrating-${checkInCelebrationType}` : '',
     reentryStrongActive ? 'task-composer--reentry-strong' : '',
   ].filter(Boolean).join(' ');
+  const footerContent = typeof footer === 'function'
+    ? footer({ submitTask: () => submitTask(textareaRef.current?.value || task), hasText })
+    : footer;
 
   return (
     <div className={wrapperClasses}>
@@ -163,7 +166,7 @@ const TaskInput = forwardRef(({
           </span>
         )}
       </div>
-      {footer ? <div className="task-composer__footer">{footer}</div> : null}
+      {footerContent ? <div className="task-composer__footer">{footerContent}</div> : null}
       {helperText ? <p className="task-composer__helper">{helperText}</p> : null}
     </div>
   );

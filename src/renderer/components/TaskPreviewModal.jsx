@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Textarea } from './ui/Textarea';
-import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { FileText, Edit3, Undo2, X } from 'lucide-react';
+import SessionBuilderComposer from './SessionBuilderComposer';
+import { prepareTaskPlanForStart } from '../utils/taskPlan';
+
+const NOTES_HELPER_COPY = 'Enter your immediate next steps and/or any notes, links, or resources that will help you get started when you return.';
 
 function getSessionRecap(session) {
   if (!session || typeof session !== 'object') return '';
@@ -18,6 +21,17 @@ function getSessionNextSteps(session) {
   return typeof session.nextSteps === 'string' ? session.nextSteps : '';
 }
 
+function combineNotes(nextSteps = '', recap = '') {
+  const pieces = [nextSteps, recap]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(pieces)).join('\n\n');
+}
+
+function getSessionNotes(session) {
+  return combineNotes(getSessionNextSteps(session), getSessionRecap(session));
+}
+
 export default function TaskPreviewModal({
   isOpen,
   onClose,
@@ -30,12 +44,12 @@ export default function TaskPreviewModal({
   canRestore = false,
 }) {
   const [editingField, setEditingField] = useState(null);
-  const [editedRecap, setEditedRecap] = useState('');
-  const [editedNextSteps, setEditedNextSteps] = useState('');
+  const [editedNotes, setEditedNotes] = useState('');
+  const [editedTaskPlan, setEditedTaskPlan] = useState(() => prepareTaskPlanForStart(null, ''));
 
   useEffect(() => {
-    setEditedRecap(getSessionRecap(session));
-    setEditedNextSteps(getSessionNextSteps(session));
+    setEditedNotes(getSessionNotes(session));
+    setEditedTaskPlan(prepareTaskPlanForStart(session?.taskPlan, session?.task || ''));
     setEditingField(null);
   }, [session]);
 
@@ -51,9 +65,17 @@ export default function TaskPreviewModal({
 
   const lastSession = relatedSessions[0] || session || { durationMinutes: 0 };
   const totalWorkMinutes = relatedSessions.reduce((sum, item) => sum + (item.durationMinutes || 0), 0);
-  const recap = getSessionRecap(session);
-  const nextSteps = getSessionNextSteps(session);
-  const hasContext = Boolean(recap.trim() || nextSteps.trim());
+  const notes = getSessionNotes(session);
+  const savedTaskPlan = useMemo(
+    () => prepareTaskPlanForStart(session?.taskPlan, session?.task || ''),
+    [session?.taskPlan, session?.task],
+  );
+  const preparedEditedTaskPlan = useMemo(
+    () => prepareTaskPlanForStart(editedTaskPlan, session?.task || ''),
+    [editedTaskPlan, session?.task],
+  );
+  const taskPlanChanged = JSON.stringify(preparedEditedTaskPlan) !== JSON.stringify(savedTaskPlan);
+  const hasUnsavedChanges = Boolean(editingField) || taskPlanChanged;
 
   const formatMinutes = (minutes) => {
     if (minutes < 1) return 'less than a minute';
@@ -70,26 +92,42 @@ export default function TaskPreviewModal({
 
   const handleUseTask = () => {
     if (!session || !canUseTask) return;
-    onUseTask(session);
+    const normalizedNotes = editedNotes.trim();
+    onUseTask({
+      ...session,
+      recap: normalizedNotes,
+      notes: normalizedNotes,
+      nextSteps: '',
+      taskPlan: preparedEditedTaskPlan,
+    });
   };
 
   const handleRestoreSession = () => {
     if (!session || !canRestore) return;
-    onRestoreSession?.(session);
+    const normalizedNotes = editedNotes.trim();
+    onRestoreSession?.({
+      ...session,
+      recap: normalizedNotes,
+      notes: normalizedNotes,
+      nextSteps: '',
+      taskPlan: preparedEditedTaskPlan,
+    });
   };
 
-  const handleSaveField = () => {
-    if (!session || !editingField) return;
+  const handleSaveChanges = () => {
+    if (!session || !hasUnsavedChanges) return;
+    const normalizedNotes = editedNotes.trim();
     onUpdateNotes(session.id, {
-      recap: editedRecap.trim(),
-      nextSteps: editedNextSteps.trim(),
+      recap: normalizedNotes,
+      nextSteps: '',
+      taskPlan: preparedEditedTaskPlan,
     });
     setEditingField(null);
   };
 
   const handleCancelEdit = () => {
-    setEditedRecap(recap);
-    setEditedNextSteps(nextSteps);
+    setEditedNotes(notes);
+    setEditedTaskPlan(savedTaskPlan);
     setEditingField(null);
   };
 
@@ -102,6 +140,7 @@ export default function TaskPreviewModal({
     editedValue,
     onChange,
     placeholder,
+    hint = '',
     maxLength = 500,
   }) => {
     const isEditing = editingField === key;
@@ -110,9 +149,16 @@ export default function TaskPreviewModal({
     return (
       <div className="space-y-3">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-          <p style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.02em', textTransform: 'uppercase', margin: 0 }}>
-            {label}
-          </p>
+          <div style={{ display: 'grid', gap: '0.25rem' }}>
+            <p style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.02em', textTransform: 'uppercase', margin: 0 }}>
+              {label}
+            </p>
+            {hint ? (
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.45, maxWidth: '26rem' }}>
+                {hint}
+              </p>
+            ) : null}
+          </div>
           {!isEditing ? (
             <Button
               onClick={() => setEditingField(key)}
@@ -133,7 +179,7 @@ export default function TaskPreviewModal({
               onChange={onChange}
               maxLength={maxLength}
               placeholder={placeholder}
-              style={{ minHeight: key === 'next-steps' ? 90 : 110, borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+              style={{ minHeight: 142, borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
             />
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right', margin: 0 }}>
               {editedValue.length}/{maxLength} characters
@@ -189,30 +235,26 @@ export default function TaskPreviewModal({
 
         <div style={{ padding: '1rem 0.25rem 0.5rem 0', overflowY: 'auto', flex: 1, minHeight: 0, display: 'grid', gap: '1rem' }}>
           {renderField({
-            key: 'next-steps',
-            label: 'Immediate next step',
-            value: nextSteps,
-            editedValue: editedNextSteps,
-            onChange: (event) => setEditedNextSteps(event.target.value),
-            placeholder: 'What should you do first when you come back?',
+            key: 'notes',
+            label: 'Notes',
+            value: notes,
+            editedValue: editedNotes,
+            onChange: (event) => setEditedNotes(event.target.value),
+            placeholder: 'Next steps, links, resources, or reminders...',
+            hint: NOTES_HELPER_COPY,
+            maxLength: 900,
           })}
 
-          {renderField({
-            key: 'recap',
-            label: 'Additional details',
-            value: recap,
-            editedValue: editedRecap,
-            onChange: (event) => setEditedRecap(event.target.value),
-            placeholder: 'Completed pieces, links, and context worth remembering...',
-          })}
-
-          {!hasContext && !editingField ? (
-            <div style={{ textAlign: 'center', paddingTop: '0.25rem' }}>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', margin: 0 }}>
-                Add context here if you want this task ready to resume later.
-              </p>
-            </div>
-          ) : null}
+          <div className="task-preview__plan-builder">
+            <SessionBuilderComposer
+              taskPlan={editedTaskPlan}
+              primaryTask={session.task || ''}
+              showPrimaryTask
+              variant="separate"
+              testId="task-preview-session-builder"
+              onTaskPlanChange={setEditedTaskPlan}
+            />
+          </div>
         </div>
 
         <DialogFooter style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-default)' }}>
@@ -220,7 +262,7 @@ export default function TaskPreviewModal({
             Cancel
           </Button>
 
-          {editingField ? (
+          {hasUnsavedChanges ? (
             <>
               <Button
                 onClick={handleCancelEdit}
@@ -229,7 +271,7 @@ export default function TaskPreviewModal({
               >
                 Cancel Edit
               </Button>
-              <Button onClick={handleSaveField} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
+              <Button onClick={handleSaveChanges} style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
                 Save Changes
               </Button>
             </>

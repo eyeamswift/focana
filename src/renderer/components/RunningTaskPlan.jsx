@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Checkbox } from './ui/Checkbox';
 import { Button } from './ui/Button';
 import FocusHeroCard from './FocusHeroCard';
@@ -7,7 +7,6 @@ import {
   addNextTask,
   addSubtask,
   getActiveTask,
-  getNextUnfinishedTask,
   getPlanOverflowItems,
   hasTaskPlanStructure,
   normalizeTaskPlan,
@@ -37,8 +36,10 @@ export default function RunningTaskPlan({
   onMarkComplete,
   onKeepGoing,
   onLayoutChange,
+  builderOpenSignal = 0,
 }) {
-  const [overflowPinned, setOverflowPinned] = useState(false);
+  const [builderExpanded, setBuilderExpanded] = useState(false);
+  const [viewAllOpen, setViewAllOpen] = useState(false);
   const [pendingCompletionKeys, setPendingCompletionKeys] = useState([]);
   const completionTimersRef = useRef(new Map());
   const subtaskInputRefs = useRef(new Map());
@@ -46,8 +47,7 @@ export default function RunningTaskPlan({
   const pendingFocusRef = useRef(null);
   const plan = normalizeTaskPlan(taskPlan, task);
   const activeTask = getActiveTask(plan);
-  const nextTask = getNextUnfinishedTask(plan);
-  const { visible, overflow } = getPlanOverflowItems(plan, 3);
+  const { allItems } = getPlanOverflowItems(plan, 3);
   const structured = hasTaskPlanStructure(plan);
   const canEditPlan = typeof onTaskPlanChange === 'function';
   const editableItems = useMemo(() => {
@@ -57,9 +57,24 @@ export default function RunningTaskPlan({
       .map((item) => ({ ...item, type: 'next' }));
     return [...subtasks, ...nextTasks];
   }, [activeTask?.subtasks, plan.activeTaskId, plan.items]);
-  const visibleItems = canEditPlan ? editableItems.slice(0, 3) : visible;
-  const overflowItems = canEditPlan ? editableItems.slice(3) : overflow;
+  const planListItems = canEditPlan ? editableItems : allItems;
+  const hasListOverflow = planListItems.length > 3;
+  const visibleItems = planListItems;
   const layoutSignature = useMemo(() => JSON.stringify(plan), [plan]);
+  const subtaskCount = (activeTask?.subtasks || []).filter((subtask) => subtask.title?.trim()).length;
+  const nextTaskCount = plan.items.filter((item) => item.id !== plan.activeTaskId && !item.completed && item.title?.trim()).length;
+  const builderSummary = subtaskCount || nextTaskCount
+    ? `${subtaskCount} ${subtaskCount === 1 ? 'subtask' : 'subtasks'} - ${nextTaskCount} next`
+    : 'Add subtasks or next-up tasks';
+
+  useEffect(() => {
+    if (!builderOpenSignal) return;
+    setBuilderExpanded(true);
+  }, [builderOpenSignal]);
+
+  useEffect(() => {
+    if (!builderExpanded) setViewAllOpen(false);
+  }, [builderExpanded]);
 
   const clearPendingCompletion = useCallback((key) => {
     const timer = completionTimersRef.current.get(key);
@@ -110,7 +125,7 @@ export default function RunningTaskPlan({
       onLayoutChange?.();
     }, 20);
     return () => window.clearTimeout(resizeTimer);
-  }, [layoutSignature, onLayoutChange, overflowPinned, pendingCompletionKeys, showCompletionPrompt]);
+  }, [builderExpanded, layoutSignature, onLayoutChange, pendingCompletionKeys, showCompletionPrompt, viewAllOpen]);
 
   useEffect(() => {
     const pendingFocus = pendingFocusRef.current;
@@ -141,14 +156,14 @@ export default function RunningTaskPlan({
   const handleAddSubtask = useCallback(() => {
     if (!canEditPlan) return;
     pendingFocusRef.current = { kind: 'subtask' };
-    if (editableItems.length >= 3) setOverflowPinned(true);
+    if (editableItems.length >= 3) setViewAllOpen(true);
     updatePlan(addSubtask(plan, ''));
   }, [canEditPlan, editableItems.length, plan, updatePlan]);
 
   const handleAddNextTask = useCallback(() => {
     if (!canEditPlan) return;
     pendingFocusRef.current = { kind: 'next' };
-    if (editableItems.length >= 3) setOverflowPinned(true);
+    if (editableItems.length >= 3) setViewAllOpen(true);
     updatePlan(addNextTask(plan, ''));
   }, [canEditPlan, editableItems.length, plan, updatePlan]);
 
@@ -266,6 +281,7 @@ export default function RunningTaskPlan({
   };
 
   const detailsVisible = structured || canEditPlan;
+  const showBuilderBody = !canEditPlan || builderExpanded;
 
   return (
     <div className="running-plan">
@@ -276,60 +292,63 @@ export default function RunningTaskPlan({
         onLockedInteraction={onLockedInteraction}
       >
         {detailsVisible ? (
-          <div className="running-plan__details electron-no-drag" data-testid="running-task-plan">
+          <div className={`running-plan__details electron-no-drag${builderExpanded ? ' is-expanded' : ''}`} data-testid="running-task-plan">
             {canEditPlan ? (
-              <div className="running-plan__edit-actions">
-                <button
-                  type="button"
-                  className="running-plan__add-btn"
-                  onClick={handleAddSubtask}
-                >
-                  <Plus size={13} />
-                  Add subtask
-                </button>
-                <button
-                  type="button"
-                  className="running-plan__add-btn running-plan__add-btn--secondary"
-                  onClick={handleAddNextTask}
-                >
-                  <Plus size={13} />
-                  Add next-up
-                </button>
-              </div>
+              <button
+                type="button"
+                className="running-plan__builder-toggle"
+                onClick={() => setBuilderExpanded((prev) => !prev)}
+                aria-expanded={builderExpanded}
+                data-testid="running-plan-builder-toggle"
+              >
+                <span className="running-plan__builder-toggle-copy">
+                  <span className="running-plan__builder-toggle-label">View session builder</span>
+                  <span className="running-plan__builder-toggle-summary">{builderSummary}</span>
+                </span>
+                <ChevronDown className="running-plan__builder-toggle-icon" size={16} aria-hidden="true" />
+              </button>
             ) : null}
-            <div className="running-plan__list">
-              {visibleItems.map((item) => (canEditPlan ? renderEditablePlanItem(item) : renderPlanItem(item)))}
-              {!canEditPlan && nextTask && !visibleItems.some((item) => item.type === 'next' && item.id === nextTask.id) ? (
-                <button
-                  type="button"
-                  className="running-plan__next-chip"
-                  onClick={() => setOverflowPinned((prev) => !prev)}
-                  aria-expanded={overflowPinned}
-                >
-                  Next: {nextTask.title}
-                </button>
-              ) : null}
-              {overflowItems.length ? (
-                <button
-                  type="button"
-                  className="running-plan__overflow-btn"
-                  onClick={() => setOverflowPinned((prev) => !prev)}
-                  onFocus={() => setOverflowPinned(true)}
-                  data-testid="running-plan-overflow"
-                  aria-expanded={overflowPinned}
-                >
-                  +{overflowItems.length} more
-                </button>
-              ) : null}
-            </div>
 
-            {overflowPinned && overflowItems.length ? (
-              <div className="running-plan__overflow" data-testid="running-plan-overflow-popover">
-                <div className="running-plan__overflow-title">More in this plan</div>
-                {overflowItems.map((item) => (canEditPlan
-                  ? renderEditablePlanItem(item, { overflowItem: true })
-                  : renderPlanItem(item, { overflowItem: true })))}
-              </div>
+            {showBuilderBody ? (
+              <>
+                {canEditPlan ? (
+                  <div className="running-plan__edit-actions">
+                    <button
+                      type="button"
+                      className="running-plan__add-btn"
+                      onClick={handleAddSubtask}
+                    >
+                      <Plus size={13} />
+                      Add subtask
+                    </button>
+                    <button
+                      type="button"
+                      className="running-plan__add-btn running-plan__add-btn--secondary"
+                      onClick={handleAddNextTask}
+                    >
+                      <Plus size={13} />
+                      Add next-up
+                    </button>
+                  </div>
+                ) : null}
+                <div className={`running-plan__list${hasListOverflow ? ' is-scrollable' : ''}${hasListOverflow && viewAllOpen ? ' is-expanded' : ''}`} data-testid="running-plan-list">
+                  {visibleItems.map((item) => (canEditPlan ? renderEditablePlanItem(item) : renderPlanItem(item)))}
+                </div>
+
+                {hasListOverflow ? (
+                  <div className="running-plan__list-footer">
+                    <button
+                      type="button"
+                      className="running-plan__view-all-btn"
+                      onClick={() => setViewAllOpen((prev) => !prev)}
+                      data-testid="running-plan-view-all"
+                      aria-expanded={viewAllOpen}
+                    >
+                      {viewAllOpen ? 'Show less' : `View all (${planListItems.length})`}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}

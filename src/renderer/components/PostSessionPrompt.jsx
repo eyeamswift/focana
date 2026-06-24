@@ -47,6 +47,13 @@ function formatSaveTitle(taskText) {
   return `Save “${taskText}” for later`;
 }
 
+function combineNotes(nextSteps = '', recap = '') {
+  const pieces = [nextSteps, recap]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(pieces)).join('\n\n');
+}
+
 export default function PostSessionPrompt({
   isOpen,
   candidate,
@@ -80,8 +87,7 @@ export default function PostSessionPrompt({
   const [customBreakMinutes, setCustomBreakMinutes] = useState('');
   const [breakShowsTimer, setBreakShowsTimer] = useState(true);
   const [timedMinutes, setTimedMinutes] = useState(String(suggestedTimedMinutes));
-  const [nextSteps, setNextSteps] = useState('');
-  const [recap, setRecap] = useState('');
+  const [notes, setNotes] = useState('');
   const [feedbackState, setFeedbackState] = useState('hidden');
   const frameRef = useRef(null);
 
@@ -93,12 +99,11 @@ export default function PostSessionPrompt({
     setCustomBreakMinutes('');
     setBreakShowsTimer(true);
     setTimedMinutes(String(suggestedTimedMinutes));
-    setNextSteps(typeof candidate?.nextSteps === 'string' ? candidate.nextSteps : '');
-    setRecap(typeof candidate?.recap === 'string' ? candidate.recap : '');
+    setNotes(combineNotes(candidate?.nextSteps, candidate?.recap));
     setFeedbackState(feedbackEnabled ? 'waiting' : 'hidden');
   }, [
-    candidate?.nextSteps,
     candidate?.recap,
+    candidate?.nextSteps,
     feedbackEnabled,
     isOpen,
     suggestedTimedMinutes,
@@ -537,25 +542,16 @@ export default function PostSessionPrompt({
 
         <div className="post-session-notes-grid">
           <label className="post-session-notes-grid__field">
-            <span className="post-session-notes-grid__label">First step back in</span>
+            <span className="post-session-notes-grid__label">Notes</span>
+            <span className="post-session-notes-grid__hint">
+              Enter your immediate next steps and/or any notes, links, or resources that will help you get started when you return.
+            </span>
             <Textarea
-              name="next-steps"
-              value={nextSteps}
-              onChange={(event) => setNextSteps(event.target.value)}
-              placeholder="What should you do first when you come back?"
-              maxLength={500}
-              className="post-session-notes-grid__textarea"
-            />
-          </label>
-
-          <label className="post-session-notes-grid__field">
-            <span className="post-session-notes-grid__label">Helpful context</span>
-            <Textarea
-              name="recap"
-              value={recap}
-              onChange={(event) => setRecap(event.target.value)}
-              placeholder="Links, completed pieces, reminders, useful details..."
-              maxLength={500}
+              name="notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Next steps, links, resources, or reminders..."
+              maxLength={900}
               className="post-session-notes-grid__textarea"
             />
           </label>
@@ -565,8 +561,8 @@ export default function PostSessionPrompt({
           type="button"
           className="post-session-pill-button"
           onClick={() => onSubmit?.({
-            nextSteps: nextSteps.trim(),
-            recap: recap.trim(),
+            nextSteps: '',
+            recap: notes.trim(),
           })}
         >
           {ctaLabel}

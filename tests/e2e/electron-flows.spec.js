@@ -584,12 +584,10 @@ async function fillSplitSessionNotes(page, {
   nextSteps = null,
   recap = null,
 } = {}) {
-  if (typeof nextSteps === 'string') {
-    await page.locator('textarea[name="next-steps"]').fill(nextSteps);
-  }
-  if (typeof recap === 'string') {
-    await page.locator('textarea[name="recap"]').fill(recap);
-  }
+  const notes = [nextSteps, recap]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  await page.locator('textarea[name="notes"]').fill(Array.from(new Set(notes)).join('\n\n'));
 }
 
 async function expectPostSessionPrompt(page, taskName = null, { surface = 'wrap' } = {}) {
@@ -1424,9 +1422,9 @@ test('wake resume start-new keeps the save-for-later draft stable through the re
     await page.getByRole('button', { name: 'Start Something New' }).click();
     await expect(page.getByText('Where did you leave off?')).toBeVisible();
 
-    const nextSteps = page.locator('textarea[name="next-steps"]');
-    await setTextControlValue(page, nextSteps, 'draft survives the reminder loop', { maxLength: 500 });
-    await expect(nextSteps).toHaveValue('draft survives the reminder loop');
+    const notes = page.locator('textarea[name="notes"]');
+    await setTextControlValue(page, notes, 'draft survives the reminder loop', { maxLength: 900 });
+    await expect(notes).toHaveValue('draft survives the reminder loop');
     await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
 
     await setTimeOffset(page, (5 * 60 * 1000) + 35000);
@@ -1434,7 +1432,7 @@ test('wake resume start-new keeps the save-for-later draft stable through the re
 
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
     await expect(page.getByText('Where did you leave off?')).toBeVisible();
-    await expect.poll(async () => (await nextSteps.inputValue()).includes('draft survives the reminder loop')).toBe(true);
+    await expect.poll(async () => (await notes.inputValue()).includes('draft survives the reminder loop')).toBe(true);
     await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
   } finally {
     await cleanup();
@@ -1861,7 +1859,7 @@ test("what's next dashboard opens saved work details and keeps session builder l
     await expect(page.getByLabel('Start new task')).toHaveValue('Parked dashboard task');
 
     await page.getByRole('button', { name: /Resume dashboard task/ }).click();
-    await expect(page.getByText('Immediate next step')).toBeVisible();
+    await expect(page.getByText('Notes')).toBeVisible();
     await expect(page.getByText('Open source notes')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
@@ -2146,8 +2144,8 @@ test("resume save-for-later can mark complete with confetti and hand off directl
     const matchingSession = savedSessions.find((session) => session?.task === 'resume-mark-complete');
     expect(matchingSession).toBeTruthy();
     expect(matchingSession.completed).toBe(true);
-    expect(matchingSession.nextSteps).toBe('reopen the checklist and verify the last pass');
-    expect(matchingSession.recap).toBe('handoff notes captured before marking it complete');
+    expect(matchingSession.nextSteps).toBe('');
+    expect(matchingSession.recap).toBe('reopen the checklist and verify the last pass\n\nhandoff notes captured before marking it complete');
   } finally {
     await cleanup();
   }
@@ -3646,8 +3644,8 @@ test('pause session wrap Save and continue later saves a kept session and clears
     expect(savedState.timerState?.isRunning).toBe(false);
     expect(savedState.matchingSession?.kept).toBe(true);
     expect(savedState.matchingSession?.completed).toBe(false);
-    expect(savedState.matchingSession?.nextSteps).toBe('return through the saved handoff');
-    expect(savedState.matchingSession?.recap).toBe('paused work is safely saved');
+    expect(savedState.matchingSession?.nextSteps).toBe('');
+    expect(savedState.matchingSession?.recap).toBe('return through the saved handoff\n\npaused work is safely saved');
   } finally {
     await cleanup();
   }
@@ -3711,6 +3709,10 @@ test('session builder captures subtasks and hands off to the next top-level task
 
     await exitCompactMode(page);
     await expect(page.getByTestId('running-task-plan')).toBeVisible();
+    await expect(page.getByTestId('running-plan-builder-toggle')).toBeVisible();
+    await expect(page.getByTestId('running-plan-builder-toggle')).toContainText('2 subtasks - 1 next');
+    await expect(page.getByTestId('running-plan-subtask-input')).toHaveCount(0);
+    await page.getByTestId('running-plan-builder-toggle').click();
     await expect(page.getByTestId('running-plan-subtask-input').nth(0)).toHaveValue('Draft subject line');
     await expect(page.getByTestId('running-plan-subtask-input').nth(1)).toHaveValue('Polish hero copy');
     await expect(page.getByTestId('running-plan-next-input').nth(0)).toHaveValue('Update Product Hunt checklist');
@@ -5278,9 +5280,9 @@ test('post-session save-for-later keeps split notes after timed expiry', async (
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     expect(savedSessions[0].completed).toBe(false);
     expect(savedSessions[0].kept).toBe(true);
-    expect(savedSessions[0].notes).toBe('left the final section half-drafted');
-    expect(savedSessions[0].recap).toBe('left the final section half-drafted');
-    expect(savedSessions[0].nextSteps).toBe('resume from here');
+    expect(savedSessions[0].notes).toBe('resume from here\n\nleft the final section half-drafted');
+    expect(savedSessions[0].recap).toBe('resume from here\n\nleft the final section half-drafted');
+    expect(savedSessions[0].nextSteps).toBe('');
   } finally {
     await cleanup();
   }

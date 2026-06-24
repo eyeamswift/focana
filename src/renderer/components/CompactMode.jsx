@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Check, ClipboardList, BellOff, Info } from 'lucide-react';
+import { Play, Pause, Check, ClipboardList, BellOff, Info, ListPlus } from 'lucide-react';
 import { formatTime } from '../utils/time';
+import { Checkbox } from './ui/Checkbox';
 import ReentryPrompt from './ReentryPrompt';
 
 // ---------------------------------------------------------------------------
@@ -10,15 +11,14 @@ const H_MARGIN   = 4;   // account for the stronger 2px pill frame on both sides
 const PILL_PAD   = 40;  // 20px left + 20px right padding
 const PILL_BASE_H = 72;
 const PILL_MAX_H = 260;
-const DOCK_W     = 106; // fixed right dock for timer/info or controls
+const DOCK_W     = 126; // fixed right dock for timer/info or controls
 const TASK_DOCK_GAP = 8;
 
 const TASK_MIN_W = 64;
 const TASK_MAX_W = 220; // max task width before wrapping
-const PLAN_PREVIEW_W = 340;
-const PLAN_PREVIEW_H = 176;
-const PLAN_PREVIEW_HOVER_MS = 320;
-const PLAN_PREVIEW_LONG_PRESS_MS = 480;
+const PLAN_PREVIEW_W = 360;
+const PLAN_PREVIEW_H = 320;
+const PLAN_PREVIEW_LIMIT = 3;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
 const REENTRY_PROMPT_SIZES = {
@@ -53,6 +53,7 @@ export default function CompactMode({
   successCueSignal = 0,
   onDoubleClick,
   onEditTaskPlan,
+  onSubtaskToggle,
   onOpenDistractionJar,
   thoughtCount = 0,
   onPlay,
@@ -89,15 +90,13 @@ export default function CompactMode({
   const [successCueBurstId, setSuccessCueBurstId] = useState(0);
   const [showHelpHint, setShowHelpHint] = useState(false);
   const [showPlanPreview, setShowPlanPreview] = useState(false);
+  const [planPreviewExpanded, setPlanPreviewExpanded] = useState(false);
   const [taskMetrics, setTaskMetrics]   = useState({ width: TASK_MIN_W, height: PILL_BASE_H });
 
   const clickTimerRef    = useRef(null);
   const controlsHideRef  = useRef(null);
   const pulseResetTimeoutRef = useRef(null);
   const successCueTimeoutRef = useRef(null);
-  const planPreviewHoverRef = useRef(null);
-  const planPreviewLongPressRef = useRef(null);
-  const planPreviewSuppressClickRef = useRef(false);
   const taskMeasureInlineRef = useRef(null);
   const taskMeasureBlockRef = useRef(null);
   const dragMoveHandlerRef = useRef(null);
@@ -113,7 +112,13 @@ export default function CompactMode({
   const safeTaskPlanDetails = Array.isArray(taskPlanDetails)
     ? taskPlanDetails.filter((item) => typeof item?.label === 'string' && item.label.trim())
     : [];
-  const hasTaskPlanDetails = safeTaskPlanDetails.length > 0;
+  const safeSubtaskDetails = safeTaskPlanDetails.filter((item) => item.type === 'subtask');
+  const safeNextTaskDetails = safeTaskPlanDetails.filter((item) => item.type === 'next');
+  const hasTaskPlanDetails = safeSubtaskDetails.length > 0 || safeNextTaskDetails.length > 0;
+  const planPreviewHasOverflow = safeSubtaskDetails.length > PLAN_PREVIEW_LIMIT || safeNextTaskDetails.length > PLAN_PREVIEW_LIMIT;
+  const visiblePreviewSubtasks = safeSubtaskDetails;
+  const visiblePreviewNextTasks = safeNextTaskDetails;
+  const planPreviewItemCount = safeSubtaskDetails.length + safeNextTaskDetails.length;
   const hasTaskLabel = taskLabel.trim().length > 0;
   const isTaskVisible = hasTaskLabel;
 
@@ -340,8 +345,6 @@ export default function CompactMode({
     if (controlsHideRef.current) clearTimeout(controlsHideRef.current);
     if (pulseResetTimeoutRef.current) clearTimeout(pulseResetTimeoutRef.current);
     if (successCueTimeoutRef.current) clearTimeout(successCueTimeoutRef.current);
-    if (planPreviewHoverRef.current) clearTimeout(planPreviewHoverRef.current);
-    if (planPreviewLongPressRef.current) clearTimeout(planPreviewLongPressRef.current);
     if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
     if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
     if (dragBlurHandlerRef.current) window.removeEventListener('blur', dragBlurHandlerRef.current);
@@ -434,19 +437,9 @@ export default function CompactMode({
     window.electronAPI?.openCompactContextMenu?.();
   };
 
-  // Single click — debounced 220ms to avoid collision with double-click
   const handlePillClick = (e) => {
-    if (isDraggingRef.current) return; // suppress click that follows a drag
-    if (planPreviewSuppressClickRef.current) {
-      planPreviewSuppressClickRef.current = false;
-      return;
-    }
+    if (isDraggingRef.current) return;
     e.stopPropagation();
-    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = setTimeout(() => {
-      setShowControls(true);
-      resetControlsTimer();
-    }, 220);
   };
 
   // Double click — cancel pending single-click, exit compact mode
@@ -460,52 +453,47 @@ export default function CompactMode({
     onDoubleClick();
   };
 
-  const clearPlanPreviewLongPress = () => {
-    if (!planPreviewLongPressRef.current) return;
-    clearTimeout(planPreviewLongPressRef.current);
-    planPreviewLongPressRef.current = null;
-  };
-
-  const clearPlanPreviewHover = () => {
-    if (!planPreviewHoverRef.current) return;
-    clearTimeout(planPreviewHoverRef.current);
-    planPreviewHoverRef.current = null;
-  };
-
   const showPlanPreviewIfAvailable = () => {
     if (!hasTaskPlanDetails) return;
-    clearPlanPreviewHover();
     setShowControls(false);
     setShowPlanPreview(true);
   };
 
   const hidePlanPreview = () => {
-    clearPlanPreviewHover();
-    clearPlanPreviewLongPress();
     setShowPlanPreview(false);
+    setPlanPreviewExpanded(false);
   };
 
-  const handlePlanPreviewMouseEnter = () => {
-    if (!hasTaskPlanDetails) return;
-    clearPlanPreviewHover();
-    planPreviewHoverRef.current = setTimeout(() => {
-      planPreviewHoverRef.current = null;
-      showPlanPreviewIfAvailable();
-    }, PLAN_PREVIEW_HOVER_MS);
+  const handleTaskPlanClick = (event) => {
+    if (isDraggingRef.current || !hasTaskPlanDetails) return;
+    event.stopPropagation();
+    setShowControls(false);
+    setShowPlanPreview((prev) => !prev);
   };
 
-  const handlePlanPreviewPointerDown = (e) => {
-    if (!hasTaskPlanDetails || e.button !== 0) return;
-    clearPlanPreviewLongPress();
-    planPreviewLongPressRef.current = setTimeout(() => {
-      planPreviewLongPressRef.current = null;
-      planPreviewSuppressClickRef.current = true;
-      showPlanPreviewIfAvailable();
-    }, PLAN_PREVIEW_LONG_PRESS_MS);
+  const handleTaskPlanPointerUp = (event) => {
+    if (typeof event.button === 'number' && event.button > 0) return;
+    handleTaskPlanClick(event);
   };
 
-  const handlePlanPreviewPointerEnd = () => {
-    clearPlanPreviewLongPress();
+  const handleTaskPlanKeyDown = (event) => {
+    if (!hasTaskPlanDetails || (event.key !== 'Enter' && event.key !== ' ')) return;
+    event.preventDefault();
+    setShowControls(false);
+    setShowPlanPreview((prev) => !prev);
+  };
+
+  const handleTimerClick = (event) => {
+    if (isDraggingRef.current) return;
+    event.stopPropagation();
+    hidePlanPreview();
+    setShowControls(true);
+    resetControlsTimer();
+  };
+
+  const handleTimerPointerUp = (event) => {
+    if (typeof event.button === 'number' && event.button > 0) return;
+    handleTimerClick(event);
   };
 
   // Wrap a control button: stop propagation + reset auto-hide timer
@@ -594,14 +582,12 @@ export default function CompactMode({
           className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}
           style={{ maxWidth: isTaskVisible ? taskMetrics.width : 0 }}
           tabIndex={hasTaskPlanDetails ? 0 : -1}
+          role={hasTaskPlanDetails ? 'button' : undefined}
+          aria-label={hasTaskPlanDetails ? (planPreviewActive ? 'Hide task plan' : 'Show task plan') : undefined}
+          aria-expanded={hasTaskPlanDetails ? planPreviewActive : undefined}
           aria-describedby={planPreviewActive ? 'pill-task-plan-preview' : undefined}
-          onMouseEnter={handlePlanPreviewMouseEnter}
-          onMouseLeave={hidePlanPreview}
-          onFocus={showPlanPreviewIfAvailable}
-          onBlur={hidePlanPreview}
-          onPointerDown={handlePlanPreviewPointerDown}
-          onPointerUp={handlePlanPreviewPointerEnd}
-          onPointerCancel={handlePlanPreviewPointerEnd}
+          onPointerUp={handleTaskPlanPointerUp}
+          onKeyDown={handleTaskPlanKeyDown}
         >
           <span className="pill-task-text">{taskLabel}</span>
           {safeTaskPlanSummary ? (
@@ -617,9 +603,18 @@ export default function CompactMode({
               </span>
             )}
 
-            <span className="pill-timer" style={{ color: timerColor }}>
-              {formatTime(time)}
-            </span>
+            <button
+              type="button"
+              className="pill-timer-button electron-no-drag"
+              onClick={handleTimerClick}
+              onPointerUp={handleTimerPointerUp}
+              title="Show controls"
+              aria-label="Show compact controls"
+            >
+              <span className="pill-timer" style={{ color: timerColor }}>
+                {formatTime(time)}
+              </span>
+            </button>
 
             <span
               className="pill-help electron-no-drag"
@@ -665,6 +660,17 @@ export default function CompactMode({
                 <Check style={{ width: 14, height: 14 }} />
               </button>
 
+              {typeof onEditTaskPlan === 'function' && hasTaskLabel ? (
+                <button
+                  className="pill-btn"
+                  onClick={ctrl(onEditTaskPlan)}
+                  title="Edit plan"
+                  aria-label="Edit plan"
+                >
+                  <ListPlus style={{ width: 14, height: 14 }} />
+                </button>
+              ) : null}
+
               <button
                 className="pill-btn pill-btn--notepad"
                 onClick={ctrl(onOpenDistractionJar)}
@@ -693,25 +699,68 @@ export default function CompactMode({
           data-testid="compact-task-plan-preview"
           role="tooltip"
           onMouseEnter={showPlanPreviewIfAvailable}
-          onMouseLeave={hidePlanPreview}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
-          <div className="pill-task-plan-preview__title">Current plan</div>
-          <ul className="pill-task-plan-preview__list">
-            {safeTaskPlanDetails.slice(0, 6).map((item) => (
-              <li
-                key={`${item.type}-${item.id}`}
-                className={item.completed ? 'is-complete' : ''}
-              >
-                {item.label}
-              </li>
-            ))}
-          </ul>
-          {safeTaskPlanDetails.length > 6 ? (
-            <div className="pill-task-plan-preview__more">
-              +{safeTaskPlanDetails.length - 6} more
-            </div>
+          <div className={`pill-task-plan-preview__content${planPreviewHasOverflow ? ' is-scrollable' : ''}${planPreviewHasOverflow && planPreviewExpanded ? ' is-expanded' : ''}`}>
+            {safeSubtaskDetails.length ? (
+              <section className="pill-task-plan-preview__section" aria-label="Subtasks">
+                <div className="pill-task-plan-preview__title">Subtasks</div>
+                <ul className={`pill-task-plan-preview__list${safeSubtaskDetails.length > PLAN_PREVIEW_LIMIT ? ' is-scrollable' : ''}${planPreviewExpanded ? ' is-expanded' : ''}`}>
+                  {visiblePreviewSubtasks.map((item) => {
+                    const checkboxId = `compact-plan-subtask-${item.id}`;
+                    return (
+                      <li
+                        key={`subtask-${item.id}`}
+                        className={`pill-task-plan-preview__row${item.completed ? ' is-complete' : ''}`}
+                      >
+                        <Checkbox
+                          id={checkboxId}
+                          checked={item.completed === true}
+                          onCheckedChange={(checked) => onSubtaskToggle?.(item.id, checked)}
+                          onClick={(event) => event.stopPropagation()}
+                          className="pill-task-plan-preview__checkbox"
+                          aria-label={item.title || item.label}
+                          data-testid="compact-plan-subtask-checkbox"
+                        />
+                        <label htmlFor={checkboxId} className="pill-task-plan-preview__label">
+                          {item.title || item.label}
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ) : null}
+
+            {safeNextTaskDetails.length ? (
+              <section className="pill-task-plan-preview__section" aria-label="Next up">
+                <div className="pill-task-plan-preview__title">Next up</div>
+                <ul className={`pill-task-plan-preview__list${safeNextTaskDetails.length > PLAN_PREVIEW_LIMIT ? ' is-scrollable' : ''}${planPreviewExpanded ? ' is-expanded' : ''}`}>
+                  {visiblePreviewNextTasks.map((item) => (
+                    <li
+                      key={`next-${item.id}`}
+                      className={`pill-task-plan-preview__row pill-task-plan-preview__row--next${item.completed ? ' is-complete' : ''}`}
+                    >
+                      <span className="pill-task-plan-preview__label">{item.title || item.label.replace(/^Next:\\s*/i, '')}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
+          {planPreviewHasOverflow ? (
+            <button
+              type="button"
+              className="pill-task-plan-preview__view-all"
+              onClick={(event) => {
+                event.stopPropagation();
+                setPlanPreviewExpanded((prev) => !prev);
+              }}
+              aria-expanded={planPreviewExpanded}
+            >
+              {planPreviewExpanded ? 'Show less' : `View all (${planPreviewItemCount})`}
+            </button>
           ) : null}
           {typeof onEditTaskPlan === 'function' ? (
             <button

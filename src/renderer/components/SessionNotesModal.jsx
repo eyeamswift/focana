@@ -5,6 +5,13 @@ import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { CheckCircle, CircleDot, X } from 'lucide-react';
 
+function combineNotes(nextSteps = '', recap = '') {
+  const pieces = [nextSteps, recap]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(pieces)).join('\n\n');
+}
+
 export default function SessionNotesModal({
   isOpen,
   onClose,
@@ -20,40 +27,32 @@ export default function SessionNotesModal({
   initialRecap = '',
   initialNextSteps = '',
 }) {
-  const [recap, setRecap] = useState('');
-  const [nextSteps, setNextSteps] = useState('');
-  const recapRef = useRef(null);
-  const nextStepsRef = useRef(null);
+  const [notes, setNotes] = useState('');
+  const notesRef = useRef(null);
 
   useEffect(() => {
-    setRecap(typeof initialRecap === 'string' ? initialRecap : '');
-    setNextSteps(typeof initialNextSteps === 'string' ? initialNextSteps : '');
+    setNotes(combineNotes(initialNextSteps, initialRecap));
   }, [initialNextSteps, initialRecap, isOpen, sessionFlowKey]);
 
   const getCurrentNotes = () => {
-    const liveRecap = typeof recapRef.current?.value === 'string'
-      ? recapRef.current.value
-      : recap;
-    const liveNextSteps = typeof nextStepsRef.current?.value === 'string'
-      ? nextStepsRef.current.value
-      : nextSteps;
+    const liveNotes = typeof notesRef.current?.value === 'string'
+      ? notesRef.current.value
+      : notes;
 
     return {
-      recap: liveRecap.trim(),
-      nextSteps: liveNextSteps.trim(),
+      recap: liveNotes.trim(),
+      nextSteps: '',
     };
   };
 
   const handleRequestClose = () => {
-    setRecap(typeof initialRecap === 'string' ? initialRecap : '');
-    setNextSteps(typeof initialNextSteps === 'string' ? initialNextSteps : '');
+    setNotes(combineNotes(initialNextSteps, initialRecap));
     onClose();
   };
 
   const handleSave = () => {
     onSave(getCurrentNotes());
-    setRecap('');
-    setNextSteps('');
+    setNotes('');
   };
 
   const handleSkip = () => {
@@ -62,20 +61,17 @@ export default function SessionNotesModal({
 
   const handleComplete = () => {
     onComplete?.(getCurrentNotes());
-    setRecap('');
-    setNextSteps('');
+    setNotes('');
   };
 
   const handleIncomplete = () => {
     onIncomplete?.(getCurrentNotes());
-    setRecap('');
-    setNextSteps('');
+    setNotes('');
   };
 
   const handleResume = () => {
     onResume?.();
-    setRecap('');
-    setNextSteps('');
+    setNotes('');
   };
 
   const formatDuration = (minutes) => {
@@ -151,45 +147,25 @@ export default function SessionNotesModal({
         <>
           <div className="space-y-4" style={{ padding: '0.3rem 0 0' }}>
               <div>
-                <label htmlFor="session-next-steps" style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>
-                  Immediate next step <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 400 }}>(optional)</span>
-                </label>
-                <Textarea
-                  id="session-next-steps"
-                  name="next-steps"
-                  ref={nextStepsRef}
-                  value={nextSteps}
-                  onChange={(e) => setNextSteps(e.target.value)}
-                  placeholder="What should you do first when you come back?"
-                  maxLength={500}
-                  className="no-resize"
-                  style={{ minHeight: 84, borderColor: 'var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                />
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', textAlign: 'right' }}>
-                  {nextSteps.length}/500 characters
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="session-recap" style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Additional details <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 400 }}>(optional)</span>
+                <label htmlFor="session-notes" style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.35rem' }}>
+                  Notes <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 400 }}>(optional)</span>
                 </label>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.45, margin: '0 0 0.5rem' }}>
-                  Add any background information/details that will help you pick up where you left off, i.e. what you completed, relevant links, etc.
+                  Enter your immediate next steps and/or any notes, links, or resources that will help you get started when you return.
                 </p>
                 <Textarea
-                  id="session-recap"
-                  name="recap"
-                  ref={recapRef}
-                  value={recap}
-                  onChange={(e) => setRecap(e.target.value)}
-                  placeholder="Completed pieces, useful context, links, and reminders..."
-                  maxLength={500}
+                  id="session-notes"
+                  name="notes"
+                  ref={notesRef}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Next steps, links, resources, or reminders..."
+                  maxLength={900}
                   className="no-resize"
-                  style={{ minHeight: 88, borderColor: 'var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+                  style={{ minHeight: 142, borderColor: 'var(--border-strong)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                 />
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', textAlign: 'right' }}>
-                  {recap.length}/500 characters
+                  {notes.length}/900 characters
                 </p>
               </div>
           </div>

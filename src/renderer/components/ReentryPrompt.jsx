@@ -2,11 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SessionBuilderComposer from './SessionBuilderComposer';
 
 const QUICK_MINUTES = [15, 25, 45];
+const NOTES_HELPER_COPY = 'Enter your immediate next steps and/or any notes, links, or resources that will help you get started when you return.';
 
 function clampMinutes(rawValue) {
   const parsed = Number.parseInt(String(rawValue || '').trim(), 10);
   if (!Number.isFinite(parsed)) return null;
   return Math.min(Math.max(parsed, 1), 240);
+}
+
+function combineNotes(nextSteps = '', recap = '') {
+  const pieces = [nextSteps, recap]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(pieces)).join('\n\n');
 }
 
 export default function ReentryPrompt({
@@ -44,11 +52,10 @@ export default function ReentryPrompt({
 }) {
   const textareaRef = useRef(null);
   const minutesInputRef = useRef(null);
-  const nextStepsRef = useRef(null);
+  const notesRef = useRef(null);
   const previousStageRef = useRef(promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
   const resumeDraftSignatureRef = useRef('');
-  const [resumeRecapDraft, setResumeRecapDraft] = useState('');
-  const [resumeNextStepsDraft, setResumeNextStepsDraft] = useState('');
+  const [resumeNotesDraft, setResumeNotesDraft] = useState('');
 
   const safeTaskText = typeof taskText === 'string' ? taskText : '';
   const trimmedTaskText = safeTaskText.trim();
@@ -78,8 +85,7 @@ export default function ReentryPrompt({
     const signature = `${promptKind}:${safeResumeTaskName || 'this-task'}`;
     if (resumeDraftSignatureRef.current === signature) return;
     resumeDraftSignatureRef.current = signature;
-    setResumeRecapDraft(safeResumeRecap);
-    setResumeNextStepsDraft(safeResumeNextSteps);
+    setResumeNotesDraft(combineNotes(safeResumeNextSteps, safeResumeRecap));
   }, [isOpen, promptKind, safeResumeNextSteps, safeResumeRecap, safeResumeTaskName]);
 
   useEffect(() => {
@@ -108,7 +114,7 @@ export default function ReentryPrompt({
       }
 
       if (stage === 'save-for-later') {
-        const input = nextStepsRef.current;
+        const input = notesRef.current;
         if (!input) return;
         input.focus();
         input.setSelectionRange(input.value.length, input.value.length);
@@ -280,8 +286,8 @@ export default function ReentryPrompt({
               onClick={() => {
                 noteInteraction();
                 onCompleteFromResume?.({
-                  recap: resumeRecapDraft.trim(),
-                  nextSteps: resumeNextStepsDraft.trim(),
+                  recap: resumeNotesDraft.trim(),
+                  nextSteps: '',
                 });
               }}
             >
@@ -329,7 +335,7 @@ export default function ReentryPrompt({
                     event.preventDefault();
                     handleAdvanceToChooser();
                   }}
-                  placeholder="What are we focusing on next?"
+                  placeholder=""
                 />
                 <button
                   type="button"
@@ -460,37 +466,21 @@ export default function ReentryPrompt({
             <p className="reentry-prompt__copy">Where did you leave off?</p>
 
             <label className="reentry-prompt__field">
-              <span className="reentry-prompt__field-label">First step back in</span>
+              <span className="reentry-prompt__field-label">Notes</span>
+              <span className="reentry-prompt__field-hint">{NOTES_HELPER_COPY}</span>
               <textarea
-                ref={nextStepsRef}
+                ref={notesRef}
                 className="reentry-prompt__textarea reentry-prompt__textarea--notes"
-                rows={4}
-                maxLength={500}
-                name="next-steps"
-                value={resumeNextStepsDraft}
+                rows={7}
+                maxLength={900}
+                name="notes"
+                value={resumeNotesDraft}
                 onFocus={noteInteraction}
                 onChange={(event) => {
                   noteInteraction();
-                  setResumeNextStepsDraft(event.target.value);
+                  setResumeNotesDraft(event.target.value);
                 }}
-                placeholder="What should you do first when you come back?"
-              />
-            </label>
-
-            <label className="reentry-prompt__field">
-              <span className="reentry-prompt__field-label">Helpful context</span>
-              <textarea
-                className="reentry-prompt__textarea reentry-prompt__textarea--notes"
-                rows={4}
-                maxLength={500}
-                name="recap"
-                value={resumeRecapDraft}
-                onFocus={noteInteraction}
-                onChange={(event) => {
-                  noteInteraction();
-                  setResumeRecapDraft(event.target.value);
-                }}
-                placeholder="Links, completed pieces, reminders, useful details..."
+                placeholder="Next steps, links, resources, or reminders..."
               />
             </label>
 
@@ -501,8 +491,8 @@ export default function ReentryPrompt({
                 onClick={() => {
                   noteInteraction();
                   onSaveForLaterFromResume?.({
-                    recap: resumeRecapDraft.trim(),
-                    nextSteps: resumeNextStepsDraft.trim(),
+                    recap: resumeNotesDraft.trim(),
+                    nextSteps: '',
                   });
                 }}
               >

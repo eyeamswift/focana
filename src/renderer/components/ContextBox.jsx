@@ -4,6 +4,15 @@ import { Textarea } from './ui/Textarea';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { Edit3, Save, X } from 'lucide-react';
 
+const NOTES_HELPER_COPY = 'Enter your immediate next steps and/or any notes, links, or resources that will help you get started when you return.';
+
+function combineNotes(nextSteps = '', recap = '') {
+  const pieces = [nextSteps, recap]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(pieces)).join('\n\n');
+}
+
 export default function ContextBox({
   recap = '',
   nextSteps = '',
@@ -13,26 +22,24 @@ export default function ContextBox({
   isSessionActive = false,
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedRecap, setEditedRecap] = useState(recap || '');
-  const [editedNextSteps, setEditedNextSteps] = useState(nextSteps || '');
+  const [editedNotes, setEditedNotes] = useState(() => combineNotes(nextSteps, recap));
+  const notes = combineNotes(nextSteps, recap);
 
   useEffect(() => {
     if (isEditing) return;
-    setEditedRecap(recap || '');
-    setEditedNextSteps(nextSteps || '');
+    setEditedNotes(combineNotes(nextSteps, recap));
   }, [isEditing, recap, nextSteps]);
 
-  const hasContent = Boolean((recap || '').trim() || (nextSteps || '').trim());
+  const hasContent = Boolean(notes.trim());
 
   const handleSave = () => {
-    onUpdateRecap?.(editedRecap.trim());
-    onUpdateNextSteps?.(editedNextSteps.trim());
+    onUpdateRecap?.(editedNotes.trim());
+    onUpdateNextSteps?.('');
     setIsEditing(false);
   };
 
   const handleCancel = () => {
-    setEditedRecap(recap || '');
-    setEditedNextSteps(nextSteps || '');
+    setEditedNotes(notes);
     setIsEditing(false);
   };
 
@@ -63,48 +70,27 @@ export default function ContextBox({
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.65rem' }}>
         <div style={{ flex: 1, display: 'grid', gap: '0.75rem' }}>
           {!isEditing ? (
-            <>
-              {(nextSteps || '').trim() ? (
-                <div className="context-box__next-steps">
-                  <p style={sectionLabelStyle}>Immediate next step</p>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.55, margin: 0 }}>
-                    {nextSteps}
-                  </p>
-                </div>
-              ) : null}
-              {(recap || '').trim() ? (
-                <div className="context-box__recap">
-                  <p style={sectionLabelStyle}>Additional details</p>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.6, margin: 0 }}>
-                    {recap}
-                  </p>
-                </div>
-              ) : null}
-            </>
+            <div className="context-box__notes">
+              <p style={sectionLabelStyle}>Notes</p>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                {notes}
+              </p>
+            </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <label htmlFor="context-box-next-steps" style={{ ...sectionLabelStyle, display: 'block' }}>
-                  Immediate next step
+                <label htmlFor="context-box-notes" style={{ ...sectionLabelStyle, display: 'block' }}>
+                  Notes
                 </label>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: 1.45, margin: '0 0 0.45rem' }}>
+                  {NOTES_HELPER_COPY}
+                </p>
                 <Textarea
-                  id="context-box-next-steps"
-                  value={editedNextSteps}
-                  onChange={(event) => setEditedNextSteps(event.target.value)}
-                  maxLength={500}
-                  style={{ minHeight: 64, fontSize: '0.875rem', borderColor: 'var(--border-strong)', background: 'var(--bg-surface)' }}
-                />
-              </div>
-              <div>
-                <label htmlFor="context-box-recap" style={{ ...sectionLabelStyle, display: 'block' }}>
-                  Additional details
-                </label>
-                <Textarea
-                  id="context-box-recap"
-                  value={editedRecap}
-                  onChange={(event) => setEditedRecap(event.target.value)}
-                  maxLength={500}
-                  style={{ minHeight: 84, fontSize: '0.875rem', borderColor: 'var(--border-strong)', background: 'var(--bg-surface)' }}
+                  id="context-box-notes"
+                  value={editedNotes}
+                  onChange={(event) => setEditedNotes(event.target.value)}
+                  maxLength={900}
+                  style={{ minHeight: 112, fontSize: '0.875rem', borderColor: 'var(--border-strong)', background: 'var(--bg-surface)' }}
                 />
               </div>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -145,8 +131,7 @@ export default function ContextBox({
               <TooltipTrigger asChild>
                 <Button
                   onClick={() => {
-                    setEditedRecap(recap || '');
-                    setEditedNextSteps(nextSteps || '');
+                    setEditedNotes(notes);
                     setIsEditing(true);
                   }}
                   size="icon"
