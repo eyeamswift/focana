@@ -365,7 +365,7 @@ export default function CompactMode({
   // events even when the cursor escapes this small window during a fast drag.
   const handlePointerDown = (e) => {
     if (e.button !== 0) return;           // left button only
-    if (e.target.closest('button')) return; // let button clicks through
+    if (e.target.closest('button, input, textarea, select, label, .electron-no-drag')) return;
 
     if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
     if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
@@ -699,6 +699,9 @@ export default function CompactMode({
           data-testid="compact-task-plan-preview"
           role="tooltip"
           onMouseEnter={showPlanPreviewIfAvailable}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >

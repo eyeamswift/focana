@@ -1,0 +1,13 @@
+{
+  "version": "2.2.2",
+  "publishedAt": "2026-06-24",
+  "summary": "Focana 2.2.2 is a focused hotfix for compact mode and the new task builder controls.",
+  "improvements": [
+    "Quick start now appears before Add subtask when you are setting up a new task.",
+    "A clear Next button now appears at the bottom of the task builder after you enter a task."
+  ],
+  "fixes": [
+    "Clicking subtasks in compact mode no longer grabs the window or leaves the preview cut off.",
+    "The floating re-entry snooze flow now uses a more reliable test path so release checks catch timing issues cleanly."
+  ]
+}

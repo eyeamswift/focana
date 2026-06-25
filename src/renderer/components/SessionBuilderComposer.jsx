@@ -105,17 +105,6 @@ export default function SessionBuilderComposer({
 
   const renderSubtaskActions = () => (
     <div className="session-builder__action-row">
-      <Button
-        type="button"
-        variant="outline"
-        className="session-builder__add-btn session-builder__add-btn--primary"
-        onClick={handleAddSubtask}
-        disabled={!canAddStructure}
-        data-testid="session-builder-add-subtask"
-      >
-        <Plus size={14} />
-        Add subtask
-      </Button>
       {onQuickStart ? (
         <Button
           type="button"
@@ -128,6 +117,17 @@ export default function SessionBuilderComposer({
           Quick start
         </Button>
       ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        className="session-builder__add-btn session-builder__add-btn--primary"
+        onClick={handleAddSubtask}
+        disabled={!canAddStructure}
+        data-testid="session-builder-add-subtask"
+      >
+        <Plus size={14} />
+        Add subtask
+      </Button>
     </div>
   );
 

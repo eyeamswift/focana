@@ -635,6 +635,20 @@ html[data-window-mode='pill'] #root {
   width: 100%;
 }
 
+.draft-task-builder__actions {
+  margin-top: 0.72rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.draft-task-builder__next-btn {
+  min-width: 7.25rem;
+  min-height: 2.65rem;
+  border-radius: 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
 .focus-stage__surface--post-session {
   display: flex;
   justify-content: center;

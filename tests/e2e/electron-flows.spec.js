@@ -1700,8 +1700,8 @@ test('idle re-entry prompt stays stable in full window and hands off to floating
     await expect(prompt).not.toHaveClass(/reentry-prompt--attention/);
     await expect(prompt).toBeVisible();
 
-    await page.evaluate(() => {
-      window.electronAPI.toggleFloatingMinimize();
+    await page.evaluate(async () => {
+      await window.electronAPI.enterFloatingMinimize();
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
@@ -1910,8 +1910,8 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
   try {
     await installTimeOffsetControl(page);
 
-    await page.evaluate(() => {
-      window.electronAPI.toggleFloatingMinimize();
+    await page.evaluate(async () => {
+      await window.electronAPI.enterFloatingMinimize();
     });
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
@@ -3673,8 +3673,15 @@ test('session builder captures subtasks and hands off to the next top-level task
     await setTaskComposerValue(page, 'Prepare launch email');
     await expect(page.getByTestId('session-builder')).toBeVisible();
     await expect(page.getByText('Focusing on:')).toHaveCount(0);
+    await expect(page.getByTestId('session-builder-quick-start')).toBeVisible();
     await expect(page.getByTestId('session-builder-add-subtask')).toBeVisible();
+    await expect(page.getByTestId('draft-task-next')).toBeVisible();
     await expect(page.getByText('Next-up tasks')).toBeVisible();
+    await expect.poll(async () => {
+      const quickStartBox = await page.getByTestId('session-builder-quick-start').boundingBox();
+      const addSubtaskBox = await page.getByTestId('session-builder-add-subtask').boundingBox();
+      return Boolean(quickStartBox && addSubtaskBox && quickStartBox.x < addSubtaskBox.x);
+    }).toBe(true);
 
     await page.getByTestId('session-builder-add-subtask').click();
     await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Draft subject line');
@@ -3686,7 +3693,7 @@ test('session builder captures subtasks and hands off to the next top-level task
     await expect(page.getByTestId('session-builder-subtask-input')).toHaveCount(2);
     await expect(page.getByTestId('session-builder-next-input')).toHaveCount(1);
 
-    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByTestId('draft-task-next').click();
     await page.getByRole('button', { name: 'Freeflow' }).click();
     await expect.poll(() => readWindowMode(page)).toBe('pill');
 
@@ -3815,7 +3822,7 @@ test('session builder completes a next-up-only plan from the normal complete but
 });
 
 test('session builder compact preview reveals current plan detail', async () => {
-  const { page, cleanup } = await launchApp({ background: false });
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await setTaskComposerValue(page, 'Compact planned task');
@@ -3834,6 +3841,26 @@ test('session builder compact preview reveals current plan detail', async () => 
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Draft opener');
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Next up');
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Review launch metrics');
+
+    const checkbox = page.getByTestId('compact-plan-subtask-checkbox').first();
+    const checkboxBox = await checkbox.boundingBox();
+    expect(checkboxBox).toBeTruthy();
+    const boundsBeforePointerMove = await readMainWindowBounds(electronApp);
+    expect(boundsBeforePointerMove).toBeTruthy();
+
+    await page.mouse.move(checkboxBox.x + checkboxBox.width / 2, checkboxBox.y + checkboxBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(checkboxBox.x + checkboxBox.width / 2 + 80, checkboxBox.y + checkboxBox.height / 2 + 22);
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+
+    const boundsAfterPointerMove = await readMainWindowBounds(electronApp);
+    expect(Math.abs(boundsAfterPointerMove.x - boundsBeforePointerMove.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(boundsAfterPointerMove.y - boundsBeforePointerMove.y)).toBeLessThanOrEqual(2);
+
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
+    await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
   } finally {
     await cleanup();
   }

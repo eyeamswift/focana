@@ -8654,6 +8654,18 @@ export default function App() {
                       onLayoutChange={resyncFullWindowSize}
                     />
                   ) : null}
+                  {showDraftTaskPlanBuilder ? (
+                    <div className="draft-task-builder__actions">
+                      <Button
+                        type="button"
+                        className="draft-task-builder__next-btn"
+                        onClick={() => handleTaskSubmit(task)}
+                        data-testid="draft-task-next"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
