@@ -66,7 +66,8 @@ test('packaged builds can opt into the local dev-test password without embedded 
     const initialStatus = service.getStatus();
     assert.equal(initialStatus.status, 'trial_active');
     assert.equal(initialStatus.allowed, true);
-    assert.equal(initialStatus.trialDaysRemaining, 30);
+    assert.equal(initialStatus.trialDaysRemaining, 7);
+    assert.equal(initialStatus.trialDays, 7);
 
     const activatedStatus = await service.activateLicense('password');
     assert.equal(activatedStatus.status, 'active');
@@ -86,7 +87,7 @@ test('packaged builds can opt into the local dev-test password without embedded 
   }
 });
 
-test('expired trials block access until a paid license activates', () => {
+test('expired trials block access on day 8 until a paid license activates', () => {
   const previous = process.env.FOCANA_ALLOW_DEV_TEST_LICENSE;
   process.env.FOCANA_ALLOW_DEV_TEST_LICENSE = '1';
 
@@ -99,7 +100,7 @@ test('expired trials block access until a paid license activates', () => {
           instanceId: '',
           status: 'unlicensed',
           trialStartedAt: '2026-01-01T00:00:00.000Z',
-          trialEndsAt: '2026-01-31T00:00:00.000Z',
+          trialEndsAt: '2026-01-08T00:00:00.000Z',
         },
       }),
     });
@@ -108,6 +109,7 @@ test('expired trials block access until a paid license activates', () => {
     assert.equal(status.status, 'trial_expired');
     assert.equal(status.allowed, false);
     assert.equal(status.trialDaysRemaining, 0);
+    assert.equal(status.trialDays, 7);
   } finally {
     if (previous === undefined) {
       delete process.env.FOCANA_ALLOW_DEV_TEST_LICENSE;

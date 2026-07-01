@@ -1,0 +1,16 @@
+{
+  "version": "2.2.3",
+  "publishedAt": "2026-07-01",
+  "summary": "Focana 2.2.3 tightens compact mode, switches the trial to 7 days, and prepares lifecycle email follow-up for the paid launch.",
+  "improvements": [
+    "Compact mode now shows clearer checkboxes for subtasks and Next-up items, including direct checkoff for Next-up work.",
+    "The free trial now runs for 7 days before the day-8 upgrade gate appears.",
+    "The day-8 upgrade screen now explains that Lemon emails the license key after checkout, with a clearer path for users who already have a key.",
+    "A Supabase lifecycle bridge is now available for Loops trial, checkout, and license activation emails."
+  ],
+  "fixes": [
+    "Clicking the compact task area to view subtasks no longer grabs or drags the whole compact window.",
+    "Clicking the compact timer to open controls no longer accidentally drags the window.",
+    "Interacting with compact checklist items no longer leaves the window stuck following the mouse."
+  ]
+}

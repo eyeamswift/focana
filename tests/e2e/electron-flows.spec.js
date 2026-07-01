@@ -811,7 +811,7 @@ test('expired trial upgrade gate expands beyond the old 360px startup shell and 
 
   try {
     await expect(page.getByRole('heading', { name: 'Your free trial is complete' })).toBeVisible();
-    await expect(page.getByText('After checkout, use the license key from your Lemon receipt email to activate this Mac.')).toBeVisible();
+    await expect(page.getByText('After checkout, Lemon will email your Focana license key. Paste it here to unlock this Mac.')).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
       .toBeGreaterThan(360);
 
@@ -879,7 +879,7 @@ test('license activation flows into name capture and then into the app without b
 
   try {
     await expect(page.getByRole('heading', { name: 'Your free trial is complete' })).toBeVisible();
-    await page.getByRole('button', { name: 'I already have a license key' }).click();
+    await page.getByRole('button', { name: 'I have a license key' }).click();
     await page.getByPlaceholder('Paste your Focana license key').fill('password');
     await page.getByRole('button', { name: 'Activate license' }).click();
 
@@ -3836,7 +3836,40 @@ test('session builder compact preview reveals current plan detail', async () => 
     await expect.poll(() => readWindowMode(page)).toBe('pill');
 
     await expect(page.locator('.pill-task-plan-summary')).toContainText('1 subtask - 1 next');
-    await page.locator('.pill-task').click();
+    const timerButton = page.locator('.pill-timer-button');
+    const timerBox = await timerButton.boundingBox();
+    expect(timerBox).toBeTruthy();
+    const boundsBeforeTimerPointerMove = await readMainWindowBounds(electronApp);
+    expect(boundsBeforeTimerPointerMove).toBeTruthy();
+
+    await page.mouse.move(timerBox.x + timerBox.width / 2, timerBox.y + timerBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(timerBox.x + timerBox.width / 2 + 60, timerBox.y + timerBox.height / 2 + 14);
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+
+    const boundsAfterTimerPointerMove = await readMainWindowBounds(electronApp);
+    expect(Math.abs(boundsAfterTimerPointerMove.x - boundsBeforeTimerPointerMove.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(boundsAfterTimerPointerMove.y - boundsBeforeTimerPointerMove.y)).toBeLessThanOrEqual(2);
+
+    const taskButton = page.locator('.pill-task');
+    const taskBox = await taskButton.boundingBox();
+    expect(taskBox).toBeTruthy();
+    const boundsBeforeTaskPointerMove = await readMainWindowBounds(electronApp);
+    expect(boundsBeforeTaskPointerMove).toBeTruthy();
+
+    await page.mouse.move(taskBox.x + taskBox.width / 2, taskBox.y + taskBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(taskBox.x + taskBox.width / 2 + 60, taskBox.y + taskBox.height / 2 + 14);
+    await page.waitForTimeout(80);
+
+    const boundsDuringTaskPointerMove = await readMainWindowBounds(electronApp);
+    expect(Math.abs(boundsDuringTaskPointerMove.x - boundsBeforeTaskPointerMove.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(boundsDuringTaskPointerMove.y - boundsBeforeTaskPointerMove.y)).toBeLessThanOrEqual(2);
+
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+
     await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Draft opener');
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Next up');
@@ -3861,6 +3894,10 @@ test('session builder compact preview reveals current plan detail', async () => 
     await checkbox.click();
     await expect(checkbox).toBeChecked();
     await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
+
+    const nextCheckbox = page.getByTestId('compact-plan-next-checkbox').first();
+    await nextCheckbox.click();
+    await expect(page.getByTestId('compact-task-plan-preview')).not.toContainText('Review launch metrics');
   } finally {
     await cleanup();
   }

@@ -7,7 +7,7 @@ const LICENSE_API_BASE_URL = 'https://api.lemonsqueezy.com/v1/licenses'
 const DEFAULT_LICENSE_SYNC_API_URL = 'https://focana.app/api/license-instance-sync'
 const LICENSE_SYNC_TIMEOUT_MS = 10 * 1000
 const DEV_TEST_LICENSE_KEY = 'password'
-const TRIAL_DAYS = 30
+const TRIAL_DAYS = 7
 const KNOWN_VARIANT_IDS = {
   monthly: 1442573,
   lifetime: 1611321,

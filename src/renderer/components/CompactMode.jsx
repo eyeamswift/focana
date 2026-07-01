@@ -54,6 +54,7 @@ export default function CompactMode({
   onDoubleClick,
   onEditTaskPlan,
   onSubtaskToggle,
+  onNextTaskToggle,
   onOpenDistractionJar,
   thoughtCount = 0,
   onPlay,
@@ -365,7 +366,7 @@ export default function CompactMode({
   // events even when the cursor escapes this small window during a fast drag.
   const handlePointerDown = (e) => {
     if (e.button !== 0) return;           // left button only
-    if (e.target.closest('button, input, textarea, select, label, .electron-no-drag')) return;
+    if (e.target.closest('button, input, textarea, select, label, [role="button"], .electron-no-drag')) return;
 
     if (dragMoveHandlerRef.current) document.removeEventListener('pointermove', dragMoveHandlerRef.current);
     if (dragUpHandlerRef.current) document.removeEventListener('pointerup', dragUpHandlerRef.current);
@@ -496,6 +497,10 @@ export default function CompactMode({
     handleTimerClick(event);
   };
 
+  const stopPillDragStart = (event) => {
+    event.stopPropagation();
+  };
+
   // Wrap a control button: stop propagation + reset auto-hide timer
   const ctrl = (fn) => (e) => {
     e.stopPropagation();
@@ -579,13 +584,14 @@ export default function CompactMode({
         onDoubleClick={handlePillDoubleClick}
       >
         <div
-          className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}`}
+          className={`pill-task${isTaskVisible ? ' pill-task--visible' : ''}${hasTaskPlanDetails ? ' electron-no-drag' : ''}`}
           style={{ maxWidth: isTaskVisible ? taskMetrics.width : 0 }}
           tabIndex={hasTaskPlanDetails ? 0 : -1}
           role={hasTaskPlanDetails ? 'button' : undefined}
           aria-label={hasTaskPlanDetails ? (planPreviewActive ? 'Hide task plan' : 'Show task plan') : undefined}
           aria-expanded={hasTaskPlanDetails ? planPreviewActive : undefined}
           aria-describedby={planPreviewActive ? 'pill-task-plan-preview' : undefined}
+          onPointerDown={hasTaskPlanDetails ? stopPillDragStart : undefined}
           onPointerUp={handleTaskPlanPointerUp}
           onKeyDown={handleTaskPlanKeyDown}
         >
@@ -606,6 +612,7 @@ export default function CompactMode({
             <button
               type="button"
               className="pill-timer-button electron-no-drag"
+              onPointerDown={stopPillDragStart}
               onClick={handleTimerClick}
               onPointerUp={handleTimerPointerUp}
               title="Show controls"
@@ -745,7 +752,18 @@ export default function CompactMode({
                       key={`next-${item.id}`}
                       className={`pill-task-plan-preview__row pill-task-plan-preview__row--next${item.completed ? ' is-complete' : ''}`}
                     >
-                      <span className="pill-task-plan-preview__label">{item.title || item.label.replace(/^Next:\\s*/i, '')}</span>
+                      <Checkbox
+                        id={`compact-plan-next-${item.id}`}
+                        checked={item.completed === true}
+                        onCheckedChange={(checked) => onNextTaskToggle?.(item.id, checked)}
+                        onClick={(event) => event.stopPropagation()}
+                        className="pill-task-plan-preview__checkbox"
+                        aria-label={item.title || item.label.replace(/^Next:\s*/i, '')}
+                        data-testid="compact-plan-next-checkbox"
+                      />
+                      <label htmlFor={`compact-plan-next-${item.id}`} className="pill-task-plan-preview__label">
+                        {item.title || item.label.replace(/^Next:\s*/i, '')}
+                      </label>
                     </li>
                   ))}
                 </ul>

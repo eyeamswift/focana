@@ -7972,7 +7972,7 @@ export default function App() {
                 alignSelf: 'center',
               }}
             >
-              I already have a license key
+              I have a license key
             </button>
 
             {upgradeLicenseFormVisible ? (
@@ -8018,7 +8018,7 @@ export default function App() {
             ) : null}
 
             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.5, textAlign: 'center' }}>
-              After checkout, use the license key from your Lemon receipt email to activate this Mac.
+              After checkout, Lemon will email your Focana license key. Paste it here to unlock this Mac.
             </p>
           </div>
         </div>
@@ -8270,6 +8270,7 @@ export default function App() {
           onDoubleClick={handleExitCompact}
           onEditTaskPlan={handleOpenRunningPlanBuilder}
           onSubtaskToggle={handleRunningSubtaskToggle}
+          onNextTaskToggle={handleRunningNextTaskToggle}
           onOpenDistractionJar={handleOpenParkingLot}
           thoughtCount={thoughts.length}
           onPlay={handlePlay}

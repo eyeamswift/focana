@@ -63,14 +63,54 @@
 - Notes: Add a lightweight `Where should we pick up?` handoff for two intentional exits: manual `Pause` during a running session and `Take a break` from `Session Wrap`. The first pass should reuse the existing split `Immediate next step` / `Additional details` note model, let users skip quickly, and carry the latest pick-up note into the paused resume shell, break timer, and floating resume prompt. Keep elapsed-time semantics unchanged for timed and Freeflow sessions, avoid duplicating `Save for Later` or `Done for now`, and make the note feel like a helpful optional bookmark instead of a blocking modal. Acceptance should verify pause-note-to-resume, break-note-to-break-timer-to-resume, one-click skip paths, and relaunch recovery while paused or on break.
 - Commits: —
 
-### LIC-002 — Focana should offer a 30-day free trial before $79 lifetime or $10/month
+### LIC-002 — Focana should offer a 7-day free trial before $79 lifetime or $10/month
 - Priority: High
 - Status: Next Up
 - Version: 1.7.0
 - Why it matters: Users need a low-friction way to experience the full focus loop before paying, but the upgrade path still has to be clear, simple, and trustworthy once the trial ends.
 - Files: `src/main/licenseService.js`, `src/main/licenseConfig.js`, `src/main/main.js`, `src/renderer/App.jsx`, `src/renderer/components/SettingsModal.jsx`, checkout/activation surfaces, `tests/license-service.test.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `LIC-001`, `SET-002`, `I18N-001`
-- Notes: Replace the current license-first posture with a `30-day` free-trial model that transitions into two purchase options: `$79` lifetime or `$10/month`. Scope the first pass end-to-end so trial state, checkout or variant mapping, first-run messaging, expiry gating, restore and re-validate behavior, and settings/account surfaces all agree on what the user currently has and what happens next. Keep the upgrade UX calm and explicit rather than punitive, and make sure existing paid licenses, offline grace behavior, and packaged/dev-test flows continue to work without ambiguity. Acceptance should verify a new install enters trial automatically, trial expiry routes the user into the correct upgrade choices, both paid paths activate successfully, and relaunch/validation flows preserve the right entitlement state.
+- Notes: Replace the current license-first posture with a `7-day` free-trial model that transitions into two purchase options: `$79` lifetime or `$10/month`. Scope the first pass end-to-end so trial state, checkout or variant mapping, first-run messaging, expiry gating, restore and re-validate behavior, and settings/account surfaces all agree on what the user currently has and what happens next. Keep the upgrade UX calm and explicit rather than punitive, and make sure existing paid licenses, offline grace behavior, and packaged/dev-test flows continue to work without ambiguity. Acceptance should verify a new install enters trial automatically, trial expiry routes the user into the correct upgrade choices, both paid paths activate successfully, and relaunch/validation flows preserve the right entitlement state.
+- Commits: —
+
+### MKT-001 — Lifecycle emails should cover trial, checkout, and license activation
+- Priority: High
+- Status: Next Up
+- Version: 2.2.3
+- Why it matters: The new 7-day trial and day-8 paywall need calm, useful follow-up outside the app so users understand what happens next without feeling nagged or surprised.
+- Files: `supabase/functions/loops-lifecycle/index.ts`, `supabase/functions/loops-lifecycle/README.md`, Loops workflows, Supabase secrets, future lifecycle event callers
+- Related: `LIC-002`, `MKT-002`, `MKT-003`
+- Notes: Finish the Loops lifecycle path now that the Supabase bridge exists. Ask Loops support to enable Workflows API alpha access for the `Focana` team so workflows can be inspected by CLI; until then, manage workflow structure in the Loops dashboard and verify by sending events through Supabase. Starting workflow triggers should be `trial_started`, `trial_day_6`, `trial_expired`, `checkout_started`, and `license_activated`. Keep copy practical and non-punitive: welcome users, remind them before trial end, explain day-8 choices, follow up on checkout-started/no-activation, and acknowledge successful activation with a short next-step orientation. Acceptance should verify each event can be sent through the hosted Supabase function, reaches Loops, and triggers the intended dashboard workflow without creating duplicate contacts.
+- Commits: —
+
+### MKT-002 — Existing users should get a clear lifetime-upgrade outreach sequence
+- Priority: High
+- Status: Next Up
+- Version: 2.2.3
+- Why it matters: Current and early users are the highest-trust audience for the paid launch. They should hear directly that lifetime is available, why it exists, and how to choose it without being pushed into a confusing subscription path.
+- Files: Loops campaigns, Loops audience segments, Lemon checkout links, customer/user export source, campaign copy
+- Related: `LIC-002`, `MKT-001`, `MKT-004`
+- Notes: Create a one-time outreach pass for existing users, with a special emphasis on the lifetime upgrade. Segment at minimum into founding/early users, active trial users, and prior downloaders or interested users where data is available. Message should be direct and appreciative: what changed, what the lifetime option includes, the monthly alternative, and what happens after checkout with the license key email. Avoid scarcity pressure, guilt, or over-emailing. Acceptance should include reviewed email copy, verified checkout links for monthly and lifetime, a test send, and a send/holdout plan that tracks opens, clicks, replies, purchases, and license activations.
+- Commits: —
+
+### MKT-003 — Landing page should match the 7-day trial and lifetime/monthly offer
+- Priority: High
+- Status: Next Up
+- Version: 2.2.3
+- Why it matters: The app, checkout, emails, and website all need to tell the same story. If the landing page still describes an older purchase flow, users will arrive at the trial/paywall with avoidable uncertainty.
+- Files: marketing site or landing-page repo, `release-notes/2.2.3.json`, Lemon checkout URLs, pricing copy, download CTA
+- Related: `LIC-002`, `MKT-001`, `MKT-002`
+- Notes: Refresh the landing page around the actual first-run promise: download Focana, use the full app free for 7 days, then choose `$10/month` or `$79 lifetime`. The first viewport should make Focana's ADHD-friendly focus loop immediately concrete, not just describe productivity in generic terms. Add pricing clarity, license-key-after-checkout expectations, a short "who this is for" section, and a calmer paid-upgrade explanation that matches the day-8 screen. Acceptance should verify the landing page CTA, price points, download flow, checkout links, and app paywall copy all agree.
+- Commits: —
+
+### MKT-004 — Marketing plan should restart as a weekly learning loop
+- Priority: High
+- Status: Next Up
+- Version: 2.2.3
+- Why it matters: Focana needs a repeatable path back to users and buyers, not just a release followed by scattered one-off posts.
+- Files: marketing plan, Loops campaign calendar, landing page, user interview/reply tracker
+- Related: `MKT-002`, `MKT-003`, `LIC-002`
+- Notes: Build a lightweight marketing plan around one weekly loop: choose a target audience, publish or send one clear message, talk to users who reply, inspect conversion signals, and update the next message. Near-term channels should include existing users, founding members, direct user outreach, the landing page, product directories or launch channels already on the radar, and follow-up emails for trial/paywall behavior. Track a small metric set: downloads, trial starts, day-8 paywall views, checkout clicks, lifetime purchases, monthly starts, activations, replies, and unsubscribes. Acceptance should produce a 2-week campaign calendar, first outreach copy, landing page task list, and a simple weekly review ritual.
 - Commits: —
 
 ## Later
