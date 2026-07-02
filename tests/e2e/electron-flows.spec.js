@@ -1162,6 +1162,80 @@ test('login launch with a saved task opens Ready to resume after the system-entr
   }
 });
 
+test('resuming a saved planned task preserves subtasks and completion state', async () => {
+  const savedTaskPlan = {
+    version: 1,
+    activeTaskId: 'saved-planned-task-main',
+    items: [{
+      id: 'saved-planned-task-main',
+      title: 'resume-saved-plan',
+      completed: false,
+      completedAt: null,
+      subtasks: [{
+        id: 'saved-subtask-complete',
+        title: 'Already handled',
+        completed: true,
+        completedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      }, {
+        id: 'saved-subtask-open',
+        title: 'Pick up here',
+        completed: false,
+        completedAt: null,
+      }],
+    }],
+  };
+
+  const { page, cleanup } = await launchApp({
+    background: false,
+    waitForTaskInput: false,
+    seedConfig: {
+      sessions: [{
+        id: 'saved-planned-session',
+        task: 'resume-saved-plan',
+        durationMinutes: 18,
+        mode: 'freeflow',
+        completed: false,
+        kept: true,
+        notes: 'Saved plan notes',
+        recap: 'Saved plan notes',
+        nextSteps: 'Pick up here',
+        taskPlan: savedTaskPlan,
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      }],
+    },
+    extraEnv: {
+      FOCANA_E2E_LAUNCH_SOURCE: 'login',
+      FOCANA_E2E_SYSTEM_ENTRY_DELAY_MS: SYSTEM_ENTRY_TEST_DELAY_MS,
+    },
+  });
+
+  try {
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await page.getByRole('button', { name: 'Resume Previous Task' }).click();
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const currentTask = await window.electronAPI.storeGet('currentTask');
+      const activeTask = currentTask?.taskPlan?.items?.find((item) => item.id === currentTask?.taskPlan?.activeTaskId) || null;
+      return JSON.stringify({
+        task: currentTask?.text || '',
+        subtasks: (activeTask?.subtasks || []).map((subtask) => ({
+          title: subtask.title,
+          completed: subtask.completed === true,
+        })),
+      });
+    }), { timeout: 7000 }).toBe(JSON.stringify({
+      task: 'resume-saved-plan',
+      subtasks: [
+        { title: 'Already handled', completed: true },
+        { title: 'Pick up here', completed: false },
+      ],
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('first-launch gates still win over login launch, and finishing them lands in the idle shell', async () => {
   const { page, cleanup } = await launchApp({
     background: false,

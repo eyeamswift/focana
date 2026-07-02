@@ -1,0 +1,9 @@
+{
+  "version": "2.2.4",
+  "publishedAt": "2026-07-02",
+  "summary": "Focana 2.2.4 is a focused hotfix for resuming saved planned tasks.",
+  "improvements": [],
+  "fixes": [
+    "Resuming a saved task now restores its planned subtasks and completion state instead of reopening as a title-only task."
+  ]
+}

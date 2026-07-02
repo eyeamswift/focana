@@ -297,6 +297,7 @@ function buildResumeCandidateFromSession(session, fallbacks = {}) {
     recap,
     nextSteps,
     notes: recap,
+    taskPlan: prepareTaskPlanForStart(session.taskPlan, taskText),
     sessionId: session.id || null,
     mode: session.mode === 'timed' ? 'timed' : 'freeflow',
     carryoverSeconds: Math.max(0, Math.round((Number(session.durationMinutes) || 0) * 60)),
@@ -1111,6 +1112,7 @@ export default function App() {
         recap: contextNotes || '',
         nextSteps: nextStepsNotes || '',
         notes: contextNotes || '',
+        taskPlan: persistableTaskPlan,
         sessionId: currentSessionId,
         mode,
         carryoverSeconds,
@@ -1133,7 +1135,7 @@ export default function App() {
       recap: contextNotes,
       nextSteps: nextStepsNotes,
     });
-  }, [contextNotes, currentSessionId, getElapsedSeconds, isRunning, isTimerVisible, latestResumableSession, mode, nextStepsNotes, postSessionResumeCandidate, task]);
+  }, [contextNotes, currentSessionId, getElapsedSeconds, isRunning, isTimerVisible, latestResumableSession, mode, nextStepsNotes, persistableTaskPlan, postSessionResumeCandidate, task]);
 
   const latestSystemEntryResumeCandidate = useMemo(() => {
     if (isRunning || isTimerVisible) return null;
