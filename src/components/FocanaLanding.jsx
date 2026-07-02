@@ -2001,6 +2001,9 @@ export default function FocanaLanding() {
           width: fit-content;
           padding-right: 0.08em;
         }
+        .hero-headline-accent {
+          color: ${COLORS.logoRust};
+        }
         .hero-proof-line {
           font-size: 15px;
           color: ${COLORS.coffeeBrown};
@@ -3070,7 +3073,7 @@ export default function FocanaLanding() {
                 <span>Smart to-do list.</span>
                 <span className="hero-headline-highlight">Always on top.</span>
                 <span className="hero-headline-stanza-start">Accountability Partner</span>
-                <span>Built to keep you on task.</span>
+                <span className="hero-headline-accent">Built to keep you on task.</span>
               </h1>
 
               <div style={{
