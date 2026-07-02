@@ -43,6 +43,36 @@
 - Notes: Revisit the `What's next?` screen options and labels so the choices feel direct, distinct, and low-friction. Add a visible `Quick start` button next to `Add subtask` on the planning surface so a user who is typing still sees an obvious way to begin, even when the arrow affordance is hidden and Enter is the keyboard shortcut. The button should start the current typed task/plan through the same path as Enter, preserve the subtask planning context, and stay stable at supported window sizes. Acceptance should verify the confusing options are simplified, typing never leaves the screen without an obvious start control, `Quick start` works with mouse, keyboard, and screen readers, and the layout does not overflow in full, compact-origin, or floating re-entry paths.
 - Commits: —
 
+### UX-019 — Different task should preserve pickup context before starting something new
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: Deleting a task title to change direction can make Focana feel like it dropped the user back at the beginning. A deliberate task-switch path should preserve the old thread and make the next move feel intentional.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/renderer/components/SessionNotesModal.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-014`, `UX-018`, `UX-015`, `UX-016`
+- Notes: Add a `Different task` CTA for sourced or resumable task drafts. It should open an optional pickup-notes step, let the user save or dismiss without blame, then transition to `What's next?` Preserve the current task context instead of relying on deleting task text to start over. Acceptance should verify save/dismiss paths keep the old task recoverable, the transition lands on `What's next?`, and the flow does not create shamey copy, duplicate sessions, or a blank dead end.
+- Commits: —
+
+### UX-020 — Running checklists should prioritize active subtasks
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: During focus, the next concrete step should be visible without opening a builder. Hiding planned work behind `View session builder` increases re-initiation cost, especially in compact and floating views.
+- Files: `src/renderer/components/RunningTaskPlan.jsx`, `src/renderer/components/CompactMode.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-005`, `TASK-002`, `UX-018`, `UX-021`
+- Notes: Replace the prominent `View session builder` running-state affordance with visible active subtasks in full-window and compact/floating views. Show as many full active rows as fit, make overflow scrollable and expandable, hide completed rows behind `Show completed (N)`, and keep edit/add controls secondary. Acceptance should verify full-window and compact surfaces show active subtasks first, completed rows stay recoverable but hidden by default, unchecked completed rows return to active order, and checklist controls remain keyboard and screen-reader friendly.
+- Commits: —
+
+### UX-021 — Step estimates should support time blindness without pressure
+- Priority: High
+- Status: Next Up
+- Version: 1.7.0
+- Why it matters: Time blindness can make it hard to choose a realistic focus window or understand how a task breaks down. Optional step estimates should help users orient without turning the plan into a deadline, scorecard, or source of shame.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/SessionBuilderComposer.jsx`, `src/renderer/components/RunningTaskPlan.jsx`, `src/renderer/components/CompactMode.jsx`, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-020`, `TASK-002`, `UX-005`, `UX-014`
+- Notes: Add a lightweight estimate prompt to planned subtasks and next-up tasks: `How long do you expect each step to take?` First pass should let users add optional minute estimates per step, show a calm total estimate before starting, and keep estimates visible during focus only as orientation. Avoid `overdue`, `behind`, failure states, or negative feedback if a step takes longer than expected. Acceptance should verify users can add optional estimates to subtasks and next-up tasks, the planner shows a total expected time when estimates exist, running and compact views keep active-step estimates readable without clutter, and completed steps do not create pressure when actual time differs.
+- Commits: —
+
 ### UX-016 — Re-entry nudges should never interrupt active typing
 - Priority: High
 - Status: Next Up
