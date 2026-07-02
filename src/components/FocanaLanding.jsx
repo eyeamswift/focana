@@ -1967,6 +1967,54 @@ export default function FocanaLanding() {
           transform: translateY(-2px);
           box-shadow: 0 8px 30px rgba(245, 158, 11, 0.28);
         }
+        .hero-section::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: -1px;
+          height: 120px;
+          background: linear-gradient(180deg, rgba(255, 249, 230, 0) 0%, rgba(255, 254, 248, 0.88) 68%, #FFFFFF 100%);
+          pointer-events: none;
+          z-index: 1;
+        }
+        .hero-headline-stack {
+          font-family: 'Outfit', sans-serif;
+          font-size: clamp(38px, 4.35vw, 58px);
+          font-weight: 850;
+          line-height: 1.04;
+          letter-spacing: 0;
+          color: ${COLORS.warmBrown};
+          margin: 0 0 32px;
+          text-align: left;
+        }
+        .hero-headline-stack span {
+          display: block;
+          white-space: nowrap;
+        }
+        .hero-headline-highlight {
+          color: ${COLORS.logoRust};
+          background: linear-gradient(180deg, rgba(245, 158, 11, 0) 56%, rgba(245, 158, 11, 0.34) 56%);
+          width: fit-content;
+          padding-right: 0.08em;
+        }
+        .hero-proof-line {
+          font-size: 15px;
+          color: ${COLORS.coffeeBrown};
+          margin: 0;
+          text-align: center;
+        }
+        .hero-video-frame {
+          flex: 1 1 0;
+          min-width: 300px;
+          aspect-ratio: 4 / 3;
+          display: flex;
+          overflow: hidden;
+          border-radius: 16px;
+          border: 1px solid rgba(92, 64, 51, 0.14);
+          box-shadow: 0 22px 54px rgba(92, 64, 51, 0.16);
+          background: ${COLORS.warmBrown};
+        }
         .feature-card {
           background: white;
           border-radius: 20px;
@@ -2529,10 +2577,26 @@ export default function FocanaLanding() {
           }
           .hero-section {
             padding-top: 100px !important;
-            padding-bottom: 60px !important;
+            padding-bottom: 76px !important;
           }
           .hero-split {
             flex-direction: column !important;
+            gap: 34px !important;
+          }
+          .hero-headline-stack {
+            font-size: clamp(27px, 7.25vw, 34px) !important;
+            text-align: center !important;
+            margin-bottom: 26px !important;
+          }
+          .hero-headline-highlight {
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+          .hero-video-frame {
+            width: 100% !important;
+            max-width: 620px !important;
+            min-width: 0 !important;
+            flex: none !important;
           }
           .hero-cta-row {
             gap: 10px !important;
@@ -2978,67 +3042,29 @@ export default function FocanaLanding() {
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }} />
 
-        <div className="section" style={{ position: "relative", zIndex: 2 }}>
-          {/* Headline - full width, centered */}
-          <h1 style={{
-            fontFamily: "'Outfit', sans-serif",
-            fontSize: "clamp(32px, 4.5vw, 56px)",
-            fontWeight: 800,
-            lineHeight: 1.15,
-            color: COLORS.warmBrown,
-            marginBottom: "48px",
-            textAlign: "center",
-            animation: "fadeUp 0.6s ease 0.1s both",
-          }}>
-            Your ADHD doesn't need another productivity app.{" "}
-            <span
-              style={{
-                background: `linear-gradient(135deg, ${COLORS.sunshineYellow}, ${COLORS.deepAmber})`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                display: "inline-block",
-              }}
-            >It needs an attention anchor.</span>
-          </h1>
-
-          {/* Split: Subtitle + CTA left, Video right */}
+        <div className="section" style={{ position: "relative", zIndex: 2, maxWidth: "1320px" }}>
+          {/* Split: Headline + CTA left, Video right */}
           <div className="hero-split" style={{
             display: "flex",
             alignItems: "center",
             gap: "48px",
-            maxWidth: "1100px",
+            maxWidth: "1220px",
             margin: "0 auto",
             animation: "fadeUp 0.6s ease 0.2s both",
           }}>
             <div style={{
-              flex: "1 1 0",
+              flex: "1.2 1 0",
               minWidth: "280px",
               alignSelf: "stretch",
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
             }}>
-              <p style={{
-                fontSize: "clamp(18px, 2vw, 22px)",
-                fontWeight: 500,
-                lineHeight: 1.6,
-                color: COLORS.coffeeBrown,
-                marginBottom: "20px",
-              }}>
-                Always visible, always anchoring you back to what matters.
-              </p>
-
-              <p style={{
-                fontSize: "15px",
-                lineHeight: 1.7,
-                color: COLORS.coffeeBrown,
-                marginBottom: "28px",
-                maxWidth: "560px",
-              }}>
-                <strong style={{ color: COLORS.warmBrown }}>Focana is the flagship product from NeurDi Labs</strong>, a
-                {" "}HealthTech company building executive function tools for neurodivergent brains.
-              </p>
+              <h1 className="hero-headline-stack" aria-label="Smart to-do list. Always on top. Built to keep you on task.">
+                <span>Smart to-do list.</span>
+                <span className="hero-headline-highlight">Always on top.</span>
+                <span>Built to keep you on task.</span>
+              </h1>
 
               <div style={{
                 display: "flex",
@@ -3055,30 +3081,20 @@ export default function FocanaLanding() {
                     Download for free
                   </button>
                 </div>
-                <p style={{
-                  fontSize: "15px",
-                  color: COLORS.coffeeBrown,
-                  margin: 0,
-                  textAlign: "center",
-                }}>
+                <p className="hero-proof-line">
                   No card required · macOS · full access
                 </p>
               </div>
             </div>
 
-            <div style={{
-              flex: "1.2 1 0",
-              minWidth: "300px",
-              overflow: "hidden",
-              borderRadius: "12px",
-            }}>
+            <div className="hero-video-frame">
               <video
                 src="/videos/Hero-GIF.mp4"
                 autoPlay
                 loop
                 muted
                 playsInline
-                style={{ width: "100%", display: "block", borderRadius: "12px" }}
+                style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }}
               />
             </div>
           </div>
@@ -3086,12 +3102,24 @@ export default function FocanaLanding() {
         </div>
       </section>
 
+      <section
+        aria-label="Focana recognition"
+        style={{
+          background: "white",
+          padding: "32px 0 10px",
+        }}
+      >
+        <div className="section" style={{ display: "flex", justifyContent: "center" }}>
+          <SaasHubBadge location="between_hero_and_pricing" />
+        </div>
+      </section>
+
       {/* PRICING */}
       <section id="pricing" style={{
-        padding: "100px 0",
+        padding: "70px 0 100px",
         background: "white",
-        borderTop: `1px solid ${COLORS.beigeBorder}`,
-        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.03)",
+        borderTop: "none",
+        boxShadow: "none",
       }}>
         <div className="section" style={{ maxWidth: "960px" }}>
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
@@ -3200,26 +3228,6 @@ export default function FocanaLanding() {
               </button>
             </div>
           </div>
-
-          <div style={{
-            background: COLORS.warmVanilla, borderRadius: "16px", padding: "28px 32px",
-            border: `1px solid ${COLORS.beigeBorder}`,
-          }}>
-            <h3 style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 700,
-              color: COLORS.warmBrown, marginBottom: "12px",
-            }}>
-              How the free trial works
-            </h3>
-            <p style={{ fontSize: "16px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-              The free trial is app-managed and no-card. After the waiting period, the app shows upgrade
-              CTAs for monthly or lifetime. If you already know Focana fits, you can skip the wait and start
-              monthly or buy lifetime here.
-            </p>
-            <div style={{ marginTop: "22px" }}>
-              <SaasHubBadge location="pricing" />
-            </div>
-          </div>
         </div>
       </section>
 
@@ -3326,10 +3334,10 @@ export default function FocanaLanding() {
               color: COLORS.coffeeBrown,
               margin: "0 0 20px",
             }}>
-              Ready to try it for yourself?
+              Ready to see what the hype is about?
             </p>
             <button onClick={() => openPricingSection("features_cta")} className="cta-btn" style={{ fontSize: "18px", padding: "18px 40px" }}>
-              Start Focusing
+              Let&apos;s Go
             </button>
           </div>
         </div>
@@ -3351,17 +3359,8 @@ export default function FocanaLanding() {
               color: COLORS.warmBrown,
               lineHeight: 1.15,
               textAlign: "center",
-              marginBottom: "12px",
-            }}>Who built Focana, and why does it exist?</h2>
-            <p style={{
-              fontSize: "13px",
-              fontWeight: 700,
-              color: COLORS.deepAmber,
-              textAlign: "center",
               marginBottom: "48px",
-              textTransform: "uppercase",
-              letterSpacing: "2px",
-            }}>Founder Story</p>
+            }}>Who built Focana, and why does it exist?</h2>
 
             <div style={{
               background: "white",
@@ -3441,61 +3440,6 @@ export default function FocanaLanding() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  flex: "1 1 100%",
-                  marginTop: "28px",
-                  paddingTop: "28px",
-                  borderTop: `1px solid ${COLORS.beigeBorder}`,
-                }}
-              >
-                <div className="newsletter-layout" style={{ alignItems: "center" }}>
-                  <div className="newsletter-copy">
-                    <p
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        color: COLORS.deepAmber,
-                        textTransform: "uppercase",
-                        letterSpacing: "2px",
-                        marginBottom: "12px",
-                      }}
-                    >
-                      Build in public
-                    </p>
-                    <h3
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontSize: "clamp(24px, 3vw, 34px)",
-                        fontWeight: 800,
-                        color: COLORS.warmBrown,
-                        lineHeight: 1.15,
-                        marginBottom: "12px",
-                      }}
-                    >
-                      Follow the journey
-                    </h3>
-                    <p style={{ fontSize: "17px", lineHeight: 1.7, color: COLORS.coffeeBrown, margin: 0 }}>
-                      Stay up to date on Focana and NeurDi Labs updates as we build in public.
-                      Get weekly-ish notes on what we&apos;re shipping, what we&apos;re learning,
-                      and where this mission is headed.
-                    </p>
-                  </div>
-
-                  <div className="newsletter-form-wrap">
-                    <EmailCaptureForm
-                      defaultEmail={submittedEmail}
-                      source="founder-story-cta"
-                      trackingLocation="founder_story"
-                      submitLabel="Follow the journey"
-                      loadingLabel="Saving..."
-                      successBody="You'll get the next update in your inbox."
-                      onSubmitted={rememberSubmittedEmail}
-                    />
-                  </div>
-                </div>
-              </div>
-
             </div>
 
             <div style={{ marginTop: "40px", textAlign: "center" }}>
@@ -3530,9 +3474,6 @@ export default function FocanaLanding() {
             }}>
               What makes Focana different from a browser extension or timer?
             </h2>
-            <p style={{ fontSize: "19px", lineHeight: 1.7, color: "#F6E7C7" }}>
-              Most productivity tools ask you to build a system. Focana helps you protect the focus you already have.
-            </p>
           </div>
 
           <div style={{
@@ -3634,7 +3575,7 @@ export default function FocanaLanding() {
               className="cta-btn"
               style={{ fontSize: "17px", padding: "16px 32px", justifyContent: "center" }}
             >
-              Start free trial <span style={{ fontSize: "20px" }}>→</span>
+              I&apos;m ready to focus!
             </button>
           </div>
         </div>
@@ -3681,11 +3622,10 @@ export default function FocanaLanding() {
                     marginBottom: "14px",
                   }}
                 >
-                  Still deciding?
+                  Ready to see what the hype is about?
                 </h2>
                 <p style={{ fontSize: "17px", lineHeight: 1.7, color: COLORS.coffeeBrown }}>
-                  I&apos;m an ADHD founder building Focana in public. Drop your email for weekly-ish
-                  updates on the work — honest, not pitchy.
+                  Stay up to date on Focana and NeurDi Labs updates as we build in public.
                 </p>
               </div>
 
@@ -3694,6 +3634,7 @@ export default function FocanaLanding() {
                   defaultEmail={submittedEmail}
                   source="newsletter-cta"
                   trackingLocation="newsletter"
+                  submitLabel="Let's Go"
                   onSubmitted={rememberSubmittedEmail}
                 />
               </div>
