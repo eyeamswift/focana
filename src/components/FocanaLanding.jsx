@@ -1980,7 +1980,7 @@ export default function FocanaLanding() {
         }
         .hero-headline-stack {
           font-family: 'Outfit', sans-serif;
-          font-size: clamp(38px, 4.35vw, 58px);
+          font-size: clamp(34px, 3.75vw, 52px);
           font-weight: 850;
           line-height: 1.04;
           letter-spacing: 0;
@@ -1991,6 +1991,9 @@ export default function FocanaLanding() {
         .hero-headline-stack span {
           display: block;
           white-space: nowrap;
+        }
+        .hero-headline-stanza-start {
+          margin-top: 0.42em;
         }
         .hero-headline-highlight {
           color: ${COLORS.logoRust};
@@ -2584,9 +2587,12 @@ export default function FocanaLanding() {
             gap: 34px !important;
           }
           .hero-headline-stack {
-            font-size: clamp(27px, 7.25vw, 34px) !important;
+            font-size: clamp(23px, 6.45vw, 30px) !important;
             text-align: center !important;
             margin-bottom: 26px !important;
+          }
+          .hero-headline-stanza-start {
+            margin-top: 0.48em !important;
           }
           .hero-headline-highlight {
             margin-left: auto !important;
@@ -3060,9 +3066,10 @@ export default function FocanaLanding() {
               flexDirection: "column",
               justifyContent: "center",
             }}>
-              <h1 className="hero-headline-stack" aria-label="Smart to-do list. Always on top. Built to keep you on task.">
+              <h1 className="hero-headline-stack" aria-label="Smart to-do list. Always on top. Accountability Partner. Built to keep you on task.">
                 <span>Smart to-do list.</span>
                 <span className="hero-headline-highlight">Always on top.</span>
+                <span className="hero-headline-stanza-start">Accountability Partner</span>
                 <span>Built to keep you on task.</span>
               </h1>
 
