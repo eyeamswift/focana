@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SessionBuilderComposer from './SessionBuilderComposer';
+import {
+  DEFAULT_POMODORO_PRESET,
+  POMODORO_PRESETS,
+  normalizePomodoroConfig,
+} from '../utils/focusRhythm';
 
 const QUICK_MINUTES = [15, 25, 45];
 const NOTES_HELPER_COPY = 'Enter your immediate next steps and/or any notes, links, or resources that will help you get started when you return.';
@@ -56,6 +61,9 @@ export default function ReentryPrompt({
   const previousStageRef = useRef(promptKind === 'resume-choice' ? 'resume-choice' : 'task-entry');
   const resumeDraftSignatureRef = useRef('');
   const [resumeNotesDraft, setResumeNotesDraft] = useState('');
+  const [pomodoroPresetId, setPomodoroPresetId] = useState(DEFAULT_POMODORO_PRESET.id);
+  const [pomodoroWorkMinutes, setPomodoroWorkMinutes] = useState(String(DEFAULT_POMODORO_PRESET.workMinutes));
+  const [pomodoroBreakMinutes, setPomodoroBreakMinutes] = useState(String(DEFAULT_POMODORO_PRESET.breakMinutes));
 
   const safeTaskText = typeof taskText === 'string' ? taskText : '';
   const trimmedTaskText = safeTaskText.trim();
@@ -186,6 +194,23 @@ export default function ReentryPrompt({
       promptKind,
       mode: 'freeflow',
       minutes: 0,
+      taskText: effectiveTaskName,
+      taskPlan,
+    });
+  };
+
+  const handleStartPomodoro = () => {
+    const config = normalizePomodoroConfig({
+      workMinutes: pomodoroWorkMinutes,
+      breakMinutes: pomodoroBreakMinutes,
+    });
+    noteInteraction();
+    onStartSession?.({
+      promptKind,
+      mode: 'pomodoro',
+      minutes: config.workMinutes,
+      pomodoroWorkMinutes: config.workMinutes,
+      pomodoroBreakMinutes: config.breakMinutes,
       taskText: effectiveTaskName,
       taskPlan,
     });
@@ -589,6 +614,85 @@ export default function ReentryPrompt({
               >
                 Freeflow
               </button>
+            </div>
+
+            <div className="reentry-prompt__pomodoro">
+              <div className="reentry-prompt__pomodoro-header">
+                <span>Pomodoro</span>
+                <span>work / break</span>
+              </div>
+              <div className="reentry-prompt__pomodoro-presets">
+                {POMODORO_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`reentry-prompt__chip${pomodoroPresetId === preset.id ? ' is-active' : ''}`}
+                    onClick={() => {
+                      noteInteraction();
+                      setPomodoroPresetId(preset.id);
+                      setPomodoroWorkMinutes(String(preset.workMinutes));
+                      setPomodoroBreakMinutes(String(preset.breakMinutes));
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`reentry-prompt__chip${pomodoroPresetId === 'custom' ? ' is-active' : ''}`}
+                  onClick={() => {
+                    noteInteraction();
+                    setPomodoroPresetId('custom');
+                  }}
+                >
+                  Custom
+                </button>
+              </div>
+              <div className="reentry-prompt__pomodoro-custom">
+                <input
+                  className="reentry-prompt__minutes-input"
+                  type="number"
+                  min="1"
+                  max="240"
+                  step="1"
+                  value={pomodoroWorkMinutes}
+                  onFocus={noteInteraction}
+                  onChange={(event) => {
+                    noteInteraction();
+                    setPomodoroPresetId('custom');
+                    setPomodoroWorkMinutes(event.target.value);
+                  }}
+                  aria-label="Pomodoro work minutes"
+                />
+                <span>/</span>
+                <input
+                  className="reentry-prompt__minutes-input"
+                  type="number"
+                  min="1"
+                  max="120"
+                  step="1"
+                  value={pomodoroBreakMinutes}
+                  onFocus={noteInteraction}
+                  onChange={(event) => {
+                    noteInteraction();
+                    setPomodoroPresetId('custom');
+                    setPomodoroBreakMinutes(event.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    handleStartPomodoro();
+                  }}
+                  aria-label="Pomodoro break minutes"
+                />
+                <button
+                  type="button"
+                  className="reentry-prompt__btn reentry-prompt__btn--primary"
+                  onClick={handleStartPomodoro}
+                >
+                  Start Pomodoro
+                </button>
+              </div>
             </div>
           </section>
         ) : null}

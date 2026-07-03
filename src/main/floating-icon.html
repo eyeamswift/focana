@@ -489,6 +489,47 @@
         margin-top: 0.05rem;
       }
 
+      .prompt-pomodoro {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.62rem;
+        border-radius: 14px;
+        border: 1px solid var(--prompt-ghost-border);
+        background: color-mix(in srgb, var(--prompt-ghost-bg) 88%, transparent);
+      }
+
+      .prompt-pomodoro__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        color: var(--prompt-muted);
+        font-size: 0.68rem;
+        font-weight: 800;
+      }
+
+      .prompt-pomodoro__header span:first-child {
+        color: var(--prompt-title);
+      }
+
+      .prompt-unit {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--prompt-muted);
+        font-weight: 800;
+      }
+
+      .prompt-pomodoro .prompt-inline-row {
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(6.5rem, 8rem);
+      }
+
+      .prompt-pomodoro .prompt-inline-row .prompt-btn {
+        min-width: 0;
+        padding-inline: 0.75rem;
+      }
+
       #prompt-step-chooser .prompt-actions .prompt-btn {
         width: 100%;
       }
@@ -639,6 +680,12 @@
               <path d="M20 6 9 17l-5-5" />
             </svg>
           </button>
+          <button id="timer-add-time-btn" class="timer-control-btn" type="button" aria-label="Add 5 minutes" title="Add 5 minutes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </button>
         </span>
       </span>
     </div>
@@ -700,6 +747,23 @@
             <div class="prompt-actions">
               <button id="prompt-freeflow-btn" class="prompt-btn prompt-btn--ghost" type="button">Freeflow</button>
             </div>
+            <div class="prompt-pomodoro">
+              <div class="prompt-pomodoro__header">
+                <span>Pomodoro</span>
+                <span>work / break</span>
+              </div>
+              <div class="prompt-chip-row">
+                <button class="prompt-chip" id="prompt-pomodoro-25" type="button">25 / 5</button>
+                <button class="prompt-chip" id="prompt-pomodoro-50" type="button">50 / 10</button>
+                <button class="prompt-chip" id="prompt-pomodoro-custom" type="button">Custom</button>
+              </div>
+              <div class="prompt-inline-row">
+                <input id="prompt-pomodoro-work-input" class="prompt-input" type="number" min="1" max="240" step="1" value="25" aria-label="Pomodoro work minutes" />
+                <span class="prompt-unit">/</span>
+                <input id="prompt-pomodoro-break-input" class="prompt-input" type="number" min="1" max="120" step="1" value="5" aria-label="Pomodoro break minutes" />
+                <button id="prompt-start-pomodoro-btn" class="prompt-btn prompt-btn--primary" type="button">Pomodoro</button>
+              </div>
+            </div>
           </section>
 
           <section id="prompt-step-snooze" class="prompt-step" data-stage="snooze-options">
@@ -725,6 +789,7 @@
       const timerToggleButton = document.getElementById('timer-toggle-btn');
       const timerToggleIcon = document.getElementById('timer-toggle-icon');
       const timerCompleteButton = document.getElementById('timer-complete-btn');
+      const timerAddTimeButton = document.getElementById('timer-add-time-btn');
       const promptShell = document.getElementById('prompt-shell');
       const promptCard = document.getElementById('prompt-card');
       const promptBackdrop = document.getElementById('prompt-backdrop');
@@ -743,6 +808,12 @@
       const promptMinutesInput = document.getElementById('prompt-minutes-input');
       const promptStartTimedButton = document.getElementById('prompt-start-timed-btn');
       const promptFreeflowButton = document.getElementById('prompt-freeflow-btn');
+      const promptPomodoro25Button = document.getElementById('prompt-pomodoro-25');
+      const promptPomodoro50Button = document.getElementById('prompt-pomodoro-50');
+      const promptPomodoroCustomButton = document.getElementById('prompt-pomodoro-custom');
+      const promptPomodoroWorkInput = document.getElementById('prompt-pomodoro-work-input');
+      const promptPomodoroBreakInput = document.getElementById('prompt-pomodoro-break-input');
+      const promptStartPomodoroButton = document.getElementById('prompt-start-pomodoro-btn');
       const promptResumeButton = document.getElementById('prompt-resume-btn');
       const promptStartNewButton = document.getElementById('prompt-start-new-btn');
       const promptQuick15 = document.getElementById('prompt-quick-15');
@@ -765,6 +836,7 @@
       let controlsHideTimer = null;
       let currentMode = 'icon';
       let currentRunning = false;
+      let currentCanAddTime = false;
       let currentBreakActive = false;
       let currentPromptKind = 'start';
       let currentPromptStage = 'task-entry';
@@ -775,6 +847,8 @@
       let currentResumeTaskName = '';
       let localTaskText = '';
       let localMinutes = '25';
+      let localPomodoroWorkMinutes = '25';
+      let localPomodoroBreakMinutes = '5';
 
       function getFloatingAPI() {
         return window.floatingAPI;
@@ -865,6 +939,11 @@
         ].forEach(([button, value]) => {
           button.classList.toggle('is-active', safeMinutes === value);
         });
+        const safeWork = clampMinutesValue(localPomodoroWorkMinutes);
+        const safeBreak = Math.min(Math.max(clampMinutesValue(localPomodoroBreakMinutes) || 5, 1), 120);
+        promptPomodoro25Button.classList.toggle('is-active', safeWork === 25 && safeBreak === 5);
+        promptPomodoro50Button.classList.toggle('is-active', safeWork === 50 && safeBreak === 10);
+        promptPomodoroCustomButton.classList.toggle('is-active', !((safeWork === 25 && safeBreak === 5) || (safeWork === 50 && safeBreak === 10)));
       }
 
       function focusPromptField(stage) {
@@ -890,6 +969,8 @@
 
         promptTaskInput.value = localTaskText;
         promptMinutesInput.value = localMinutes;
+        promptPomodoroWorkInput.value = localPomodoroWorkMinutes;
+        promptPomodoroBreakInput.value = localPomodoroBreakMinutes;
         promptResumeTaskName.textContent = currentResumeTaskName || 'this task';
         promptChooserTaskValue.textContent = (currentPromptKind === 'resume-choice'
           ? currentResumeTaskName
@@ -952,6 +1033,19 @@
         });
       }
 
+      function submitPomodoroSession(kind) {
+        const workMinutes = clampMinutesValue(localPomodoroWorkMinutes) || 25;
+        const breakMinutes = Math.min(Math.max(clampMinutesValue(localPomodoroBreakMinutes) || 5, 1), 120);
+        emitReentryAction('start-session', {
+          promptKind: kind,
+          mode: 'pomodoro',
+          minutes: workMinutes,
+          pomodoroWorkMinutes: workMinutes,
+          pomodoroBreakMinutes: breakMinutes,
+          taskText: localTaskText.trim(),
+        });
+      }
+
       function dismissWithSnooze(kind) {
         emitReentryAction('snooze', { kind });
       }
@@ -966,6 +1060,7 @@
               : 'icon';
         const nextTheme = state && state.theme === 'dark' ? 'dark' : 'light';
         currentRunning = state?.running !== false;
+        currentCanAddTime = state?.canAddTime === true;
         currentBreakActive = state?.breakActive === true;
         currentMode = nextMode;
         currentPromptStrongActive = state?.strongActive === true;
@@ -977,6 +1072,8 @@
         timerLabel.textContent = nextTimeText;
         timerToggleButton.setAttribute('aria-label', currentRunning ? 'Pause timer' : 'Resume timer');
         timerToggleButton.setAttribute('title', currentRunning ? 'Pause timer' : 'Resume timer');
+        timerAddTimeButton.hidden = !currentCanAddTime;
+        timerAddTimeButton.setAttribute('aria-hidden', currentCanAddTime ? 'false' : 'true');
         timerToggleIcon.innerHTML = currentRunning
           ? '<path d="M8 5v14" /><path d="M16 5v14" />'
           : '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />';
@@ -1165,6 +1262,13 @@
         getFloatingAPI()?.timerAction?.('complete');
       });
 
+      timerAddTimeButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        showTimerControls();
+        getFloatingAPI()?.timerAction?.('addTime');
+      });
+
       promptTaskInput.addEventListener('input', () => {
         localTaskText = promptTaskInput.value;
         renderPrompt();
@@ -1209,10 +1313,26 @@
         renderPrompt();
       });
 
+      promptPomodoroWorkInput.addEventListener('input', () => {
+        localPomodoroWorkMinutes = promptPomodoroWorkInput.value;
+        renderPrompt();
+      });
+
+      promptPomodoroBreakInput.addEventListener('input', () => {
+        localPomodoroBreakMinutes = promptPomodoroBreakInput.value;
+        renderPrompt();
+      });
+
       promptMinutesInput.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
         event.preventDefault();
         submitTimedSession(currentPromptKind);
+      });
+
+      promptPomodoroBreakInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        submitPomodoroSession(currentPromptKind);
       });
 
       promptStartTimedButton.addEventListener('click', () => {
@@ -1221,6 +1341,10 @@
 
       promptFreeflowButton.addEventListener('click', () => {
         submitFreeflowSession(currentPromptKind);
+      });
+
+      promptStartPomodoroButton.addEventListener('click', () => {
+        submitPomodoroSession(currentPromptKind);
       });
 
       promptQuick15.addEventListener('click', () => {
@@ -1241,6 +1365,23 @@
       promptQuickCustom.addEventListener('click', () => {
         promptMinutesInput.focus();
         promptMinutesInput.select();
+      });
+
+      promptPomodoro25Button.addEventListener('click', () => {
+        localPomodoroWorkMinutes = '25';
+        localPomodoroBreakMinutes = '5';
+        renderPrompt();
+      });
+
+      promptPomodoro50Button.addEventListener('click', () => {
+        localPomodoroWorkMinutes = '50';
+        localPomodoroBreakMinutes = '10';
+        renderPrompt();
+      });
+
+      promptPomodoroCustomButton.addEventListener('click', () => {
+        promptPomodoroWorkInput.focus();
+        promptPomodoroWorkInput.select();
       });
 
       promptDismissButton.addEventListener('click', () => {

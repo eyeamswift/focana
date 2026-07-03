@@ -10,6 +10,19 @@ import posthog from 'posthog-js';
 import { SessionStore } from './adapters/store';
 import { formatTime } from './utils/time';
 import { track } from './utils/analytics';
+import {
+  DEFAULT_POMODORO_PRESET,
+  LONG_SESSION_NUDGE_SECONDS,
+  LONG_SESSION_NUDGE_SNOOZE_SECONDS,
+  POMODORO_PRESETS,
+  TIMER_MODES,
+  clampBreakMinutes,
+  clampFocusMinutes,
+  isCountdownMode,
+  normalizePomodoroConfig,
+  normalizeTimerMode,
+  shouldShowLongSessionNudge,
+} from './utils/focusRhythm';
 import appLockupDark from '../assets/logo-lockup.svg';
 import appLockupLight from '../assets/logo-lockup-light.svg';
 
@@ -31,6 +44,9 @@ import ReentryPrompt from './components/ReentryPrompt';
 import PostSessionPrompt from './components/PostSessionPrompt';
 import SessionBuilderComposer from './components/SessionBuilderComposer';
 import RunningTaskPlan, { TaskPlanTransitionPrompt } from './components/RunningTaskPlan';
+import AddTimeControl from './components/AddTimeControl';
+import PomodoroBreakPanel from './components/PomodoroBreakPanel';
+import LongSessionNudge from './components/LongSessionNudge';
 import {
   createTaskPlanFromTitle,
   getActiveTask,
@@ -78,7 +94,7 @@ const WINDOW_SIZES = {
   reentryPromptStageHeights: {
     taskEntry: 560,
     resumeChoice: 340,
-    startChooser: 560,
+    startChooser: 680,
     saveForLater: 540,
     snoozeOptions: 500,
   },
@@ -87,7 +103,10 @@ const WINDOW_SIZES = {
   startupActivationHeight: 460,
   startupUpgradeHeight: 620,
   startChooserHeight: 176,
+  pomodoroStartChooserHeight: 250,
   timerHeight: 108,
+  timerPomodoroBreakHeight: 330,
+  timerLongSessionNudgeHeight: 370,
   timerCheckInPromptHeight: 280,
   timerCheckInDetourChoiceHeight: 260,
   timerCheckInDetourResolvedHeight: 276,
@@ -134,6 +153,10 @@ const isEditableShortcutTarget = (target) => {
   if (!(target instanceof HTMLElement)) return false;
   const tagName = typeof target.tagName === 'string' ? target.tagName.toLowerCase() : '';
   return tagName === 'input' || tagName === 'textarea' || target.isContentEditable;
+};
+const isActiveTextEntry = () => {
+  if (typeof document === 'undefined') return false;
+  return isEditableShortcutTarget(document.activeElement);
 };
 const normalizeShortcutEventPayload = (payload) => {
   if (typeof payload === 'string') {
@@ -299,7 +322,7 @@ function buildResumeCandidateFromSession(session, fallbacks = {}) {
     notes: recap,
     taskPlan: prepareTaskPlanForStart(session.taskPlan, taskText),
     sessionId: session.id || null,
-    mode: session.mode === 'timed' ? 'timed' : 'freeflow',
+    mode: normalizeTimerMode(session.mode),
     carryoverSeconds: Math.max(0, Math.round((Number(session.durationMinutes) || 0) * 60)),
   };
 }
@@ -413,6 +436,13 @@ export default function App() {
   const [isTimerVisible, setIsTimerVisible] = useState(false);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState('25');
+  const [pomodoroPresetId, setPomodoroPresetId] = useState(DEFAULT_POMODORO_PRESET.id);
+  const [pomodoroWorkMinutes, setPomodoroWorkMinutes] = useState(String(DEFAULT_POMODORO_PRESET.workMinutes));
+  const [pomodoroBreakMinutes, setPomodoroBreakMinutes] = useState(String(DEFAULT_POMODORO_PRESET.breakMinutes));
+  const [pomodoroPhase, setPomodoroPhase] = useState('idle'); // idle | work | break
+  const [pomodoroBreakEndsAt, setPomodoroBreakEndsAt] = useState(null);
+  const [pomodoroCyclesCompleted, setPomodoroCyclesCompleted] = useState(0);
+  const [longSessionNudgeVisible, setLongSessionNudgeVisible] = useState(false);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [sessionStateHydrated, setSessionStateHydrated] = useState(false);
   const [showTimerValidationModal, setShowTimerValidationModal] = useState(false);
@@ -569,6 +599,13 @@ export default function App() {
   const themeSettingsHydratedRef = useRef(false);
   const timeRef = useRef(0);
   const elapsedBeforeRunRef = useRef(0);
+  const pomodoroPhaseRef = useRef('idle');
+  const pomodoroWorkSecondsRef = useRef(DEFAULT_POMODORO_PRESET.workMinutes * 60);
+  const pomodoroBreakSecondsRef = useRef(DEFAULT_POMODORO_PRESET.breakMinutes * 60);
+  const pomodoroBreakEndsAtRef = useRef(null);
+  const pomodoroCyclesCompletedRef = useRef(0);
+  const longSessionNudgeAcknowledgedRef = useRef(false);
+  const longSessionNudgeSnoozeUntilElapsedRef = useRef(null);
   const parkingLotReturnToCompactRef = useRef(false);
   const parkingLotReturnToFloatingRef = useRef(false);
   const quickCaptureReturnToCompactRef = useRef(false);
@@ -620,6 +657,7 @@ export default function App() {
   const openPostSessionTransitionRef = useRef(() => {});
   const openPauseSessionWrapRef = useRef(() => {});
   const completeActiveSessionDirectRef = useRef(async () => null);
+  const addTimeToActiveTimedSessionRef = useRef(() => false);
   const sessionFeedbackFlowRef = useRef({ id: 0, captured: false });
   const sessionFeedbackPendingActionRef = useRef(null);
   const lastInteractionTimeRef = useRef(Date.now());
@@ -721,6 +759,15 @@ export default function App() {
   useEffect(() => {
     taskPlanRef.current = taskPlan;
   }, [taskPlan]);
+  useEffect(() => {
+    pomodoroPhaseRef.current = pomodoroPhase;
+  }, [pomodoroPhase]);
+  useEffect(() => {
+    pomodoroBreakEndsAtRef.current = pomodoroBreakEndsAt;
+  }, [pomodoroBreakEndsAt]);
+  useEffect(() => {
+    pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(pomodoroCyclesCompleted) || 0));
+  }, [pomodoroCyclesCompleted]);
   const fullWindowTargetWidthRef = useRef(WINDOW_SIZES.baseWidth);
   fullWindowTargetWidthRef.current = isRunning ? WINDOW_SIZES.runningWidth : WINDOW_SIZES.baseWidth;
 
@@ -1065,7 +1112,7 @@ export default function App() {
 
   const syncDisplayedTime = useCallback((elapsedSeconds, nextMode = mode, nextInitialTime = initialTime) => {
     const safeElapsed = Math.max(0, Math.floor(Number(elapsedSeconds) || 0));
-    const nextTime = nextMode === 'freeflow'
+    const nextTime = !isCountdownMode(nextMode)
       ? safeElapsed
       : Math.max(0, Math.max(0, Number(nextInitialTime) || 0) - safeElapsed);
 
@@ -2620,7 +2667,7 @@ export default function App() {
           ? savedCurrentTask.recap
           : (typeof savedCurrentTask?.contextNote === 'string' ? savedCurrentTask.contextNote : '');
         const restoredNextSteps = typeof savedCurrentTask?.nextSteps === 'string' ? savedCurrentTask.nextSteps : '';
-        const restoredMode = savedTimerState?.mode === 'timed' ? 'timed' : 'freeflow';
+        const restoredMode = normalizeTimerMode(savedTimerState?.mode);
         const restoredInitialTime = Math.max(0, Math.floor(Number(savedTimerState?.initialTime) || 0));
         const storedElapsedSeconds = Math.max(0, Math.floor(Number(savedTimerState?.elapsedSeconds) || 0));
         const restoredSegmentStartElapsed = Math.max(0, Math.floor(Number(savedTimerState?.timedSegmentStartElapsed) || 0));
@@ -2634,31 +2681,58 @@ export default function App() {
         const restoredCurrentSessionId = typeof savedTimerState?.currentSessionId === 'string' && savedTimerState.currentSessionId.trim()
           ? savedTimerState.currentSessionId.trim()
           : null;
+        const restoredPomodoroConfig = normalizePomodoroConfig({
+          workMinutes: savedTimerState?.pomodoroWorkMinutes,
+          breakMinutes: savedTimerState?.pomodoroBreakMinutes,
+        });
+        const rawPomodoroPhase = savedTimerState?.pomodoroPhase === 'break' || savedTimerState?.pomodoroPhase === 'work'
+          ? savedTimerState.pomodoroPhase
+          : (restoredMode === TIMER_MODES.POMODORO ? 'work' : 'idle');
+        const restoredBreakEndsAtMs = typeof savedTimerState?.pomodoroBreakEndsAt === 'string'
+          ? new Date(savedTimerState.pomodoroBreakEndsAt).getTime()
+          : NaN;
+        const restoredBreakActive = restoredMode === TIMER_MODES.POMODORO
+          && rawPomodoroPhase === 'break'
+          && Number.isFinite(restoredBreakEndsAtMs)
+          && restoredBreakEndsAtMs > Date.now();
         const restoredStartedAtMs = typeof savedTimerState?.sessionStartedAt === 'string'
           ? new Date(savedTimerState.sessionStartedAt).getTime()
           : NaN;
-        const restoredRunning = Boolean(savedTimerState?.isRunning) && Number.isFinite(restoredStartedAtMs);
+        const restoredRunning = !restoredBreakActive && Boolean(savedTimerState?.isRunning) && Number.isFinite(restoredStartedAtMs);
         const liveElapsedSeconds = restoredRunning
           ? storedElapsedSeconds + Math.max(0, Math.floor((Date.now() - restoredStartedAtMs) / 1000))
           : storedElapsedSeconds;
-        const restoredElapsedSeconds = restoredMode === 'timed' && restoredInitialTime > 0
+        const restoredElapsedSeconds = isCountdownMode(restoredMode) && restoredInitialTime > 0
           ? Math.min(liveElapsedSeconds, restoredInitialTime)
           : liveElapsedSeconds;
-        const restoredDisplayTime = restoredMode === 'timed'
-          ? Math.max(0, restoredInitialTime - restoredElapsedSeconds)
-          : restoredElapsedSeconds;
-        const restoredTimerVisible = typeof savedTimerState?.timerVisible === 'boolean'
+        const restoredDisplayTime = restoredBreakActive
+          ? Math.max(0, Math.ceil((restoredBreakEndsAtMs - Date.now()) / 1000))
+          : (isCountdownMode(restoredMode)
+            ? Math.max(0, restoredInitialTime - restoredElapsedSeconds)
+            : restoredElapsedSeconds);
+        const restoredTimerVisible = restoredBreakActive || (typeof savedTimerState?.timerVisible === 'boolean'
           ? savedTimerState.timerVisible
           : (Boolean(restoredTaskText.trim()) && (
             restoredRunning
             || restoredInitialTime > 0
             || restoredElapsedSeconds > 0
-          ));
-        const restoredSegmentElapsed = restoredMode === 'timed'
+          )));
+        const restoredSegmentElapsed = isCountdownMode(restoredMode)
           ? Math.max(0, restoredElapsedSeconds - restoredSegmentStartElapsed)
           : 0;
 
         elapsedBeforeRunRef.current = restoredRunning ? storedElapsedSeconds : restoredElapsedSeconds;
+        pomodoroPhaseRef.current = restoredMode === TIMER_MODES.POMODORO
+          ? (restoredBreakActive ? 'break' : 'work')
+          : 'idle';
+        pomodoroWorkSecondsRef.current = restoredPomodoroConfig.workMinutes * 60;
+        pomodoroBreakSecondsRef.current = restoredPomodoroConfig.breakMinutes * 60;
+        pomodoroBreakEndsAtRef.current = restoredBreakActive ? restoredBreakEndsAtMs : null;
+        pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(savedTimerState?.pomodoroCyclesCompleted) || 0));
+        longSessionNudgeAcknowledgedRef.current = Boolean(savedTimerState?.longSessionNudgeAcknowledged);
+        longSessionNudgeSnoozeUntilElapsedRef.current = Number.isFinite(Number(savedTimerState?.longSessionNudgeSnoozeUntilElapsed))
+          ? Math.max(0, Math.floor(Number(savedTimerState.longSessionNudgeSnoozeUntilElapsed)))
+          : null;
         freeflowPulseNextRef.current = null;
         checkInTimedIndexRef.current = restoredCheckInIndex;
         checkInTimedPendingIndexRef.current = restoredPendingCheckInIndex;
@@ -2681,6 +2755,12 @@ export default function App() {
         setIsRunning(restoredRunning);
         setCurrentSessionId(restoredCurrentSessionId);
         setSessionStartTime(restoredRunning ? restoredStartedAtMs : null);
+        setPomodoroWorkMinutes(String(restoredPomodoroConfig.workMinutes));
+        setPomodoroBreakMinutes(String(restoredPomodoroConfig.breakMinutes));
+        setPomodoroPhase(pomodoroPhaseRef.current);
+        setPomodoroBreakEndsAt(pomodoroBreakEndsAtRef.current);
+        setPomodoroCyclesCompleted(pomodoroCyclesCompletedRef.current);
+        setLongSessionNudgeVisible(false);
       } finally {
         setSessionStateHydrated(true);
         setShortcutsHydrated(true);
@@ -2781,9 +2861,18 @@ export default function App() {
         checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
         compactPulseTimedIndex: compactPulseIndexRef.current,
         currentSessionId,
+        pomodoroPhase,
+        pomodoroWorkMinutes: pomodoroWorkSecondsRef.current / 60,
+        pomodoroBreakMinutes: pomodoroBreakSecondsRef.current / 60,
+        pomodoroBreakEndsAt: Number.isFinite(pomodoroBreakEndsAtRef.current)
+          ? new Date(pomodoroBreakEndsAtRef.current).toISOString()
+          : null,
+        pomodoroCyclesCompleted: pomodoroCyclesCompletedRef.current,
+        longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
+        longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
       });
     }
-  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, nextStepsNotes, persistableTaskPlan, sessionStateHydrated]);
+  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, nextStepsNotes, persistableTaskPlan, sessionStateHydrated, pomodoroPhase]);
 
   useEffect(() => {
     if (!sessionStateHydrated) return;
@@ -2811,8 +2900,17 @@ export default function App() {
       checkInTimedPendingIndex: checkInTimedPendingIndexRef.current,
       compactPulseTimedIndex: compactPulseIndexRef.current,
       currentSessionId,
+      pomodoroPhase,
+      pomodoroWorkMinutes: pomodoroWorkSecondsRef.current / 60,
+      pomodoroBreakMinutes: pomodoroBreakSecondsRef.current / 60,
+      pomodoroBreakEndsAt: Number.isFinite(pomodoroBreakEndsAtRef.current)
+        ? new Date(pomodoroBreakEndsAtRef.current).toISOString()
+        : null,
+      pomodoroCyclesCompleted: pomodoroCyclesCompletedRef.current,
+      longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
+      longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
     });
-  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, nextStepsNotes, persistableTaskPlan, sessionStartTime, time, currentSessionId, sessionStateHydrated]);
+  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, nextStepsNotes, persistableTaskPlan, sessionStartTime, time, currentSessionId, sessionStateHydrated, pomodoroPhase]);
 
   const persistIdleTimerSnapshot = useCallback(({
     taskText = task,
@@ -2845,6 +2943,13 @@ export default function App() {
       checkInTimedPendingIndex: null,
       compactPulseTimedIndex: 0,
       currentSessionId: sessionId,
+      pomodoroPhase: 'idle',
+      pomodoroWorkMinutes: DEFAULT_POMODORO_PRESET.workMinutes,
+      pomodoroBreakMinutes: DEFAULT_POMODORO_PRESET.breakMinutes,
+      pomodoroBreakEndsAt: null,
+      pomodoroCyclesCompleted: 0,
+      longSessionNudgeAcknowledged: false,
+      longSessionNudgeSnoozeUntilElapsed: null,
     });
   }, [contextNotes, mode, nextStepsNotes, persistableTaskPlan, task]);
 
@@ -3022,7 +3127,7 @@ export default function App() {
       return;
     }
 
-    if (nextMode !== 'timed') return;
+    if (!isCountdownMode(nextMode)) return;
 
     const segmentElapsed = getTimedCueSegmentElapsed(normalizedElapsed);
     const nextThresholds = buildTimedThresholds(TIMED_COMPACT_PULSE_PERCENTS, getTimedCueSegmentDuration(nextInitialTimeSec));
@@ -3060,12 +3165,16 @@ export default function App() {
     const nextCurrentTask = payload?.currentTask && typeof payload.currentTask === 'object'
       ? payload.currentTask
       : {};
-    const nextMode = nextTimerState?.mode === 'timed' ? 'timed' : 'freeflow';
+    const nextMode = normalizeTimerMode(nextTimerState?.mode);
     const nextInitialTime = Math.max(0, Math.floor(Number(nextTimerState?.initialTime) || 0));
     const nextElapsedSeconds = Math.max(0, Math.floor(Number(nextTimerState?.elapsedSeconds) || 0));
-    const nextDisplayTime = nextMode === 'timed'
+    const nextDisplayTime = isCountdownMode(nextMode)
       ? Math.max(0, nextInitialTime - nextElapsedSeconds)
       : nextElapsedSeconds;
+    const nextPomodoroConfig = normalizePomodoroConfig({
+      workMinutes: nextTimerState?.pomodoroWorkMinutes,
+      breakMinutes: nextTimerState?.pomodoroBreakMinutes,
+    });
     const nextTask = typeof nextCurrentTask?.text === 'string' ? nextCurrentTask.text : '';
     const nextTaskPlan = normalizeTaskPlan(nextCurrentTask?.taskPlan, nextTask);
     const nextContextNotes = typeof nextCurrentTask?.contextNote === 'string' ? nextCurrentTask.contextNote : '';
@@ -3083,6 +3192,11 @@ export default function App() {
     compactPulseIndexRef.current = Math.max(0, Math.floor(Number(nextTimerState?.compactPulseTimedIndex) || 0));
     timedCueSegmentStartElapsedRef.current = Math.max(0, Math.floor(Number(nextTimerState?.timedSegmentStartElapsed) || 0));
     timedCueSegmentDurationRef.current = Math.max(0, Math.floor(Number(nextTimerState?.timedSegmentDuration) || 0));
+    pomodoroPhaseRef.current = nextMode === TIMER_MODES.POMODORO ? 'work' : 'idle';
+    pomodoroWorkSecondsRef.current = nextPomodoroConfig.workMinutes * 60;
+    pomodoroBreakSecondsRef.current = nextPomodoroConfig.breakMinutes * 60;
+    pomodoroBreakEndsAtRef.current = null;
+    pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(nextTimerState?.pomodoroCyclesCompleted) || 0));
     setTask(clampTaskText(nextTask));
     setTaskPlan(nextTaskPlan);
     setTaskPlanCompletionDismissedFor(null);
@@ -3095,6 +3209,11 @@ export default function App() {
     setIsRunning(false);
     setSessionStartTime(null);
     setCurrentSessionId(nextCurrentSessionId);
+    setPomodoroWorkMinutes(String(nextPomodoroConfig.workMinutes));
+    setPomodoroBreakMinutes(String(nextPomodoroConfig.breakMinutes));
+    setPomodoroPhase(pomodoroPhaseRef.current);
+    setPomodoroBreakEndsAt(null);
+    setPomodoroCyclesCompleted(pomodoroCyclesCompletedRef.current);
   }, [clearCheckInUi, clearCompactSessionCues]);
 
   const reconcilePausedTimerSnapshotFromStore = useCallback(async () => {
@@ -3152,6 +3271,20 @@ export default function App() {
     }, Math.max(0, Number(delayMs) || 0));
   }, []);
 
+  const resetFocusRhythmState = useCallback(() => {
+    pomodoroPhaseRef.current = 'idle';
+    pomodoroBreakEndsAtRef.current = null;
+    pomodoroCyclesCompletedRef.current = 0;
+    pomodoroWorkSecondsRef.current = DEFAULT_POMODORO_PRESET.workMinutes * 60;
+    pomodoroBreakSecondsRef.current = DEFAULT_POMODORO_PRESET.breakMinutes * 60;
+    longSessionNudgeAcknowledgedRef.current = false;
+    longSessionNudgeSnoozeUntilElapsedRef.current = null;
+    setPomodoroPhase('idle');
+    setPomodoroBreakEndsAt(null);
+    setPomodoroCyclesCompleted(0);
+    setLongSessionNudgeVisible(false);
+  }, []);
+
   const handleClear = useCallback(() => {
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = 0;
@@ -3199,8 +3332,9 @@ export default function App() {
     setReentryPromptOverrideKind(null);
     clearCompactSessionCues();
     resetReentryAttention();
+    resetFocusRhythmState();
     setFloatingBreakState({ open: false });
-  }, [clearCompactSessionCues, clearMissedCheckInResumeLoop, clearSystemEntryPending, invalidatePendingSessionCreation, resetReentryAttention, resetSessionFeedbackFlow, setFloatingBreakState, updateReentryBreakReturnAvailable]);
+  }, [clearCompactSessionCues, clearMissedCheckInResumeLoop, clearSystemEntryPending, invalidatePendingSessionCreation, resetFocusRhythmState, resetReentryAttention, resetSessionFeedbackFlow, setFloatingBreakState, updateReentryBreakReturnAvailable]);
 
   useEffect(() => {
     handleClearRef.current = handleClear;
@@ -3563,6 +3697,48 @@ export default function App() {
     (hasBlockingWindowOpen && !reentryModalBlockerOpen) ||
     isStartModalOpen ||
     systemEntryPendingActive;
+
+  useEffect(() => {
+    if (!isRunning || !task.trim()) {
+      setLongSessionNudgeVisible(false);
+      return undefined;
+    }
+
+    const tick = async () => {
+      const elapsedSeconds = getElapsedSeconds();
+      const shouldShow = shouldShowLongSessionNudge({
+        mode,
+        elapsedSeconds,
+        thresholdSeconds: LONG_SESSION_NUDGE_SECONDS,
+        acknowledged: longSessionNudgeAcknowledgedRef.current,
+        snoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
+        dnd: dndEnabled,
+        blocking: hasBlockingWindowOpen || checkInStateRef.current !== 'idle',
+        activeTextEntry: isActiveTextEntry(),
+        running: isRunning,
+      });
+
+      if (!shouldShow) {
+        if (longSessionNudgeVisible) setLongSessionNudgeVisible(false);
+        return;
+      }
+
+      const restoredFromFloating = await window.electronAPI.getFloatingMinimized?.() || false;
+      if (restoredFromFloating) {
+        void window.electronAPI.exitFloatingForCompact?.();
+        if (!isCompact) {
+          requestCompactEntry({ restorePreviousBounds: false, delayMs: 80 });
+        }
+      }
+      setLongSessionNudgeVisible(true);
+    };
+
+    void tick();
+    const intervalId = window.setInterval(() => {
+      void tick();
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [dndEnabled, getElapsedSeconds, hasBlockingWindowOpen, isCompact, isRunning, longSessionNudgeVisible, mode, requestCompactEntry, task]);
 
   const scheduleMissedCheckInResumeRetry = useCallback((delayMs = MISSED_CHECKIN_RETRY_INTERVAL_MS) => {
     if (!missedCheckInResumeLoopActiveRef.current) return false;
@@ -4050,7 +4226,7 @@ export default function App() {
       return;
     }
 
-    if (mode === 'timed') {
+    if (isCountdownMode(mode) && pomodoroPhaseRef.current !== 'break') {
       const thresholds = compactPulseThresholdsRef.current;
       const segmentElapsed = getTimedCueSegmentElapsed(elapsed);
       const segmentDuration = getTimedCueSegmentDuration(initialTime);
@@ -4165,7 +4341,11 @@ export default function App() {
       return;
     }
 
-    // Timed mode — fire only on the actual 40% / 80% crossings.
+    if (!isCountdownMode(mode) || pomodoroPhaseRef.current === 'break') {
+      return;
+    }
+
+    // Countdown modes — fire only on the actual 40% / 80% crossings.
     const thresholds = checkInTimedThresholdsRef.current;
     const segmentElapsed = getTimedCueSegmentElapsed(elapsed);
     const previousSegmentElapsed = timedCheckInLastSegmentElapsedRef.current;
@@ -4231,9 +4411,70 @@ export default function App() {
     });
   }, [checkInSettings.enabled, dndEnabled, getElapsedSeconds, getStandardCheckInIntervalSeconds, initialTime, isRunning, mode]);
 
+  const startNextPomodoroWorkInterval = useCallback((source = 'break-complete') => {
+    const carryoverSeconds = Math.max(0, Math.floor(Number(elapsedBeforeRunRef.current) || 0));
+    const workSeconds = Math.max(60, Math.floor(Number(pomodoroWorkSecondsRef.current) || (DEFAULT_POMODORO_PRESET.workMinutes * 60)));
+    const nextInitialTime = carryoverSeconds + workSeconds;
+
+    pomodoroPhaseRef.current = 'work';
+    pomodoroBreakEndsAtRef.current = null;
+    setPomodoroPhase('work');
+    setPomodoroBreakEndsAt(null);
+    setMode(TIMER_MODES.POMODORO);
+    setInitialTime(nextInitialTime);
+    setTime(workSeconds);
+    setIsTimerVisible(true);
+    setIsRunning(true);
+    setSessionStartTime(Date.now());
+    setTimedCueSegment(carryoverSeconds, workSeconds);
+    resetCheckInSchedule(TIMER_MODES.POMODORO, nextInitialTime, carryoverSeconds, { restartTimedSegment: true });
+    resetCompactPulseSchedule(TIMER_MODES.POMODORO, nextInitialTime, carryoverSeconds, { restartTimedSegment: true });
+    track('pomodoro_work_started', {
+      source,
+      work_minutes: Math.round((workSeconds / 60) * 10) / 10,
+      completed_cycles: pomodoroCyclesCompletedRef.current,
+    });
+  }, [resetCheckInSchedule, resetCompactPulseSchedule, setTimedCueSegment]);
+
+  const startPomodoroBreak = useCallback((source = 'work-complete') => {
+    const focusElapsed = Math.max(
+      0,
+      Math.floor(Number(initialTime) || Number(getElapsedSeconds()) || 0),
+    );
+    const breakSeconds = Math.max(60, Math.floor(Number(pomodoroBreakSecondsRef.current) || (DEFAULT_POMODORO_PRESET.breakMinutes * 60)));
+    const breakEndsAtMs = Date.now() + (breakSeconds * 1000);
+    const nextCycleCount = Math.max(0, Math.floor(Number(pomodoroCyclesCompletedRef.current) || 0)) + 1;
+
+    elapsedBeforeRunRef.current = focusElapsed;
+    pomodoroPhaseRef.current = 'break';
+    pomodoroBreakEndsAtRef.current = breakEndsAtMs;
+    pomodoroCyclesCompletedRef.current = nextCycleCount;
+    setPomodoroPhase('break');
+    setPomodoroBreakEndsAt(breakEndsAtMs);
+    setPomodoroCyclesCompleted(nextCycleCount);
+    setTime(breakSeconds);
+    setIsTimerVisible(true);
+    setIsRunning(false);
+    setSessionStartTime(null);
+    setShowTimeUpModal(false);
+    setLongSessionNudgeVisible(false);
+    clearCheckInUi();
+    clearCompactSessionCues();
+    resetSessionFeedbackFlow();
+    track('pomodoro_break_started', {
+      source,
+      focus_minutes: Math.round((focusElapsed / 60) * 10) / 10,
+      break_minutes: Math.round((breakSeconds / 60) * 10) / 10,
+      completed_cycles: nextCycleCount,
+    });
+  }, [clearCheckInUi, clearCompactSessionCues, getElapsedSeconds, initialTime, resetSessionFeedbackFlow]);
+
   // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
     if (!isRunning) {
+      if (mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break') {
+        return () => clearInterval(timerRef.current);
+      }
       syncDisplayedTime(elapsedBeforeRunRef.current);
       return () => clearInterval(timerRef.current);
     }
@@ -4245,14 +4486,37 @@ export default function App() {
     tick();
     timerRef.current = setInterval(tick, 250);
     return () => clearInterval(timerRef.current);
-  }, [isRunning, getElapsedSeconds, syncDisplayedTime]);
+  }, [isRunning, getElapsedSeconds, syncDisplayedTime, mode, pomodoroPhase]);
+
+  useEffect(() => {
+    if (mode !== TIMER_MODES.POMODORO || pomodoroPhase !== 'break') return undefined;
+    if (!Number.isFinite(Number(pomodoroBreakEndsAt))) return undefined;
+
+    let transitionStarted = false;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((Number(pomodoroBreakEndsAt) - Date.now()) / 1000));
+      setTime(remaining);
+      if (remaining > 0 || transitionStarted) return;
+      transitionStarted = true;
+      startNextPomodoroWorkInterval('break-complete');
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, 250);
+    return () => window.clearInterval(intervalId);
+  }, [mode, pomodoroBreakEndsAt, pomodoroPhase, startNextPomodoroWorkInterval]);
 
   // Handle timed session expiration — separated from setTime to avoid
   // calling state setters inside another state setter callback.
   // Guard off 00:00 itself so timed sessions cannot get stranded in
   // compact or floating shells without showing the full Time Up flow.
   useEffect(() => {
-    if (mode !== 'timed' || initialTime <= 0) {
+    if (!isCountdownMode(mode) || initialTime <= 0) {
+      timeUpTriggerKeyRef.current = '';
+      timeUpHandledRef.current = false;
+      return undefined;
+    }
+    if (mode === TIMER_MODES.POMODORO && pomodoroPhase !== 'work') {
       timeUpTriggerKeyRef.current = '';
       timeUpHandledRef.current = false;
       return undefined;
@@ -4279,6 +4543,11 @@ export default function App() {
     timeUpHandledRef.current = true;
     lastInteractionTimeRef.current = Date.now();
     scheduleReentryCueFromNow();
+
+    if (mode === TIMER_MODES.POMODORO) {
+      startPomodoroBreak('work-complete');
+      return undefined;
+    }
 
     const wasCompact = isCompact;
 
@@ -4332,7 +4601,7 @@ export default function App() {
     };
 
     void showTimeUpFlow();
-  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, isRunning, logMissedCheckInIfPrompting, nextStepsNotes, saveSessionWithNotes, scheduleReentryCueFromNow, sessionStartTime, showNotesModal, showTimeUpModal, systemEntryPendingActive, systemEntryRevealPending, task]);
+  }, [mode, time, initialTime, captureCompactReturnBounds, clearCompactSessionCues, contextNotes, currentSessionId, isCompact, isRunning, logMissedCheckInIfPrompting, nextStepsNotes, pomodoroPhase, saveSessionWithNotes, scheduleReentryCueFromNow, sessionStartTime, showNotesModal, showTimeUpModal, startPomodoroBreak, systemEntryPendingActive, systemEntryRevealPending, task]);
 
   useEffect(() => {
     if (!showTimeUpModal) return undefined;
@@ -4506,6 +4775,8 @@ export default function App() {
   }, [ensureWindowSizeForCurrentScreen, isCompact, measureStartupGateHeight, startupGateState, startupRevealComplete]);
 
   const getActiveScreenDefaultHeight = useCallback(() => {
+    if (mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break') return WINDOW_SIZES.timerPomodoroBreakHeight;
+    if (longSessionNudgeVisible) return WINDOW_SIZES.timerLongSessionNudgeHeight;
     if (hasSavedContext && !isStartModalOpen) return WINDOW_SIZES.contextHeight;
     if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
     if (checkInState === 'detour-choice') return WINDOW_SIZES.timerCheckInDetourChoiceHeight;
@@ -4513,7 +4784,7 @@ export default function App() {
     if (checkInState === 'resolved' && showCenteredFullWindowCheckInToast) return WINDOW_SIZES.timerHeight;
     if (checkInState === 'resolved') return WINDOW_SIZES.timerCheckInResolvedHeight;
     return WINDOW_SIZES.timerHeight;
-  }, [checkInState, hasSavedContext, isStartModalOpen, showCenteredFullWindowCheckInToast]);
+  }, [checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroPhase, showCenteredFullWindowCheckInToast]);
 
   const getReentryPromptDefaultHeight = useCallback(() => {
     return getReentryPromptHeightForStage(reentrySurfaceStage);
@@ -4523,12 +4794,12 @@ export default function App() {
     if (startupGateState !== 'ready') return getStartupGateFallbackHeight();
     if (showSurfaceReentryPrompt) return getReentryPromptDefaultHeight();
     if (showPostSessionPrompt) return WINDOW_SIZES.modal.postSessionPrompt[1];
-    return isStartModalOpen ? WINDOW_SIZES.startChooserHeight : WINDOW_SIZES.idleHeight;
+    return isStartModalOpen ? WINDOW_SIZES.pomodoroStartChooserHeight : WINDOW_SIZES.idleHeight;
   }, [getReentryPromptDefaultHeight, getStartupGateFallbackHeight, isStartModalOpen, showPostSessionPrompt, showSurfaceReentryPrompt, startupGateState]);
 
   const getStartupTargetHeight = useCallback(() => {
     if (startupGateState !== 'ready') return measureStartupGateHeight();
-    if (isStartModalOpen) return WINDOW_SIZES.startChooserHeight;
+    if (isStartModalOpen) return WINDOW_SIZES.pomodoroStartChooserHeight;
 
     const hasActiveStartupSurface = hasSavedContext
       || isRunning
@@ -4785,16 +5056,48 @@ export default function App() {
     const trimmedTask = task.trim();
     if (!trimmedTask) return;
 
+    if (mode === TIMER_MODES.POMODORO && pomodoroPhaseRef.current === 'break') {
+      startNextPomodoroWorkInterval('skip-break');
+      return;
+    }
+
     if (!isTimerVisible) {
       setIsTimerVisible(true);
     }
     resumeActiveTimer('compact play');
-  }, [task, isTimerVisible, resumeActiveTimer]);
+  }, [mode, task, isTimerVisible, resumeActiveTimer, startNextPomodoroWorkInterval]);
 
   const handlePause = useCallback((options = {}) => {
     if (!isRunning) return;
     void openPauseSessionWrapRef.current(options);
   }, [isRunning]);
+
+  const handleLongSessionTakeBreak = useCallback(() => {
+    longSessionNudgeAcknowledgedRef.current = true;
+    longSessionNudgeSnoozeUntilElapsedRef.current = null;
+    setLongSessionNudgeVisible(false);
+    track('long_session_nudge_action', { action: 'take_break' });
+    handlePause();
+  }, [handlePause]);
+
+  const handleLongSessionKeepGoing = useCallback(() => {
+    longSessionNudgeAcknowledgedRef.current = true;
+    longSessionNudgeSnoozeUntilElapsedRef.current = null;
+    setLongSessionNudgeVisible(false);
+    track('long_session_nudge_action', { action: 'keep_going' });
+  }, []);
+
+  const handleLongSessionSnooze = useCallback(() => {
+    const elapsedSeconds = getElapsedSeconds();
+    const snoozeUntil = elapsedSeconds + LONG_SESSION_NUDGE_SNOOZE_SECONDS;
+    longSessionNudgeAcknowledgedRef.current = false;
+    longSessionNudgeSnoozeUntilElapsedRef.current = snoozeUntil;
+    setLongSessionNudgeVisible(false);
+    track('long_session_nudge_action', {
+      action: 'later',
+      snooze_minutes: Math.round(LONG_SESSION_NUDGE_SNOOZE_SECONDS / 60),
+    });
+  }, [getElapsedSeconds]);
 
   const handleStop = useCallback(async (options = {}) => {
     if (!task.trim()) return;
@@ -4932,6 +5235,9 @@ export default function App() {
         }
         void completeActiveSessionDirectRef.current({ source: 'floating', bringToFront: true });
       }
+      if (action === 'addTime') {
+        addTimeToActiveTimedSessionRef.current(5, 'floating');
+      }
     });
     return () => { if (cleanup) cleanup(); };
   }, [handleExitCompact, handlePause, handlePlay, isRunning]);
@@ -5019,6 +5325,7 @@ export default function App() {
   };
 
   const handleStartSession = async (selectedMode, minutes, options = {}) => {
+    const normalizedSelectedMode = normalizeTimerMode(selectedMode);
     let createdSessionId = null;
     const hasTaskOverride = Object.prototype.hasOwnProperty.call(options, 'taskText');
     const hasNotesOverride = Object.prototype.hasOwnProperty.call(options, 'notes');
@@ -5082,7 +5389,7 @@ export default function App() {
       if (nextSessionId) {
         const updated = await SessionStore.update(nextSessionId, {
           task: nextTaskText,
-          mode: selectedMode,
+          mode: normalizedSelectedMode,
           completed: false,
           notes: nextNotes || '',
           recap: nextNotes || '',
@@ -5095,7 +5402,7 @@ export default function App() {
         const created = await SessionStore.create({
           task: nextTaskText,
           duration_minutes: 0,
-          mode: selectedMode,
+          mode: normalizedSelectedMode,
           completed: false,
           notes: nextNotes || '',
           recap: nextNotes || '',
@@ -5112,14 +5419,42 @@ export default function App() {
       console.error('Error creating session at start:', error);
     }
 
-    setMode(selectedMode);
+    setMode(normalizedSelectedMode);
     elapsedBeforeRunRef.current = resumeCarryoverSeconds;
     let initialSeconds = 0;
-    if (selectedMode === 'freeflow') {
+    const pomodoroConfig = normalizePomodoroConfig({
+      workMinutes: options?.pomodoroWorkMinutes ?? minutes,
+      breakMinutes: options?.pomodoroBreakMinutes,
+    });
+    if (normalizedSelectedMode === TIMER_MODES.POMODORO) {
+      pomodoroWorkSecondsRef.current = pomodoroConfig.workMinutes * 60;
+      pomodoroBreakSecondsRef.current = pomodoroConfig.breakMinutes * 60;
+      pomodoroBreakEndsAtRef.current = null;
+      pomodoroCyclesCompletedRef.current = 0;
+      setPomodoroWorkMinutes(String(pomodoroConfig.workMinutes));
+      setPomodoroBreakMinutes(String(pomodoroConfig.breakMinutes));
+      setPomodoroBreakEndsAt(null);
+      setPomodoroCyclesCompleted(0);
+      setPomodoroPhase('work');
+    } else {
+      pomodoroPhaseRef.current = 'idle';
+      pomodoroBreakEndsAtRef.current = null;
+      pomodoroCyclesCompletedRef.current = 0;
+      setPomodoroPhase('idle');
+      setPomodoroBreakEndsAt(null);
+      setPomodoroCyclesCompleted(0);
+    }
+    longSessionNudgeAcknowledgedRef.current = false;
+    longSessionNudgeSnoozeUntilElapsedRef.current = null;
+    setLongSessionNudgeVisible(false);
+
+    if (normalizedSelectedMode === 'freeflow') {
       setTime(resumeCarryoverSeconds);
       setInitialTime(0);
     } else {
-      const safeMinutes = Number.isFinite(minutes) ? Math.min(Math.max(Math.floor(minutes), 1), 240) : 25;
+      const safeMinutes = normalizedSelectedMode === TIMER_MODES.POMODORO
+        ? pomodoroConfig.workMinutes
+        : (Number.isFinite(minutes) ? Math.min(Math.max(Math.floor(minutes), 1), 240) : 25);
       const seconds = safeMinutes * 60;
       initialSeconds = seconds;
       setTime(seconds);
@@ -5130,18 +5465,20 @@ export default function App() {
     setSessionStartTime(Date.now());
     trackDailyAppActive('session_started');
     track('session_started', {
-      mode: selectedMode,
-      duration_minutes: selectedMode === 'timed'
+      mode: normalizedSelectedMode,
+      duration_minutes: normalizedSelectedMode === 'timed'
         ? (Number.isFinite(minutes) ? Math.min(Math.max(Math.floor(minutes), 1), 240) : 25)
         : null,
+      pomodoro_work_minutes: normalizedSelectedMode === TIMER_MODES.POMODORO ? pomodoroConfig.workMinutes : null,
+      pomodoro_break_minutes: normalizedSelectedMode === TIMER_MODES.POMODORO ? pomodoroConfig.breakMinutes : null,
     });
 
     clearCompactSessionCues();
-    if (selectedMode === 'timed') {
+    if (isCountdownMode(normalizedSelectedMode)) {
       setTimedCueSegment(resumeCarryoverSeconds, initialSeconds);
     }
-    resetCheckInSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
-    resetCompactPulseSchedule(selectedMode, selectedMode === 'timed' ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: selectedMode === 'timed' });
+    resetCheckInSchedule(normalizedSelectedMode, isCountdownMode(normalizedSelectedMode) ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: isCountdownMode(normalizedSelectedMode) });
+    resetCompactPulseSchedule(normalizedSelectedMode, isCountdownMode(normalizedSelectedMode) ? resumeCarryoverSeconds + initialSeconds : initialSeconds, resumeCarryoverSeconds, { restartTimedSegment: isCountdownMode(normalizedSelectedMode) });
     historyResumeCarryoverSecondsRef.current = 0;
     setIsStartModalOpen(false);
     if (shouldReturnToFloating) {
@@ -5216,7 +5553,7 @@ export default function App() {
     bringToFront = false,
   } = {}) => {
     const normalizedDuration = Math.round((Number(durationMin) || 0) * 10) / 10;
-    const normalizedMode = completedMode === 'timed' ? 'timed' : 'freeflow';
+    const normalizedMode = normalizeTimerMode(completedMode);
     const normalizedSource = typeof source === 'string' && source.trim() ? source.trim() : 'direct';
 
     track('session_completed', {
@@ -5466,10 +5803,14 @@ export default function App() {
   const startSessionFromReentryPrompt = useCallback((payload = {}, { bringToFront = false } = {}) => {
     const promptKind = payload?.promptKind === 'resume-choice' ? 'resume-choice' : 'start';
     const resumeCandidate = reentryResumeCandidateRef.current;
-    const selectedMode = payload?.mode === 'timed' ? 'timed' : 'freeflow';
-    const safeMinutes = selectedMode === 'timed'
+    const selectedMode = normalizeTimerMode(payload?.mode);
+    const payloadPomodoroConfig = normalizePomodoroConfig({
+      workMinutes: payload?.pomodoroWorkMinutes ?? payload?.minutes,
+      breakMinutes: payload?.pomodoroBreakMinutes,
+    });
+    const safeMinutes = selectedMode === TIMER_MODES.TIMED
       ? Math.min(Math.max(Math.floor(Number(payload?.minutes) || 25), 1), 240)
-      : 0;
+      : (selectedMode === TIMER_MODES.POMODORO ? payloadPomodoroConfig.workMinutes : 0);
     const nextTaskText = promptKind === 'resume-choice'
       ? (resumeCandidate?.taskText || '')
       : clampTaskText(typeof payload?.taskText === 'string' ? payload.taskText : '').trim();
@@ -5513,7 +5854,7 @@ export default function App() {
     setContextNotes(nextNotes);
     setNextStepsNotes(nextNextSteps);
     setCurrentSessionId(nextSessionId);
-    setSessionMinutes(String(selectedMode === 'timed' ? safeMinutes : 25));
+    setSessionMinutes(String(selectedMode === TIMER_MODES.TIMED ? safeMinutes : 25));
     setPostSessionResumeCandidate(null);
     setPostSessionStartAssist(false);
     if (bringToFront) {
@@ -5527,6 +5868,8 @@ export default function App() {
         taskPlan: nextTaskPlan,
         sessionId: nextSessionId,
         carryoverSeconds: nextCarryoverSeconds,
+        pomodoroWorkMinutes: payloadPomodoroConfig.workMinutes,
+        pomodoroBreakMinutes: payloadPomodoroConfig.breakMinutes,
       });
     }, 80);
     return true;
@@ -5742,7 +6085,7 @@ export default function App() {
   }) => {
     const nextTaskText = clampTaskText(typeof taskText === 'string' ? taskText : '').trim();
     if (!nextTaskText) return null;
-    const safeCompletedMode = completedMode === 'timed' ? 'timed' : 'freeflow';
+    const safeCompletedMode = normalizeTimerMode(completedMode);
     const safeCompletedMinutes = Math.max(1, Math.round(Number(completedMinutes) || 0));
     const safeSource = source === 'paused-current' ? 'paused-current' : 'post-session';
 
@@ -6034,11 +6377,11 @@ export default function App() {
       || await ensureCurrentSessionId('pause session wrap action');
 
     const durationMinutes = elapsedSeconds / 60;
-    const normalizedMode = postSessionResumeCandidate.completedMode === 'timed'
-      || postSessionResumeCandidate.mode === 'timed'
-      || mode === 'timed'
-      ? 'timed'
-      : 'freeflow';
+    const normalizedMode = normalizeTimerMode(
+      postSessionResumeCandidate.completedMode
+        || postSessionResumeCandidate.mode
+        || mode,
+    );
     const sessionPatch = {
       task: taskText,
       durationMinutes,
@@ -6158,7 +6501,7 @@ export default function App() {
         const created = await SessionStore.create({
           task: candidate.taskText,
           duration_minutes: Math.round((Math.max(0, Number(candidate.carryoverSeconds) || 0) / 60) * 10) / 10,
-          mode: candidate.mode === 'timed' ? 'timed' : 'freeflow',
+          mode: normalizeTimerMode(candidate.mode),
           completed: false,
           kept: true,
           notes: splitNotes.recap,
@@ -6226,7 +6569,7 @@ export default function App() {
         const created = await SessionStore.create({
           task: candidate.taskText,
           duration_minutes: Math.round((Math.max(0, Number(candidate.carryoverSeconds) || 0) / 60) * 10) / 10,
-          mode: candidate.mode === 'timed' ? 'timed' : 'freeflow',
+          mode: normalizeTimerMode(candidate.mode),
           completed: true,
           kept: false,
           notes: splitNotes.recap,
@@ -6983,6 +7326,32 @@ export default function App() {
     void checkpointActiveSession('time-up-freeflow-switch');
     restoreTimeUpWindowShell({ returnToCompact: shouldReturnToCompact, returnToFloating: shouldReturnToFloating });
   }, [checkpointActiveSession, clearCompactSessionCues, initialTime, resetCheckInSchedule, resetCompactPulseSchedule, resetSessionFeedbackFlow, restoreTimeUpWindowShell]);
+
+  const addTimeToActiveTimedSession = useCallback((extraMinutes = 5, source = 'timer-control') => {
+    if (mode !== TIMER_MODES.TIMED || !isTimerVisible || initialTime <= 0) return false;
+    const safeMinutes = clampFocusMinutes(extraMinutes, 5);
+    const extraSeconds = safeMinutes * 60;
+    const elapsed = getElapsedSeconds();
+    const nextInitialTime = Math.max(0, Number(initialTime) || 0) + extraSeconds;
+    const nextSegmentDuration = Math.max(
+      1,
+      Math.floor(Number(timedCueSegmentDurationRef.current) || Math.max(1, Number(initialTime) || 1)),
+    ) + extraSeconds;
+
+    timedCueSegmentDurationRef.current = nextSegmentDuration;
+    setInitialTime(nextInitialTime);
+    setTime(Math.max(0, nextInitialTime - elapsed));
+    resetCheckInSchedule(TIMER_MODES.TIMED, nextInitialTime, elapsed);
+    resetCompactPulseSchedule(TIMER_MODES.TIMED, nextInitialTime, elapsed);
+    track('timer_time_added', {
+      source,
+      extra_minutes: safeMinutes,
+      elapsed_minutes: Math.round((elapsed / 60) * 10) / 10,
+    });
+    void checkpointActiveSession(`add-time:${source}`);
+    return true;
+  }, [checkpointActiveSession, getElapsedSeconds, initialTime, isTimerVisible, mode, resetCheckInSchedule, resetCompactPulseSchedule]);
+  addTimeToActiveTimedSessionRef.current = addTimeToActiveTimedSession;
 
   const prepareTaskForStartChooser = useCallback(({
     taskText,
@@ -8164,6 +8533,23 @@ export default function App() {
     : 'Where are we focusing first?';
   const showDraftTaskPlanBuilder = fullScreenTaskState === 'draft' && !isStartModalOpen && task.trim().length > 0;
   const visibleFullScreenTaskHelper = showDraftTaskPlanBuilder ? '' : fullScreenTaskHelper;
+  const canAddTimeToActiveSession = mode === TIMER_MODES.TIMED && isTimerVisible && initialTime > 0;
+  const showPomodoroBreakPanel = mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break' && isTimerVisible;
+  const selectedPomodoroConfig = normalizePomodoroConfig({
+    workMinutes: pomodoroWorkMinutes,
+    breakMinutes: pomodoroBreakMinutes,
+  });
+  const handlePomodoroPresetSelect = (preset) => {
+    setPomodoroPresetId(preset.id);
+    setPomodoroWorkMinutes(String(preset.workMinutes));
+    setPomodoroBreakMinutes(String(preset.breakMinutes));
+  };
+  const handleStartPomodoro = () => {
+    handleStartSession(TIMER_MODES.POMODORO, selectedPomodoroConfig.workMinutes, {
+      pomodoroWorkMinutes: selectedPomodoroConfig.workMinutes,
+      pomodoroBreakMinutes: selectedPomodoroConfig.breakMinutes,
+    });
+  };
   const fullScreenTimerControls = (
     <>
       {!isRunning ? (
@@ -8217,6 +8603,12 @@ export default function App() {
         </TooltipTrigger>
         <TooltipContent><p>Complete Task</p></TooltipContent>
       </Tooltip>
+      {canAddTimeToActiveSession ? (
+        <AddTimeControl
+          onAddTime={(minutes) => addTimeToActiveTimedSession(minutes, 'full')}
+          variant="full"
+        />
+      ) : null}
     </>
   );
   const activeCompleteConfirmDialog = (
@@ -8278,6 +8670,12 @@ export default function App() {
           onPlay={handlePlay}
           onPause={handlePause}
           onComplete={handleActiveComplete}
+          canAddTime={canAddTimeToActiveSession}
+          onAddTime={(minutes) => addTimeToActiveTimedSession(minutes, 'compact')}
+          longSessionNudgeVisible={longSessionNudgeVisible}
+          onLongSessionTakeBreak={handleLongSessionTakeBreak}
+          onLongSessionKeepGoing={handleLongSessionKeepGoing}
+          onLongSessionSnooze={handleLongSessionSnooze}
           pulseEnabled={pulseSettings.compactEnabled}
           dndActive={dndEnabled}
           checkInState={checkInState}
@@ -8534,7 +8932,15 @@ export default function App() {
         <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState}${showPostSessionPrompt ? ' full-view-content--post-session' : ''}${showSurfaceReentryPrompt ? ' full-view-content--reentry' : ''} ${getPulseClassName()}`}>
           <div className={`focus-stage focus-stage--${fullScreenTaskState}${showPostSessionPrompt ? ' focus-stage--post-session' : ''}${showSurfaceReentryPrompt ? ' focus-stage--reentry' : ''}`}>
             <div className={`focus-stage__surface${showPostSessionPrompt ? ' focus-stage__surface--post-session' : ''}${showSurfaceReentryPrompt ? ' focus-stage__surface--reentry' : ''}`}>
-              {fullScreenTaskState === 'running' ? (
+              {showPomodoroBreakPanel ? (
+                <PomodoroBreakPanel
+                  taskName={activeTaskLabel}
+                  time={time}
+                  completedCycles={pomodoroCyclesCompleted}
+                  onKeepGoing={() => startNextPomodoroWorkInterval('skip-break')}
+                  onEnd={() => { void handleStop({ returnToCompact: false, returnToFloating: false }); }}
+                />
+              ) : fullScreenTaskState === 'running' ? (
                 <RunningTaskPlan
                   task={activeTaskLabel}
                   timerText={formatTime(time)}
@@ -8674,34 +9080,99 @@ export default function App() {
 
               {isStartModalOpen && !showPostSessionPrompt && (
                 <div className="start-chooser">
-                  <div className="start-chooser__timer">
-                    <span className="start-chooser__label">Set timer</span>
-                    <input
-                      type="number"
-                      value={sessionMinutes}
-                      onChange={(e) => setSessionMinutes(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter') return;
-                        const validatedMinutes = getValidatedSessionMinutes();
-                        if (validatedMinutes === null) return;
-                        handleStartSession('timed', validatedMinutes);
-                      }}
-                      min="1"
-                      max="240"
-                      step="1"
-                      className="input start-chooser__input"
-                      ref={sessionMinutesInputRef}
-                    />
-                    <span className="start-chooser__unit">min</span>
+                  <div className="start-chooser__row">
+                    <div className="start-chooser__timer">
+                      <span className="start-chooser__label">Timer</span>
+                      <input
+                        type="number"
+                        value={sessionMinutes}
+                        onChange={(e) => setSessionMinutes(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Enter') return;
+                          const validatedMinutes = getValidatedSessionMinutes();
+                          if (validatedMinutes === null) return;
+                          handleStartSession('timed', validatedMinutes);
+                        }}
+                        min="1"
+                        max="240"
+                        step="1"
+                        className="input start-chooser__input"
+                        ref={sessionMinutesInputRef}
+                      />
+                      <span className="start-chooser__unit">min</span>
+                    </div>
+                    <span className="start-chooser__divider">or</span>
+                    <Button
+                      onClick={() => handleStartSession('freeflow', 0)}
+                      className="start-chooser__freeflow"
+                    >
+                      Freeflow
+                    </Button>
                   </div>
-                  <span className="start-chooser__divider">or</span>
-                  <Button
-                    onClick={() => handleStartSession('freeflow', 0)}
-                    className="start-chooser__freeflow"
-                  >
-                    Freeflow
-                  </Button>
-                  <div style={{ flex: 1 }} />
+                  <div className="start-chooser__pomodoro">
+                    <div className="start-chooser__pomodoro-header">
+                      <span className="start-chooser__label">Pomodoro</span>
+                      <span className="start-chooser__pomodoro-copy">work / break</span>
+                    </div>
+                    <div className="start-chooser__pomodoro-presets">
+                      {POMODORO_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          className={`start-chooser__pomodoro-chip${pomodoroPresetId === preset.id ? ' is-active' : ''}`}
+                          onClick={() => handlePomodoroPresetSelect(preset)}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={`start-chooser__pomodoro-chip${pomodoroPresetId === 'custom' ? ' is-active' : ''}`}
+                        onClick={() => setPomodoroPresetId('custom')}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                    <div className="start-chooser__pomodoro-custom">
+                      <input
+                        type="number"
+                        min="1"
+                        max="240"
+                        step="1"
+                        value={pomodoroWorkMinutes}
+                        onChange={(event) => {
+                          setPomodoroPresetId('custom');
+                          setPomodoroWorkMinutes(event.target.value);
+                        }}
+                        aria-label="Pomodoro work minutes"
+                      />
+                      <span>/</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="120"
+                        step="1"
+                        value={pomodoroBreakMinutes}
+                        onChange={(event) => {
+                          setPomodoroPresetId('custom');
+                          setPomodoroBreakMinutes(event.target.value);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return;
+                          event.preventDefault();
+                          handleStartPomodoro();
+                        }}
+                        aria-label="Pomodoro break minutes"
+                      />
+                      <Button
+                        type="button"
+                        className="start-chooser__pomodoro-start"
+                        onClick={handleStartPomodoro}
+                      >
+                        Start Pomodoro
+                      </Button>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setIsStartModalOpen(false)}
                     tabIndex={-1}
@@ -8843,7 +9314,16 @@ export default function App() {
               />
             )}
 
-            {!showPostSessionPrompt && isTimerVisible && fullScreenTaskState !== 'running' && (
+            {!showPostSessionPrompt && longSessionNudgeVisible && !showPomodoroBreakPanel && !isStartModalOpen ? (
+              <LongSessionNudge
+                taskName={activeTaskLabel}
+                onTakeBreak={handleLongSessionTakeBreak}
+                onKeepGoing={handleLongSessionKeepGoing}
+                onSnooze={handleLongSessionSnooze}
+              />
+            ) : null}
+
+            {!showPostSessionPrompt && isTimerVisible && fullScreenTaskState !== 'running' && !showPomodoroBreakPanel && (
               <div className={`focus-timer-panel focus-timer-panel--${fullScreenTaskState}${isShortFullWindow ? ' focus-timer-panel--compact' : ''}`}>
                 <div className="focus-timer-panel__body">
                   <div className="focus-timer-panel__clock">{formatTime(time)}</div>

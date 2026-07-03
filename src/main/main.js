@@ -91,14 +91,14 @@ const PILL_CLAMP_AREA = 'workArea';
 const DRAG_POLL_INTERVAL_MS = 16;
 const DRAG_OVERRIDE_TTL_MS = 120;
 const FLOATING_ICON_SIZE = 64;
-const FLOATING_TIMER_WIDTH = 116;
+const FLOATING_TIMER_WIDTH = 148;
 const FLOATING_TIMER_HEIGHT = 48;
 const FLOATING_BREAK_PEEK_MS = 3200;
 const FLOATING_PROMPT_WIDTH = 420;
 const FLOATING_CORNER_MARGIN = 12;
 const FLOATING_PROMPT_STAGE_HEIGHTS = {
   'task-entry': 372,
-  'start-chooser': 340,
+  'start-chooser': 468,
   'resume-choice': 276,
   'snooze-options': 378,
 };
@@ -725,6 +725,11 @@ function sanitizePreferredName(value) {
   return value.trim().replace(/\s+/g, ' ').slice(0, 80);
 }
 
+function sanitizeTimerMode(value) {
+  if (value === 'timed' || value === 'pomodoro') return value;
+  return 'freeflow';
+}
+
 function sanitizeStoreValue(key, value) {
   switch (key) {
     case 'currentTask':
@@ -750,7 +755,7 @@ function sanitizeStoreValue(key, value) {
         const compactPulseTimedIndex = Math.floor(clampNumber(value.compactPulseTimedIndex, 0, 7, 0));
 
         return {
-          mode: value.mode === 'timed' ? 'timed' : 'freeflow',
+          mode: sanitizeTimerMode(value.mode),
           seconds: clampNumber(value.seconds, 0, 24 * 60 * 60, 0),
           timerVisible: Boolean(value.timerVisible),
           isRunning: Boolean(value.isRunning),
@@ -764,6 +769,17 @@ function sanitizeStoreValue(key, value) {
           compactPulseTimedIndex,
           currentSessionId: typeof value.currentSessionId === 'string' && value.currentSessionId.trim()
             ? value.currentSessionId.trim()
+            : null,
+          pomodoroPhase: value.pomodoroPhase === 'work' || value.pomodoroPhase === 'break'
+            ? value.pomodoroPhase
+            : 'idle',
+          pomodoroWorkMinutes: clampNumber(value.pomodoroWorkMinutes, 1, 240, 25),
+          pomodoroBreakMinutes: clampNumber(value.pomodoroBreakMinutes, 1, 120, 5),
+          pomodoroBreakEndsAt: sanitizeOptionalIsoTimestamp(value.pomodoroBreakEndsAt),
+          pomodoroCyclesCompleted: Math.floor(clampNumber(value.pomodoroCyclesCompleted, 0, 1000, 0)),
+          longSessionNudgeAcknowledged: Boolean(value.longSessionNudgeAcknowledged),
+          longSessionNudgeSnoozeUntilElapsed: Number.isFinite(Number(value.longSessionNudgeSnoozeUntilElapsed))
+            ? Math.floor(clampNumber(Number(value.longSessionNudgeSnoozeUntilElapsed), 0, 24 * 60 * 60, 0))
             : null,
         };
       }
@@ -1474,7 +1490,7 @@ function checkpointActiveSessionInStore(options = {}) {
     : null;
   const taskText = typeof currentTask?.text === 'string' ? currentTask.text.trim() : '';
 
-  const mode = timerState?.mode === 'timed' ? 'timed' : 'freeflow';
+  const mode = sanitizeTimerMode(timerState?.mode);
   const initialTime = Math.max(0, Number(timerState?.initialTime) || 0);
   const baseElapsedSeconds = Math.max(0, Number(timerState?.elapsedSeconds) || 0);
   const sessionStartedAt = typeof timerState?.sessionStartedAt === 'string' ? timerState.sessionStartedAt : null;
@@ -1493,13 +1509,13 @@ function checkpointActiveSessionInStore(options = {}) {
     }
   }
 
-  if (mode === 'timed' && initialTime > 0) {
+  if ((mode === 'timed' || mode === 'pomodoro') && initialTime > 0) {
     elapsedSeconds = Math.min(elapsedSeconds, initialTime);
   }
 
   let didPauseTimer = false;
   if (pauseTimer && hasRecoverableTimer && wasRunning) {
-    const displaySeconds = mode === 'timed'
+    const displaySeconds = (mode === 'timed' || mode === 'pomodoro')
       ? Math.max(0, initialTime - elapsedSeconds)
       : elapsedSeconds;
 
@@ -1635,6 +1651,7 @@ function getFloatingWindowState() {
   const isRunning = Boolean(timerState && typeof timerState === 'object' && timerState.isRunning);
   const timerVisible = Boolean(timerState && typeof timerState === 'object' && timerState.timerVisible);
   const totalSeconds = Number(timerState?.seconds) || 0;
+  const timerMode = sanitizeTimerMode(timerState?.mode);
   const theme = store.get('settings.theme', 'light') === 'dark' ? 'dark' : 'light';
 
   if (floatingReentryState.open) {
@@ -1670,6 +1687,7 @@ function getFloatingWindowState() {
     timeText: formatFloatingTime(totalSeconds),
     theme,
     running: isRunning,
+    canAddTime: timerMode === 'timed' && timerVisible && Math.max(0, Number(timerState?.initialTime) || 0) > 0,
     breakActive: false,
     breakTimerVisible: false,
   };
@@ -2498,7 +2516,7 @@ ipcMain.on('compact-context-menu', () => {
 
 ipcMain.on('floating-timer-action', (_event, action) => {
   if (!mainWindow || mainWindow.isDestroyed() || !isFloatingMinimized) return;
-  if (action !== 'startPause' && action !== 'pause' && action !== 'complete') return;
+  if (action !== 'startPause' && action !== 'pause' && action !== 'complete' && action !== 'addTime') return;
   if (action === 'pause' || action === 'complete') {
     exitFloatingIconMode();
   }

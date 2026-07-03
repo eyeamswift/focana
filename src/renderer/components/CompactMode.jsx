@@ -3,6 +3,8 @@ import { Play, Pause, Check, ClipboardList, BellOff, Info, ListPlus } from 'luci
 import { formatTime } from '../utils/time';
 import { Checkbox } from './ui/Checkbox';
 import ReentryPrompt from './ReentryPrompt';
+import AddTimeControl from './AddTimeControl';
+import LongSessionNudge from './LongSessionNudge';
 
 // ---------------------------------------------------------------------------
 // Pill width constants (px)
@@ -11,7 +13,7 @@ const H_MARGIN   = 4;   // account for the stronger 2px pill frame on both sides
 const PILL_PAD   = 40;  // 20px left + 20px right padding
 const PILL_BASE_H = 72;
 const PILL_MAX_H = 260;
-const DOCK_W     = 126; // fixed right dock for timer/info or controls
+const DOCK_W     = 154; // fixed right dock for timer/info or controls
 const TASK_DOCK_GAP = 8;
 
 const TASK_MIN_W = 64;
@@ -21,11 +23,13 @@ const PLAN_PREVIEW_H = 320;
 const PLAN_PREVIEW_LIMIT = 3;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
+const LONG_SESSION_POPUP_MIN_W = 420;
+const LONG_SESSION_POPUP_EXTRA_H = 232;
 const REENTRY_PROMPT_SIZES = {
   'task-entry': { width: 440, height: 370 },
   'resume-choice': { width: 440, height: 286 },
   'save-for-later': { width: 440, height: 560 },
-  'start-chooser': { width: 440, height: 376 },
+  'start-chooser': { width: 440, height: 500 },
   'snooze-options': { width: 440, height: 428 },
 };
 const COMPACT_PULSE_CYCLE_MS = 4500;
@@ -60,6 +64,12 @@ export default function CompactMode({
   onPlay,
   onPause,
   onComplete,
+  canAddTime = false,
+  onAddTime,
+  longSessionNudgeVisible = false,
+  onLongSessionTakeBreak,
+  onLongSessionKeepGoing,
+  onLongSessionSnooze,
   pulseEnabled = true,
   dndActive = false,
   checkInState = 'idle',
@@ -166,8 +176,10 @@ export default function CompactMode({
   );
   const baseWinW = useMemo(() => {
     const baseWidth = basePillW + H_MARGIN;
-    return checkInPromptActive ? Math.max(baseWidth, CHECKIN_POPUP_MIN_W) : baseWidth;
-  }, [basePillW, checkInPromptActive]);
+    if (checkInPromptActive) return Math.max(baseWidth, CHECKIN_POPUP_MIN_W);
+    if (longSessionNudgeVisible) return Math.max(baseWidth, LONG_SESSION_POPUP_MIN_W);
+    return baseWidth;
+  }, [basePillW, checkInPromptActive, longSessionNudgeVisible]);
   const visibleTaskWidth = useMemo(
     () => (isTaskVisible ? taskMetrics.width + TASK_DOCK_GAP : 0),
     [isTaskVisible, taskMetrics.width],
@@ -175,9 +187,11 @@ export default function CompactMode({
   const restWinW  = useMemo(
     () => {
       const restingWidth = basePillW + visibleTaskWidth + H_MARGIN;
-      return checkInPromptActive ? Math.max(restingWidth, CHECKIN_POPUP_MIN_W) : restingWidth;
+      if (checkInPromptActive) return Math.max(restingWidth, CHECKIN_POPUP_MIN_W);
+      if (longSessionNudgeVisible) return Math.max(restingWidth, LONG_SESSION_POPUP_MIN_W);
+      return restingWidth;
     },
-    [basePillW, visibleTaskWidth, checkInPromptActive],
+    [basePillW, visibleTaskWidth, checkInPromptActive, longSessionNudgeVisible],
   );
   const settledWinW = useMemo(
     () => {
@@ -195,9 +209,10 @@ export default function CompactMode({
     () => {
       if (reentryPromptActive) return activeReentryPromptSize.height;
       if (checkInPromptActive) return Math.max(pillH + CHECKIN_POPUP_EXTRA_H, PILL_BASE_H + CHECKIN_POPUP_EXTRA_H);
+      if (longSessionNudgeVisible) return Math.max(pillH + LONG_SESSION_POPUP_EXTRA_H, PILL_BASE_H + LONG_SESSION_POPUP_EXTRA_H);
       return planPreviewActive ? Math.max(pillH + PLAN_PREVIEW_H, PILL_BASE_H + PLAN_PREVIEW_H) : pillH;
     },
-    [activeReentryPromptSize.height, checkInPromptActive, pillH, planPreviewActive, reentryPromptActive],
+    [activeReentryPromptSize.height, checkInPromptActive, longSessionNudgeVisible, pillH, planPreviewActive, reentryPromptActive],
   );
   const isPulseAnimating = shouldPulse && pulseEnabled && !dndActive;
 
@@ -667,6 +682,16 @@ export default function CompactMode({
                 <Check style={{ width: 14, height: 14 }} />
               </button>
 
+              {canAddTime ? (
+                <AddTimeControl
+                  variant="compact"
+                  onAddTime={(minutes) => {
+                    onAddTime?.(minutes);
+                    resetControlsTimer();
+                  }}
+                />
+              ) : null}
+
               {typeof onEditTaskPlan === 'function' && hasTaskLabel ? (
                 <button
                   className="pill-btn"
@@ -698,6 +723,16 @@ export default function CompactMode({
           </span>
         )}
       </div>
+
+      {longSessionNudgeVisible ? (
+        <LongSessionNudge
+          variant="compact"
+          taskName={taskLabel}
+          onTakeBreak={onLongSessionTakeBreak}
+          onKeepGoing={onLongSessionKeepGoing}
+          onSnooze={onLongSessionSnooze}
+        />
+      ) : null}
 
       {planPreviewActive ? (
         <div
