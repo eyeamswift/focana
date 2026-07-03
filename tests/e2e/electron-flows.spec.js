@@ -3792,7 +3792,7 @@ test('session builder captures subtasks and hands off to the next top-level task
     await exitCompactMode(page);
     await expect(page.getByTestId('running-task-plan')).toBeVisible();
     await expect(page.getByTestId('running-plan-builder-toggle')).toBeVisible();
-    await expect(page.getByTestId('running-plan-builder-toggle')).toContainText('2 subtasks - 1 next');
+    await expect(page.getByTestId('running-plan-builder-toggle')).toContainText('Add/View subtasks or next-up tasks');
     await expect(page.getByTestId('running-plan-subtask-input')).toHaveCount(0);
     await page.getByTestId('running-plan-builder-toggle').click();
     await expect(page.getByTestId('running-plan-subtask-input').nth(0)).toHaveValue('Draft subject line');
