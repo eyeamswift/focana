@@ -13,60 +13,60 @@
 
 ## Next Up
 
-### SET-003 — Auto-launch should feel polished and context-aware after login launch
+### UPD-001 — Focana should quietly check for updates every 4 hours while running
 - Priority: High
-- Status: In Progress
-- Version: 1.7.0
-- Why it matters: If launch-at-login feels abrupt, noisy, or ambiguous, the default-on behavior can feel like the app is happening to the user instead of quietly supporting them.
-- Files: `src/main/main.js`, `src/renderer/App.jsx`, `src/main/store.js`, `src/renderer/components/SettingsModal.jsx`, `tests/e2e/electron-flows.spec.js`
-- Related: `SET-001`, `SES-001`, `SES-002`
-- Notes: Treat this as a polish pass on the shipped launch-at-login foundation, not a rethink of the default-on decision. The near-term path assumes Focana is a resident app after login, so wake/unlock behavior should be modeled as runtime re-entry on an already-running process rather than as a brand-new cold launch. The current `1.7.0` candidate on `main` is the float-first resident path: system-initiated login/wake flows minimize to floating first, then surface `Ready to resume?` or `What's next?` after the system-entry delay; manual launch stays on the idle shell; first-launch activation and preferred-name gates still win immediately. Tomorrow's validation pass should cover first launch, launch+login, wake+login, wake+resume, manual launch, and in-app restart. Keep `package.json` at `1.6.0` until the release-prep pass and packaged testing signoff are complete.
-- Commits: `d2700ef`, `2876141`
+- Status: Next Up
+- Version: 2.2.5
+- Why it matters: If Focana stays resident all day, a launch-only update check can make a newly shipped fix look missing until the user manually checks. Cadenced checks should make updates feel dependable without interrupting focus.
+- Files: `src/main/updater.js`, `src/main/main.js`, `src/renderer/components/SettingsModal.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `SET-003`, `SES-001`, `WIN-005`
+- Notes: Keep the existing launch check, then add a packaged-only quiet cadence that checks every `4 hours` of app runtime and checks after wake/resume when the last check is older than the cadence. Automatic failures should stay silent and reset to idle, manual `Check for updates` should still surface concise errors, and the service should avoid duplicate checks while one is in progress or an update is already downloaded/installing. If a new version downloads, use the existing update-ready banner/notification and preserve the calm copy: restart when ready, current work stays saved. Acceptance should verify launch check still runs, a mocked cadenced check can find and download an update, automatic errors remain quiet, manual checks still work, wake-triggered checks respect the cadence, and disabling auto-updates still disables all automatic checks.
+- Commits: —
 
 ### UX-014 — Pre-session and post-session boundary screens should feel polished and decisive
 - Priority: High
-- Status: Next Up
-- Version: 1.7.0
+- Status: In Progress
+- Version: 2.2.5
 - Why it matters: The moments right before starting and right after finishing are where users either carry momentum forward or drift away. If those screens feel clumsy, the core focus loop loses trust at both edges.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/PostSessionPrompt.jsx`, `src/renderer/components/TimeUpModal.jsx`, start-session and save-for-later surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-011`, `UX-013`, `TASK-002`
-- Notes: Do a holistic polish pass across the session-boundary surfaces rather than treating pre-session and post-session as unrelated tweaks. Refine the ready/start flow so beginning work feels crisp, then tighten `Session Wrap`, `Save for Later`, and adjacent copy/actions so ending a session always scripts the next obvious move. Prefer visible-state clarity over extra ceremony, keep the highest-confidence next action easy to choose, and make the before and after screens feel like one coherent loop instead of separate features that happen to touch the timer. Acceptance should verify clean manual startup into the ready shell, predictable start-task handoff, polished `Session Wrap` child paths, and save-for-later transitions that preserve context without awkward dead ends.
+- Notes: Audit update: the `Session Wrap` family, pause surface, `Save and continue later`, start-new decision, and save-for-later child paths already exist and have E2E coverage. Keep this as the remaining polish pass across the session-boundary surfaces rather than a full feature build. Refine the ready/start flow so beginning work feels crisp, then tighten the shipped `Session Wrap`, `Save for Later`, and adjacent copy/actions so ending a session always scripts the next obvious move. Prefer visible-state clarity over extra ceremony, keep the highest-confidence next action easy to choose, and make the before and after screens feel like one coherent loop instead of separate features that happen to touch the timer. Acceptance should verify clean manual startup into the ready shell, predictable start-task handoff, polished `Session Wrap` child paths, and save-for-later transitions that preserve context without awkward dead ends.
 - Commits: —
 
 ### UX-018 — What's Next should make the start action obvious while planning
 - Priority: High
 - Status: Next Up
-- Version: 1.7.0
+- Version: 2.2.5
 - Why it matters: If the `What's next?` options are confusing or the visible start arrow disappears while someone is typing, the screen can look like there is no way to begin. Users should not have to discover that Enter starts the task by accident.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/renderer/components/SessionBuilderComposer.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-014`, `UX-016`, `TASK-002`, `UX-005`
-- Notes: Revisit the `What's next?` screen options and labels so the choices feel direct, distinct, and low-friction. Add a visible `Quick start` button next to `Add subtask` on the planning surface so a user who is typing still sees an obvious way to begin, even when the arrow affordance is hidden and Enter is the keyboard shortcut. The button should start the current typed task/plan through the same path as Enter, preserve the subtask planning context, and stay stable at supported window sizes. Acceptance should verify the confusing options are simplified, typing never leaves the screen without an obvious start control, `Quick start` works with mouse, keyboard, and screen readers, and the layout does not overflow in full, compact-origin, or floating re-entry paths.
+- Notes: Audit update: `SessionBuilderComposer` already supports a `Quick start` button, and the draft composer already passes `onQuickStart` so the button appears next to `Add subtask` before normal session start. Remaining work is the actual `What's next?` re-entry path: revisit the screen options and labels so the choices feel direct, distinct, and low-friction, then wire a visible `Quick start` affordance into the re-entry planning surface where the embedded builder currently renders without `onQuickStart`. The button should start the current typed task/plan through the same path as Enter, preserve the subtask planning context, and stay stable at supported window sizes. Acceptance should verify the confusing options are simplified, typing never leaves the screen without an obvious start control, `Quick start` works with mouse, keyboard, and screen readers, and the layout does not overflow in full, compact-origin, or floating re-entry paths.
 - Commits: —
 
 ### UX-019 — Different task should preserve pickup context before starting something new
 - Priority: High
-- Status: Next Up
-- Version: 1.7.0
+- Status: In Progress
+- Version: 2.2.5
 - Why it matters: Deleting a task title to change direction can make Focana feel like it dropped the user back at the beginning. A deliberate task-switch path should preserve the old thread and make the next move feel intentional.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/renderer/components/SessionNotesModal.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-014`, `UX-018`, `UX-015`, `UX-016`
-- Notes: Add a `Different task` CTA for sourced or resumable task drafts. It should open an optional pickup-notes step, let the user save or dismiss without blame, then transition to `What's next?` Preserve the current task context instead of relying on deleting task text to start over. Acceptance should verify save/dismiss paths keep the old task recoverable, the transition lands on `What's next?`, and the flow does not create shamey copy, duplicate sessions, or a blank dead end.
+- Notes: Audit update: the resumable path already has `Start Something New`, opens a save-for-later notes step, can save or mark complete, and hands off to `What's next?`; E2E covers the floating resume start-new path and draft stability. Remaining work is product polish: decide whether this should be renamed or reframed as `Different task`, make the optional save/dismiss choice more explicit, and verify sourced task drafts preserve context without relying on deleting task text. Acceptance should verify save/dismiss paths keep the old task recoverable, the transition lands on `What's next?`, and the flow does not create shamey copy, duplicate sessions, or a blank dead end.
 - Commits: —
 
 ### UX-020 — Running checklists should prioritize active subtasks
 - Priority: High
-- Status: Next Up
-- Version: 1.7.0
+- Status: In Progress
+- Version: 2.2.5
 - Why it matters: During focus, the next concrete step should be visible without opening a builder. Hiding planned work behind `View session builder` increases re-initiation cost, especially in compact and floating views.
 - Files: `src/renderer/components/RunningTaskPlan.jsx`, `src/renderer/components/CompactMode.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-005`, `TASK-002`, `UX-018`, `UX-021`
-- Notes: Replace the prominent `View session builder` running-state affordance with visible active subtasks in full-window and compact/floating views. Show as many full active rows as fit, make overflow scrollable and expandable, hide completed rows behind `Show completed (N)`, and keep edit/add controls secondary. Acceptance should verify full-window and compact surfaces show active subtasks first, completed rows stay recoverable but hidden by default, unchecked completed rows return to active order, and checklist controls remain keyboard and screen-reader friendly.
+- Notes: Audit update: compact mode already has a task-plan preview with checkboxes for subtasks and next-up tasks, and running-plan editing/checkoff exists. Remaining work is the core acceptance gap: full-window running state still starts behind the prominent `View session builder` toggle. Replace that running-state affordance with visible active subtasks in full-window and compact/floating views, show as many full active rows as fit, make overflow scrollable and expandable, hide completed rows behind `Show completed (N)`, and keep edit/add controls secondary. Acceptance should verify full-window and compact surfaces show active subtasks first, completed rows stay recoverable but hidden by default, unchecked completed rows return to active order, and checklist controls remain keyboard and screen-reader friendly.
 - Commits: —
 
 ### UX-021 — Step estimates should support time blindness without pressure
 - Priority: High
 - Status: Next Up
-- Version: 1.7.0
+- Version: 2.2.5
 - Why it matters: Time blindness can make it hard to choose a realistic focus window or understand how a task breaks down. Optional step estimates should help users orient without turning the plan into a deadline, scorecard, or source of shame.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/SessionBuilderComposer.jsx`, `src/renderer/components/RunningTaskPlan.jsx`, `src/renderer/components/CompactMode.jsx`, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-020`, `TASK-002`, `UX-005`, `UX-014`
@@ -75,48 +75,38 @@
 
 ### UX-016 — Re-entry nudges should never interrupt active typing
 - Priority: High
-- Status: Next Up
-- Version: 1.7.0
+- Status: In Progress
+- Version: 2.2.5
 - Why it matters: If the user is typing in the `What's next?` field, Focana has already regained their attention. Pulsing, refocusing, or clearing draft text at that moment makes the re-entry prompt feel intrusive and can break trust in the resident app behavior.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `SET-003`, `UX-014`, `UX-006`, `WIN-008`
-- Notes: Treat typing in the re-entry prompt as active engagement. Suppress or postpone re-entry pulses while the task field is focused, while the prompt has unsaved draft text, or during a short grace window after text input. Protect `reentrySurfaceTaskText` from being overwritten by timer ticks, pulse state, prompt reopen/signature refreshes, or duplicate resident-window events unless the user explicitly chooses a new source, snoozes, closes, or starts the task. Acceptance should verify that a scheduled pulse does not fire mid-typing, that draft text survives any prompt attention refresh, and that packaged/dev duplicate-instance testing does not allow one Focana instance to clear another instance's active draft.
+- Notes: Audit update: interaction with the re-entry prompt already settles the strong cue, and E2E covers a save-for-later draft surviving the re-entry cue loop. Remaining work is the stricter typing protection described here. Treat typing in the re-entry prompt as active engagement. Suppress or postpone re-entry pulses while the task field is focused, while the prompt has unsaved draft text, or during a short grace window after text input. Protect `reentrySurfaceTaskText` from being overwritten by timer ticks, pulse state, prompt reopen/signature refreshes, or duplicate resident-window events unless the user explicitly chooses a new source, snoozes, closes, or starts the task. Acceptance should verify that a scheduled pulse does not fire mid-typing, that draft text survives any prompt attention refresh, and that packaged/dev duplicate-instance testing does not allow one Focana instance to clear another instance's active draft.
 - Commits: —
 
 ### UX-015 — Pause and break flows should help users pick up where they left off
 - Priority: High
-- Status: Next Up
-- Version: 1.7.0
+- Status: In Progress
+- Version: 2.2.5
 - Why it matters: Pausing or taking a break is often when the thread of the work is most fragile. Focana should make the next step easy to recover without turning a quick pause into paperwork.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/PostSessionPrompt.jsx`, `src/renderer/components/SessionNotesModal.jsx`, pause/resume surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-011`, `UX-014`, `UX-010`, `SES-001`, `UX-006`
-- Notes: Add a lightweight `Where should we pick up?` handoff for two intentional exits: manual `Pause` during a running session and `Take a break` from `Session Wrap`. The first pass should reuse the existing split `Immediate next step` / `Additional details` note model, let users skip quickly, and carry the latest pick-up note into the paused resume shell, break timer, and floating resume prompt. Keep elapsed-time semantics unchanged for timed and Freeflow sessions, avoid duplicating `Save for Later` or `Done for now`, and make the note feel like a helpful optional bookmark instead of a blocking modal. Acceptance should verify pause-note-to-resume, break-note-to-break-timer-to-resume, one-click skip paths, and relaunch recovery while paused or on break.
-- Commits: —
-
-### LIC-002 — Focana should offer a 7-day free trial before $79 lifetime or $10/month
-- Priority: High
-- Status: Next Up
-- Version: 1.7.0
-- Why it matters: Users need a low-friction way to experience the full focus loop before paying, but the upgrade path still has to be clear, simple, and trustworthy once the trial ends.
-- Files: `src/main/licenseService.js`, `src/main/licenseConfig.js`, `src/main/main.js`, `src/renderer/App.jsx`, `src/renderer/components/SettingsModal.jsx`, checkout/activation surfaces, `tests/license-service.test.js`, `tests/e2e/electron-flows.spec.js`
-- Related: `LIC-001`, `SET-002`, `I18N-001`
-- Notes: Replace the current license-first posture with a `7-day` free-trial model that transitions into two purchase options: `$79` lifetime or `$10/month`. Scope the first pass end-to-end so trial state, checkout or variant mapping, first-run messaging, expiry gating, restore and re-validate behavior, and settings/account surfaces all agree on what the user currently has and what happens next. Keep the upgrade UX calm and explicit rather than punitive, and make sure existing paid licenses, offline grace behavior, and packaged/dev-test flows continue to work without ambiguity. Acceptance should verify a new install enters trial automatically, trial expiry routes the user into the correct upgrade choices, both paid paths activate successfully, and relaunch/validation flows preserve the right entitlement state.
+- Notes: Audit update: pause now opens a dismissible Session Wrap, can keep working, mark complete, or save for later, and post-session breaks return through the floating resume prompt. Remaining work is the explicit pickup-note bookmark before intentional exits. Add a lightweight `Where should we pick up?` handoff for manual `Pause` during a running session and `Take a break` from `Session Wrap`. The first pass should reuse the existing split `Immediate next step` / `Additional details` note model, let users skip quickly, and carry the latest pick-up note into the paused resume shell, break timer, and floating resume prompt. Keep elapsed-time semantics unchanged for timed and Freeflow sessions, avoid duplicating `Save for Later` or `Done for now`, and make the note feel like a helpful optional bookmark instead of a blocking modal. Acceptance should verify pause-note-to-resume, break-note-to-break-timer-to-resume, one-click skip paths, and relaunch recovery while paused or on break.
 - Commits: —
 
 ### MKT-001 — Lifecycle emails should cover trial, checkout, and license activation
 - Priority: High
-- Status: Next Up
-- Version: 2.2.3
+- Status: In Progress
+- Version: 2.2.5
 - Why it matters: The new 7-day trial and day-8 paywall need calm, useful follow-up outside the app so users understand what happens next without feeling nagged or surprised.
 - Files: `supabase/functions/loops-lifecycle/index.ts`, `supabase/functions/loops-lifecycle/README.md`, Loops workflows, Supabase secrets, future lifecycle event callers
 - Related: `LIC-002`, `MKT-002`, `MKT-003`
-- Notes: Finish the Loops lifecycle path now that the Supabase bridge exists. Ask Loops support to enable Workflows API alpha access for the `Focana` team so workflows can be inspected by CLI; until then, manage workflow structure in the Loops dashboard and verify by sending events through Supabase. Starting workflow triggers should be `trial_started`, `trial_day_6`, `trial_expired`, `checkout_started`, and `license_activated`. Keep copy practical and non-punitive: welcome users, remind them before trial end, explain day-8 choices, follow up on checkout-started/no-activation, and acknowledge successful activation with a short next-step orientation. Acceptance should verify each event can be sent through the hosted Supabase function, reaches Loops, and triggers the intended dashboard workflow without creating duplicate contacts.
+- Notes: Audit update: the Supabase `loops-lifecycle` bridge exists, forwards trusted events to Loops, documents the recommended event names, and shipped in the `2.2.3` release notes as bridge-ready. Remaining work is to finish the lifecycle path around it: add app/server callers for `trial_started`, `trial_day_6`, `trial_expired`, `checkout_started`, and `license_activated`; manage or inspect Loops dashboard workflows; and verify hosted events actually reach Loops without duplicate contacts. Ask Loops support to enable Workflows API alpha access for the `Focana` team so workflows can be inspected by CLI; until then, manage workflow structure in the Loops dashboard and verify by sending events through Supabase. Keep copy practical and non-punitive: welcome users, remind them before trial end, explain day-8 choices, follow up on checkout-started/no-activation, and acknowledge successful activation with a short next-step orientation.
 - Commits: —
 
 ### MKT-002 — Existing users should get a clear lifetime-upgrade outreach sequence
 - Priority: High
 - Status: Next Up
-- Version: 2.2.3
+- Version: TBD
 - Why it matters: Current and early users are the highest-trust audience for the paid launch. They should hear directly that lifetime is available, why it exists, and how to choose it without being pushed into a confusing subscription path.
 - Files: Loops campaigns, Loops audience segments, Lemon checkout links, customer/user export source, campaign copy
 - Related: `LIC-002`, `MKT-001`, `MKT-004`
@@ -126,7 +116,7 @@
 ### MKT-003 — Landing page should match the 7-day trial and lifetime/monthly offer
 - Priority: High
 - Status: Next Up
-- Version: 2.2.3
+- Version: TBD
 - Why it matters: The app, checkout, emails, and website all need to tell the same story. If the landing page still describes an older purchase flow, users will arrive at the trial/paywall with avoidable uncertainty.
 - Files: marketing site or landing-page repo, `release-notes/2.2.3.json`, Lemon checkout URLs, pricing copy, download CTA
 - Related: `LIC-002`, `MKT-001`, `MKT-002`
@@ -136,7 +126,7 @@
 ### MKT-004 — Marketing plan should restart as a weekly learning loop
 - Priority: High
 - Status: Next Up
-- Version: 2.2.3
+- Version: TBD
 - Why it matters: Focana needs a repeatable path back to users and buyers, not just a release followed by scattered one-off posts.
 - Files: marketing plan, Loops campaign calendar, landing page, user interview/reply tracker
 - Related: `MKT-002`, `MKT-003`, `LIC-002`
@@ -416,6 +406,24 @@
 - Commits: —
 
 ## Done
+
+### LIC-002 — Focana should offer a 7-day free trial before $79 lifetime or $10/month
+- Status: Done
+- Version: 2.2.3
+- Why it matters: Users need a low-friction way to experience the full focus loop before paying, but the upgrade path still has to be clear, simple, and trustworthy once the trial ends.
+- Files: `src/main/licenseService.js`, `src/main/licenseConfig.js`, `src/main/main.js`, `src/renderer/App.jsx`, `src/renderer/components/SettingsModal.jsx`, checkout/activation surfaces, `tests/license-service.test.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `LIC-001`, `SET-002`, `I18N-001`
+- Notes: Focana now starts new licensed builds in a `7-day` trial, preserves the trial window through deactivation, blocks access on day 8 until a paid license activates, and routes expired trials to a calm upgrade gate with `$10/mo` and `$79 lifetime` checkout actions. Settings also shows trial state and upgrade actions. Unit coverage verifies trial start/deactivation preservation and day-8 expiry; E2E coverage verifies the expired-trial gate, window sizing, monthly/lifetime Lemon checkout links, and startup-gate stability. Lifecycle email follow-up is tracked separately in `MKT-001`.
+- Commits: `545014f`, `45989f4`
+
+### SET-003 — Auto-launch should feel polished and context-aware after login launch
+- Status: Done
+- Version: 2.2.4
+- Why it matters: If launch-at-login feels abrupt, noisy, or ambiguous, the default-on behavior can feel like the app is happening to the user instead of quietly supporting them.
+- Files: `src/main/main.js`, `src/renderer/App.jsx`, `src/main/store.js`, `src/renderer/components/SettingsModal.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `SET-001`, `SES-001`, `SES-002`
+- Notes: The resident float-first startup path is implemented. Manual launches keep the normal idle shell, login and wake system-entry flows float first and then reveal `What's next?` or `Ready to resume?`, restart launches with paused work open resume immediately, and first-launch activation/preferred-name gates still win over login launch. E2E coverage includes manual launch, login launch, login with saved work, wake+login, wake+resume, interrupted active sessions, saved resumable tasks, and in-app restart behavior.
+- Commits: `d2700ef`, `2876141`, `545014f`, `45989f4`
 
 ### WIN-009 — Parking Lot hotkey from floating should not collapse back to compact
 - Status: Done
