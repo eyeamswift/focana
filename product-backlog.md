@@ -1,5 +1,43 @@
 # Product Backlog
 
+## Roadmap
+
+Release-theme view of the backlog. Order = build order. Items keep their stable IDs and full detail in the sections below; this section is the prioritized scheduling lens. `Status: Later` + a target `Version` = planned for that release but not yet started.
+
+### 2.2.5 — In flight (in-session loop + boundaries + infra)
+Finish the execution loop and exit surfaces: `UPD-001`, `UX-014`, `UX-015`, `UX-016`, `UX-018`, `UX-019`, `UX-020`, `UX-021`. Marketing stream runs in parallel: `MKT-001`..`MKT-004`. Quick close: verify `UX-005` is delivered by `UX-020` and close it rather than rebuild.
+
+### 2.3.0 — "A focus rhythm you can trust: work, break, resume"
+Give a session a humane cadence and make every nudge trustworthy enough to earn the right to prompt. Also absorbs standalone Pomodoro/break-timer apps — the integration moat, not a single feature.
+- **P0 — trust prereqs:** `WIN-008` (bug: no floating pulse while snoozed), `UX-007A` (snooze → collapse to minimized)
+- **P1 — headline:** `UX-007B` (Pomodoro as a first-class start mode)
+- **P1 — pairs with headline:** `UX-017` (gentle long-session break nudge)
+- **P2 — cheap, high-leverage:** `SES-003` (add time mid-session)
+- **Stretch (can slip to 2.3.1):** `UX-006` (re-entry hardening)
+- Guardrails: no streaks/points/forced breaks; nudges = one invitation, respect DND + active typing; "add time" copy stays neutral (never "you're behind").
+
+### 2.4.0 — "From stuck to started" (strategic bet: task initiation)
+Attacks the highest-friction ADHD executive-function domain and the one the coping-mechanism framework serves least. All optional, user-authored, skippable.
+- **P0 — flagship:** `INIT-001` (task-initiation scaffold — smallest next step + optional 2-min "just start")
+- **P1 — strongest evidence:** `INIT-002` (implementation intentions — "when ___, I'll ___")
+- **P2 — redesigned:** `TASK-002` (reframed as OPTIONAL structure — the mandatory version is a task-paralysis hazard; do not ship as originally written)
+
+### 2.5.0 — "Regulation & reward" (closes the emotional-regulation gap)
+- **P1:** `RWD-001` (per-subtask reinforcement — consistent, earned, never variable-ratio)
+- **P2:** `EMO-001` (emotional off-ramp — available, never auto-triggered)
+- **Lightest:** `UX-022` (transition/disengagement beat — check overlap with shipped Session Wrap first)
+
+### Parked (Later — do not pull forward)
+- Onboarding theme (its own future release): `ONB-001`, `UX-012`, `UX-008`
+- Never-by-default, needs an explicit decision to revive: `CAL-001`
+- Blocked, needs a genuinely new angle: `WIN-001`
+- Infra / low-EF-leverage: `TST-001`, `HIST-001`, `ANA-001`/`ANA-002`/`ANA-003`, `NOTE-001`/`NOTE-002`, `I18N-001`, `TASK-001`, `MOB-001`, `SET-002`/`SET-004`, `WIN-006`/`WIN-007`, `UX-013` (hygiene — rides any release with slack)
+
+### Open decisions
+- **Framework:** `INIT-001`/`INIT-002`/`EMO-001` imply candidate new coping mechanisms ("Activation Scaffolding," "If-Then Planning," "Affective Scaffolding"). Adopting these is a founder call.
+- **Cross-project:** any new mechanism must be manually flagged in the ADHD Engine project — the marketplace listing and archetype→tool matching depend on the framework.
+- **Doc bug:** Parking Lot shortcut is inconsistent — CLAUDE.md says `Cmd+Shift+N`, `UX-012` teaches `Cmd/Ctrl+Shift+K`. Pin the real binding before `UX-012` ships user-facing copy.
+
 ## Blocked
 
 ### WIN-001 — Packaged macOS builds do not reliably stay above true fullscreen apps
@@ -138,11 +176,11 @@
 ### TASK-002 — Session planning should require a project-based task hierarchy
 - Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.4.0
 - Why it matters: Flat task entry makes it too easy to start vague work. Requiring a parent/child structure pushes users to name the project and break the work into concrete, intentional units before they spend time on it.
 - Files: `src/renderer/App.jsx`, `src/main/store.js`, session start flow, future queue/planning UI
 - Related: `UX-005`, `ANA-001`, `TASK-001`
-- Notes: Add a project-based task queue that forces intentional structure before focus starts. Users should have to identify either `Project -> Task` or `Task -> Subtask` before beginning a session, rather than entering one flat line and improvising from there. First pass should support a lightweight queue under the chosen parent item, make it easy to break work into the next concrete steps, and let the active focus block pull from that queue while preserving the parent context. This is broader than the in-session checklist in `UX-005`, but it should still avoid turning Focana into a heavyweight project-management board.
+- Notes: 2.4.0 REDESIGN — ship the hierarchy as OPTIONAL, not mandatory. The original "users should have to identify Project -> Task before beginning" framing is a task-initiation hazard: forcing structure before starting is exactly what triggers ADHD task paralysis at the moment initiation is hardest. Pair with `INIT-001` so structure is available and frictionless without gating the start. Original intent below, to be reframed accordingly. Add a project-based task queue that forces intentional structure before focus starts. Users should have to identify either `Project -> Task` or `Task -> Subtask` before beginning a session, rather than entering one flat line and improvising from there. First pass should support a lightweight queue under the chosen parent item, make it easy to break work into the next concrete steps, and let the active focus block pull from that queue while preserving the parent context. This is broader than the in-session checklist in `UX-005`, but it should still avoid turning Focana into a heavyweight project-management board.
 - Commits: —
 
 ### UX-005 — Focus blocks should support a checklist of sub-tasks
@@ -152,7 +190,7 @@
 - Why it matters: A single work block often contains a short queue of concrete sub-tasks that users want to check off without losing the top-level focus.
 - Files: `src/renderer/App.jsx`, `src/main/store.js`, relevant session UI components
 - Related: `UX-003`, `TASK-002`
-- Notes: Model it as an active-session checklist under one block or task title, not as a Parking Lot enhancement or flat note list. First pass should let the user take the structured plan they created and work through the next concrete steps inside the active session without losing the parent project or task context. Acceptance coverage should confirm one focus block can hold multiple checkable sub-tasks without turning Parking Lot into the work queue.
+- Notes: VERIFY-AND-CLOSE — likely already delivered by `UX-020` (active subtasks with checkboxes in full/compact/floating). Verify against the shipped running checklist and close rather than rebuild. Original intent below. Model it as an active-session checklist under one block or task title, not as a Parking Lot enhancement or flat note list. First pass should let the user take the structured plan they created and work through the next concrete steps inside the active session without losing the parent project or task context. Acceptance coverage should confirm one focus block can hold multiple checkable sub-tasks without turning Parking Lot into the work queue.
 - Commits: —
 
 ### UX-013 — Cosmetic pass should remove redundant ceremony and obvious state toasts
@@ -178,7 +216,7 @@
 ### UX-006 — Re-entry timing should be fully hardened after the 1.4.0 break flow lands
 - Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.3.0 (stretch)
 - Why it matters: The thin break/re-entry slice in `1.4.0` will cover the new post-session flow, but the wider reminder system still needs a full trust pass so nudges always feel intentional instead of random or sticky.
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TaskInput.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`
@@ -186,9 +224,9 @@
 - Commits: —
 
 ### UX-017 — Long focus sessions should offer a gentle take-a-break nudge
-- Priority: Medium
+- Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.3.0
 - Why it matters: Long uninterrupted sessions can help users stay locked in, but after a while they may need a humane prompt to pause, reset, hydrate, stretch, or decide intentionally to keep going.
 - Files: `src/renderer/App.jsx`, active timer/check-in surfaces, break timer surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-015`, `UX-006`, `UX-007B`, `SES-003`
@@ -196,9 +234,9 @@
 - Commits: —
 
 ### SES-003 — Running timers should support adding more time before time is up
-- Priority: Medium
+- Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.3.0
 - Why it matters: Users often realize mid-session that they need a little more time and should be able to extend the current timer without waiting for the time-up interruption.
 - Files: `src/renderer/App.jsx`, active timer controls, compact/floating timer surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `SES-002`
@@ -206,9 +244,9 @@
 - Commits: —
 
 ### UX-007A — Floating re-entry prompt should finish its snooze and collapse behavior
-- Priority: Medium
+- Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.3.0
 - Why it matters: The floating prompt becomes much more trustworthy when dismissing it feels lightweight and predictable instead of sticky.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`
@@ -216,9 +254,9 @@
 - Commits: —
 
 ### WIN-008 — Floating logo should not pulse while re-entry is snoozed
-- Priority: Medium
+- Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.3.0
 - Why it matters: Snooze is supposed to buy quiet time. If the floating logo keeps pulsing anyway, the app feels like it ignored the user’s choice and the snooze becomes hard to trust.
 - Files: `src/renderer/App.jsx`, `src/main/main.js`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`, `UX-007A`
@@ -226,9 +264,9 @@
 - Commits: —
 
 ### UX-007B — Floating re-entry should support Pomodoro as a first-class start mode
-- Priority: Medium
+- Priority: High
 - Status: Later
-- Version: TBD
+- Version: 2.3.0
 - Why it matters: Pomodoro is a meaningful new timer mode, not just a prompt tweak, and it should land after the post-session and re-entry foundations are solid.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`, `UX-007A`
@@ -403,6 +441,56 @@
 - Files: desktop session sync layer, future iPhone app, Lock Screen / Live Activity surfaces, notification scheduling or push plumbing
 - Related: `UX-007`, `SES-003`
 - Notes: Scope this as a real iPhone companion app, not just one-way notifications. The app should sync the active focus state from desktop, show the current task and timer on the iPhone Lock Screen in a persistent way that the user has to dismiss before slipping into the rest of the phone, and stay aligned with timed, Freeflow, and Pomodoro sessions. If the user is on a break or running a Pomodoro cycle, the phone should notify them when break time is up and the next work interval should begin. First pass should prioritize reliable desktop-to-phone session sync and local notification behavior over deeper mobile editing features, and acceptance should verify pause, resume, stop, break start, and break end all stay in sync across desktop and iPhone.
+- Commits: —
+
+### INIT-001 — Task-initiation scaffold should help users cross from stuck to started
+- Priority: High
+- Status: Later
+- Version: 2.4.0
+- Why it matters: Every current and in-flight feature assumes the user has already started. Task initiation is the highest-friction executive-function domain in ADHD and the one Focana's framework serves least. Nothing today helps the user cross from blank/overwhelmed to typing the first concrete action, which is where ADHD users abandon focus tools.
+- Files: `src/renderer/App.jsx`, task-input and session-start surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `INIT-002`, `TASK-002`, `UX-018`, `UX-020`
+- Notes: Add one optional prompt at session start — `What's the very first thing you'll actually do?` — plus an optional 2-minute `just start` micro-commitment that begins a short low-stakes timer to reduce activation energy. Evidence: task-initiation deficit is core to ADHD `[Peer-reviewed]` / `[Clinical consensus]`; the "smallest physical next step / start for 2 minutes" tactic is `[Clinical consensus]` + `[Lived experience]`. Keep it user-authored (NOT AI-generated) and always skippable — making it mandatory recreates the task-paralysis problem it is meant to solve. Maps to strengthening Externalized Working Memory (hold the first action on screen) or a candidate new coping mechanism, "Activation Scaffolding." Anti-pattern traps: no shame for skipping, no forcing it every session. Build: light-medium; reuses existing task-input and timer surfaces.
+- Commits: —
+
+### INIT-002 — Implementation intentions should let users pre-commit an if-then plan
+- Priority: High
+- Status: Later
+- Version: 2.4.0
+- Why it matters: If-then pre-commitment is the strongest-evidence behavioral lever on the roadmap for starting and re-starting work, and it pairs naturally with Focana's existing re-entry cues.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, session-planning surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `INIT-001`, `UX-006`, `UX-016`
+- Notes: Add an optional `when ___, I'll ___` field at planning, tied to re-entry cues (e.g. `When I finish this call, I'll open Focana and start the next step`). Evidence: implementation intentions (Gollwitzer's if-then plans) improved response inhibition and normalized the P300 in children with ADHD to methylphenidate-equivalent levels on a Go/NoGo task (Paul-Jordanov, Bechtold & Gawrilow, 2010) `[Peer-reviewed, controlled trial]`; adult desktop application is a `[Speculative]` extrapolation from a children's lab study. Keep it to one or two intentions — do not build a rules-engine settings maze (opaque/complex settings is an anti-pattern). Maps to a candidate new coping mechanism, "Prospective / If-Then Planning." Build: medium.
+- Commits: —
+
+### RWD-001 — Subtask completion should give predictable immediate reinforcement
+- Priority: Medium
+- Status: Later
+- Version: 2.5.0
+- Why it matters: Delayed reward is aversive for ADHD brains, so reinforcement should land at each checked subtask, not only at session end. The current Dopamine-Positive Design celebration is session-level; this pushes it to sub-task granularity where the delay-aversion penalty bites hardest.
+- Files: `src/renderer/components/RunningTaskPlan.jsx`, `src/renderer/components/CompactMode.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-020`, `UX-021`
+- Notes: Add a small, consistent, earned acknowledgment on each checked subtask in the existing `UX-020` checklist. Evidence: altered reward processing in ADHD splits into dissociable pathways — immediate-reward drive vs. delay aversion (Sonuga-Barke et al., 2011) `[Peer-reviewed]`; the implication is that reinforcement must be immediate at subtask granularity. Critical anti-pattern: the reward must be predictable and consistent, NEVER variable-ratio. No random jackpots, point-hoarding, or streaks (explicitly forbidden by the Never list and actively harmful given dopamine dysregulation). Same acknowledgment, every time, earned. Build: light — mostly a micro-interaction on an existing surface.
+- Commits: —
+
+### EMO-001 — An emotional off-ramp should help at the moment of avoidance
+- Priority: Medium
+- Status: Later
+- Version: 2.5.0
+- Why it matters: Emotional self-regulation sits at the center of the adult-ADHD executive-function deficit, yet Focana's coping-mechanism framework currently has no mechanism for it. This is the most conspicuous gap in the model relative to the go-to-EF-app goal.
+- Files: `src/renderer/App.jsx`, running-session + check-in surfaces, `src/renderer/components/ParkingLot.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-017`, `INIT-001`
+- Notes: Add an available, never auto-triggered `feeling stuck?` pathway offering three concrete behavioral moves — shrink the task, dump the overwhelm to Parking Lot, or take a 2-minute reset. Behavioral, not advisory. Evidence: emotional dysregulation is core to adult ADHD `[Peer-reviewed]` / `[Clinical consensus]`; the specific product intervention is `[Speculative]`. Maps to a candidate new coping mechanism, "Affective Scaffolding / Overwhelm Off-ramp." Copy caution: this is the item most likely to drift into therapeutic/clinical framing — keep it strictly behavioral and non-clinical. No "we'll calm your anxiety," no mood tracking that implies assessment or diagnosis. Treat any clinical-sounding claim as unvalidated and verify copy before shipping. Build: medium.
+- Commits: —
+
+### UX-022 — Task transitions should support a light disengagement beat
+- Priority: Low
+- Status: Later
+- Version: 2.5.0
+- Why it matters: In ADHD the hard part of a task switch is often disengaging from the current task (hyperfocus), not just starting the next one. A defined edge between tasks supports cognitive flexibility / set-shifting.
+- Files: `src/renderer/App.jsx`, post-session / Session Wrap surfaces, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-010`, `UX-013`, `UX-015`
+- Notes: Add a single optional `landing` beat between tasks so a switch has a defined edge, extending Context Continuity. Evidence: disengagement / set-shifting difficulty in ADHD is `[Clinical consensus]`, less rigorously quantified than initiation. Check for overlap with the shipped Session Wrap before building — this may already be partly covered. Anti-pattern: do not add ceremony (`UX-013` is actively removing ceremony); keep it to one optional beat or skip it. Build: light-medium.
 - Commits: —
 
 ## Done
