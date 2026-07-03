@@ -61,12 +61,6 @@ export default function RunningTaskPlan({
   const hasListOverflow = planListItems.length > 3;
   const visibleItems = planListItems;
   const layoutSignature = useMemo(() => JSON.stringify(plan), [plan]);
-  const subtaskCount = (activeTask?.subtasks || []).filter((subtask) => subtask.title?.trim()).length;
-  const nextTaskCount = plan.items.filter((item) => item.id !== plan.activeTaskId && !item.completed && item.title?.trim()).length;
-  const builderSummary = subtaskCount || nextTaskCount
-    ? `${subtaskCount} ${subtaskCount === 1 ? 'subtask' : 'subtasks'} - ${nextTaskCount} next`
-    : 'Add subtasks or next-up tasks';
-
   useEffect(() => {
     if (!builderOpenSignal) return;
     setBuilderExpanded(true);
@@ -302,8 +296,7 @@ export default function RunningTaskPlan({
                 data-testid="running-plan-builder-toggle"
               >
                 <span className="running-plan__builder-toggle-copy">
-                  <span className="running-plan__builder-toggle-label">View session builder</span>
-                  <span className="running-plan__builder-toggle-summary">{builderSummary}</span>
+                  <span className="running-plan__builder-toggle-label">Add/View subtasks or next-up tasks</span>
                 </span>
                 <ChevronDown className="running-plan__builder-toggle-icon" size={16} aria-hidden="true" />
               </button>

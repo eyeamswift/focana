@@ -2,15 +2,11 @@ import React from 'react';
 import { Coffee, TimerReset, X } from 'lucide-react';
 
 export default function LongSessionNudge({
-  taskName = '',
   onTakeBreak,
   onKeepGoing,
   onSnooze,
   variant = 'full',
 }) {
-  const safeTaskName = typeof taskName === 'string' && taskName.trim()
-    ? taskName.trim()
-    : 'this focus';
   const safeVariant = variant === 'compact' ? 'compact' : 'full';
 
   return (
@@ -19,10 +15,9 @@ export default function LongSessionNudge({
         <Coffee size={17} />
       </div>
       <div className="long-session-nudge__body">
-        <p className="long-session-nudge__eyebrow">Gentle break check</p>
         <h2 className="long-session-nudge__title">You've been at it for 90 minutes.</h2>
         <p className="long-session-nudge__copy">
-          Want to take a real break from {safeTaskName}, or keep this focus going?
+          Want to take a break, or keep the focus going
         </p>
       </div>
       <div className="long-session-nudge__actions">

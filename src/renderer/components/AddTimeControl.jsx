@@ -11,6 +11,7 @@ function clampMinutes(value) {
 
 export default function AddTimeControl({
   onAddTime,
+  onOpenChange,
   disabled = false,
   variant = 'full',
 }) {
@@ -19,6 +20,14 @@ export default function AddTimeControl({
   const rootRef = useRef(null);
   const customInputRef = useRef(null);
   const safeVariant = variant === 'compact' ? 'compact' : 'full';
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
+
+  useEffect(() => () => {
+    onOpenChange?.(false);
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) return undefined;

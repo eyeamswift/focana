@@ -105,7 +105,8 @@ const WINDOW_SIZES = {
   startChooserHeight: 176,
   pomodoroStartChooserHeight: 250,
   timerHeight: 108,
-  timerPomodoroBreakHeight: 330,
+  timerAddTimeHeight: 260,
+  timerPomodoroBreakHeight: 250,
   timerLongSessionNudgeHeight: 370,
   timerCheckInPromptHeight: 280,
   timerCheckInDetourChoiceHeight: 260,
@@ -443,6 +444,7 @@ export default function App() {
   const [pomodoroBreakEndsAt, setPomodoroBreakEndsAt] = useState(null);
   const [pomodoroCyclesCompleted, setPomodoroCyclesCompleted] = useState(0);
   const [longSessionNudgeVisible, setLongSessionNudgeVisible] = useState(false);
+  const [addTimeMenuOpen, setAddTimeMenuOpen] = useState(false);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [sessionStateHydrated, setSessionStateHydrated] = useState(false);
   const [showTimerValidationModal, setShowTimerValidationModal] = useState(false);
@@ -4775,6 +4777,7 @@ export default function App() {
   }, [ensureWindowSizeForCurrentScreen, isCompact, measureStartupGateHeight, startupGateState, startupRevealComplete]);
 
   const getActiveScreenDefaultHeight = useCallback(() => {
+    if (addTimeMenuOpen) return WINDOW_SIZES.timerAddTimeHeight;
     if (mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break') return WINDOW_SIZES.timerPomodoroBreakHeight;
     if (longSessionNudgeVisible) return WINDOW_SIZES.timerLongSessionNudgeHeight;
     if (hasSavedContext && !isStartModalOpen) return WINDOW_SIZES.contextHeight;
@@ -4784,7 +4787,7 @@ export default function App() {
     if (checkInState === 'resolved' && showCenteredFullWindowCheckInToast) return WINDOW_SIZES.timerHeight;
     if (checkInState === 'resolved') return WINDOW_SIZES.timerCheckInResolvedHeight;
     return WINDOW_SIZES.timerHeight;
-  }, [checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroPhase, showCenteredFullWindowCheckInToast]);
+  }, [addTimeMenuOpen, checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroPhase, showCenteredFullWindowCheckInToast]);
 
   const getReentryPromptDefaultHeight = useCallback(() => {
     return getReentryPromptHeightForStage(reentrySurfaceStage);
@@ -8606,6 +8609,7 @@ export default function App() {
       {canAddTimeToActiveSession ? (
         <AddTimeControl
           onAddTime={(minutes) => addTimeToActiveTimedSession(minutes, 'full')}
+          onOpenChange={setAddTimeMenuOpen}
           variant="full"
         />
       ) : null}
