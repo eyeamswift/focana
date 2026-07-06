@@ -145,7 +145,7 @@ You have read/write access to the Focana project docs. **Default posture: propos
 
 When a decision is made during a session:
 
-1. **Propose** the Session Log entry — date-stamped, bulleted summary of what was decided and the reasoning.
+1. **Propose** the Session Log entry in the project-wide **`session-log.md`** (one shared log — tag it by area, e.g. `[Product]`) — date-stamped, bulleted summary of what was decided and the reasoning.
 2. **Show the founder** the proposed edit before writing it.
 3. **Write only on explicit confirmation** (e.g., "yes, write it" or "go ahead").
 4. If the decision affects other docs (Brand & Strategy, Landing Page, Coping Mechanism Framework, GTM), **flag which docs need updating** — don't cascade edits automatically.

@@ -12,6 +12,16 @@ Ladders up to NeurDi Labs' mission ("leveling the playing field for people with 
 - **Tier 2 — ADHD Community:** lived-experience / founder story — "I got tired of hacking together five different tools just to stay focused." This is the lead angle for the creator program.
 - **Tier 3 — Professionals & Influencers:** _TBD_ — clinical precision, coping-mechanism vocabulary.
 
+## Channel mix (the three plays)
+
+Distribution runs on three plays, all organic-first and on-brand (no shame hooks, no fake urgency, respect the communities):
+
+1. **Intent capture** — get in front of people *already* looking for a fix: SEO / long-tail ("focus app for ADHD on Mac," "body doubling app," "always-in-view task timer"), app-store/marketplace search, and answering high-intent questions in ADHD forums/Reddit. Captures existing demand. _Status: TBD._
+2. **Audience borrowing** — borrow trust from people who already have the audience. **This is the creator program** (below); podcast guesting + newsletter placements later. _Status: active — creator pilot._
+3. **Guerrilla marketing** — unconventional, low-cost, high-creativity moments: authentic presence + build-in-public in ADHD communities, relatable clips/memes, founder-story stunts. _Status: TBD._
+
+_(Definitions are `@gtm-strategist`'s read of your three buckets — correct me if you scope them differently.)_
+
 ## Channels by ICP
 
 | ICP (priority) | Primary channels | Tier | Status |
@@ -77,17 +87,6 @@ None pending. **Watch:** any creator or partner using "clinically validated / ex
 
 ---
 
-## Session Log
+## Decisions
 
-Newest first. Each entry: date, decision, reasoning, and any cross-doc / cross-project flags.
-
-### 2026-07-06 — Creator pilot assets built + committed
-- **Done:** Wrote the creator outreach kit (`gtm-creator-kit.md`) and a vetted starter target list (`gtm-creator-targets.md` — 17 candidates, 6-creator "contact first" cohort, competitor conflict watchlist). Committed all GTM docs + the `@gtm-strategist` agent to `main` (`f07229a`).
-- **Open / next:** verify the 6 cohort handles + live follower counts → draft 6 personalized first-touch messages → stand up promo-code/activation tracking (manual v1 for pilot; real build routes to main / `@ef-advisor`).
-- **Flags:** all follower counts are second-hand — re-verify before outreach. Watch competing-product creators (ADHD Love/Dubbii, Dani Donovan/Anti-Planner, Shannon Mo, Hayley Honeyman).
-
-### 2026-07-06 — Primary distribution motion: ADHD creator partnerships (ICP #1–2)
-- **Decided:** Lead GTM with organic, creator-led distribution to ADHD micro/mid creators (~10k–250k). B2B coach outreach deferred to phase 2. Clinician/psychiatrist channel gated on review-board validation (out of scope now, aside from clinician-influencer reach).
-- **Why:** ICP #1–2 are low-acquisition-cost and trust-driven; creators deliver reach *and* pre-qualified leads without heavy cash spend or clinical-claim exposure. Coaches are a strong phase-2 beachhead but fragmented; clinicians force premature efficacy claims and medical-device positioning risk.
-- **Plan:** see Creator Program. Pilot cohort of 5–10; gift-first + affiliate + 30-day-trial code; measure activations + paid, not views.
-- **Flags:** needs promo-code/affiliate infra (product dependency → main / `@ef-advisor`). Creators must avoid "clinically validated / expert-reviewed" (review-board gated). FTC `#ad` disclosure required. Cross-project: future clinician/coach validation ties to the ADHD Engine review board + marketplace listing.
+Dated decisions are recorded in the project-wide **`session-log.md`** (one shared log — tag GTM entries `[GTM]`). This doc holds *current* GTM state; the log holds the history.
