@@ -81,6 +81,11 @@ None pending. **Watch:** any creator or partner using "clinically validated / ex
 
 Newest first. Each entry: date, decision, reasoning, and any cross-doc / cross-project flags.
 
+### 2026-07-06 — Creator pilot assets built + committed
+- **Done:** Wrote the creator outreach kit (`gtm-creator-kit.md`) and a vetted starter target list (`gtm-creator-targets.md` — 17 candidates, 6-creator "contact first" cohort, competitor conflict watchlist). Committed all GTM docs + the `@gtm-strategist` agent to `main` (`f07229a`).
+- **Open / next:** verify the 6 cohort handles + live follower counts → draft 6 personalized first-touch messages → stand up promo-code/activation tracking (manual v1 for pilot; real build routes to main / `@ef-advisor`).
+- **Flags:** all follower counts are second-hand — re-verify before outreach. Watch competing-product creators (ADHD Love/Dubbii, Dani Donovan/Anti-Planner, Shannon Mo, Hayley Honeyman).
+
 ### 2026-07-06 — Primary distribution motion: ADHD creator partnerships (ICP #1–2)
 - **Decided:** Lead GTM with organic, creator-led distribution to ADHD micro/mid creators (~10k–250k). B2B coach outreach deferred to phase 2. Clinician/psychiatrist channel gated on review-board validation (out of scope now, aside from clinician-influencer reach).
 - **Why:** ICP #1–2 are low-acquisition-cost and trust-driven; creators deliver reach *and* pre-qualified leads without heavy cash spend or clinical-claim exposure. Coaches are a strong phase-2 beachhead but fragmented; clinicians force premature efficacy claims and medical-device positioning risk.
