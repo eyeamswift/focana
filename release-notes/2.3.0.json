@@ -1,0 +1,16 @@
+{
+  "version": "2.3.0",
+  "publishedAt": "2026-07-06",
+  "summary": "Focana 2.3.0 adds a trustworthy focus rhythm with Pomodoro, gentle long-session break checks, and mid-session timer extension.",
+  "improvements": [
+    "Pomodoro is now a first-class start option with 25/5, 50/10, and custom work/break lengths.",
+    "Pomodoro breaks stay skippable with Keep going, preserving the same focus run without an interim wrap-up.",
+    "Long timed and Freeflow sessions can now offer a gentle 90-minute break check that respects quiet-time rules and stays out of Pomodoro mode.",
+    "Timed sessions now support adding more time mid-session from full, compact, and floating timer controls.",
+    "Focus nudges now share calmer suppression behavior around Do Not Disturb, active typing, paused sessions, and snoozed re-entry."
+  ],
+  "fixes": [
+    "Floating re-entry snooze now stays quiet without pulsing the minimized logo during the snooze window.",
+    "Pomodoro work intervals now transition into internal break state instead of the normal Time Up flow."
+  ]
+}

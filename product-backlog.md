@@ -7,7 +7,7 @@ Release-theme view of the backlog. Order = build order. Items keep their stable 
 ### 2.2.5 — In flight (in-session loop + boundaries + infra)
 Finish the execution loop and exit surfaces: `UPD-001`, `UX-014`, `UX-015`, `UX-016`, `UX-018`, `UX-019`, `UX-020`, `UX-021`. Marketing stream runs in parallel: `MKT-001`..`MKT-004`. Quick close: verify `UX-005` is delivered by `UX-020` and close it rather than rebuild.
 
-### 2.3.0 — "A focus rhythm you can trust: work, break, resume"
+### 2.3.0 — Shipped: "A focus rhythm you can trust: work, break, resume"
 Give a session a humane cadence and make every nudge trustworthy enough to earn the right to prompt. Also absorbs standalone Pomodoro/break-timer apps — the integration moat, not a single feature.
 - **P0 — trust prereqs:** `WIN-008` (bug: no floating pulse while snoozed), `UX-007A` (snooze → collapse to minimized), plus a shared **nudge-suppression contract** carved from `UX-006` (every nudge respects DND, active typing, paused sessions, and snooze — the two new prompting surfaces below inherit it)
 - **P1 — headline:** `UX-007B` (Pomodoro as a first-class start mode)
@@ -99,7 +99,7 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Why it matters: During focus, the next concrete step should be visible without opening a builder. Hiding planned work behind `View session builder` increases re-initiation cost, especially in compact and floating views.
 - Files: `src/renderer/components/RunningTaskPlan.jsx`, `src/renderer/components/CompactMode.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-005`, `TASK-002`, `UX-018`, `UX-021`
-- Notes: Audit update: compact mode already has a task-plan preview with checkboxes for subtasks and next-up tasks, and running-plan editing/checkoff exists. Remaining work is the core acceptance gap: full-window running state still starts behind the prominent `View session builder` toggle. Replace that running-state affordance with visible active subtasks in full-window and compact/floating views, show as many full active rows as fit, make overflow scrollable and expandable, hide completed rows behind `Show completed (N)`, and keep edit/add controls secondary. Acceptance should verify full-window and compact surfaces show active subtasks first, completed rows stay recoverable but hidden by default, unchecked completed rows return to active order, and checklist controls remain keyboard and screen-reader friendly.
+- Notes: Audit update: compact mode already has a task-plan preview with checkboxes for subtasks and next-up tasks, and running-plan editing/checkoff exists. Remaining work is the core acceptance gap: full-window running state still starts behind the prominent `View session builder` toggle. Replace that running-state affordance with visible active subtasks in full-window and compact/floating views, show as many full active rows as fit, make overflow scrollable and expandable, hide completed rows behind `Show completed (N)`, and keep edit/add controls secondary. Compact subtask bucket must include a top-right `X` close button that returns to the normal compact pill without ending the session, changing timer state, or losing checklist progress. Acceptance should verify full-window and compact surfaces show active subtasks first, completed rows stay recoverable but hidden by default, unchecked completed rows return to active order, the compact subtask bucket can be dismissed back to compact with mouse and keyboard, and checklist controls remain keyboard and screen-reader friendly.
 - Commits: —
 
 ### UX-021 — Step estimates should support time blindness without pressure
@@ -222,57 +222,57 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TaskInput.jsx`, `src/main/main.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`
 - Notes: SCOPE SPLIT (Q4 — decided): the shared **nudge-suppression contract** — every nudge (Pomodoro break transitions in `UX-007B`, the 90-min `UX-017` nudge, and re-entry) respects Do Not Disturb, active typing/editing, paused sessions, and an active snooze — is pulled into 2.3.0 as a P0 trust prereq, because 2.3.0 ships two new prompting surfaces that must inherit it. `WIN-008` (snooze pulse) and `UX-016` (typing protection) already cover their slices, so the net-new P0 pull-forward is primarily DND suppression plus the single shared contract. The heavier remainder stays a 2.3.1 stretch tail. Original scope: Finish the shared re-entry timer hardening after `1.4.0`: persist remaining delay and snooze state across relaunch, keep remaining time consistent across full-window and floating surfaces, suppress nudges immediately for Do Not Disturb, paused sessions, update/license blockers, and pause countdown across system sleep/hibernate so wake resumes from the remaining awake time instead of treating sleep as idle.
-- Commits: —
+- Commits: `d9c9b55` (2.3.0 suppression contract slice; 2.3.1 tail remains)
 
 ### UX-017 — Long focus sessions should offer a gentle take-a-break nudge
 - Priority: High
-- Status: Later
+- Status: Done
 - Version: 2.3.0
 - Why it matters: Long uninterrupted sessions can help users stay locked in, but after a while they may need a humane prompt to pause, reset, hydrate, stretch, or decide intentionally to keep going.
 - Files: `src/renderer/App.jsx`, active timer/check-in surfaces, break timer surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-015`, `UX-006`, `UX-007B`, `SES-003`
 - Notes: Add a calm long-session nudge after sustained focus, starting with a `90 minutes` threshold and copy like `You've been at it for 90 minutes. Want to take a real break?` This should be an invitation, not an interruption or warning: offer `Take a break`, `Keep going`, and a lightweight snooze option, respect Do Not Disturb and active typing/editing, and avoid resetting the user's task context. The nudge should work across full, compact, and floating timer surfaces, and should not fire repeatedly after the user responds. Acceptance should verify threshold timing, snooze/keep-going behavior, break handoff, relaunch persistence, and no surprise prompts during paused sessions, system sleep, modal flows, or active text entry. Design decision (Q3 — decided): the 90-minute threshold reads the existing active-awake accumulator (`getElapsedSeconds()`), which already excludes manual pause and system sleep and is the same source the current check-ins schedule from — so the nudge measures active focus time, not wall-clock, and it comes essentially for free. Deliberate first-pass cut: no idle detection for "walked away without pausing" (does not exist in the code today) — flag it as a known later refinement, not a silent gap. Inherits the `UX-006` P0 suppression contract. Pomodoro suppression (Q4 — decided): explicitly suppress this nudge while in Pomodoro mode. Because it reads the cumulative active-awake accumulator, without a `mode !== pomodoro` gate it WILL fire at ~90 min of cumulative Pomodoro focus — redundant with the per-interval break prompts and a double-nudge the trust thesis forbids. Suppress cleanly, do not debounce.
-- Commits: —
+- Commits: `d9c9b55`
 
 ### SES-003 — Running timers should support adding more time before time is up
 - Priority: High
-- Status: Later
+- Status: Done
 - Version: 2.3.0
 - Why it matters: Users often realize mid-session that they need a little more time and should be able to extend the current timer without waiting for the time-up interruption.
 - Files: `src/renderer/App.jsx`, active timer controls, compact/floating timer surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `SES-002`
 - Notes: Scope this as an in-session add-time control for active timed sessions, not just the existing post-expiry time-up flow. First pass should make it easy to add a few common increments plus a custom amount, update the visible timer immediately across full, compact, and floating surfaces, and preserve check-in/pulse timing in a predictable way after the extension. Scope (Q3 — decided): in 2.3.0 add-time applies to normal timed sessions ONLY, NOT inside Pomodoro work intervals — Pomodoro's `Keep going` / skip-break is its native extend affordance, and a second in-interval extend control would muddy the fixed-interval semantics and next-break scheduling. Do not render a greyed-out add-time control in Pomodoro; simply don't surface it there.
-- Commits: —
+- Commits: `d9c9b55`
 
 ### UX-007A — Floating re-entry prompt should finish its snooze and collapse behavior
 - Priority: High
-- Status: Later
+- Status: Done
 - Version: 2.3.0
 - Why it matters: The floating prompt becomes much more trustworthy when dismissing it feels lightweight and predictable instead of sticky.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`
 - Notes: Complete the existing floating re-entry prompt behavior before adding new timer modes. Escape and click-away should snooze for `10 minutes`, choosing a snooze in the floating re-entry flow should collapse immediately to minimized floating by default, and the window sizing/animation should feel clean through every prompt stage. Treat the minimized float state as the quiet default after snooze rather than restoring the larger prompt surface.
-- Commits: —
+- Commits: `d9c9b55`
 
 ### WIN-008 — Floating logo should not pulse while re-entry is snoozed
 - Priority: High
-- Status: Later
+- Status: Done
 - Version: 2.3.0
 - Why it matters: Snooze is supposed to buy quiet time. If the floating logo keeps pulsing anyway, the app feels like it ignored the user’s choice and the snooze becomes hard to trust.
 - Files: `src/renderer/App.jsx`, `src/main/main.js`, `src/main/floating-icon.html`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`, `UX-007A`
 - Notes: Treat this as a bug, not a new cue design. When re-entry is snoozed, suppress both the floating prompt and the floating logo pulse until the snooze expires or the user explicitly reopens the app. Acceptance should verify that choosing any snooze option collapses back to the icon without follow-up pulse animations during the snooze window.
-- Commits: —
+- Commits: `d9c9b55`
 
 ### UX-007B — Floating re-entry should support Pomodoro as a first-class start mode
 - Priority: High
-- Status: Later
+- Status: Done
 - Version: 2.3.0
 - Why it matters: Pomodoro is a meaningful new timer mode, not just a prompt tweak, and it should land after the post-session and re-entry foundations are solid.
 - Files: `src/main/floating-icon.html`, `src/main/floatingPreload.js`, `src/main/main.js`, `src/renderer/App.jsx`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-006`, `UX-007A`
 - Notes: Add `Pomodoro` to the existing start-session flow rather than creating a parallel entry path. The mode should manage work/break cycling, skip the normal single-session time-up path, and keep history/check-in semantics predictable across chained intervals. Design decisions (Q1/Q2 — decided): ship CUSTOM work/break lengths from the first pass via preset chips (`25/5`, `50/10`, `custom`) plus one-tap start on a default preset — NOT locked 25/5. The work interval reuses the existing `timed` mode (arbitrary minutes already supported via `handleStartSession`), so only break cycling is genuinely net-new. The break must stay skippable (`Keep going`) — a forced break is a Never-list violation. History (Q2): record ONE session per cycle by accumulating total focus time into a single record, reusing the existing same-record + `carryoverSeconds` pattern rather than one row per interval — the store is a flat `sessions` array with no parent/group concept, so a per-interval breakdown would need a new `intervals[]` sub-array and is deferred to a later pass. No per-interval `did you finish?` prompt or score; one cycle = one wrap. Cycle semantics (Q1/Q2 — decided): a `cycle` = the FULL Pomodoro run (all chained work intervals until the user ends the mode) — the run is the single wrap AND the single history record; breaks are internal transitions, not wraps. `Keep going` at a break SKIPS the break and starts the NEXT full work interval (fresh full-length countdown, next break re-scheduled), presented as seamless continuation — same task, same accumulating record, no interim wrap — NOT a silent conversion to Freeflow (which would drop the time structure the user chose).
-- Commits: —
+- Commits: `d9c9b55`
 
 ### WIN-006 — Focana should support a temporary peek-through transparency mode
 - Priority: Medium
