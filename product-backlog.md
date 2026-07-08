@@ -5,7 +5,7 @@
 Release-theme view of the backlog. Order = build order. Items keep their stable IDs and full detail in the sections below; this section is the prioritized scheduling lens. `Status: Later` + a target `Version` = planned for that release but not yet started.
 
 ### 2.2.5 — In flight (in-session loop + boundaries + infra)
-Finish the execution loop and exit surfaces: `UPD-001`, `UX-014`, `UX-015`, `UX-016`, `UX-018`, `UX-019`, `UX-020`, `UX-021`. Marketing stream runs in parallel: `MKT-001`..`MKT-004`. Quick close: verify `UX-005` is delivered by `UX-020` and close it rather than rebuild.
+Finish the execution loop and exit surfaces: `UPD-001`, `UX-014`, `UX-015`, `UX-016`, `UX-018`, `UX-019`, `UX-020`, `UX-021`. Marketing stream runs in parallel: `MKT-001`..`MKT-005`. Quick close: verify `UX-005` is delivered by `UX-020` and close it rather than rebuild.
 
 ### 2.3.0 — Shipped: "A focus rhythm you can trust: work, break, resume"
 Give a session a humane cadence and make every nudge trustworthy enough to earn the right to prompt. Also absorbs standalone Pomodoro/break-timer apps — the integration moat, not a single feature.
@@ -20,13 +20,23 @@ Give a session a humane cadence and make every nudge trustworthy enough to earn 
 ### 2.4.0 — "From stuck to started" (strategic bet: task initiation)
 Attacks the highest-friction ADHD executive-function domain and the one the coping-mechanism framework serves least. All optional, user-authored, skippable.
 - **P0 — flagship:** `INIT-001` (task-initiation scaffold — smallest next step + optional 2-min "just start")
+- **P0 — real-world bridge:** `INIT-003` (session prep — queue one next task/subtask plan before leaving, then start it when back)
 - **P1 — strongest evidence:** `INIT-002` (implementation intentions — "when ___, I'll ___")
+- **P1 — transition handoff:** `UX-023` (timed wrap with next-up offers Continue current / Move onto next / Done for now)
 - **P2 — redesigned:** `TASK-002` (reframed as OPTIONAL structure — the mandatory version is a task-paralysis hazard; do not ship as originally written)
+- **Must be done before 2.4.0 ships:** running checklist polish must preserve the parent/main task while letting a subtask become the visible focus via a right-side arrow/focus control, and completed subtasks must stay hidden until the user chooses `Show completed` / `View all`.
+
+### GTM Track — after 2.4.0 ships
+- **Next GTM build:** `MKT-006` (creator promo-code + affiliate attribution). Explicitly excluded from 2.4.0; finish after the task-initiation release is shipped and the creator-code model is decided.
 
 ### 2.5.0 — "Regulation & reward" (closes the emotional-regulation gap)
 - **P1:** `RWD-001` (per-subtask reinforcement — consistent, earned, never variable-ratio)
 - **P2:** `EMO-001` (emotional off-ramp — available, never auto-triggered)
 - **Lightest:** `UX-022` (transition/disengagement beat — check overlap with shipped Session Wrap first)
+
+### 2.6.0 — "Project memory without project management"
+- **P1:** `TASK-003` (project task queue — add future to-dos to a project, then choose where to start next time)
+- Guardrail: Focana can remember the work so users can start; it should not become Asana. No collaboration, assignees, dependencies, statuses, due dates, boards, dashboards, or notification-driven project management by default.
 
 ### Parked (Later — do not pull forward)
 - Onboarding theme (its own future release): `ONB-001`, `UX-012`, `UX-008`
@@ -112,6 +122,16 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Notes: Add a lightweight estimate prompt to planned subtasks and next-up tasks: `How long do you expect each step to take?` First pass should let users add optional minute estimates per step, show a calm total estimate before starting, and keep estimates visible during focus only as orientation. Avoid `overdue`, `behind`, failure states, or negative feedback if a step takes longer than expected. Acceptance should verify users can add optional estimates to subtasks and next-up tasks, the planner shows a total expected time when estimates exist, running and compact views keep active-step estimates readable without clutter, and completed steps do not create pressure when actual time differs.
 - Commits: —
 
+### UX-023 — Timed wrap should hand off cleanly when a next-up task exists
+- Priority: High
+- Status: Later
+- Version: 2.4.0
+- Why it matters: When a timed block ends and the user already queued a next-up task, dropping them into the normal `What's next?` screen ignores the plan they already made. The decision should be explicit and low-friction: continue the current task, move to the queued task, or stop cleanly.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/PostSessionPrompt.jsx`, `src/renderer/utils/taskPlan.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-014`, `UX-018`, `UX-020`, `INIT-003`, `TASK-002`
+- Notes: On timed-session expiry, if the active task plan has an unfinished next-up task, do NOT show the generic `What's next?` handoff. Show a next-up-aware Session Wrap with exactly three primary choices: `Continue current task`, `Move onto [next task]`, and `Done for now`. Choosing `Continue current task` should preserve the current keep-working timer/freeflow path. Choosing `Move onto [next task]` should first ask where the user left off on the current task, save that pickup note to the current session, then make the queued next-up task the ready-to-start task with the task plan context intact. Choosing `Done for now` should also ask where the user left off, save the current task for pickup later, and avoid opening the generic `What's next?` screen. Acceptance should verify the three-option screen only replaces timed wrap when a next-up task exists, the queued task title is visible and stable, both non-continue paths collect pickup notes, saved notes survive relaunch, active/resumable task state is not overwritten accidentally, and keyboard/screen-reader affordances remain intact.
+- Commits: —
+
 ### UX-016 — Re-entry nudges should never interrupt active typing
 - Priority: High
 - Status: In Progress
@@ -172,6 +192,26 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Notes: Build a lightweight marketing plan around one weekly loop: choose a target audience, publish or send one clear message, talk to users who reply, inspect conversion signals, and update the next message. Near-term channels should include existing users, founding members, direct user outreach, the landing page, product directories or launch channels already on the radar, and follow-up emails for trial/paywall behavior. Track a small metric set: downloads, trial starts, day-8 paywall views, checkout clicks, lifetime purchases, monthly starts, activations, replies, and unsubscribes. Acceptance should produce a 2-week campaign calendar, first outreach copy, landing page task list, and a simple weekly review ritual.
 - Commits: —
 
+### MKT-005 — Download-to-purchase attribution should identify trial and lifetime buyers
+- Priority: High
+- Status: Next Up
+- Version: TBD
+- Why it matters: A lifetime purchase email is not enough context if we do not know whether that person downloaded Focana, started a trial, activated a license, or came from an outreach/link source. Founder follow-up and lifecycle emails need a simple, trustworthy view of who entered the funnel before they bought.
+- Files: landing download flow, Supabase lifecycle tables/functions, Loops contacts/events, Lemon checkout/webhook metadata, PostHog event wiring, privacy copy as needed
+- Related: `MKT-001`, `MKT-002`, `MKT-004`, `LIC-002`
+- Notes: Add lightweight lifecycle attribution across the download/trial/purchase path. First pass should connect email, install or download identifier, source/campaign, `download_clicked`, `first_open` or `trial_started`, `checkout_started`, `lifetime_purchased`, `monthly_started`, and `license_activated` into one founder-readable record or export. Use explicit checkout/download metadata where possible so a Lemon lifetime purchase can be matched back to the original download/trial/contact. Privacy guardrail: track only product lifecycle and revenue attribution needed for support and outreach; do not add detailed focus-session behavior, productivity scoring, or an analytics dashboard by default. Acceptance should verify a test user can download, start trial, purchase lifetime, and appear as one matched contact with the correct timestamps/source, while unmatched purchase emails are flagged for manual follow-up instead of silently disappearing.
+- Commits: —
+
+### MKT-006 — Creator promo-code and affiliate attribution should support the ADHD creator pilot
+- Priority: High
+- Status: Later
+- Version: TBD
+- Why it matters: Creator partnerships can borrow trusted ADHD audiences without cold-start ads, but the pilot needs a trustworthy way to attribute trials, purchases, and payouts back to each creator.
+- Files: `src/main/licenseService.js`, `src/main/main.js`, `src/main/preload.js`, `src/main/store.js`, `src/renderer/App.jsx`, landing creator routes/APIs, Lemon checkout/webhook metadata, PostHog lifecycle events
+- Related: `MKT-004`, `MKT-005`, `LIC-002`
+- Notes: Explicitly excluded from 2.4.0. Before continuing implementation, decide whether creator codes are checkout-only discount/affiliate codes or pre-checkout extended-trial codes that later pass attribution into checkout. First pass should support per-creator codes/links, creator-attributed checkout, creator attribution in lifecycle events, and founder-readable reporting for activations, purchases, refunds, and payout review. Keep the user-facing app surface minimal and avoid adding analytics dashboards or creator-management complexity inside Focana.
+- Commits: —
+
 ## Later
 
 ### TASK-002 — Session planning should require a project-based task hierarchy
@@ -182,6 +222,16 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Files: `src/renderer/App.jsx`, `src/main/store.js`, session start flow, future queue/planning UI
 - Related: `UX-005`, `ANA-001`, `TASK-001`
 - Notes: 2.4.0 REDESIGN — ship the hierarchy as OPTIONAL, not mandatory. The original "users should have to identify Project -> Task before beginning" framing is a task-initiation hazard: forcing structure before starting is exactly what triggers ADHD task paralysis at the moment initiation is hardest. Pair with `INIT-001` so structure is available and frictionless without gating the start. Original intent below, to be reframed accordingly. Add a project-based task queue that forces intentional structure before focus starts. Users should have to identify either `Project -> Task` or `Task -> Subtask` before beginning a session, rather than entering one flat line and improvising from there. First pass should support a lightweight queue under the chosen parent item, make it easy to break work into the next concrete steps, and let the active focus block pull from that queue while preserving the parent context. This is broader than the in-session checklist in `UX-005`, but it should still avoid turning Focana into a heavyweight project-management board. Scope clamp (Q7 — decided) for 2.4.0: first pass is ONE optional parent/task context field on the existing in-session plan (hang it on the current `taskPlan` structure) — NO cross-session `projects` store this release. Persistent projects invite up-front organizing (productive procrastination) and pull toward the heavyweight PM board this item warns against, which works against 2.4.0's initiation-friction thesis. Earn real cross-session persistence later only if users are demonstrably re-typing the same parent context every session. First-pass input (Q7 — decided): pure free text, no recent-label recall. A `recent parents` list is itself a small cross-session store (edges past the no-cross-session-projects line) and mildly cues up-front organizing — the productive-procrastination trap this release avoids. Earn recents later only on evidence users are demonstrably re-typing the same parent every session; keep it one optional field that never gates the start.
+- Commits: —
+
+### TASK-003 — Project task queue should remember future work without becoming Asana
+- Priority: High
+- Status: Later
+- Version: 2.6.0
+- Why it matters: Users will often identify new project work while they are not ready to do it yet. They should be able to add those future to-dos to Focana, then later load the project and choose where to start, instead of losing the thread or scattering tasks across paper notes and external tools.
+- Files: `src/main/store.js`, project/task queue persistence, project picker/start surfaces, `src/renderer/App.jsx`, `src/renderer/components/SessionBuilderComposer.jsx`, `tests/e2e/electron-flows.spec.js`
+- Related: `TASK-002`, `INIT-003`, `UX-020`, `UX-023`, `ANA-001`
+- Notes: Build this as project memory feeding focus sessions, not as general project management. First pass should support a small local project/task to-do list: add tasks/subtasks to a project, load a project, choose any unfinished item as the next focus session, and preserve the remaining project queue for later. Users should be able to add newly discovered work quickly without starting a timer and without being forced to organize everything first. Scope guard: no team collaboration, assignees, due dates, status columns, dependencies, comments, file attachments, recurring schedules, dashboards, or notification nudges by default. The core question stays `What do you want to start now?`, not `Manage your project`. Acceptance should verify users can add project to-dos outside a session, load the project later, start from a chosen item with subtasks intact, complete or save progress back into the project queue, and keep the UI lightweight enough that it does not become an organizing/procrastination surface.
 - Commits: —
 
 ### UX-005 — Focus blocks should support a checklist of sub-tasks
@@ -202,6 +252,16 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Files: `src/renderer/App.jsx`, `src/renderer/components/TimeUpModal.jsx`, startup/re-entry/check-in surfaces, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-010`, `UX-007A`, `UX-008`
 - Notes: Add the remaining cosmetic cleanup to the current pass. Change the Time Up secondary action copy from `No, Save for Later` to `Save for Later` so it does not imply a missing antecedent question. Remove ceremonial state toasts that confirm changes the user already saw: `Session started`, `Session paused`, `Compact Mode On/Off`, `Enter a task to start timer`, and `Nice to meet you, {name}.` The new `Session Wrap` celebration should carry the completion moment on its own, so delete the `showCompletedSessionMessage()` call sites that currently stack a toast with confetti right before the wrap surface opens. Reduce preferred-name interpolation on check-ins so it is never always-on; either remove it entirely or gate it to a low-frequency sample (`~30%` max) to avoid sounding performative. Acceptance should verify the simplified Time Up copy, absence of the redundant toasts, single-celebration behavior on `Session Wrap`, and lower-dose name usage on check-ins.
+- Commits: —
+
+### UX-024 — Time Up screen should be quieter and easier to choose from
+- Priority: High
+- Status: Later
+- Version: TBD
+- Why it matters: When a timer ends, users are already in a transition moment. A busy Time Up screen adds decision load right when Focana should make the next move feel obvious.
+- Files: `src/renderer/components/TimeUpModal.jsx`, `src/renderer/App.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-010`, `UX-013`, `UX-023`
+- Notes: Redesign the Time Up screen so it has one clear primary path and fewer competing visual elements. Reduce copy density, keep add-time/freeflow/end-session choices calm and scan-friendly, and verify modal sizing has no excess whitespace, no clipped text/actions, draggable window affordances remain intact, and any deeper/expanded screen has a clear close/back affordance.
 - Commits: —
 
 ### SET-004 — Focana should support wake-plus-unlock launch even when the app is not already running
@@ -462,6 +522,16 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Files: `src/renderer/App.jsx`, `src/renderer/components/ReentryPrompt.jsx`, session-planning surfaces, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `INIT-001`, `UX-006`, `UX-016`
 - Notes: Add an optional `when ___, I'll ___` field at planning, tied to re-entry cues (e.g. `When I finish this call, I'll open Focana and start the next step`). Evidence: implementation intentions (Gollwitzer's if-then plans) improved response inhibition and normalized the P300 in children with ADHD to methylphenidate-equivalent levels on a Go/NoGo task (Paul-Jordanov, Bechtold & Gawrilow, 2010) `[Peer-reviewed, controlled trial]`; adult desktop application is a `[Speculative]` extrapolation from a children's lab study. Keep it to one or two intentions — do not build a rules-engine settings maze (opaque/complex settings is an anti-pattern). Maps to a candidate new coping mechanism, "Prospective / If-Then Planning." Build: medium. Surface (Q6 — decided): surface if-then plans on RE-ENTRY prompts only (author at planning/pause, show in `ReentryPrompt.jsx` on return) — NOT during the running session. The mechanism is cue-triggered at the moment of return, so mid-focus surfacing is both an interruption and off-target. Cap at one or two plans surfaced at re-entry; no continuously-evaluated rules engine.
+- Commits: —
+
+### INIT-003 — Session prep should queue the next plan before a transition
+- Priority: High
+- Status: Later
+- Version: 2.4.0
+- Why it matters: Transitions are where working memory falls on the floor. If the user is about to leave, commute, ride to a coffee shop, or take a real break, they should be able to park the exact next task, subtasks, and next-up items inside Focana instead of writing a paper note they might lose or ignore. Coming back should start from a prepared plan, not a blank task field.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/SessionBuilderComposer.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/main/store.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `INIT-001`, `INIT-002`, `TASK-002`, `UX-018`, `UX-020`, `UX-015`
+- Notes: Add a lightweight `Prep next session` / `Save for later` path that lets the user author ONE prepared next-session draft without starting a timer. First pass should persist a single local prepared plan with main task, subtasks, and next-up items; surface it first on return/idle/re-entry with clear `Start`, `Edit`, and `Clear` actions; and hand off to the same session-start path as a normal planned session. This is the "I'm about to ride my bike to a coffee shop, let me queue my next moves" use case. Scope guard: one prepared plan at a time, no project board, no schedule/reminder system, no multiple saved templates, no calendar, no recurring tasks, and no pressure copy if the user changes their mind. Acceptance should verify the draft survives relaunch, can be created from idle and session-boundary moments, starts with subtasks/next-up items intact, can be edited or cleared without starting, does not overwrite an active/resumable session, and keeps keyboard/screen-reader affordances on the return surface.
 - Commits: —
 
 ### RWD-001 — Subtask completion should give predictable immediate reinforcement

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Checkbox } from './ui/Checkbox';
 import { Button } from './ui/Button';
 import FocusHeroCard from './FocusHeroCard';
@@ -25,11 +25,13 @@ function getPlanItemKey(item) {
 
 export default function RunningTaskPlan({
   task,
+  displayTask,
   timerText,
   controls,
   taskPlan,
   onLockedInteraction,
   onSubtaskToggle,
+  onSubtaskFocus,
   onNextTaskToggle,
   onTaskPlanChange,
   showCompletionPrompt = false,
@@ -46,20 +48,36 @@ export default function RunningTaskPlan({
   const nextInputRefs = useRef(new Map());
   const pendingFocusRef = useRef(null);
   const plan = normalizeTaskPlan(taskPlan, task);
+  const displayTaskLabel = typeof displayTask === 'string' ? displayTask : task;
   const activeTask = getActiveTask(plan);
   const { allItems } = getPlanOverflowItems(plan, 3);
   const structured = hasTaskPlanStructure(plan);
   const canEditPlan = typeof onTaskPlanChange === 'function';
   const editableItems = useMemo(() => {
-    const subtasks = (activeTask?.subtasks || []).map((subtask) => ({ ...subtask, type: 'subtask' }));
+    const subtasks = (activeTask?.subtasks || []).map((subtask) => ({
+      ...subtask,
+      type: 'subtask',
+      active: subtask.id === plan.activeSubtaskId,
+    }));
     const nextTasks = plan.items
       .filter((item) => item.id !== plan.activeTaskId && !item.completed)
       .map((item) => ({ ...item, type: 'next' }));
     return [...subtasks, ...nextTasks];
-  }, [activeTask?.subtasks, plan.activeTaskId, plan.items]);
+  }, [activeTask?.subtasks, plan.activeSubtaskId, plan.activeTaskId, plan.items]);
   const planListItems = canEditPlan ? editableItems : allItems;
-  const hasListOverflow = planListItems.length > 3;
-  const visibleItems = planListItems;
+  const activePlanListItems = useMemo(() => (
+    planListItems.filter((item) => !item.completed || pendingCompletionKeys.includes(getPlanItemKey(item)))
+  ), [pendingCompletionKeys, planListItems]);
+  const completedPlanItemCount = planListItems.length - activePlanListItems.length;
+  const visibleItems = viewAllOpen ? planListItems : activePlanListItems;
+  const hasListOverflow = visibleItems.length > 3;
+  const hasHiddenCompletedItems = !viewAllOpen && completedPlanItemCount > 0;
+  const canToggleListExpansion = hasHiddenCompletedItems || hasListOverflow || viewAllOpen;
+  const listToggleLabel = viewAllOpen
+    ? 'Show less'
+    : hasHiddenCompletedItems
+      ? `Show completed (${completedPlanItemCount})`
+      : `View all (${planListItems.length})`;
   const layoutSignature = useMemo(() => JSON.stringify(plan), [plan]);
   useEffect(() => {
     if (!builderOpenSignal) return;
@@ -178,11 +196,13 @@ export default function RunningTaskPlan({
     const checkboxId = `running-plan${overflowItem ? '-overflow' : ''}-${item.type}-${item.id}`;
     const pending = pendingCompletionKeys.includes(key);
     const checked = item.completed || pending;
+    const isFocusedSubtask = isSubtask && item.id === plan.activeSubtaskId;
+    const canFocusSubtask = isSubtask && !checked && typeof onSubtaskFocus === 'function';
 
     return (
       <div
         key={key}
-        className={`${overflowItem ? 'running-plan__overflow-item' : `running-plan__item running-plan__item--${item.type}`}${item.completed ? ' is-complete' : ''}${pending ? ' is-pending' : ''}`}
+        className={`${overflowItem ? 'running-plan__overflow-item' : `running-plan__item running-plan__item--${item.type}`}${item.completed ? ' is-complete' : ''}${pending ? ' is-pending' : ''}${isFocusedSubtask ? ' is-active-focus' : ''}`}
       >
         <Checkbox
           id={checkboxId}
@@ -192,6 +212,19 @@ export default function RunningTaskPlan({
         <label htmlFor={checkboxId} className="running-plan__item-label">
           <span>{label}</span>
         </label>
+        {canFocusSubtask ? (
+          <button
+            type="button"
+            className="running-plan__focus-btn"
+            onClick={() => onSubtaskFocus?.(item.id)}
+            disabled={isFocusedSubtask}
+            aria-label={isFocusedSubtask ? `${label} is the visible focus` : `Focus ${label}`}
+            title={isFocusedSubtask ? 'Visible focus' : 'Focus this step'}
+            data-testid="running-plan-subtask-focus"
+          >
+            <ArrowUpRight size={13} aria-hidden="true" />
+          </button>
+        ) : null}
         {pending ? (
           <button
             type="button"
@@ -215,11 +248,13 @@ export default function RunningTaskPlan({
     const pending = pendingCompletionKeys.includes(key);
     const checked = item.completed || pending;
     const itemLabel = isSubtask ? 'Subtask' : 'Next-up task';
+    const isFocusedSubtask = isSubtask && item.id === plan.activeSubtaskId;
+    const canFocusSubtask = isSubtask && !checked && typeof onSubtaskFocus === 'function';
 
     return (
       <div
         key={key}
-        className={`${overflowItem ? 'running-plan__overflow-item' : `running-plan__item running-plan__item--${item.type}`} running-plan__item--editable${item.completed ? ' is-complete' : ''}${pending ? ' is-pending' : ''}`}
+        className={`${overflowItem ? 'running-plan__overflow-item' : `running-plan__item running-plan__item--${item.type}`} running-plan__item--editable${item.completed ? ' is-complete' : ''}${pending ? ' is-pending' : ''}${isFocusedSubtask ? ' is-active-focus' : ''}`}
       >
         <Checkbox
           id={checkboxId}
@@ -249,6 +284,19 @@ export default function RunningTaskPlan({
           }}
           onKeyDown={(event) => handlePlanInputKeyDown(event, item)}
         />
+        {canFocusSubtask ? (
+          <button
+            type="button"
+            className="running-plan__focus-btn"
+            onClick={() => onSubtaskFocus?.(item.id)}
+            disabled={isFocusedSubtask}
+            aria-label={isFocusedSubtask ? `${item.title || itemLabel} is the visible focus` : `Focus ${item.title || itemLabel}`}
+            title={isFocusedSubtask ? 'Visible focus' : 'Focus this step'}
+            data-testid="running-plan-subtask-focus"
+          >
+            <ArrowUpRight size={13} aria-hidden="true" />
+          </button>
+        ) : null}
         {pending ? (
           <button
             type="button"
@@ -280,7 +328,7 @@ export default function RunningTaskPlan({
   return (
     <div className="running-plan">
       <FocusHeroCard
-        task={task}
+        task={displayTaskLabel}
         timerText={timerText}
         controls={controls}
         onLockedInteraction={onLockedInteraction}
@@ -328,7 +376,7 @@ export default function RunningTaskPlan({
                   {visibleItems.map((item) => (canEditPlan ? renderEditablePlanItem(item) : renderPlanItem(item)))}
                 </div>
 
-                {hasListOverflow ? (
+                {canToggleListExpansion ? (
                   <div className="running-plan__list-footer">
                     <button
                       type="button"
@@ -337,7 +385,7 @@ export default function RunningTaskPlan({
                       data-testid="running-plan-view-all"
                       aria-expanded={viewAllOpen}
                     >
-                      {viewAllOpen ? 'Show less' : `View all (${planListItems.length})`}
+                      {listToggleLabel}
                     </button>
                   </div>
                 ) : null}

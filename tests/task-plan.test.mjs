@@ -117,3 +117,41 @@ test('detects all-subtasks completion and completes the active top-level task', 
   assert.equal(activeTask.subtasks.every((subtask) => subtask.completed), true);
   assert.equal(taskPlan.getNextUnfinishedTask(completedPlan).id, 'task-2');
 });
+
+test('focuses a subtask without changing the active top-level task', () => {
+  const initialPlan = {
+    activeTaskId: 'task-1',
+    items: [
+      {
+        id: 'task-1',
+        title: 'Fix Coaching Materials',
+        completed: false,
+        subtasks: [
+          { id: 'subtask-1', title: 'Activation slides', completed: false },
+          { id: 'subtask-2', title: 'Attention slides', completed: false },
+        ],
+      },
+      { id: 'task-2', title: 'Review notes', completed: false, subtasks: [] },
+    ],
+  };
+
+  const focusedPlan = taskPlan.setActiveSubtask(initialPlan, 'subtask-2');
+
+  assert.equal(focusedPlan.activeTaskId, 'task-1');
+  assert.equal(focusedPlan.activeSubtaskId, 'subtask-2');
+  assert.equal(taskPlan.getActiveTask(focusedPlan).title, 'Fix Coaching Materials');
+  assert.equal(taskPlan.getActiveSubtask(focusedPlan).title, 'Attention slides');
+  assert.equal(
+    taskPlan.getCompactTaskPlanDetails(focusedPlan).find((item) => item.id === 'subtask-2').active,
+    true,
+  );
+
+  const completedFocusedPlan = taskPlan.toggleSubtask(focusedPlan, 'subtask-2', true);
+  assert.equal(completedFocusedPlan.activeSubtaskId, null);
+  assert.equal(taskPlan.getActiveSubtask(completedFocusedPlan), null);
+
+  const refocusedPlan = taskPlan.setActiveSubtask(focusedPlan, 'subtask-1');
+  const nextTaskPlan = taskPlan.setActiveTask(refocusedPlan, 'task-2');
+  assert.equal(nextTaskPlan.activeTaskId, 'task-2');
+  assert.equal(nextTaskPlan.activeSubtaskId, null);
+});

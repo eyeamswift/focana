@@ -1,0 +1,12 @@
+{
+  "version": "2.4.0",
+  "publishedAt": "2026-07-07",
+  "summary": "Focana 2.4.0 makes planned work easier to start, resume, and keep visible without turning task planning into project management.",
+  "improvements": [
+    "Running checklists now prioritize active subtasks by hiding completed rows until Show completed or View all is chosen.",
+    "A subtask can now become the visible focus from the running checklist while preserving the original main task and plan structure.",
+    "Timed wrap flows now support a cleaner handoff when a next-up task is already queued.",
+    "The 2.4.0 planning model keeps structure optional and focused on task initiation, so users can break work down without being forced into a project-management workflow."
+  ],
+  "fixes": []
+}

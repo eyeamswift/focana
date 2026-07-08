@@ -335,7 +335,7 @@ function createManualDmgs(version) {
       fs.unlinkSync(dmgPath);
     }
 
-    const volumeName = `${productName}-${version}-${arch}`;
+    const volumeName = `${productName} ${version} ${arch}`;
     console.log(`[release] Creating DMG: ${path.relative(projectRoot, dmgPath)}`);
     runCommand('hdiutil', [
       'create',
@@ -344,7 +344,7 @@ function createManualDmgs(version) {
       '-anyowners',
       '-nospotlight',
       '-format', 'UDZO',
-      '-fs', 'APFS',
+      '-fs', 'HFS+',
       dmgPath,
     ]);
   }

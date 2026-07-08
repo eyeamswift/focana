@@ -3,6 +3,7 @@ import { ChevronRight, X } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
+import { getNextUnfinishedTask } from '../utils/taskPlan';
 
 const BREAK_OPTIONS = [5, 15, 25];
 const BREAK_MIN_MINUTES = 1;
@@ -66,6 +67,7 @@ export default function PostSessionPrompt({
   onTakeBreak,
   onStartNewTaskMarkComplete,
   onStartNewTaskSaveForLater,
+  onMoveToNextTask,
   onDoneForNow,
   onFeedbackSelect,
   onFeedbackDismiss,
@@ -80,6 +82,15 @@ export default function PostSessionPrompt({
     : 25;
   const taskAlreadyCompleted = candidate?.resolution === 'completed';
   const isPauseSurface = surfaceKind === 'pause' || candidate?.source === 'paused-current' || dismissible;
+  const nextUpTask = useMemo(() => getNextUnfinishedTask(candidate?.taskPlan), [candidate?.taskPlan]);
+  const safeNextUpTaskText = useMemo(() => {
+    const raw = typeof nextUpTask?.title === 'string' ? nextUpTask.title.trim() : '';
+    return raw || 'your next task';
+  }, [nextUpTask?.title]);
+  const showNextUpTimerWrap = !isPauseSurface
+    && !taskAlreadyCompleted
+    && candidate?.completedMode === 'timed'
+    && Boolean(nextUpTask?.id && safeNextUpTaskText);
 
   const [stage, setStage] = useState('hub');
   const [breakMinutes, setBreakMinutes] = useState(5);
@@ -283,70 +294,114 @@ export default function PostSessionPrompt({
       </div>
 
       <div className="post-session-panel__actions">
-        <Button
-          type="button"
-          className="post-session-action post-session-action--primary"
-          onClick={() => moveToStage('keep-working')}
-          data-testid="post-session-primary"
-        >
-          <span className="truncate">Keep working on {safeTaskText}</span>
-          <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
-        </Button>
+        {showNextUpTimerWrap ? (
+          <>
+            <Button
+              type="button"
+              className="post-session-action post-session-action--primary"
+              onClick={() => moveToStage('keep-working')}
+              data-testid="post-session-primary"
+            >
+              <span className="truncate">Continue current task</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="post-session-action post-session-action--secondary"
-          onClick={() => moveToStage('break')}
-          data-testid="post-session-break"
-        >
-          <span>Take a break</span>
-          <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
-        </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-action post-session-action--secondary"
+              onClick={() => {
+                dismissFeedbackIfNeeded();
+                setStage('move-next-notes');
+              }}
+              data-testid="post-session-move-next"
+            >
+              <span className="line-clamp-2">Move onto {safeNextUpTaskText}</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="post-session-action post-session-action--secondary"
-          onClick={() => {
-            dismissFeedbackIfNeeded();
-            setStage('done-notes');
-          }}
-          data-testid="post-session-done"
-        >
-          <span>Save and continue later</span>
-          <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
-        </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-action post-session-action--secondary"
+              onClick={() => {
+                dismissFeedbackIfNeeded();
+                setStage('done-notes');
+              }}
+              data-testid="post-session-done"
+            >
+              <span>Done for now</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              className="post-session-action post-session-action--primary"
+              onClick={() => moveToStage('keep-working')}
+              data-testid="post-session-primary"
+            >
+              <span className="truncate">Keep working on {safeTaskText}</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="post-session-action post-session-action--secondary"
-          onClick={() => {
-            if (taskAlreadyCompleted) {
-              dismissFeedbackIfNeeded();
-              onStartNewTaskMarkComplete?.({ alreadyCompleted: true });
-              return;
-            }
-            moveToStage('new-task-decision');
-          }}
-          data-testid="post-session-new-task"
-        >
-          <span>Start a new task</span>
-          <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
-        </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-action post-session-action--secondary"
+              onClick={() => moveToStage('break')}
+              data-testid="post-session-break"
+            >
+              <span>Take a break</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
 
-        {!taskAlreadyCompleted ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="post-session-action post-session-action--secondary post-session-action--terminal"
-            onClick={() => onStartNewTaskMarkComplete?.()}
-            data-testid="post-session-mark-complete"
-          >
-            <span>Mark complete</span>
-          </Button>
-        ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-action post-session-action--secondary"
+              onClick={() => {
+                dismissFeedbackIfNeeded();
+                setStage('done-notes');
+              }}
+              data-testid="post-session-done"
+            >
+              <span>Save and continue later</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-action post-session-action--secondary"
+              onClick={() => {
+                if (taskAlreadyCompleted) {
+                  dismissFeedbackIfNeeded();
+                  onStartNewTaskMarkComplete?.({ alreadyCompleted: true });
+                  return;
+                }
+                moveToStage('new-task-decision');
+              }}
+              data-testid="post-session-new-task"
+            >
+              <span>Start a new task</span>
+              <ChevronRight style={{ width: 18, height: 18, flexShrink: 0 }} />
+            </Button>
+
+            {!taskAlreadyCompleted ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="post-session-action post-session-action--secondary post-session-action--terminal"
+                onClick={() => onStartNewTaskMarkComplete?.()}
+                data-testid="post-session-mark-complete"
+              >
+                <span>Mark complete</span>
+              </Button>
+            ) : null}
+          </>
+        )}
       </div>
     </>
   );
@@ -585,11 +640,18 @@ export default function PostSessionPrompt({
       onClose: () => setStage('hub'),
       onSubmit: onStartNewTaskSaveForLater,
     });
+  } else if (stage === 'move-next-notes') {
+    content = renderNotes({
+      title: 'Leave a pickup note',
+      ctaLabel: `Move onto ${safeNextUpTaskText}`,
+      onClose: () => setStage('hub'),
+      onSubmit: onMoveToNextTask,
+    });
   } else if (stage === 'done-notes') {
     content = renderNotes({
-      title: 'Save and continue later',
-      ctaLabel: 'Save for later',
-      onClose: null,
+      title: showNextUpTimerWrap ? 'Leave a pickup note' : 'Save and continue later',
+      ctaLabel: showNextUpTimerWrap ? 'Done for now' : 'Save for later',
+      onClose: () => setStage('hub'),
       onSubmit: onDoneForNow,
     });
   }

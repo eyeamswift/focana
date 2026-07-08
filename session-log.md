@@ -8,6 +8,12 @@ Each entry: date, area tag, what was decided/done, the reasoning, and any cross-
 
 ---
 
+### 2026-07-06 [GTM/Product] — Creator promo-code tracking v1 started, paused mid-build
+- **Done:** Began implementing creator-code infrastructure for the ADHD creator pilot. Added landing/backend WIP in `/Users/swift/focana-landing`: `creator_campaigns` + `creator_code_claims` migration, creator-code claim/event APIs, creator checkout redirect, `/c/[slug]` creator page, Lemon webhook attribution for `creator_campaign`, and tests for the new helper. Started desktop WIP in `/Users/swift/focana`: license-service creator attribution, creator-aware checkout URL routing, IPC/preload hooks, store schema, and an optional in-app "creator trial code" entry panel.
+- **Why:** supports audience-borrowing creator motion without cold-start ads; the tracking spine needs to connect creator code → trial claim/download → first completed session → checkout → paid license activation.
+- **Paused / open:** user raised the key product question: "the creator code would be input at checkout, no?" Need decide next session whether creator codes are **checkout-only paid discount/affiliate codes** or **pre-checkout extended-trial codes that later pass attribution into checkout**. Current WIP leans toward trial-code-before-checkout plus invisible creator-attributed Lemon checkout; revisit before continuing.
+- **Verification:** not run yet. Before shipping, run landing tests/build, desktop license tests, and `npm run build:renderer`; finish first-session event reporting and inspect the startup gate UI for overflow/warm copy.
+
 ### 2026-07-06 [GTM] — Channel mix set: three plays
 - **Decided:** Distribution runs on three plays — **intent capture** (SEO / high-intent search + forum questions), **audience borrowing** (creators, podcasts, newsletters — the current creator pilot lives here), and **guerrilla marketing** (unconventional, community-native, low-cost moments).
 - **Why:** organizes all channel work under three complementary, organic-first plays; the creator pilot is the first execution of the audience-borrowing play.

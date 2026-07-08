@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Check, ClipboardList, BellOff, Info, ListPlus } from 'lucide-react';
+import { ArrowUpRight, Play, Pause, Check, ClipboardList, BellOff, Info, ListPlus } from 'lucide-react';
 import { formatTime } from '../utils/time';
 import { Checkbox } from './ui/Checkbox';
 import ReentryPrompt from './ReentryPrompt';
@@ -58,6 +58,7 @@ export default function CompactMode({
   onDoubleClick,
   onEditTaskPlan,
   onSubtaskToggle,
+  onSubtaskFocus,
   onNextTaskToggle,
   onOpenDistractionJar,
   thoughtCount = 0,
@@ -126,10 +127,19 @@ export default function CompactMode({
   const safeSubtaskDetails = safeTaskPlanDetails.filter((item) => item.type === 'subtask');
   const safeNextTaskDetails = safeTaskPlanDetails.filter((item) => item.type === 'next');
   const hasTaskPlanDetails = safeSubtaskDetails.length > 0 || safeNextTaskDetails.length > 0;
-  const planPreviewHasOverflow = safeSubtaskDetails.length > PLAN_PREVIEW_LIMIT || safeNextTaskDetails.length > PLAN_PREVIEW_LIMIT;
-  const visiblePreviewSubtasks = safeSubtaskDetails;
-  const visiblePreviewNextTasks = safeNextTaskDetails;
+  const activePreviewSubtasks = safeSubtaskDetails.filter((item) => item.completed !== true);
+  const activePreviewNextTasks = safeNextTaskDetails.filter((item) => item.completed !== true);
+  const hiddenCompletedPreviewCount = safeTaskPlanDetails.filter((item) => item.completed === true).length;
+  const visiblePreviewSubtasks = planPreviewExpanded ? safeSubtaskDetails : activePreviewSubtasks;
+  const visiblePreviewNextTasks = planPreviewExpanded ? safeNextTaskDetails : activePreviewNextTasks;
+  const planPreviewHasOverflow = visiblePreviewSubtasks.length > PLAN_PREVIEW_LIMIT || visiblePreviewNextTasks.length > PLAN_PREVIEW_LIMIT;
+  const planPreviewCanExpand = planPreviewHasOverflow || hiddenCompletedPreviewCount > 0 || planPreviewExpanded;
   const planPreviewItemCount = safeSubtaskDetails.length + safeNextTaskDetails.length;
+  const planPreviewToggleLabel = planPreviewExpanded
+    ? 'Show less'
+    : hiddenCompletedPreviewCount > 0
+      ? `Show completed (${hiddenCompletedPreviewCount})`
+      : `View all (${planPreviewItemCount})`;
   const hasTaskLabel = taskLabel.trim().length > 0;
   const isTaskVisible = hasTaskLabel;
 
@@ -747,17 +757,20 @@ export default function CompactMode({
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
-          <div className={`pill-task-plan-preview__content${planPreviewHasOverflow ? ' is-scrollable' : ''}${planPreviewHasOverflow && planPreviewExpanded ? ' is-expanded' : ''}`}>
-            {safeSubtaskDetails.length ? (
+          <div className={`pill-task-plan-preview__content${planPreviewCanExpand ? ' is-scrollable' : ''}${planPreviewCanExpand && planPreviewExpanded ? ' is-expanded' : ''}`}>
+            {visiblePreviewSubtasks.length ? (
               <section className="pill-task-plan-preview__section" aria-label="Subtasks">
                 <div className="pill-task-plan-preview__title">Subtasks</div>
-                <ul className={`pill-task-plan-preview__list${safeSubtaskDetails.length > PLAN_PREVIEW_LIMIT ? ' is-scrollable' : ''}${planPreviewExpanded ? ' is-expanded' : ''}`}>
+                <ul className={`pill-task-plan-preview__list${visiblePreviewSubtasks.length > PLAN_PREVIEW_LIMIT ? ' is-scrollable' : ''}${planPreviewExpanded ? ' is-expanded' : ''}`}>
                   {visiblePreviewSubtasks.map((item) => {
                     const checkboxId = `compact-plan-subtask-${item.id}`;
+                    const label = item.title || item.label;
+                    const canFocusSubtask = typeof onSubtaskFocus === 'function' && item.completed !== true;
+                    const isFocusedSubtask = item.active === true;
                     return (
                       <li
                         key={`subtask-${item.id}`}
-                        className={`pill-task-plan-preview__row${item.completed ? ' is-complete' : ''}`}
+                        className={`pill-task-plan-preview__row${canFocusSubtask ? ' pill-task-plan-preview__row--focusable' : ''}${item.completed ? ' is-complete' : ''}${isFocusedSubtask ? ' is-active-focus' : ''}`}
                       >
                         <Checkbox
                           id={checkboxId}
@@ -769,8 +782,24 @@ export default function CompactMode({
                           data-testid="compact-plan-subtask-checkbox"
                         />
                         <label htmlFor={checkboxId} className="pill-task-plan-preview__label">
-                          {item.title || item.label}
+                          {label}
                         </label>
+                        {canFocusSubtask ? (
+                          <button
+                            type="button"
+                            className="pill-task-plan-preview__focus-btn"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onSubtaskFocus?.(item.id);
+                            }}
+                            disabled={isFocusedSubtask}
+                            aria-label={isFocusedSubtask ? `${label} is the visible focus` : `Focus ${label}`}
+                            title={isFocusedSubtask ? 'Visible focus' : 'Focus this step'}
+                            data-testid="compact-plan-subtask-focus"
+                          >
+                            <ArrowUpRight size={13} aria-hidden="true" />
+                          </button>
+                        ) : null}
                       </li>
                     );
                   })}
@@ -778,10 +807,10 @@ export default function CompactMode({
               </section>
             ) : null}
 
-            {safeNextTaskDetails.length ? (
+            {visiblePreviewNextTasks.length ? (
               <section className="pill-task-plan-preview__section" aria-label="Next up">
                 <div className="pill-task-plan-preview__title">Next up</div>
-                <ul className={`pill-task-plan-preview__list${safeNextTaskDetails.length > PLAN_PREVIEW_LIMIT ? ' is-scrollable' : ''}${planPreviewExpanded ? ' is-expanded' : ''}`}>
+                <ul className={`pill-task-plan-preview__list${visiblePreviewNextTasks.length > PLAN_PREVIEW_LIMIT ? ' is-scrollable' : ''}${planPreviewExpanded ? ' is-expanded' : ''}`}>
                   {visiblePreviewNextTasks.map((item) => (
                     <li
                       key={`next-${item.id}`}
@@ -805,7 +834,7 @@ export default function CompactMode({
               </section>
             ) : null}
           </div>
-          {planPreviewHasOverflow ? (
+          {planPreviewCanExpand ? (
             <button
               type="button"
               className="pill-task-plan-preview__view-all"
@@ -815,7 +844,7 @@ export default function CompactMode({
               }}
               aria-expanded={planPreviewExpanded}
             >
-              {planPreviewExpanded ? 'Show less' : `View all (${planPreviewItemCount})`}
+              {planPreviewToggleLabel}
             </button>
           ) : null}
           {typeof onEditTaskPlan === 'function' ? (

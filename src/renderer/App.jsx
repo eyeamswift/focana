@@ -49,12 +49,14 @@ import PomodoroBreakPanel from './components/PomodoroBreakPanel';
 import LongSessionNudge from './components/LongSessionNudge';
 import {
   createTaskPlanFromTitle,
+  getActiveSubtask,
   getActiveTask,
   getCompactTaskPlanDetails,
   getCompactTaskPlanSummary,
   getNextUnfinishedTask,
   normalizeTaskPlan,
   prepareTaskPlanForStart,
+  setActiveSubtask,
   setActiveTask,
   setTaskCompleted,
   shouldPromptForActiveTaskCompletion,
@@ -5763,6 +5765,21 @@ export default function App() {
     }
   }, [currentSessionId, loadSessions, task]);
 
+  const handleRunningSubtaskFocus = useCallback((subtaskId) => {
+    const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
+    const nextPlan = setActiveSubtask(basePlan, subtaskId);
+    taskPlanRef.current = nextPlan;
+    setTaskPlan(nextPlan);
+    setTaskPlanCompletionDismissedFor(null);
+    if (currentSessionId) {
+      void SessionStore.update(currentSessionId, {
+        taskPlan: prepareTaskPlanForStart(nextPlan, task),
+      }).then(() => loadSessions()).catch((error) => {
+        console.error('Failed to persist subtask focus:', error);
+      });
+    }
+  }, [currentSessionId, loadSessions, task]);
+
   const handleRunningNextTaskToggle = useCallback((taskId, checked) => {
     const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
     const nextPlan = setTaskCompleted(basePlan, taskId, checked);
@@ -6844,6 +6861,78 @@ export default function App() {
     closePostSessionSurface();
     openFreshTaskComposer({ promptTone: 'first' });
   }, [closePostSessionSurface, openFreshTaskComposer, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
+
+  const handlePostSessionMoveToNextTask = useCallback(async (notes = {}) => {
+    if (!postSessionResumeCandidate?.taskText) return;
+
+    const currentTaskText = clampTaskText(postSessionResumeCandidate.taskText).trim();
+    if (!currentTaskText) return;
+
+    const splitNotes = normalizeSplitNotes(notes, {
+      recap: postSessionResumeCandidate.recap,
+      nextSteps: postSessionResumeCandidate.nextSteps,
+    });
+    const candidateTaskPlan = prepareTaskPlanForStart(postSessionResumeCandidate.taskPlan, currentTaskText);
+    const nextPlanTask = getNextUnfinishedTask(candidateTaskPlan);
+    const nextTaskText = clampTaskText(nextPlanTask?.title || '').trim();
+    if (!nextPlanTask?.id || !nextTaskText) return;
+
+    if (postSessionIsPauseWrap) {
+      await savePausedPostSessionChoice({
+        completed: false,
+        kept: true,
+        notes: splitNotes,
+      });
+      clearPausedPostSessionTimerState(splitNotes);
+    } else {
+      await updatePostSessionSession({
+        completed: false,
+        kept: true,
+        recap: splitNotes.recap,
+        nextSteps: splitNotes.nextSteps,
+      });
+    }
+
+    const nextTaskPlan = setActiveTask(candidateTaskPlan, nextPlanTask.id);
+    closePostSessionSurface();
+    setPostSessionResumeCandidate(null);
+    setTask(nextTaskText);
+    setTaskPlan(nextTaskPlan);
+    setTaskPlanCompletionDismissedFor(null);
+    setTaskPlanTransition(null);
+    setContextNotes('');
+    setNextStepsNotes('');
+    setCurrentSessionId(null);
+    setIsRunning(false);
+    setIsTimerVisible(false);
+    setTime(0);
+    setInitialTime(0);
+    setSessionStartTime(null);
+    elapsedBeforeRunRef.current = 0;
+    clearCompactSessionCues();
+    persistIdleTimerSnapshot({
+      taskText: nextTaskText,
+      recapText: '',
+      nextStepsText: '',
+      taskPlanSnapshot: nextTaskPlan,
+      nextMode: 'freeflow',
+      sessionId: null,
+    });
+    setIsStartModalOpen(true);
+    window.setTimeout(() => {
+      sessionMinutesInputRef.current?.focus();
+      sessionMinutesInputRef.current?.select();
+    }, 80);
+  }, [
+    clearCompactSessionCues,
+    clearPausedPostSessionTimerState,
+    closePostSessionSurface,
+    persistIdleTimerSnapshot,
+    postSessionIsPauseWrap,
+    postSessionResumeCandidate,
+    savePausedPostSessionChoice,
+    updatePostSessionSession,
+  ]);
 
   const handlePostSessionDoneForNow = useCallback(async (notes = {}) => {
     const splitNotes = normalizeSplitNotes(notes, {
@@ -8474,9 +8563,11 @@ export default function App() {
     }
   }
 
-  const activeTaskLabel = task.trim()
+  const parentTaskLabel = task.trim()
     ? task
     : ((isRunning || isTimerVisible) ? lastNonEmptyTaskRef.current : task);
+  const focusedSubtask = getActiveSubtask(persistableTaskPlan);
+  const activeTaskLabel = focusedSubtask?.title?.trim() || parentTaskLabel;
   const activePlanTask = getActiveTask(persistableTaskPlan);
   const showTaskPlanCompletionPrompt = shouldPromptForActiveTaskCompletion(persistableTaskPlan)
     && activePlanTask?.id
@@ -8668,6 +8759,7 @@ export default function App() {
           onDoubleClick={handleExitCompact}
           onEditTaskPlan={handleOpenRunningPlanBuilder}
           onSubtaskToggle={handleRunningSubtaskToggle}
+          onSubtaskFocus={handleRunningSubtaskFocus}
           onNextTaskToggle={handleRunningNextTaskToggle}
           onOpenDistractionJar={handleOpenParkingLot}
           thoughtCount={thoughts.length}
@@ -8946,12 +9038,14 @@ export default function App() {
                 />
               ) : fullScreenTaskState === 'running' ? (
                 <RunningTaskPlan
-                  task={activeTaskLabel}
+                  task={parentTaskLabel}
+                  displayTask={activeTaskLabel}
                   timerText={formatTime(time)}
                   controls={fullScreenTimerControls}
                   taskPlan={taskPlan}
                   onLockedInteraction={handleLockedTaskInputInteraction}
                   onSubtaskToggle={handleRunningSubtaskToggle}
+                  onSubtaskFocus={handleRunningSubtaskFocus}
                   onNextTaskToggle={handleRunningNextTaskToggle}
                   onTaskPlanChange={handleRunningTaskPlanChange}
                   showCompletionPrompt={showTaskPlanCompletionPrompt}
@@ -9008,6 +9102,7 @@ export default function App() {
                     onTakeBreak={handleTakePostSessionBreak}
                     onStartNewTaskMarkComplete={handlePostSessionStartNewTaskMarkComplete}
                     onStartNewTaskSaveForLater={handlePostSessionStartNewTaskSaveForLater}
+                    onMoveToNextTask={handlePostSessionMoveToNextTask}
                     onDoneForNow={handlePostSessionDoneForNow}
                     onFeedbackSelect={handlePostSessionFeedbackSelect}
                     onFeedbackDismiss={handlePostSessionFeedbackDismiss}

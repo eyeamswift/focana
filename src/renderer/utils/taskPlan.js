@@ -58,6 +58,7 @@ export function createTaskPlanFromTitle(title = '') {
   return {
     version: TASK_PLAN_VERSION,
     activeTaskId: id,
+    activeSubtaskId: null,
     items: safeTitle ? [{
       id,
       title: safeTitle,
@@ -82,6 +83,7 @@ export function normalizeTaskPlan(rawPlan, fallbackTitle = '', options = {}) {
     return {
       version: TASK_PLAN_VERSION,
       activeTaskId: null,
+      activeSubtaskId: null,
       items: [],
     };
   }
@@ -90,10 +92,16 @@ export function normalizeTaskPlan(rawPlan, fallbackTitle = '', options = {}) {
   const activeExists = items.some((item) => item.id === rawActiveTaskId);
   const firstUnfinished = items.find((item) => !item.completed);
   const activeTaskId = activeExists ? rawActiveTaskId : (firstUnfinished?.id || items[0].id);
+  const activeTask = items.find((item) => item.id === activeTaskId) || items[0] || null;
+  const rawActiveSubtaskId = typeof rawPlan?.activeSubtaskId === 'string' ? rawPlan.activeSubtaskId : '';
+  const activeSubtaskExists = (activeTask?.subtasks || []).some((subtask) => (
+    subtask.id === rawActiveSubtaskId && subtask.completed !== true && trimTitle(subtask.title)
+  ));
 
   return {
     version: TASK_PLAN_VERSION,
     activeTaskId,
+    activeSubtaskId: activeSubtaskExists ? rawActiveSubtaskId : null,
     items,
   };
 }
@@ -121,6 +129,15 @@ export function prepareTaskPlanForStart(rawPlan, title) {
 export function getActiveTask(rawPlan) {
   const plan = normalizeTaskPlan(rawPlan);
   return plan.items.find((item) => item.id === plan.activeTaskId) || plan.items[0] || null;
+}
+
+export function getActiveSubtask(rawPlan) {
+  const plan = normalizeTaskPlan(rawPlan);
+  if (!plan.activeSubtaskId) return null;
+  const active = getActiveTask(plan);
+  return (active?.subtasks || []).find((subtask) => (
+    subtask.id === plan.activeSubtaskId && subtask.completed !== true && trimTitle(subtask.title)
+  )) || null;
 }
 
 export function getNextUnfinishedTask(rawPlan) {
@@ -193,6 +210,7 @@ export function removeSubtask(rawPlan, subtaskId) {
   const plan = normalizeTaskPlan(rawPlan);
   return {
     ...plan,
+    activeSubtaskId: plan.activeSubtaskId === subtaskId ? null : plan.activeSubtaskId,
     items: plan.items.map((item) => ({
       ...item,
       subtasks: (item.subtasks || []).filter((subtask) => subtask.id !== subtaskId),
@@ -238,6 +256,7 @@ export function toggleSubtask(rawPlan, subtaskId, checked) {
   const completed = checked === true;
   return {
     ...plan,
+    activeSubtaskId: completed && plan.activeSubtaskId === subtaskId ? null : plan.activeSubtaskId,
     items: plan.items.map((item) => ({
       ...item,
       subtasks: (item.subtasks || []).map((subtask) => (
@@ -254,6 +273,7 @@ export function setTaskCompleted(rawPlan, taskId, checked = true) {
   const completed = checked === true;
   return {
     ...plan,
+    activeSubtaskId: completed && taskId === plan.activeTaskId ? null : plan.activeSubtaskId,
     items: plan.items.map((item) => (
       item.id === taskId
         ? {
@@ -276,7 +296,19 @@ export function setTaskCompleted(rawPlan, taskId, checked = true) {
 export function setActiveTask(rawPlan, taskId) {
   const plan = normalizeTaskPlan(rawPlan);
   if (!plan.items.some((item) => item.id === taskId)) return plan;
-  return { ...plan, activeTaskId: taskId };
+  return { ...plan, activeTaskId: taskId, activeSubtaskId: null };
+}
+
+export function setActiveSubtask(rawPlan, subtaskId) {
+  const plan = normalizeTaskPlan(rawPlan);
+  const targetId = typeof subtaskId === 'string' ? subtaskId : '';
+  if (!targetId) return { ...plan, activeSubtaskId: null };
+  const active = getActiveTask(plan);
+  const activeSubtask = (active?.subtasks || []).find((subtask) => (
+    subtask.id === targetId && subtask.completed !== true && trimTitle(subtask.title)
+  ));
+  if (!activeSubtask) return plan;
+  return { ...plan, activeSubtaskId: activeSubtask.id };
 }
 
 export function shouldPromptForActiveTaskCompletion(rawPlan) {
@@ -291,7 +323,7 @@ export function getPlanOverflowItems(rawPlan, visibleLimit = 3) {
   const active = getActiveTask(plan);
   const subtasks = (active?.subtasks || [])
     .filter((subtask) => trimTitle(subtask.title))
-    .map((subtask) => ({ ...subtask, type: 'subtask' }));
+    .map((subtask) => ({ ...subtask, type: 'subtask', active: subtask.id === plan.activeSubtaskId }));
   const nextTasks = plan.items
     .filter((item) => item.id !== plan.activeTaskId && !item.completed && trimTitle(item.title))
     .map((item) => ({ ...item, type: 'next' }));
@@ -326,6 +358,7 @@ export function getCompactTaskPlanDetails(rawPlan) {
       title: subtask.title,
       label: subtask.title,
       completed: subtask.completed === true,
+      active: subtask.id === plan.activeSubtaskId,
     }));
   const nextTasks = plan.items
     .filter((item) => item.id !== plan.activeTaskId && !item.completed && trimTitle(item.title))

@@ -1352,6 +1352,11 @@ html[data-window-mode='pill'] #root {
   color: rgba(255, 249, 230, 0.68);
 }
 
+.running-plan__item.is-active-focus .running-plan__item-label span,
+.running-plan__item.is-active-focus .running-plan__item-input {
+  color: #FFE0A3;
+}
+
 .running-plan__item--editable {
   width: min(28rem, 100%);
   min-height: 1.78rem;
@@ -1544,12 +1549,18 @@ html[data-window-mode='pill'] #root {
   color: var(--text-secondary);
 }
 
+.running-plan__overflow-item.is-active-focus .running-plan__item-label span,
+.running-plan__overflow-item.is-active-focus .running-plan__item-input {
+  color: var(--brand-action);
+}
+
 .running-plan__overflow-item .running-plan__undo-btn {
   border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-strong));
   background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
   color: var(--brand-action);
 }
 
+.running-plan__focus-btn,
 .running-plan__delete-btn {
   width: 1.3rem;
   height: 1.3rem;
@@ -1564,6 +1575,13 @@ html[data-window-mode='pill'] #root {
   cursor: pointer;
 }
 
+.running-plan__focus-btn {
+  border-color: rgba(255, 224, 163, 0.26);
+  color: rgba(255, 224, 163, 0.86);
+}
+
+.running-plan__focus-btn:hover,
+.running-plan__focus-btn:focus-visible,
 .running-plan__delete-btn:hover,
 .running-plan__delete-btn:focus-visible {
   border-color: rgba(255, 224, 163, 0.5);
@@ -1571,10 +1589,25 @@ html[data-window-mode='pill'] #root {
   outline: none;
 }
 
+.running-plan__focus-btn:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.running-plan__focus-btn:disabled:hover,
+.running-plan__focus-btn:disabled:focus-visible {
+  border-color: rgba(255, 224, 163, 0.26);
+}
+
+.running-plan__overflow-item .running-plan__focus-btn,
 .running-plan__overflow-item .running-plan__delete-btn {
   border-color: color-mix(in srgb, var(--border-strong) 78%, transparent);
   background: color-mix(in srgb, var(--bg-card) 88%, transparent);
   color: var(--text-secondary);
+}
+
+.running-plan__overflow-item .running-plan__focus-btn {
+  color: var(--brand-action);
 }
 
 .task-plan-complete-prompt {
@@ -3601,6 +3634,11 @@ html[data-window-mode='pill'] #root {
   grid-template-columns: 1.15rem minmax(0, 1fr);
 }
 
+.pill-task-plan-preview__row--focusable {
+  grid-template-columns: 1.15rem minmax(0, 1fr) 1.42rem;
+  gap: 0.42rem;
+}
+
 .pill-task-plan-preview__label {
   min-width: 0;
   overflow: hidden;
@@ -3615,6 +3653,10 @@ html[data-window-mode='pill'] #root {
   text-decoration: line-through;
 }
 
+.pill-task-plan-preview__row.is-active-focus .pill-task-plan-preview__label {
+  color: var(--brand-primary);
+}
+
 .pill-task-plan-preview__checkbox {
   width: 1rem;
   height: 1rem;
@@ -3622,6 +3664,39 @@ html[data-window-mode='pill'] #root {
   border-color: color-mix(in srgb, var(--compact-text) 60%, transparent);
   accent-color: var(--brand-primary);
   -webkit-app-region: no-drag;
+}
+
+.pill-task-plan-preview__focus-btn {
+  width: 1.32rem;
+  height: 1.32rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 46%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  color: var(--brand-primary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.pill-task-plan-preview__focus-btn:hover,
+.pill-task-plan-preview__focus-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 76%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  outline: none;
+}
+
+.pill-task-plan-preview__focus-btn:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.pill-task-plan-preview__focus-btn:disabled:hover,
+.pill-task-plan-preview__focus-btn:disabled:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 46%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
 }
 
 .pill-task-plan-preview__more {

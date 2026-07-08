@@ -527,9 +527,7 @@ async function startFreeflowSession(page, taskName) {
   await expect.poll(() => readWindowMode(page)).toBe('pill');
 }
 
-async function startTimedSession(page, taskName, minutes) {
-  await setTaskComposerValue(page, taskName);
-  await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+async function chooseTimedSessionLength(page, minutes) {
   const minutesInput = page.locator('.start-chooser__input').first();
   await expect(page.locator('.start-chooser').first()).toBeVisible();
   await expect(minutesInput).toBeVisible();
@@ -551,6 +549,12 @@ async function startTimedSession(page, taskName, minutes) {
     const chooserVisible = await page.locator('.start-chooser').first().isVisible().catch(() => false);
     return mode === 'pill' && !chooserVisible;
   }).toBe(true);
+}
+
+async function startTimedSession(page, taskName, minutes) {
+  await setTaskComposerValue(page, taskName);
+  await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+  await chooseTimedSessionLength(page, minutes);
 }
 
 async function exitCompactMode(page) {
@@ -2429,6 +2433,103 @@ test("timed session expiry mark complete opens What's next", async () => {
   }
 });
 
+test('timed session expiry with next-up shows handoff choices and moves to next task after pickup note', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await setTaskComposerValue(page, 'Review onboarding copy');
+    await page.getByTestId('session-builder-add-next').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Draft launch email');
+
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await chooseTimedSessionLength(page, 1);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('region', { name: 'Session Wrap' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
+    await expect(page.getByTestId('post-session-body')).toContainText('Review onboarding copy');
+    await expect(page.getByTestId('post-session-primary')).toContainText('Continue current task');
+    await expect(page.getByTestId('post-session-move-next')).toContainText('Move onto Draft launch email');
+    await expect(page.getByTestId('post-session-done')).toContainText('Done for now');
+    await expect(page.getByTestId('post-session-break')).toHaveCount(0);
+    await expect(page.getByTestId('post-session-new-task')).toHaveCount(0);
+    await expect(page.getByTestId('post-session-mark-complete')).toHaveCount(0);
+
+    await page.getByTestId('post-session-move-next').click();
+    await expect(page.getByRole('heading', { name: 'Leave a pickup note' })).toBeVisible();
+    await expect(page.getByText('Where did you leave off?')).toBeVisible();
+    await page.locator('textarea[name="notes"]').fill('Left off after reviewing the first pass.');
+    await page.getByRole('button', { name: 'Move onto Draft launch email' }).click();
+
+    await expect(page.locator(TASK_INPUT_SELECTOR)).toHaveValue('Draft launch email');
+    await expect(page.locator('.start-chooser')).toBeVisible();
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const [currentTask, sessions] = await Promise.all([
+        window.electronAPI.storeGet('currentTask'),
+        window.electronAPI.storeGet('sessions'),
+      ]);
+      const savedSession = (sessions || []).find((session) => session?.task === 'Review onboarding copy');
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      return JSON.stringify({
+        currentTask: currentTask?.text || '',
+        activeTitle: active?.title || '',
+        savedCompleted: savedSession?.completed,
+        savedKept: savedSession?.kept,
+        savedRecap: savedSession?.recap || savedSession?.notes || '',
+      });
+    })).toBe(JSON.stringify({
+      currentTask: 'Draft launch email',
+      activeTitle: 'Draft launch email',
+      savedCompleted: false,
+      savedKept: true,
+      savedRecap: 'Left off after reviewing the first pass.',
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('timed session expiry with next-up asks for pickup note before done for now', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await setTaskComposerValue(page, 'Map interview themes');
+    await page.getByTestId('session-builder-add-next').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Write synthesis notes');
+
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await chooseTimedSessionLength(page, 1);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('region', { name: 'Session Wrap' })).toBeVisible();
+    await page.getByTestId('post-session-done').click();
+    await expect(page.getByRole('heading', { name: 'Leave a pickup note' })).toBeVisible();
+    await expect(page.getByText('Where did you leave off?')).toBeVisible();
+    await page.locator('textarea[name="notes"]').fill('Stopped at the second theme cluster.');
+    await page.getByRole('button', { name: 'Done for now' }).click();
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const sessions = await window.electronAPI.storeGet('sessions');
+      const savedSession = (sessions || []).find((session) => session?.task === 'Map interview themes');
+      return JSON.stringify({
+        savedCompleted: savedSession?.completed,
+        savedKept: savedSession?.kept,
+        savedRecap: savedSession?.recap || savedSession?.notes || '',
+      });
+    })).toBe(JSON.stringify({
+      savedCompleted: false,
+      savedKept: true,
+      savedRecap: 'Stopped at the second theme cluster.',
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('timed session expiry can switch into freeflow and restart freeflow check-ins from session wrap', async () => {
   const { page, cleanup } = await launchApp({
     seedConfig: {
@@ -3966,8 +4067,16 @@ test('session builder compact preview reveals current plan detail', async () => 
     expect(Math.abs(boundsAfterPointerMove.y - boundsBeforePointerMove.y)).toBeLessThanOrEqual(2);
 
     await checkbox.click();
-    await expect(checkbox).toBeChecked();
+    await expect(page.getByTestId('compact-task-plan-preview')).not.toContainText('Draft opener');
     await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Show completed \(1\)/ })).toBeVisible();
+
+    await page.getByRole('button', { name: /Show completed \(1\)/ }).click();
+    await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Draft opener');
+    await expect(page.getByTestId('compact-plan-subtask-checkbox').first()).toBeChecked();
+
+    await page.getByRole('button', { name: 'Show less' }).click();
+    await expect(page.getByTestId('compact-task-plan-preview')).not.toContainText('Draft opener');
 
     const nextCheckbox = page.getByTestId('compact-plan-next-checkbox').first();
     await nextCheckbox.click();
