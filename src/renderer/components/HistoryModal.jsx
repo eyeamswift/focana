@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from './ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
 import { Tabs, TabsList, TabsTrigger } from './ui/Tabs';
-import { FileText, ChevronsRight, ChevronLeft, ChevronRight, History, NotebookPen, Trash2, Undo2, X } from 'lucide-react';
+import { FileText, ChevronsRight, ChevronLeft, ChevronRight, ClipboardList, NotebookPen, Trash2, Undo2, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ITEMS_PER_PAGE = 5;
@@ -24,7 +24,7 @@ const getNormalizedNotes = (session) => (
 );
 
 const EMPTY_STATE_COPY = {
-  resume: 'No resumable sessions yet.',
+  resume: 'No saved work to pick up yet.',
   discarded: 'No discarded sessions yet.',
   completed: 'No completed sessions yet.',
 };
@@ -43,15 +43,17 @@ export default function HistoryModal({
   const [selectedIds, setSelectedIds] = useState([]);
   const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [showSessionRecords, setShowSessionRecords] = useState(false);
 
   const filteredSessions = useMemo(() => sessions.filter((session) => {
+    if (!showSessionRecords) return !session?.completed && Boolean(session?.kept);
     if (activeTab === 'completed') return Boolean(session?.completed);
     if (activeTab === 'discarded') return !session?.completed && !session?.kept;
     return !session?.completed && Boolean(session?.kept);
-  }), [sessions, activeTab]);
+  }), [sessions, activeTab, showSessionRecords]);
 
-  const allowReuseActions = activeTab !== 'completed';
-  const allowRestoreActions = activeTab === 'completed' || activeTab === 'discarded';
+  const allowReuseActions = !showSessionRecords || activeTab !== 'completed';
+  const allowRestoreActions = showSessionRecords && (activeTab === 'completed' || activeTab === 'discarded');
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE));
   const startIndex = currentPage * ITEMS_PER_PAGE;
   const paginatedSessions = filteredSessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -64,13 +66,14 @@ export default function HistoryModal({
       setSelectedIds([]);
       setActiveTab(DEFAULT_TAB);
       setPendingDelete(null);
+      setShowSessionRecords(false);
     }
   }, [isOpen]);
 
   useEffect(() => {
     setCurrentPage(0);
     setSelectedIds([]);
-  }, [activeTab]);
+  }, [activeTab, showSessionRecords]);
 
   useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(filteredSessions.length / ITEMS_PER_PAGE) - 1);
@@ -140,6 +143,13 @@ export default function HistoryModal({
     setPendingDelete(null);
   };
 
+  const handleToggleSessionRecords = () => {
+    setShowSessionRecords((current) => !current);
+    setActiveTab(DEFAULT_TAB);
+    setCurrentPage(0);
+    setSelectedIds([]);
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -149,18 +159,25 @@ export default function HistoryModal({
           </button>
           <DialogHeader>
             <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <History style={{ width: 24, height: 24, color: 'var(--brand-action)' }} />
-              Session History
+              <ClipboardList style={{ width: 24, height: 24, color: 'var(--brand-action)' }} />
+              {showSessionRecords ? 'Session records' : 'To-Do'}
             </DialogTitle>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.45, marginTop: '0.35rem' }}>
+              {showSessionRecords
+                ? 'Completed and discarded sessions stay here for recovery.'
+                : 'Saved work you can pick up without starting from scratch.'}
+            </p>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} style={{ marginTop: '0.5rem' }}>
-            <TabsList style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-              <TabsTrigger value="resume">Resume</TabsTrigger>
-              <TabsTrigger value="discarded">Discarded</TabsTrigger>
-              <TabsTrigger value="completed">Completed</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {showSessionRecords && (
+            <Tabs value={activeTab} onValueChange={setActiveTab} style={{ marginTop: '0.5rem' }}>
+              <TabsList style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+                <TabsTrigger value="resume">Saved</TabsTrigger>
+                <TabsTrigger value="discarded">Discarded</TabsTrigger>
+                <TabsTrigger value="completed">Completed</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
 
           <div className="space-y-3" style={{ padding: '1rem 0', minHeight: 250 }}>
             {paginatedSessions.length > 0 ? paginatedSessions.map((session) => {
@@ -295,6 +312,9 @@ export default function HistoryModal({
 
           <DialogFooter className="dialog-footer-between" style={{ flexWrap: 'nowrap', alignItems: 'flex-end', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', rowGap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+              <Button variant="outline" onClick={handleToggleSessionRecords}>
+                {showSessionRecords ? 'Back to To-Do' : 'Session records'}
+              </Button>
               {filteredSessions.length > 0 && (
                 <>
                   <Button variant="outline" onClick={handleToggleSelectPage}>

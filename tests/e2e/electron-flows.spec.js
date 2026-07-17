@@ -557,6 +557,36 @@ async function startTimedSession(page, taskName, minutes) {
   await chooseTimedSessionLength(page, minutes);
 }
 
+async function setNumberInputValue(input, value) {
+  await input.evaluate((element, nextValue) => {
+    const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (valueSetter) {
+      valueSetter.call(element, nextValue);
+    } else {
+      element.value = nextValue;
+    }
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, String(value));
+}
+
+async function startPomodoroSession(page, taskName, { workMinutes = 1, breakMinutes = 1 } = {}) {
+  await setTaskComposerValue(page, taskName);
+  await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+  await expect(page.locator('.start-chooser').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Custom' }).click();
+
+  const workInput = page.getByLabel('Pomodoro work minutes');
+  const breakInput = page.getByLabel('Pomodoro break minutes');
+  await setNumberInputValue(workInput, workMinutes);
+  await setNumberInputValue(breakInput, breakMinutes);
+  await expect.poll(async () => workInput.inputValue()).toBe(String(workMinutes));
+  await expect.poll(async () => breakInput.inputValue()).toBe(String(breakMinutes));
+
+  await page.getByRole('button', { name: 'Start Pomodoro' }).click();
+  await expect.poll(() => readWindowMode(page)).toBe('pill');
+}
+
 async function exitCompactMode(page) {
   await expect(page.locator('.pill')).toBeVisible();
   await expect.poll(async () => page.locator('.pill-mode--transitioning').count()).toBe(0);
@@ -627,7 +657,7 @@ async function expectWhatsNextPrompt(page) {
   await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toBeVisible();
   await expect(page.getByText('Start new task')).toBeVisible();
   await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'Parking Lot' })).toBeVisible();
-  await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'Session History' })).toBeVisible();
+  await expect(page.locator('.reentry-prompt__source-panel-title').filter({ hasText: 'To-Do' })).toBeVisible();
   const nextButton = page.getByRole('button', { name: 'Next', exact: true });
   await expect(nextButton).toBeVisible();
   await expectLocatorFullyInViewport(nextButton);
@@ -1849,7 +1879,7 @@ test('compact idle re-entry prompt grows for each stage and restores the pill si
   }
 });
 
-test('idle re-entry prompt can open Session History and Parking Lot from the task-entry step', async () => {
+test('idle re-entry prompt can open To-Do and Parking Lot from the task-entry step', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -1858,7 +1888,7 @@ test('idle re-entry prompt can open Session History and Parking Lot from the tas
 
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
     await page.getByTestId('reentry-open-history').click();
-    await expect(page.getByRole('heading', { name: 'Session History' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'To-Do' })).toBeVisible();
     await page.locator('.dialog-close-btn').first().click();
 
     await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
@@ -2090,7 +2120,7 @@ test('floating re-entry prompt mirrors the idle start flow for new tasks', async
   }
 });
 
-test('floating idle re-entry prompt can open Session History from the task-entry step', async () => {
+test('floating idle re-entry prompt can open To-Do from the task-entry step', async () => {
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -2108,7 +2138,7 @@ test('floating idle re-entry prompt can open Session History from the task-entry
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect(page.getByRole('heading', { name: 'Session History' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'To-Do' })).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -2350,6 +2380,44 @@ test('timed session expiry opens session wrap without an immediate pulse', async
     await expectPostSessionPrompt(page, 'timeup-no-immediate-pulse');
     await page.waitForTimeout(900);
     expect(await readAttentionPulseHits(page)).toEqual([]);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('pomodoro work expiry requires a break plan and waits on Ready to resume', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startPomodoroSession(page, 'pomodoro handoff', { workMinutes: 1, breakMinutes: 1 });
+    await exitCompactMode(page);
+
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
+    await expect(page.getByText('Work time is up.')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
+    await expect(page.getByText('Work time is up.')).toBeVisible();
+
+    const startBreakButton = page.getByRole('button', { name: 'Start break' });
+    await expect(startBreakButton).toBeDisabled();
+    await page.getByLabel('How are you going to break?').fill('Stretch and refill water');
+    await expect(startBreakButton).toBeEnabled();
+    await startBreakButton.click();
+
+    await expect(page.getByText('Break plan: Stretch and refill water')).toBeVisible();
+    await expect(page.locator('.pomodoro-break-panel__timer')).toBeVisible();
+
+    await installTimeOffsetControl(page);
+    await setTimeOffset(page, 65000);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
+    await expect(page.getByRole('button', { name: 'Start focus' })).toBeVisible();
+    await expect(page.getByText('Break plan: Stretch and refill water')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Start focus' }).click();
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -5070,7 +5138,7 @@ test('reusing a task from history does not overwrite historical session id or le
     await page.reload();
     await page.waitForSelector(TASK_INPUT_SELECTOR);
 
-    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('button', { name: 'Open To-Do' }).click();
     await expect(page.getByText('History seed task')).toBeVisible();
     await page.getByRole('button', { name: 'Preview Session Notes' }).first().click();
     await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
@@ -5161,7 +5229,8 @@ test('history renders safely when session createdAt is invalid', async () => {
     await page.reload();
     await page.waitForSelector(TASK_INPUT_SELECTOR);
 
-    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('button', { name: 'Open To-Do' }).click();
+    await page.getByRole('button', { name: 'Session records' }).click();
     await page.getByRole('tab', { name: 'Discarded' }).click();
     await expect(page.getByText('Bad date task')).toBeVisible();
     await expect(page.getByText('Unknown date')).toBeVisible();
@@ -5200,7 +5269,8 @@ test('history delete requires explicit confirmation for single and bulk actions'
     }, sessions);
     await page.reload();
 
-    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('button', { name: 'Open To-Do' }).click();
+    await page.getByRole('button', { name: 'Session records' }).click();
     await page.getByRole('tab', { name: 'Discarded' }).click();
     await expect(page.getByText('Delete me first')).toBeVisible();
 
@@ -5258,7 +5328,8 @@ test('history can restore completed and discarded sessions back to Resume', asyn
     }, sessions);
     await page.reload();
 
-    await page.getByRole('button', { name: 'Open Session History' }).click();
+    await page.getByRole('button', { name: 'Open To-Do' }).click();
+    await page.getByRole('button', { name: 'Session records' }).click();
     await page.getByRole('tab', { name: 'Completed' }).click();
     await expect(page.getByText('Completed restore me')).toBeVisible();
     await page.getByRole('button', { name: 'Restore to Resume' }).click();
@@ -5269,7 +5340,7 @@ test('history can restore completed and discarded sessions back to Resume', asyn
     await page.getByRole('button', { name: 'Restore to Resume' }).click();
     await expect(page.getByText('No discarded sessions yet.')).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Resume' }).click();
+    await page.getByRole('tab', { name: 'Saved' }).click();
     await expect(page.getByText('Completed restore me')).toBeVisible();
     await expect(page.getByText('Discarded restore me')).toBeVisible();
 

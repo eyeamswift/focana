@@ -4,7 +4,7 @@ import { Button } from './ui/Button';
 import { Switch } from './ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/Tabs';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/Tooltip';
-import { Settings, Keyboard, RotateCcw, AlertTriangle, X, PanelTop, Pin, Sun, Moon, History, ClipboardList, BellOff, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Settings, Keyboard, RotateCcw, AlertTriangle, X, PanelTop, Pin, Sun, Moon, ClipboardList, BellOff, ToggleLeft, ToggleRight } from 'lucide-react';
 import { track } from '../utils/analytics';
 
 const DEFAULT_SHORTCUTS = {
@@ -113,7 +113,7 @@ const MAIN_SCREEN_CONTROLS = [
   { key: 'dnd', label: 'Do Not Disturb', icon: BellOff },
   { key: 'theme', label: 'Light mode/Dark mode', icon: Sun },
   { key: 'parkingLot', label: 'View Parking Lot', icon: ClipboardList },
-  { key: 'history', label: 'View Session History', icon: History },
+  { key: 'history', label: 'View To-Do', icon: ClipboardList },
   { key: 'restart', label: 'Restart', icon: RotateCcw },
   { key: 'floatingMinimize', label: 'Minimize to Floating', icon: X },
 ];

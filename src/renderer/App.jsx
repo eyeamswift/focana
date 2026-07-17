@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
   X, Play, Pause, RotateCcw, Minimize2,
-  Settings, ClipboardList, History, Sun, Moon, Check, Undo2, BellOff, Pin,
+  Settings, ClipboardList, Sun, Moon, Check, Undo2, BellOff, Pin,
 } from 'lucide-react';
 import posthog from 'posthog-js';
 import { SessionStore } from './adapters/store';
@@ -108,7 +108,7 @@ const WINDOW_SIZES = {
   pomodoroStartChooserHeight: 250,
   timerHeight: 108,
   timerAddTimeHeight: 260,
-  timerPomodoroBreakHeight: 250,
+  timerPomodoroBreakHeight: 360,
   timerLongSessionNudgeHeight: 370,
   timerCheckInPromptHeight: 280,
   timerCheckInDetourChoiceHeight: 260,
@@ -444,6 +444,9 @@ export default function App() {
   const [pomodoroBreakMinutes, setPomodoroBreakMinutes] = useState(String(DEFAULT_POMODORO_PRESET.breakMinutes));
   const [pomodoroPhase, setPomodoroPhase] = useState('idle'); // idle | work | break
   const [pomodoroBreakEndsAt, setPomodoroBreakEndsAt] = useState(null);
+  const [pomodoroBreakAcknowledged, setPomodoroBreakAcknowledged] = useState(false);
+  const [pomodoroBreakIntention, setPomodoroBreakIntention] = useState('');
+  const [pomodoroBreakReadyToResume, setPomodoroBreakReadyToResume] = useState(false);
   const [pomodoroCyclesCompleted, setPomodoroCyclesCompleted] = useState(0);
   const [longSessionNudgeVisible, setLongSessionNudgeVisible] = useState(false);
   const [addTimeMenuOpen, setAddTimeMenuOpen] = useState(false);
@@ -607,6 +610,9 @@ export default function App() {
   const pomodoroWorkSecondsRef = useRef(DEFAULT_POMODORO_PRESET.workMinutes * 60);
   const pomodoroBreakSecondsRef = useRef(DEFAULT_POMODORO_PRESET.breakMinutes * 60);
   const pomodoroBreakEndsAtRef = useRef(null);
+  const pomodoroBreakAcknowledgedRef = useRef(false);
+  const pomodoroBreakIntentionRef = useRef('');
+  const pomodoroBreakReadyToResumeRef = useRef(false);
   const pomodoroCyclesCompletedRef = useRef(0);
   const longSessionNudgeAcknowledgedRef = useRef(false);
   const longSessionNudgeSnoozeUntilElapsedRef = useRef(null);
@@ -769,6 +775,15 @@ export default function App() {
   useEffect(() => {
     pomodoroBreakEndsAtRef.current = pomodoroBreakEndsAt;
   }, [pomodoroBreakEndsAt]);
+  useEffect(() => {
+    pomodoroBreakAcknowledgedRef.current = Boolean(pomodoroBreakAcknowledged);
+  }, [pomodoroBreakAcknowledged]);
+  useEffect(() => {
+    pomodoroBreakIntentionRef.current = typeof pomodoroBreakIntention === 'string' ? pomodoroBreakIntention : '';
+  }, [pomodoroBreakIntention]);
+  useEffect(() => {
+    pomodoroBreakReadyToResumeRef.current = Boolean(pomodoroBreakReadyToResume);
+  }, [pomodoroBreakReadyToResume]);
   useEffect(() => {
     pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(pomodoroCyclesCompleted) || 0));
   }, [pomodoroCyclesCompleted]);
@@ -2695,43 +2710,70 @@ export default function App() {
         const restoredBreakEndsAtMs = typeof savedTimerState?.pomodoroBreakEndsAt === 'string'
           ? new Date(savedTimerState.pomodoroBreakEndsAt).getTime()
           : NaN;
+        const restoredBreakAcknowledged = Boolean(savedTimerState?.pomodoroBreakAcknowledged);
+        const restoredBreakIntention = typeof savedTimerState?.pomodoroBreakIntention === 'string'
+          ? savedTimerState.pomodoroBreakIntention.trim().slice(0, 160)
+          : '';
+        const restoredBreakPending = restoredMode === TIMER_MODES.POMODORO
+          && rawPomodoroPhase === 'break'
+          && !restoredBreakAcknowledged;
         const restoredBreakActive = restoredMode === TIMER_MODES.POMODORO
           && rawPomodoroPhase === 'break'
+          && restoredBreakAcknowledged
           && Number.isFinite(restoredBreakEndsAtMs)
           && restoredBreakEndsAtMs > Date.now();
+        const restoredBreakReady = restoredMode === TIMER_MODES.POMODORO
+          && rawPomodoroPhase === 'break'
+          && restoredBreakAcknowledged
+          && !restoredBreakActive;
         const restoredStartedAtMs = typeof savedTimerState?.sessionStartedAt === 'string'
           ? new Date(savedTimerState.sessionStartedAt).getTime()
           : NaN;
-        const restoredRunning = !restoredBreakActive && Boolean(savedTimerState?.isRunning) && Number.isFinite(restoredStartedAtMs);
+        const restoredRunning = !restoredBreakPending
+          && !restoredBreakActive
+          && !restoredBreakReady
+          && Boolean(savedTimerState?.isRunning)
+          && Number.isFinite(restoredStartedAtMs);
         const liveElapsedSeconds = restoredRunning
           ? storedElapsedSeconds + Math.max(0, Math.floor((Date.now() - restoredStartedAtMs) / 1000))
           : storedElapsedSeconds;
         const restoredElapsedSeconds = isCountdownMode(restoredMode) && restoredInitialTime > 0
           ? Math.min(liveElapsedSeconds, restoredInitialTime)
           : liveElapsedSeconds;
-        const restoredDisplayTime = restoredBreakActive
+        const restoredDisplayTime = restoredBreakReady
+          ? 0
+          : restoredBreakActive
           ? Math.max(0, Math.ceil((restoredBreakEndsAtMs - Date.now()) / 1000))
+          : restoredBreakPending
+          ? Math.max(60, Math.floor(Number(savedTimerState?.seconds) || (restoredPomodoroConfig.breakMinutes * 60)))
           : (isCountdownMode(restoredMode)
             ? Math.max(0, restoredInitialTime - restoredElapsedSeconds)
             : restoredElapsedSeconds);
-        const restoredTimerVisible = restoredBreakActive || (typeof savedTimerState?.timerVisible === 'boolean'
+        const restoredTimerVisibleFromStore = typeof savedTimerState?.timerVisible === 'boolean'
           ? savedTimerState.timerVisible
           : (Boolean(restoredTaskText.trim()) && (
             restoredRunning
             || restoredInitialTime > 0
             || restoredElapsedSeconds > 0
-          )));
+          ));
+        const restoredTimerVisible = restoredBreakPending
+          || restoredBreakActive
+          || restoredBreakReady
+          || restoredTimerVisibleFromStore;
         const restoredSegmentElapsed = isCountdownMode(restoredMode)
           ? Math.max(0, restoredElapsedSeconds - restoredSegmentStartElapsed)
           : 0;
 
         elapsedBeforeRunRef.current = restoredRunning ? storedElapsedSeconds : restoredElapsedSeconds;
         pomodoroPhaseRef.current = restoredMode === TIMER_MODES.POMODORO
-          ? (restoredBreakActive ? 'break' : 'work')
+          ? ((restoredBreakPending || restoredBreakActive || restoredBreakReady) ? 'break' : 'work')
           : 'idle';
         pomodoroWorkSecondsRef.current = restoredPomodoroConfig.workMinutes * 60;
         pomodoroBreakSecondsRef.current = restoredPomodoroConfig.breakMinutes * 60;
         pomodoroBreakEndsAtRef.current = restoredBreakActive ? restoredBreakEndsAtMs : null;
+        pomodoroBreakAcknowledgedRef.current = restoredBreakAcknowledged && !restoredBreakPending;
+        pomodoroBreakIntentionRef.current = restoredBreakIntention;
+        pomodoroBreakReadyToResumeRef.current = restoredBreakReady;
         pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(savedTimerState?.pomodoroCyclesCompleted) || 0));
         longSessionNudgeAcknowledgedRef.current = Boolean(savedTimerState?.longSessionNudgeAcknowledged);
         longSessionNudgeSnoozeUntilElapsedRef.current = Number.isFinite(Number(savedTimerState?.longSessionNudgeSnoozeUntilElapsed))
@@ -2763,6 +2805,9 @@ export default function App() {
         setPomodoroBreakMinutes(String(restoredPomodoroConfig.breakMinutes));
         setPomodoroPhase(pomodoroPhaseRef.current);
         setPomodoroBreakEndsAt(pomodoroBreakEndsAtRef.current);
+        setPomodoroBreakAcknowledged(pomodoroBreakAcknowledgedRef.current);
+        setPomodoroBreakIntention(restoredBreakIntention);
+        setPomodoroBreakReadyToResume(restoredBreakReady);
         setPomodoroCyclesCompleted(pomodoroCyclesCompletedRef.current);
         setLongSessionNudgeVisible(false);
       } finally {
@@ -2871,12 +2916,15 @@ export default function App() {
         pomodoroBreakEndsAt: Number.isFinite(pomodoroBreakEndsAtRef.current)
           ? new Date(pomodoroBreakEndsAtRef.current).toISOString()
           : null,
+        pomodoroBreakAcknowledged: pomodoroBreakAcknowledgedRef.current,
+        pomodoroBreakIntention: pomodoroBreakIntentionRef.current,
+        pomodoroBreakReadyToResume: pomodoroBreakReadyToResumeRef.current,
         pomodoroCyclesCompleted: pomodoroCyclesCompletedRef.current,
         longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
         longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
       });
     }
-  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, nextStepsNotes, persistableTaskPlan, sessionStateHydrated, pomodoroPhase]);
+  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, nextStepsNotes, persistableTaskPlan, sessionStateHydrated, pomodoroPhase, pomodoroBreakAcknowledged, pomodoroBreakIntention, pomodoroBreakReadyToResume]);
 
   useEffect(() => {
     if (!sessionStateHydrated) return;
@@ -2910,11 +2958,14 @@ export default function App() {
       pomodoroBreakEndsAt: Number.isFinite(pomodoroBreakEndsAtRef.current)
         ? new Date(pomodoroBreakEndsAtRef.current).toISOString()
         : null,
+      pomodoroBreakAcknowledged: pomodoroBreakAcknowledgedRef.current,
+      pomodoroBreakIntention: pomodoroBreakIntentionRef.current,
+      pomodoroBreakReadyToResume: pomodoroBreakReadyToResumeRef.current,
       pomodoroCyclesCompleted: pomodoroCyclesCompletedRef.current,
       longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
       longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
     });
-  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, nextStepsNotes, persistableTaskPlan, sessionStartTime, time, currentSessionId, sessionStateHydrated, pomodoroPhase]);
+  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, nextStepsNotes, persistableTaskPlan, sessionStartTime, time, currentSessionId, sessionStateHydrated, pomodoroPhase, pomodoroBreakAcknowledged, pomodoroBreakIntention, pomodoroBreakReadyToResume]);
 
   const persistIdleTimerSnapshot = useCallback(({
     taskText = task,
@@ -2951,6 +3002,9 @@ export default function App() {
       pomodoroWorkMinutes: DEFAULT_POMODORO_PRESET.workMinutes,
       pomodoroBreakMinutes: DEFAULT_POMODORO_PRESET.breakMinutes,
       pomodoroBreakEndsAt: null,
+      pomodoroBreakAcknowledged: false,
+      pomodoroBreakIntention: '',
+      pomodoroBreakReadyToResume: false,
       pomodoroCyclesCompleted: 0,
       longSessionNudgeAcknowledged: false,
       longSessionNudgeSnoozeUntilElapsed: null,
@@ -3200,6 +3254,9 @@ export default function App() {
     pomodoroWorkSecondsRef.current = nextPomodoroConfig.workMinutes * 60;
     pomodoroBreakSecondsRef.current = nextPomodoroConfig.breakMinutes * 60;
     pomodoroBreakEndsAtRef.current = null;
+    pomodoroBreakAcknowledgedRef.current = false;
+    pomodoroBreakIntentionRef.current = '';
+    pomodoroBreakReadyToResumeRef.current = false;
     pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(nextTimerState?.pomodoroCyclesCompleted) || 0));
     setTask(clampTaskText(nextTask));
     setTaskPlan(nextTaskPlan);
@@ -3217,6 +3274,9 @@ export default function App() {
     setPomodoroBreakMinutes(String(nextPomodoroConfig.breakMinutes));
     setPomodoroPhase(pomodoroPhaseRef.current);
     setPomodoroBreakEndsAt(null);
+    setPomodoroBreakAcknowledged(false);
+    setPomodoroBreakIntention('');
+    setPomodoroBreakReadyToResume(false);
     setPomodoroCyclesCompleted(pomodoroCyclesCompletedRef.current);
   }, [clearCheckInUi, clearCompactSessionCues]);
 
@@ -3278,6 +3338,9 @@ export default function App() {
   const resetFocusRhythmState = useCallback(() => {
     pomodoroPhaseRef.current = 'idle';
     pomodoroBreakEndsAtRef.current = null;
+    pomodoroBreakAcknowledgedRef.current = false;
+    pomodoroBreakIntentionRef.current = '';
+    pomodoroBreakReadyToResumeRef.current = false;
     pomodoroCyclesCompletedRef.current = 0;
     pomodoroWorkSecondsRef.current = DEFAULT_POMODORO_PRESET.workMinutes * 60;
     pomodoroBreakSecondsRef.current = DEFAULT_POMODORO_PRESET.breakMinutes * 60;
@@ -3285,6 +3348,9 @@ export default function App() {
     longSessionNudgeSnoozeUntilElapsedRef.current = null;
     setPomodoroPhase('idle');
     setPomodoroBreakEndsAt(null);
+    setPomodoroBreakAcknowledged(false);
+    setPomodoroBreakIntention('');
+    setPomodoroBreakReadyToResume(false);
     setPomodoroCyclesCompleted(0);
     setLongSessionNudgeVisible(false);
   }, []);
@@ -4422,8 +4488,14 @@ export default function App() {
 
     pomodoroPhaseRef.current = 'work';
     pomodoroBreakEndsAtRef.current = null;
+    pomodoroBreakAcknowledgedRef.current = false;
+    pomodoroBreakIntentionRef.current = '';
+    pomodoroBreakReadyToResumeRef.current = false;
     setPomodoroPhase('work');
     setPomodoroBreakEndsAt(null);
+    setPomodoroBreakAcknowledged(false);
+    setPomodoroBreakIntention('');
+    setPomodoroBreakReadyToResume(false);
     setMode(TIMER_MODES.POMODORO);
     setInitialTime(nextInitialTime);
     setTime(workSeconds);
@@ -4446,15 +4518,20 @@ export default function App() {
       Math.floor(Number(initialTime) || Number(getElapsedSeconds()) || 0),
     );
     const breakSeconds = Math.max(60, Math.floor(Number(pomodoroBreakSecondsRef.current) || (DEFAULT_POMODORO_PRESET.breakMinutes * 60)));
-    const breakEndsAtMs = Date.now() + (breakSeconds * 1000);
     const nextCycleCount = Math.max(0, Math.floor(Number(pomodoroCyclesCompletedRef.current) || 0)) + 1;
 
     elapsedBeforeRunRef.current = focusElapsed;
     pomodoroPhaseRef.current = 'break';
-    pomodoroBreakEndsAtRef.current = breakEndsAtMs;
+    pomodoroBreakEndsAtRef.current = null;
+    pomodoroBreakAcknowledgedRef.current = false;
+    pomodoroBreakIntentionRef.current = '';
+    pomodoroBreakReadyToResumeRef.current = false;
     pomodoroCyclesCompletedRef.current = nextCycleCount;
     setPomodoroPhase('break');
-    setPomodoroBreakEndsAt(breakEndsAtMs);
+    setPomodoroBreakEndsAt(null);
+    setPomodoroBreakAcknowledged(false);
+    setPomodoroBreakIntention('');
+    setPomodoroBreakReadyToResume(false);
     setPomodoroCyclesCompleted(nextCycleCount);
     setTime(breakSeconds);
     setIsTimerVisible(true);
@@ -4465,13 +4542,56 @@ export default function App() {
     clearCheckInUi();
     clearCompactSessionCues();
     resetSessionFeedbackFlow();
-    track('pomodoro_break_started', {
+    track('pomodoro_break_handoff_started', {
       source,
       focus_minutes: Math.round((focusElapsed / 60) * 10) / 10,
       break_minutes: Math.round((breakSeconds / 60) * 10) / 10,
       completed_cycles: nextCycleCount,
     });
   }, [clearCheckInUi, clearCompactSessionCues, getElapsedSeconds, initialTime, resetSessionFeedbackFlow]);
+
+  const handlePomodoroBreakIntentionChange = useCallback((value) => {
+    const nextValue = typeof value === 'string' ? value.slice(0, 160) : '';
+    pomodoroBreakIntentionRef.current = nextValue;
+    setPomodoroBreakIntention(nextValue);
+  }, []);
+
+  const handleStartPomodoroBreakTimer = useCallback(() => {
+    const intention = pomodoroBreakIntentionRef.current.trim();
+    if (!intention) return;
+
+    const breakSeconds = Math.max(
+      60,
+      Math.floor(Number(time) || Number(pomodoroBreakSecondsRef.current) || (DEFAULT_POMODORO_PRESET.breakMinutes * 60)),
+    );
+    const breakEndsAtMs = Date.now() + (breakSeconds * 1000);
+
+    pomodoroBreakAcknowledgedRef.current = true;
+    pomodoroBreakReadyToResumeRef.current = false;
+    pomodoroBreakEndsAtRef.current = breakEndsAtMs;
+    setPomodoroBreakAcknowledged(true);
+    setPomodoroBreakReadyToResume(false);
+    setPomodoroBreakEndsAt(breakEndsAtMs);
+    setTime(breakSeconds);
+    track('pomodoro_break_started', {
+      break_minutes: Math.round((breakSeconds / 60) * 10) / 10,
+      completed_cycles: pomodoroCyclesCompletedRef.current,
+      break_intention_length: intention.length,
+    });
+  }, [time]);
+
+  const finishPomodoroBreak = useCallback(() => {
+    pomodoroBreakEndsAtRef.current = null;
+    pomodoroBreakReadyToResumeRef.current = true;
+    setPomodoroBreakEndsAt(null);
+    setPomodoroBreakReadyToResume(true);
+    setTime(0);
+    setIsRunning(false);
+    setSessionStartTime(null);
+    track('pomodoro_break_completed', {
+      completed_cycles: pomodoroCyclesCompletedRef.current,
+    });
+  }, []);
 
   // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
@@ -4494,6 +4614,7 @@ export default function App() {
 
   useEffect(() => {
     if (mode !== TIMER_MODES.POMODORO || pomodoroPhase !== 'break') return undefined;
+    if (!pomodoroBreakAcknowledged || pomodoroBreakReadyToResume) return undefined;
     if (!Number.isFinite(Number(pomodoroBreakEndsAt))) return undefined;
 
     let transitionStarted = false;
@@ -4502,13 +4623,13 @@ export default function App() {
       setTime(remaining);
       if (remaining > 0 || transitionStarted) return;
       transitionStarted = true;
-      startNextPomodoroWorkInterval('break-complete');
+      finishPomodoroBreak();
     };
 
     tick();
     const intervalId = window.setInterval(tick, 250);
     return () => window.clearInterval(intervalId);
-  }, [mode, pomodoroBreakEndsAt, pomodoroPhase, startNextPomodoroWorkInterval]);
+  }, [finishPomodoroBreak, mode, pomodoroBreakAcknowledged, pomodoroBreakEndsAt, pomodoroBreakReadyToResume, pomodoroPhase]);
 
   // Handle timed session expiration — separated from setTime to avoid
   // calling state setters inside another state setter callback.
@@ -5435,18 +5556,30 @@ export default function App() {
       pomodoroWorkSecondsRef.current = pomodoroConfig.workMinutes * 60;
       pomodoroBreakSecondsRef.current = pomodoroConfig.breakMinutes * 60;
       pomodoroBreakEndsAtRef.current = null;
+      pomodoroBreakAcknowledgedRef.current = false;
+      pomodoroBreakIntentionRef.current = '';
+      pomodoroBreakReadyToResumeRef.current = false;
       pomodoroCyclesCompletedRef.current = 0;
       setPomodoroWorkMinutes(String(pomodoroConfig.workMinutes));
       setPomodoroBreakMinutes(String(pomodoroConfig.breakMinutes));
       setPomodoroBreakEndsAt(null);
+      setPomodoroBreakAcknowledged(false);
+      setPomodoroBreakIntention('');
+      setPomodoroBreakReadyToResume(false);
       setPomodoroCyclesCompleted(0);
       setPomodoroPhase('work');
     } else {
       pomodoroPhaseRef.current = 'idle';
       pomodoroBreakEndsAtRef.current = null;
+      pomodoroBreakAcknowledgedRef.current = false;
+      pomodoroBreakIntentionRef.current = '';
+      pomodoroBreakReadyToResumeRef.current = false;
       pomodoroCyclesCompletedRef.current = 0;
       setPomodoroPhase('idle');
       setPomodoroBreakEndsAt(null);
+      setPomodoroBreakAcknowledged(false);
+      setPomodoroBreakIntention('');
+      setPomodoroBreakReadyToResume(false);
       setPomodoroCyclesCompleted(0);
     }
     longSessionNudgeAcknowledgedRef.current = false;
@@ -8621,7 +8754,7 @@ export default function App() {
       : 'Adjust the task if needed, then press play to continue.')
     : (isStartModalOpen
       ? 'Choose Freeflow or set a timer to begin.'
-      : 'Start something new, or pull from Parking Lot or History.');
+      : 'Start something new, or pick up saved work.');
   const draftTaskPlaceholder = postSessionStartAssist
     ? 'What are we focusing on next?'
     : 'Where are we focusing first?';
@@ -8629,6 +8762,9 @@ export default function App() {
   const visibleFullScreenTaskHelper = showDraftTaskPlanBuilder ? '' : fullScreenTaskHelper;
   const canAddTimeToActiveSession = mode === TIMER_MODES.TIMED && isTimerVisible && initialTime > 0;
   const showPomodoroBreakPanel = mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break' && isTimerVisible;
+  const pomodoroBreakStatus = pomodoroBreakReadyToResume
+    ? 'ready'
+    : (pomodoroBreakAcknowledged ? 'timer' : 'handoff');
   const selectedPomodoroConfig = normalizePomodoroConfig({
     workMinutes: pomodoroWorkMinutes,
     breakMinutes: pomodoroBreakMinutes,
@@ -8881,13 +9017,13 @@ export default function App() {
           <div className="full-header__nav">
             {enabledMainControls.history && pinnedControls.history && (
               <Button
-                aria-label="Open Session History"
+                aria-label="Open To-Do"
                 onClick={() => setShowHistoryModal(true)}
                 className="full-header__nav-btn"
                 variant="ghost"
                 tabIndex={2}
               >
-                History
+                To-Do
               </Button>
             )}
             {enabledMainControls.parkingLot && pinnedControls.parkingLot && (
@@ -9033,6 +9169,10 @@ export default function App() {
                   taskName={activeTaskLabel}
                   time={time}
                   completedCycles={pomodoroCyclesCompleted}
+                  status={pomodoroBreakStatus}
+                  breakIntention={pomodoroBreakIntention}
+                  onBreakIntentionChange={handlePomodoroBreakIntentionChange}
+                  onStartBreak={handleStartPomodoroBreakTimer}
                   onKeepGoing={() => startNextPomodoroWorkInterval('skip-break')}
                   onEnd={() => { void handleStop({ returnToCompact: false, returnToFloating: false }); }}
                 />

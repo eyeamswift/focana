@@ -375,10 +375,10 @@ export default function ReentryPrompt({
 
               <div className="reentry-prompt__source-stack">
                 {renderSourcePanel({
-                  title: 'Session History',
+                  title: 'To-Do',
                   count: safeHistoryItems.length,
                   items: safeHistoryItems,
-                  emptyCopy: 'No saved sessions to resume yet.',
+                  emptyCopy: 'No saved work to pick up yet.',
                   testId: 'reentry-open-history',
                   onViewAll: onOpenSessionHistory,
                   onSelect: onSelectHistorySession,
@@ -397,7 +397,7 @@ export default function ReentryPrompt({
           ) : (
             <section className="reentry-prompt__step reentry-prompt__step--task-entry">
               <h2 className="reentry-prompt__title">What&apos;s next?</h2>
-              <p className="reentry-prompt__copy">Start something new, or pull from Parking Lot or History.</p>
+              <p className="reentry-prompt__copy">Start something new, or pick up saved work.</p>
               <textarea
                 ref={textareaRef}
                 className="reentry-prompt__textarea"
@@ -438,7 +438,7 @@ export default function ReentryPrompt({
                   }}
                   data-testid="reentry-open-history"
                 >
-                  Session History
+                  To-Do
                 </button>
               </div>
               <div className="reentry-prompt__actions">

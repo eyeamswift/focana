@@ -1,0 +1,15 @@
+{
+  "version": "2.4.1",
+  "publishedAt": "2026-07-17",
+  "summary": "Focana 2.4.1 makes saved work easier to pick back up and Pomodoro breaks harder to miss.",
+  "improvements": [
+    "The visible saved-work surface is now To-Do, focused on resumable work instead of a full session log.",
+    "Completed and discarded sessions remain recoverable through Session records without taking over the first view.",
+    "Pomodoro work completion now asks for a short break plan before the break countdown starts.",
+    "Pomodoro break completion now waits on a Ready to resume screen instead of automatically starting the next focus interval."
+  ],
+  "fixes": [
+    "Re-entry prompts, floating prompts, Settings, and the tray now use consistent To-Do language for saved work.",
+    "Pomodoro break handoff state now persists through reloads so the user is not stranded mid-transition."
+  ]
+}

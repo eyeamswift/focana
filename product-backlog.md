@@ -26,6 +26,11 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - **P2 — redesigned:** `TASK-002` (reframed as OPTIONAL structure — the mandatory version is a task-paralysis hazard; do not ship as originally written)
 - **Must be done before 2.4.0 ships:** running checklist polish must preserve the parent/main task while letting a subtask become the visible focus via a right-side arrow/focus control, and completed subtasks must stay hidden until the user chooses `Show completed` / `View all`.
 
+### 2.4.1 — Patch: "Break handoffs and To-Do pickup"
+- **P0 — trust patch:** `UX-025` (Pomodoro work completion requires a typed break handoff, then waits on Ready to resume after the break)
+- **P1 — recovery simplification:** `UX-026` (the visible saved-work surface is To-Do; completed/discarded session records are tucked behind recovery)
+- Guardrails: keep break-taking optional and skippable, do not force shamey acknowledgements, keep historical records recoverable without making the first view feel like a log file.
+
 ### GTM Track — after 2.4.0 ships
 - **Next GTM build:** `MKT-006` (creator promo-code + affiliate attribution). Explicitly excluded from 2.4.0; finish after the task-initiation release is shipped and the creator-code model is decided.
 
@@ -565,6 +570,24 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Commits: —
 
 ## Done
+
+### UX-025 — Pomodoro breaks should require an intentional handoff before resuming
+- Status: Done
+- Version: 2.4.1
+- Why it matters: If Pomodoro silently rolls from work into break and then into the next work interval, users can miss the transition or return disoriented. A small typed break plan makes the break deliberate without making it punitive.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/PomodoroBreakPanel.jsx`, `src/renderer/styles/main.css`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-007B`, `UX-015`, `UX-017`
+- Notes: When a Pomodoro work interval reaches zero, Focana now shows a `Break time` handoff and disables `Start break` until the user types how they are going to break. The break remains skippable via `Keep going`. When the break countdown ends, Focana waits on a `Ready to resume?` state with `Start focus` instead of auto-starting the next work interval. The break intention is persisted with timer state so reloads do not strand the user mid-transition.
+- Commits: —
+
+### UX-026 — Visible saved work should be To-Do, not full Session History
+- Status: Done
+- Version: 2.4.1
+- Why it matters: The full session log is a recovery tool, not something most users need in their face. The visible surface should help people pick work back up quickly without asking them to scan completed/discarded history.
+- Files: `src/renderer/components/HistoryModal.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/renderer/components/SettingsModal.jsx`, `src/renderer/App.jsx`, `src/main/floating-icon.html`, `src/main/tray.js`, `tests/e2e/electron-flows.spec.js`
+- Related: `UX-003`, `INIT-003`, `TASK-003`
+- Notes: User-facing access is now labeled `To-Do` and defaults to saved resumable work. The completed/discarded log remains available through `Session records`, preserving restore/delete recovery without making the first modal view feel like a bulky audit trail. Re-entry prompts and the tray label use the same To-Do language.
+- Commits: —
 
 ### LIC-002 — Focana should offer a 7-day free trial before $79 lifetime or $10/month
 - Status: Done

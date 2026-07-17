@@ -2807,6 +2807,47 @@ html[data-window-mode='pill'] #root {
   line-height: 1.42;
 }
 
+.pomodoro-break-panel__field {
+  margin-top: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.pomodoro-break-panel__textarea {
+  width: 100%;
+  min-height: 4.7rem;
+  resize: vertical;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.72rem;
+  padding: 0.62rem 0.7rem;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  line-height: 1.38;
+  outline: none;
+}
+
+.pomodoro-break-panel__textarea:focus-visible {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+
+.pomodoro-break-panel__textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.pomodoro-break-panel__intention {
+  margin: 0.55rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .pomodoro-break-panel__timer {
   margin-top: 0.72rem;
   color: var(--timer-running);
@@ -2847,6 +2888,11 @@ html[data-window-mode='pill'] #root {
   border: 1px solid transparent;
   background: var(--brand-primary);
   color: var(--text-on-brand);
+}
+
+.pomodoro-break-panel__primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .pomodoro-break-panel__secondary,

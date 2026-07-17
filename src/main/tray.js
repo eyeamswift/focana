@@ -99,7 +99,7 @@ function buildTrayTemplate(mainWindow) {
     },
     { type: 'separator' },
     {
-      label: 'Session History',
+      label: 'To-Do',
       click: () => {
         revealApp('tray-history');
         mainWindow.webContents.send('tray-open-history');
