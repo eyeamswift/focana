@@ -322,10 +322,10 @@ async function runFreeflowSmoke(page, electronApp) {
     description: 'paused task to remain available after floating expand',
   })
   await page.getByRole('button', { name: 'Open Parking Lot' }).waitFor({ state: 'visible', timeout: 10000 })
-  await page.getByRole('button', { name: 'Open Session History' }).waitFor({ state: 'visible', timeout: 10000 })
+  await page.getByRole('button', { name: 'Open To-Do' }).waitFor({ state: 'visible', timeout: 10000 })
 
-  await page.locator('button[aria-label="Open Session History"]').click()
-  const historyDialog = page.locator('.dialog-content').filter({ hasText: 'Session History' }).first()
+  await page.locator('button[aria-label="Open To-Do"]').click()
+  const historyDialog = page.locator('.dialog-content').filter({ hasText: 'To-Do' }).first()
   await historyDialog.waitFor({ state: 'visible', timeout: 10000 })
   await historyDialog.getByText(taskName, { exact: true }).waitFor({ state: 'visible', timeout: 10000 })
   await page.locator('.dialog-close-btn').first().click()
@@ -334,7 +334,7 @@ async function runFreeflowSmoke(page, electronApp) {
     await page.locator('.dialog-overlay').count().catch(() => 0)
   ) === 0, {
     timeoutMs: 10000,
-    description: 'Session History overlay to close before pausing',
+    description: 'To-Do overlay to close before pausing',
   })
 }
 
