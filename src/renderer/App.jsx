@@ -23,6 +23,15 @@ import {
   normalizeTimerMode,
   shouldShowLongSessionNudge,
 } from './utils/focusRhythm';
+import {
+  DEFAULT_FOCUS_INSIGHTS_SETTINGS,
+  buildFocusInsightSummary,
+  getFocusLedgerDescriptor,
+  makeCheckInLedgerPayload,
+  makeSegmentLedgerPayload,
+  makeSessionLedgerPayload,
+  normalizeFocusInsightsSettings,
+} from './utils/focusLedger';
 import appLockupDark from '../assets/logo-lockup.svg';
 import appLockupLight from '../assets/logo-lockup-light.svg';
 
@@ -502,6 +511,8 @@ export default function App() {
   const [startupSystemEntryRevealSource, setStartupSystemEntryRevealSource] = useState(null);
   const [pinnedControls, setPinnedControls] = useState(PINNED_CONTROLS_DEFAULT);
   const [enabledMainControls, setEnabledMainControls] = useState(ENABLED_MAIN_CONTROLS_DEFAULT);
+  const [focusInsightsSettings, setFocusInsightsSettings] = useState(DEFAULT_FOCUS_INSIGHTS_SETTINGS);
+  const [focusInsightSummary, setFocusInsightSummary] = useState(() => buildFocusInsightSummary([]));
   const [suppressToolbarTooltips, setSuppressToolbarTooltips] = useState(false);
   const [compactTransitioning, setCompactTransitioning] = useState(false);
   const [toast, setToast] = useState(null);
@@ -673,6 +684,10 @@ export default function App() {
   const lastInteractionTimeRef = useRef(Date.now());
   const taskPlanTransitionAfterCompletionRef = useRef(null);
   const isRunningRef = useRef(false);
+  const focusInsightsSettingsRef = useRef(DEFAULT_FOCUS_INSIGHTS_SETTINGS);
+  const focusLedgerSessionRef = useRef(null);
+  const focusLedgerSegmentSeqRef = useRef(0);
+  const focusLedgerBackfillRunningRef = useRef(false);
   const sessionCreatePromiseRef = useRef(null);
   const sessionCreateEpochRef = useRef(0);
   const getElapsedSecondsRef = useRef(() => 0);
@@ -1153,6 +1168,10 @@ export default function App() {
     () => findLatestResumableSession(sessions),
     [sessions],
   );
+
+  useEffect(() => {
+    setFocusInsightSummary(buildFocusInsightSummary(sessions));
+  }, [sessions]);
 
   const reentryResumeCandidate = useMemo(() => {
     if (
@@ -1722,6 +1741,7 @@ export default function App() {
   const loadSessions = useCallback(async () => {
     const data = await SessionStore.list();
     setSessions(data);
+    setFocusInsightSummary(buildFocusInsightSummary(data));
   }, []);
 
   const patchSessionInLocalState = useCallback((sessionId, patch) => {
@@ -1793,6 +1813,343 @@ export default function App() {
     if (!isTimerVisible && !isRunning) return null;
     return ensureCurrentSessionId('parking lot capture');
   }, [currentSessionId, task, isTimerVisible, isRunning, ensureCurrentSessionId]);
+
+  const enqueueFocusLedgerItems = useCallback((items) => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled) return;
+    const nextItems = (Array.isArray(items) ? items : [items]).filter(Boolean);
+    if (!nextItems.length) return;
+
+    const enqueuePromise = window.electronAPI.enqueueFocusLedger?.(nextItems);
+    if (enqueuePromise) {
+      void Promise.resolve(enqueuePromise).catch((error) => {
+        console.error('Failed to queue focus ledger items:', error);
+      });
+    }
+  }, []);
+
+  const persistFocusLedgerSyncState = useCallback(async (patch) => {
+    try {
+      const current = await window.electronAPI.storeGet?.('focusLedgerSyncState');
+      await window.electronAPI.storeSet?.('focusLedgerSyncState', {
+        ...(current && typeof current === 'object' ? current : {}),
+        ...(patch && typeof patch === 'object' ? patch : {}),
+      });
+    } catch (error) {
+      console.error('Failed to persist focus ledger sync state:', error);
+    }
+  }, []);
+
+  const closeFocusLedgerSegment = useCallback((endElapsedSeconds, options = {}) => {
+    const settings = focusInsightsSettingsRef.current;
+    const ledgerSession = focusLedgerSessionRef.current;
+    const segment = ledgerSession?.currentSegment || null;
+    if (!ledgerSession || !segment) return;
+
+    const endedAt = options.endedAt || new Date().toISOString();
+    const activeSeconds = Math.max(0, Math.floor(Number(endElapsedSeconds) || 0) - segment.startElapsedSeconds);
+    ledgerSession.currentSegment = null;
+    void persistFocusLedgerSyncState({ activeSession: null });
+    if (!settings.enabled) return;
+    if (activeSeconds <= 0 && options.completed !== true) return;
+
+    enqueueFocusLedgerItems({
+      id: `segment:${segment.localSegmentId}`,
+      type: 'segment',
+      payload: makeSegmentLedgerPayload({
+        localSegmentId: segment.localSegmentId,
+        localSessionId: ledgerSession.localSessionId,
+        descriptor: segment.descriptor,
+        startedAt: segment.startedAt,
+        endedAt,
+        activeSeconds,
+        completed: options.completed === true,
+        completionEventAt: options.completed === true ? endedAt : null,
+        runtimeInfo,
+        licenseStatus,
+        settings,
+      }),
+    });
+  }, [enqueueFocusLedgerItems, licenseStatus, persistFocusLedgerSyncState, runtimeInfo]);
+
+  const openFocusLedgerSegment = useCallback((descriptor, startElapsedSeconds) => {
+    const ledgerSession = focusLedgerSessionRef.current;
+    if (!ledgerSession) return;
+    focusLedgerSegmentSeqRef.current += 1;
+    ledgerSession.currentSegment = {
+      localSegmentId: `${ledgerSession.localSessionId}:segment:${focusLedgerSegmentSeqRef.current}`,
+      descriptor,
+      focusKey: descriptor.focusKey,
+      startedAt: new Date().toISOString(),
+      startElapsedSeconds: Math.max(0, Math.floor(Number(startElapsedSeconds) || 0)),
+    };
+    void persistFocusLedgerSyncState({
+      activeSession: {
+        localSessionId: ledgerSession.localSessionId,
+        localSegmentId: ledgerSession.currentSegment.localSegmentId,
+        descriptor,
+        focusKey: descriptor.focusKey,
+        startedAt: ledgerSession.currentSegment.startedAt,
+        startElapsedSeconds: ledgerSession.currentSegment.startElapsedSeconds,
+        runtimeInfo,
+        licenseStatus,
+        settings: focusInsightsSettingsRef.current,
+      },
+    });
+  }, [licenseStatus, persistFocusLedgerSyncState, runtimeInfo]);
+
+  const beginFocusLedgerSession = useCallback((sessionId, startElapsedSeconds = 0) => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled || !sessionId || !task.trim() || !licenseStatus?.installId) return null;
+    const existing = focusLedgerSessionRef.current;
+    if (existing?.localSessionId === sessionId) return existing;
+
+    if (existing?.currentSegment) {
+      closeFocusLedgerSegment(startElapsedSeconds);
+    }
+
+    const startedAt = sessionStartTime
+      ? new Date(sessionStartTime).toISOString()
+      : new Date().toISOString();
+    const nextSession = {
+      localSessionId: sessionId,
+      startedAt,
+      startElapsedSeconds: Math.max(0, Math.floor(Number(startElapsedSeconds) || 0)),
+      currentSegment: null,
+    };
+    focusLedgerSessionRef.current = nextSession;
+    focusLedgerSegmentSeqRef.current = 0;
+
+    enqueueFocusLedgerItems({
+      id: `session:${sessionId}`,
+      type: 'session',
+      payload: makeSessionLedgerPayload({
+        localSessionId: sessionId,
+        taskText: task,
+        taskPlan,
+        mode,
+        startedAt,
+        activeSeconds: 0,
+        outcome: 'started',
+        runtimeInfo,
+        licenseStatus,
+        settings,
+      }),
+    });
+
+    return nextSession;
+  }, [
+    closeFocusLedgerSegment,
+    enqueueFocusLedgerItems,
+    licenseStatus,
+    mode,
+    runtimeInfo,
+    sessionStartTime,
+    task,
+    taskPlan,
+  ]);
+
+  const finalizeFocusLedgerSession = useCallback((sessionId, options = {}) => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled || !sessionId || !licenseStatus?.installId) return;
+
+    const activeSeconds = Math.max(0, Math.floor(Number(options.activeSeconds) || getElapsedSeconds()));
+    const endedAt = options.endedAt || new Date().toISOString();
+    const ledgerSession = focusLedgerSessionRef.current?.localSessionId === sessionId
+      ? focusLedgerSessionRef.current
+      : null;
+
+    closeFocusLedgerSegment(activeSeconds, {
+      endedAt,
+      completed: options.completed === true,
+    });
+
+    const startedAt = ledgerSession?.startedAt || new Date(Date.now() - (activeSeconds * 1000)).toISOString();
+    enqueueFocusLedgerItems({
+      id: `session:${sessionId}`,
+      type: 'session',
+      payload: makeSessionLedgerPayload({
+        localSessionId: sessionId,
+        taskText: options.taskText || task,
+        taskPlan: options.taskPlanSnapshot || taskPlan,
+        mode: options.mode || mode,
+        startedAt,
+        endedAt,
+        activeSeconds,
+        wallClockSeconds: Math.max(0, Math.floor((Date.parse(endedAt) - Date.parse(startedAt)) / 1000) || activeSeconds),
+        outcome: options.outcome || (options.completed ? 'completed' : options.kept ? 'kept' : 'unknown'),
+        completed: options.completed === true,
+        kept: options.kept === true,
+        runtimeInfo,
+        licenseStatus,
+        settings,
+        clientUpdatedAt: endedAt,
+      }),
+    });
+
+    if (focusLedgerSessionRef.current?.localSessionId === sessionId) {
+      focusLedgerSessionRef.current = null;
+    }
+  }, [
+    closeFocusLedgerSegment,
+    enqueueFocusLedgerItems,
+    getElapsedSeconds,
+    licenseStatus,
+    mode,
+    runtimeInfo,
+    task,
+    taskPlan,
+  ]);
+
+  useEffect(() => {
+    focusInsightsSettingsRef.current = focusInsightsSettings;
+  }, [focusInsightsSettings]);
+
+  useEffect(() => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled) {
+      if (focusLedgerSessionRef.current?.currentSegment) {
+        closeFocusLedgerSegment(getElapsedSeconds());
+      }
+      focusLedgerSessionRef.current = null;
+      return;
+    }
+
+    if (!isRunning || !currentSessionId || !task.trim() || !licenseStatus?.installId) {
+      if (focusLedgerSessionRef.current?.currentSegment) {
+        closeFocusLedgerSegment(getElapsedSeconds());
+      }
+      return;
+    }
+
+    const elapsedSeconds = getElapsedSeconds();
+    const ledgerSession = beginFocusLedgerSession(currentSessionId, elapsedSeconds);
+    if (!ledgerSession) return;
+
+    const descriptor = getFocusLedgerDescriptor(task, taskPlan);
+    if (ledgerSession.currentSegment?.focusKey === descriptor.focusKey) return;
+
+    if (ledgerSession.currentSegment) {
+      closeFocusLedgerSegment(elapsedSeconds);
+    }
+    openFocusLedgerSegment(descriptor, elapsedSeconds);
+  }, [
+    beginFocusLedgerSession,
+    closeFocusLedgerSegment,
+    currentSessionId,
+    focusInsightsSettings,
+    getElapsedSeconds,
+    isRunning,
+    licenseStatus?.installId,
+    openFocusLedgerSegment,
+    task,
+    taskPlan,
+  ]);
+
+  const persistFocusInsightsSettings = useCallback(async (nextSettings) => {
+    const normalized = normalizeFocusInsightsSettings(nextSettings);
+    focusInsightsSettingsRef.current = normalized;
+    setFocusInsightsSettings(normalized);
+    await window.electronAPI.storeSet('focusInsightsSettings', normalized);
+    if (!normalized.enabled) {
+      if (focusLedgerSessionRef.current?.currentSegment) {
+        closeFocusLedgerSegment(getElapsedSeconds());
+      }
+      focusLedgerSessionRef.current = null;
+      await Promise.all([
+        window.electronAPI.storeSet?.('focusLedgerQueue', []),
+        persistFocusLedgerSyncState({ activeSession: null }),
+      ]);
+      return;
+    }
+    if (normalized.enabled) {
+      const latestSession = sessions.find((session) => session?.id && Number(session?.durationMinutes) > 0);
+      if (latestSession && licenseStatus?.installId) {
+        const activeSeconds = Math.max(0, Math.round(Number(latestSession.durationMinutes || 0) * 60));
+        const startedAt = latestSession.createdAt || new Date(Date.now() - activeSeconds * 1000).toISOString();
+        enqueueFocusLedgerItems({
+          id: `session:${latestSession.id}`,
+          type: 'session',
+          payload: makeSessionLedgerPayload({
+            localSessionId: latestSession.id,
+            taskText: latestSession.task || '',
+            taskPlan: latestSession.taskPlan,
+            mode: normalizeTimerMode(latestSession.mode),
+            startedAt,
+            endedAt: activeSeconds > 0 ? new Date(Date.parse(startedAt) + activeSeconds * 1000).toISOString() : startedAt,
+            activeSeconds,
+            wallClockSeconds: activeSeconds,
+            outcome: latestSession.completed ? 'completed' : (latestSession.kept ? 'saved_for_later' : 'unknown'),
+            completed: latestSession.completed === true,
+            kept: latestSession.kept === true,
+            precision: 'session_only_backfill',
+            runtimeInfo,
+            licenseStatus,
+            settings: normalized,
+          }),
+        });
+      }
+      void window.electronAPI.syncFocusLedgerQueue?.();
+    }
+  }, [closeFocusLedgerSegment, enqueueFocusLedgerItems, getElapsedSeconds, licenseStatus, persistFocusLedgerSyncState, runtimeInfo, sessions]);
+
+  useEffect(() => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled || settings.backfillCompletedAt || focusLedgerBackfillRunningRef.current) return;
+    if (!licenseStatus?.installId || !sessions.length) return;
+
+    focusLedgerBackfillRunningRef.current = true;
+    const backfillStartedAt = new Date().toISOString();
+    const items = sessions
+      .filter((session) => session?.id && Number(session?.durationMinutes) > 0)
+      .map((session) => {
+        const activeSeconds = Math.max(0, Math.round(Number(session.durationMinutes || 0) * 60));
+        const startedAt = session.createdAt || new Date(Date.now() - activeSeconds * 1000).toISOString();
+        const endedAt = activeSeconds > 0
+          ? new Date(Date.parse(startedAt) + activeSeconds * 1000).toISOString()
+          : startedAt;
+        return {
+          id: `session:${session.id}`,
+          type: 'session',
+          payload: makeSessionLedgerPayload({
+            localSessionId: session.id,
+            taskText: session.task || '',
+            taskPlan: session.taskPlan,
+            mode: normalizeTimerMode(session.mode),
+            startedAt,
+            endedAt,
+            activeSeconds,
+            wallClockSeconds: activeSeconds,
+            outcome: session.completed ? 'completed' : (session.kept ? 'saved_for_later' : 'unknown'),
+            completed: session.completed === true,
+            kept: session.kept === true,
+            precision: 'session_only_backfill',
+            runtimeInfo,
+            licenseStatus,
+            settings,
+            clientUpdatedAt: backfillStartedAt,
+          }),
+        };
+      });
+
+    if (items.length) {
+      enqueueFocusLedgerItems(items);
+    }
+
+    void persistFocusInsightsSettings({
+      ...settings,
+      backfillCompletedAt: backfillStartedAt,
+    }).finally(() => {
+      focusLedgerBackfillRunningRef.current = false;
+    });
+  }, [
+    enqueueFocusLedgerItems,
+    focusInsightsSettings,
+    licenseStatus,
+    persistFocusInsightsSettings,
+    runtimeInfo,
+    sessions,
+  ]);
 
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
@@ -1873,6 +2230,17 @@ export default function App() {
       }
 
       await loadSessions();
+      if (savedSessionId) {
+        finalizeFocusLedgerSession(savedSessionId, {
+          activeSeconds: Math.round(duration * 60),
+          completed,
+          kept: kept || false,
+          outcome: completed ? 'completed' : (kept ? 'saved_for_later' : 'discarded'),
+          taskText: task.trim(),
+          taskPlanSnapshot: sessionTaskPlan,
+          mode,
+        });
+      }
     } catch (error) {
       console.error('Error saving session:', error);
     }
@@ -1880,7 +2248,7 @@ export default function App() {
     sessionToSave.current = null;
     setCurrentSessionId(null);
     return savedSessionId;
-  }, [contextNotes, currentSessionId, loadSessions, mode, nextStepsNotes, task, taskPlan]);
+  }, [contextNotes, currentSessionId, finalizeFocusLedgerSession, loadSessions, mode, nextStepsNotes, task, taskPlan]);
 
   const checkpointActiveSession = useCallback(async (source = 'unknown') => {
     const trimmedTask = task.trim();
@@ -2611,6 +2979,11 @@ export default function App() {
         thoughtsLoadedRef.current = true;
 
         const settings = await window.electronAPI.storeGet('settings') || {};
+        const savedFocusInsightsSettings = normalizeFocusInsightsSettings(
+          await window.electronAPI.storeGet('focusInsightsSettings')
+        );
+        focusInsightsSettingsRef.current = savedFocusInsightsSettings;
+        setFocusInsightsSettings(savedFocusInsightsSettings);
         const savedResumePromptHistory = normalizeSavedResumePromptHistory(settings.systemEntryPromptedSavedResumeSignatures);
         promptedSavedResumeSignaturesRef.current = new Set(savedResumePromptHistory);
         if (
@@ -2675,9 +3048,10 @@ export default function App() {
 
         // Restore the persisted task/timer snapshot instead of wiping a live
         // session on renderer mount or reload.
-        const [savedCurrentTask, savedTimerState] = await Promise.all([
+        const [savedCurrentTask, savedTimerState, savedFocusLedgerSyncState] = await Promise.all([
           window.electronAPI.storeGet('currentTask'),
           window.electronAPI.storeGet('timerState'),
+          window.electronAPI.storeGet('focusLedgerSyncState'),
         ]);
 
         const restoredTaskText = typeof savedCurrentTask?.text === 'string' ? savedCurrentTask.text : '';
@@ -2740,6 +3114,35 @@ export default function App() {
         const restoredElapsedSeconds = isCountdownMode(restoredMode) && restoredInitialTime > 0
           ? Math.min(liveElapsedSeconds, restoredInitialTime)
           : liveElapsedSeconds;
+        const activeLedgerSession = savedFocusLedgerSyncState?.activeSession;
+        if (
+          savedFocusInsightsSettings.enabled
+          && activeLedgerSession?.localSessionId
+          && activeLedgerSession?.localSegmentId
+          && activeLedgerSession?.descriptor
+          && activeLedgerSession.localSessionId === restoredCurrentSessionId
+          && restoredElapsedSeconds > Number(activeLedgerSession.startElapsedSeconds)
+        ) {
+          const recoveredSettings = normalizeFocusInsightsSettings(activeLedgerSession.settings || savedFocusInsightsSettings);
+          const recoveredRuntimeInfo = activeLedgerSession.runtimeInfo || runtimeInfo || {};
+          const recoveredLicenseStatus = activeLedgerSession.licenseStatus || licenseStatus || {};
+          enqueueFocusLedgerItems({
+            id: `segment:${activeLedgerSession.localSegmentId}`,
+            type: 'segment',
+            payload: makeSegmentLedgerPayload({
+              localSegmentId: activeLedgerSession.localSegmentId,
+              localSessionId: activeLedgerSession.localSessionId,
+              descriptor: activeLedgerSession.descriptor,
+              startedAt: activeLedgerSession.startedAt || new Date(Date.now() - restoredElapsedSeconds * 1000).toISOString(),
+              endedAt: new Date().toISOString(),
+              activeSeconds: restoredElapsedSeconds - Number(activeLedgerSession.startElapsedSeconds),
+              runtimeInfo: recoveredRuntimeInfo,
+              licenseStatus: recoveredLicenseStatus,
+              settings: recoveredSettings,
+            }),
+          });
+          await persistFocusLedgerSyncState({ activeSession: null });
+        }
         const restoredDisplayTime = restoredBreakReady
           ? 0
           : restoredBreakActive
@@ -2815,7 +3218,7 @@ export default function App() {
         setShortcutsHydrated(true);
       }
     })();
-  }, [loadSessions, syncDoNotDisturb]);
+  }, [loadSessions, persistFocusLedgerSyncState, syncDoNotDisturb]);
 
   // DND — listen for tray toggle and sync state + persist
   useEffect(() => {
@@ -3499,17 +3902,34 @@ export default function App() {
     const sessionId = currentSessionId || await ensureCurrentSessionId('check-in log');
     if (!sessionId) return null;
     try {
-      return await window.electronAPI.checkInAdd?.({
+      const savedCheckIn = await window.electronAPI.checkInAdd?.({
         sessionId,
         taskText: task.trim(),
         elapsedMinutes: Number((elapsedSec / 60).toFixed(2)),
         status,
       });
+      const settings = focusInsightsSettingsRef.current;
+      if (settings.enabled && savedCheckIn) {
+        enqueueFocusLedgerItems({
+          id: `checkin:${savedCheckIn.id}`,
+          type: 'checkin',
+          payload: makeCheckInLedgerPayload({
+            checkIn: savedCheckIn,
+            taskText: task,
+            taskPlan: taskPlanRef.current,
+            elapsedSeconds: elapsedSec,
+            runtimeInfo,
+            licenseStatus,
+            settings,
+          }),
+        });
+      }
+      return savedCheckIn;
     } catch (error) {
       console.error('Failed to save check-in:', error);
       return null;
     }
-  }, [currentSessionId, task, ensureCurrentSessionId]);
+  }, [currentSessionId, enqueueFocusLedgerItems, ensureCurrentSessionId, licenseStatus, runtimeInfo, task]);
 
   const logMissedCheckInIfPrompting = useCallback((elapsedSec) => {
     if (checkInStateRef.current !== 'prompting') return false;
@@ -5885,6 +6305,12 @@ export default function App() {
 
   const handleRunningSubtaskToggle = useCallback((subtaskId, checked) => {
     const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
+    if (checked === true && basePlan.activeSubtaskId === subtaskId) {
+      closeFocusLedgerSegment(getElapsedSeconds(), {
+        completed: true,
+        endedAt: new Date().toISOString(),
+      });
+    }
     const nextPlan = toggleSubtask(basePlan, subtaskId, checked);
     taskPlanRef.current = nextPlan;
     setTaskPlan(nextPlan);
@@ -5896,7 +6322,7 @@ export default function App() {
         console.error('Failed to persist subtask completion:', error);
       });
     }
-  }, [currentSessionId, loadSessions, task]);
+  }, [closeFocusLedgerSegment, currentSessionId, getElapsedSeconds, loadSessions, task]);
 
   const handleRunningSubtaskFocus = useCallback((subtaskId) => {
     const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
@@ -9733,6 +10159,9 @@ export default function App() {
             timedPercents: TIMED_CHECKIN_PERCENTS,
           }));
         }}
+        focusInsightsSettings={focusInsightsSettings}
+        focusInsightSummary={focusInsightSummary}
+        onFocusInsightsSettingsChange={persistFocusInsightsSettings}
         updateState={updateState}
         onCheckForUpdates={handleCheckForUpdates}
         onInstallUpdate={handleInstallUpdate}

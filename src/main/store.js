@@ -95,6 +95,40 @@ const schema = {
     type: 'array',
     default: [],
   },
+  focusLedgerQueue: {
+    type: 'array',
+    default: [],
+  },
+  focusInsightsSettings: {
+    type: 'object',
+    properties: {
+      enabled: { type: 'boolean', default: false },
+      includeTaskTitles: { type: 'boolean', default: false },
+      weeklyEmails: { type: 'boolean', default: true },
+      milestoneEmails: { type: 'boolean', default: true },
+      backfillCompletedAt: { type: ['string', 'null'], default: null },
+    },
+    default: {
+      enabled: false,
+      includeTaskTitles: false,
+      weeklyEmails: true,
+      milestoneEmails: true,
+      backfillCompletedAt: null,
+    },
+  },
+  focusLedgerSyncState: {
+    type: 'object',
+    properties: {
+      lastSyncAt: { type: ['string', 'null'], default: null },
+      lastError: { type: ['string', 'null'], default: null },
+      activeSession: { type: ['object', 'null'], default: null },
+    },
+    default: {
+      lastSyncAt: null,
+      lastError: null,
+      activeSession: null,
+    },
+  },
   userEmail: {
     type: 'string',
     default: '',

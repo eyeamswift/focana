@@ -13,6 +13,7 @@ const {
 const { createTray, popupCompactContextMenu, popupFloatingContextMenu, popupMainContextMenu, refreshTrayMenu, setDndState } = require('./tray');
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 const { createFeedbackSyncService } = require('./feedbackSync');
+const { createFocusLedgerSyncService } = require('./focusLedgerSync');
 const { createLicenseService } = require('./licenseService');
 const { createUpdaterService } = require('./updater');
 
@@ -56,6 +57,7 @@ let dndExpiryTimer = null;
 const updater = createUpdaterService({ app, Notification });
 const licenseService = createLicenseService({ app, store });
 const feedbackSyncService = createFeedbackSyncService({ store });
+const focusLedgerSyncService = createFocusLedgerSyncService({ store });
 const RENDERER_DIST_DIR = path.join(__dirname, '../../dist/renderer');
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -180,6 +182,9 @@ const ALLOWED_STORE_KEYS = new Set([
   'thoughts',
   'sessions',
   'feedbackQueue',
+  'focusLedgerQueue',
+  'focusInsightsSettings',
+  'focusLedgerSyncState',
   'userEmail',
   'preferredName',
   'emailPromptSkipped',
@@ -786,8 +791,27 @@ function sanitizeStoreValue(key, value) {
     case 'thoughts':
     case 'sessions':
     case 'feedbackQueue':
+    case 'focusLedgerQueue':
       if (!Array.isArray(value)) throw new Error(`${key} must be an array`);
       return value;
+    case 'focusInsightsSettings':
+      if (!ensurePlainObject(value)) throw new Error('focusInsightsSettings must be an object');
+      return {
+        enabled: Boolean(value.enabled),
+        includeTaskTitles: Boolean(value.includeTaskTitles),
+        weeklyEmails: value.weeklyEmails !== false,
+        milestoneEmails: value.milestoneEmails !== false,
+        backfillCompletedAt: sanitizeOptionalIsoTimestamp(value.backfillCompletedAt),
+      };
+    case 'focusLedgerSyncState':
+      if (!ensurePlainObject(value)) throw new Error('focusLedgerSyncState must be an object');
+      return {
+        lastSyncAt: sanitizeOptionalIsoTimestamp(value.lastSyncAt),
+        lastError: typeof value.lastError === 'string' && value.lastError.trim()
+          ? value.lastError.trim().slice(0, 400)
+          : null,
+        activeSession: ensurePlainObject(value.activeSession) ? value.activeSession : null,
+      };
     case 'userEmail':
       if (typeof value !== 'string') throw new Error('userEmail must be a string');
       return value.trim().slice(0, 320);
@@ -2147,6 +2171,7 @@ function createWindow() {
     }
     if (hiddenRendererPriming) {
       feedbackSyncService.requestSync('main-window-show');
+      focusLedgerSyncService.requestSync('main-window-show');
       return;
     }
     if (isFloatingMinimized) {
@@ -2156,10 +2181,12 @@ function createWindow() {
       }
     }
     feedbackSyncService.requestSync('main-window-show');
+    focusLedgerSyncService.requestSync('main-window-show');
   });
 
   mainWindow.on('focus', () => {
     feedbackSyncService.requestSync('main-window-focus');
+    focusLedgerSyncService.requestSync('main-window-focus');
   });
 
   mainWindow.on('minimize', (event) => {
@@ -2313,6 +2340,14 @@ ipcMain.handle('feedback:enqueue', (_event, item) => {
 
 ipcMain.handle('feedback:sync', () => {
   return feedbackSyncService.syncNow({ reason: 'renderer-request' });
+});
+
+ipcMain.handle('focus-ledger:enqueue', (_event, items) => {
+  return focusLedgerSyncService.enqueueItems(items, 'renderer-enqueue');
+});
+
+ipcMain.handle('focus-ledger:sync', () => {
+  return focusLedgerSyncService.syncNow({ reason: 'renderer-request' });
 });
 
 ipcMain.on('minimize-to-tray', () => {
@@ -2918,12 +2953,14 @@ app.whenReady().then(() => {
   }
   updater.start();
   feedbackSyncService.start();
+  focusLedgerSyncService.start();
 });
 
 app.on('window-all-closed', () => {
   stopRendererServer();
   updater.stop();
   feedbackSyncService.stop();
+  focusLedgerSyncService.stop();
   clearDndExpiryTimer();
   unregisterAll();
   app.quit();
@@ -2948,6 +2985,7 @@ app.on('will-quit', () => {
   checkpointActiveSessionInStore({ pauseTimer: true });
   updater.stop();
   feedbackSyncService.stop();
+  focusLedgerSyncService.stop();
   stopAlwaysOnTopReassert();
   clearDndExpiryTimer();
   unregisterAll();
@@ -2955,6 +2993,7 @@ app.on('will-quit', () => {
 
 app.on('activate', () => {
   feedbackSyncService.requestSync('app-activate');
+  focusLedgerSyncService.requestSync('app-activate');
   if (mainWindow === null) {
     createWindow();
     return;
