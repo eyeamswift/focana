@@ -948,6 +948,148 @@ test('settings can update the preferred name and persist it', async () => {
   }
 });
 
+test('settings persist Focus Insights opt-in and privacy toggles', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      focusInsightsSettings: {
+        enabled: false,
+        includeTaskTitles: false,
+        weeklyEmails: true,
+        milestoneEmails: true,
+        backfillCompletedAt: null,
+      },
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await expect(page.getByRole('heading', { name: 'Focus Insights' })).toBeVisible();
+    await expect(page.getByText('Total time')).toBeVisible();
+    await expect(page.getByText('0m')).toBeVisible();
+
+    const focusInsightsSwitch = page
+      .getByText('Focus insights and weekly roadmap')
+      .locator('..')
+      .locator('..')
+      .getByRole('switch');
+    const includeTaskNamesSwitch = page
+      .getByText('Include task names')
+      .locator('..')
+      .locator('..')
+      .getByRole('switch');
+    const weeklyEmailsSwitch = page
+      .getByText('Weekly roadmap emails')
+      .locator('..')
+      .getByRole('switch');
+
+    await expect(focusInsightsSwitch).toHaveAttribute('aria-checked', 'false');
+    await expect(includeTaskNamesSwitch).toBeDisabled();
+    await expect(weeklyEmailsSwitch).toBeDisabled();
+
+    await focusInsightsSwitch.click();
+    await expect(includeTaskNamesSwitch).toBeEnabled();
+    await includeTaskNamesSwitch.click();
+    await weeklyEmailsSwitch.click();
+    await page.getByRole('button', { name: 'Save Settings' }).first().click();
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const settings = await window.electronAPI.storeGet('focusInsightsSettings');
+      return [
+        settings?.enabled,
+        settings?.includeTaskTitles,
+        settings?.weeklyEmails,
+        settings?.milestoneEmails,
+      ].join(':');
+    })).toBe('true:true:false:true');
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    const savedFocusInsightsSwitch = page
+      .getByText('Focus insights and weekly roadmap')
+      .locator('..')
+      .locator('..')
+      .getByRole('switch');
+    const savedIncludeTaskNamesSwitch = page
+      .getByText('Include task names')
+      .locator('..')
+      .locator('..')
+      .getByRole('switch');
+    const savedWeeklyEmailsSwitch = page
+      .getByText('Weekly roadmap emails')
+      .locator('..')
+      .getByRole('switch');
+
+    await expect(savedFocusInsightsSwitch).toHaveAttribute('aria-checked', 'true');
+    await expect(savedIncludeTaskNamesSwitch).toHaveAttribute('aria-checked', 'true');
+    await expect(savedWeeklyEmailsSwitch).toHaveAttribute('aria-checked', 'false');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('settings keep Focus Insights off and clear pending focus ledger data', async () => {
+  const { page, cleanup } = await launchApp({
+    seedConfig: {
+      focusInsightsSettings: {
+        enabled: false,
+        includeTaskTitles: false,
+        weeklyEmails: true,
+        milestoneEmails: true,
+        backfillCompletedAt: null,
+      },
+      focusLedgerQueue: [
+        {
+          id: 'session:stale-session',
+          type: 'session',
+          payload: { localSessionId: 'stale-session' },
+          syncStatus: 'failed',
+        },
+      ],
+      focusLedgerSyncState: {
+        lastSyncAt: '2026-07-07T10:00:00.000Z',
+        lastError: 'Previous sync failed.',
+        activeSession: {
+          localSessionId: 'stale-session',
+          localSegmentId: 'stale-session:segment:1',
+          descriptor: { focusType: 'main_task', focusKey: 'main:stale-session' },
+          startedAt: '2026-07-07T09:55:00.000Z',
+          startElapsedSeconds: 0,
+        },
+      },
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    const focusInsightsSwitch = page
+      .getByText('Focus insights and weekly roadmap')
+      .locator('..')
+      .locator('..')
+      .getByRole('switch');
+    await expect(focusInsightsSwitch).toHaveAttribute('aria-checked', 'false');
+
+    await page.getByRole('button', { name: 'Save Settings' }).first().click();
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const [settings, queue, syncState] = await Promise.all([
+        window.electronAPI.storeGet('focusInsightsSettings'),
+        window.electronAPI.storeGet('focusLedgerQueue'),
+        window.electronAPI.storeGet('focusLedgerSyncState'),
+      ]);
+      return JSON.stringify({
+        enabled: settings?.enabled,
+        queueLength: Array.isArray(queue) ? queue.length : -1,
+        activeSession: syncState?.activeSession || null,
+      });
+    })).toBe(JSON.stringify({
+      enabled: false,
+      queueLength: 0,
+      activeSession: null,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('theme is restored from electron-store and tray theme changes persist back to the store', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     seedConfig: {
