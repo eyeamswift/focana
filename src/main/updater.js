@@ -109,6 +109,10 @@ function getUserFacingUpdateError(error) {
     return 'Could not find a published update on GitHub.';
   }
 
+  if (code === 'ENOTFOUND' || code === 'ECONNRESET' || code === 'ETIMEDOUT' || message.includes('net::')) {
+    return 'Could not reach GitHub to check for updates.';
+  }
+
   return 'Could not check for updates.';
 }
 
@@ -220,6 +224,11 @@ function createUpdaterService({ app, Notification }) {
       .then(() => updater.checkForUpdates())
       .then(() => getState())
       .catch((error) => {
+        console.error('Update check failed:', error);
+        if (currentState.status === 'downloaded') {
+          return getState();
+        }
+
         if (userInitiated) {
           setState({
             status: 'error',
@@ -335,6 +344,11 @@ function createUpdaterService({ app, Notification }) {
     });
 
     updater.on('error', (error) => {
+      console.error('Updater error:', error);
+      if (currentState.status === 'downloaded') {
+        return;
+      }
+
       const userInitiated = currentState.lastCheckSource === 'manual';
       if (userInitiated) {
         setState({

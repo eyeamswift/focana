@@ -505,9 +505,7 @@ export default function SettingsModal({
 
   const updateStatusSummary = getUpdateStatusSummary(updateState);
   const currentVersionLabel = updateState?.currentVersion || 'Unknown';
-  const updateChannelLabel = updateState?.channel && updateState.channel !== 'latest'
-    ? `${updateState.channel} release`
-    : 'latest release';
+  const updateChannelLabel = updateState?.channel || 'latest';
   const lastCheckedLabel = formatUpdateTimestamp(updateState?.lastCheckedAt);
   const updateActionDisabled = !updateState?.supported || ['checking', 'downloading', 'downloaded', 'installing'].includes(updateState?.status);
   const licenseEnabled = runtimeInfo?.licenseEnforced === true;
@@ -565,7 +563,7 @@ export default function SettingsModal({
                   <div>
                     <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Updates</h4>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.8, marginTop: '0.125rem' }}>
-                      Current version {currentVersionLabel} on the {updateChannelLabel}.
+                      Current version {currentVersionLabel}. Update channel: {updateChannelLabel}.
                     </p>
                   </div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>

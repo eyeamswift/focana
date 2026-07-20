@@ -2098,10 +2098,12 @@ export default function App() {
 
     const resumeCandidate = reentryResumeCandidateRef.current || latestSystemEntryResumeCandidateRef.current;
     const savedResumeSignature = getSavedResumePromptSignature(resumeCandidate);
+    const isWakeSource = normalizedSource === 'wake-resume' || normalizedSource === 'wake-login';
     const shouldPromptResume = Boolean(
       resumeCandidate?.taskText
       && (
-        !savedResumeSignature
+        isWakeSource
+        || !savedResumeSignature
         || !promptedSavedResumeSignaturesRef.current.has(savedResumeSignature)
       ),
     );

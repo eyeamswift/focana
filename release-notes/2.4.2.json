@@ -1,0 +1,11 @@
+{
+  "version": "2.4.2",
+  "publishedAt": "2026-07-20",
+  "summary": "Focana 2.4.2 keeps wake-up resume prompts and update Settings in sync with what the app already knows.",
+  "improvements": [],
+  "fixes": [
+    "Wake and login resume prompts now keep showing Ready to resume when saved work is available, instead of falling back to What's next on repeated wake.",
+    "Settings now keeps a downloaded update in the ready-to-install state even if a later update check reports an error.",
+    "Settings update copy now labels the update channel clearly instead of making the current version sound like the newest published release."
+  ]
+}

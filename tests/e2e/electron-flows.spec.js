@@ -1031,7 +1031,7 @@ test('settings surfaces mocked update availability and install action', async ()
 
     await page.getByRole('button', { name: 'Open Settings' }).click();
 
-    await expect(page.getByText(`Current version ${APP_VERSION} on the latest release.`)).toBeVisible();
+    await expect(page.getByText(`Current version ${APP_VERSION}. Update channel: latest.`)).toBeVisible();
     await expect(page.getByText('Focana 1.2.1 is ready to install.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Restart to Update' }).last().click();
@@ -1465,6 +1465,7 @@ test('wake plus resume with an interrupted active session floats first, then ope
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
     await expect(page.getByText('wake-resume-active-session')).toBeVisible();
   } finally {
     await cleanup();
@@ -1548,7 +1549,7 @@ test('wake resume start-new keeps the save-for-later draft stable through the re
   }
 });
 
-test('wake plus resume with a saved resumable task floats first, then opens Ready to resume', async () => {
+test('wake plus resume with a saved resumable task keeps Ready to resume on repeated wake', async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: true,
     waitForTaskInput: false,
@@ -1600,6 +1601,7 @@ test('wake plus resume with a saved resumable task floats first, then opens Read
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
     await expect(page.getByText('wake-resume-saved-task')).toBeVisible();
     await expect.poll(async () => page.evaluate(async () => {
       const settings = await window.electronAPI.storeGet('settings');
@@ -1618,8 +1620,9 @@ test('wake plus resume with a saved resumable task floats first, then opens Read
 
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
-    await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
+    await expect(page.getByText('wake-resume-saved-task')).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -1651,6 +1654,7 @@ test('wake plus login with an interrupted active session floats first, then open
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
     await expect(page.getByText('wake-active-session')).toBeVisible();
   } finally {
     await cleanup();
@@ -1710,6 +1714,7 @@ test('wake plus login with a saved resumable task floats first, then opens Ready
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: true, floatingVisible: false }));
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "What's next?" })).toHaveCount(0);
     await expect(page.getByText('wake-saved-resume')).toBeVisible();
   } finally {
     await cleanup();

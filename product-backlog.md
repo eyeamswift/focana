@@ -31,6 +31,11 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - **P1 — recovery simplification:** `UX-026` (the visible saved-work surface is To-Do; completed/discarded session records are tucked behind recovery)
 - Guardrails: keep break-taking optional and skippable, do not force shamey acknowledgements, keep historical records recoverable without making the first view feel like a log file.
 
+### 2.4.2 — Hotfix: "Wake resume and update readiness"
+- **P0 — wake trust:** keep wake/login prompts on `Ready to resume` when resumable work exists, including repeated wake after snooze.
+- **P0 — update trust:** preserve the downloaded update state in Settings when the OS notification has already announced an update, and clarify that `latest` is the update channel rather than proof the installed version is current.
+- Guardrails: no new feature scope; this is a trust hotfix for already-shipped wake and updater surfaces.
+
 ### GTM Track — after 2.4.0 ships
 - **Next GTM build:** `MKT-006` (creator promo-code + affiliate attribution). Explicitly excluded from 2.4.0; finish after the task-initiation release is shipped and the creator-code model is decided.
 
@@ -38,6 +43,7 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - **P1:** `RWD-001` (per-subtask reinforcement — consistent, earned, never variable-ratio)
 - **P2:** `EMO-001` (emotional off-ramp — available, never auto-triggered)
 - **Lightest:** `UX-022` (transition/disengagement beat — check overlap with shipped Session Wrap first)
+- **Data invariant:** weekly insights / Focus Ledger reads from the full local `sessions` archive, not the visible To-Do filter. Completed and discarded sessions remain eligible for insights unless the user explicitly deletes them; delete copy should make that consequence clear before removal.
 
 ### 2.6.0 — "Project memory without project management"
 - **P1:** `TASK-003` (project task queue — add future to-dos to a project, then choose where to start next time)
@@ -586,7 +592,7 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - Why it matters: The full session log is a recovery tool, not something most users need in their face. The visible surface should help people pick work back up quickly without asking them to scan completed/discarded history.
 - Files: `src/renderer/components/HistoryModal.jsx`, `src/renderer/components/ReentryPrompt.jsx`, `src/renderer/components/SettingsModal.jsx`, `src/renderer/App.jsx`, `src/main/floating-icon.html`, `src/main/tray.js`, `tests/e2e/electron-flows.spec.js`
 - Related: `UX-003`, `INIT-003`, `TASK-003`
-- Notes: User-facing access is now labeled `To-Do` and defaults to saved resumable work. The completed/discarded log remains available through `Session records`, preserving restore/delete recovery without making the first modal view feel like a bulky audit trail. Re-entry prompts and the tray label use the same To-Do language.
+- Notes: User-facing access is now labeled `To-Do` and defaults to saved resumable work. The completed/discarded log remains available through `Session records`, preserving restore/delete recovery without making the first modal view feel like a bulky audit trail. Re-entry prompts and the tray label use the same To-Do language. This is a presentation change only: completed and discarded sessions stay in the local `sessions` archive for recovery and future weekly insights unless the user explicitly deletes them.
 - Commits: —
 
 ### LIC-002 — Focana should offer a 7-day free trial before $79 lifetime or $10/month
