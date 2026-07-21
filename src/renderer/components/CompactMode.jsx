@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowUpRight, Play, Pause, Check, ClipboardList, BellOff, Info, ListPlus } from 'lucide-react';
+import { ArrowUpRight, ChevronUp, Play, Pause, Check, ClipboardList, BellOff, Info, ListPlus } from 'lucide-react';
 import { formatTime } from '../utils/time';
 import { Checkbox } from './ui/Checkbox';
 import ReentryPrompt from './ReentryPrompt';
@@ -19,7 +19,7 @@ const TASK_DOCK_GAP = 8;
 const TASK_MIN_W = 64;
 const TASK_MAX_W = 220; // max task width before wrapping
 const PLAN_PREVIEW_W = 360;
-const PLAN_PREVIEW_H = 320;
+const PLAN_PREVIEW_H = 380;
 const PLAN_PREVIEW_LIMIT = 3;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
@@ -757,6 +757,21 @@ export default function CompactMode({
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
+          <div className="pill-task-plan-preview__topbar">
+            <span className="pill-task-plan-preview__heading">Tasks</span>
+            <button
+              type="button"
+              className="pill-task-plan-preview__collapse"
+              onClick={(event) => {
+                event.stopPropagation();
+                hidePlanPreview();
+              }}
+              aria-label="Hide tasks"
+              title="Hide tasks"
+            >
+              <ChevronUp size={14} aria-hidden="true" />
+            </button>
+          </div>
           <div className={`pill-task-plan-preview__content${planPreviewCanExpand ? ' is-scrollable' : ''}${planPreviewCanExpand && planPreviewExpanded ? ' is-expanded' : ''}`}>
             {visiblePreviewSubtasks.length ? (
               <section className="pill-task-plan-preview__section" aria-label="Subtasks">

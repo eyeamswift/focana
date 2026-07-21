@@ -1045,6 +1045,44 @@ test('settings surfaces mocked update availability and install action', async ()
   }
 });
 
+test('downloaded update state survives a late updater error', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_E2E_UPDATER_SCENARIO: 'available-then-error',
+      FOCANA_E2E_UPDATER_VERSION: '1.2.2',
+    },
+  });
+
+  try {
+    await expect(page.getByText('Update Ready')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await expect(page.getByText('Focana 1.2.2 is ready to install.')).toBeVisible();
+    await expect(page.getByRole('tabpanel').getByRole('button', { name: 'Restart to Update' })).toBeVisible();
+    await expect(page.getByText('Could not check for updates.')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('settings explains when Focana is launched from a mounted DMG', async () => {
+  const { page, cleanup } = await launchApp({
+    extraEnv: {
+      FOCANA_E2E_APP_PATH: '/Volumes/Focana 2.4.3/Focana.app/Contents/MacOS/Focana',
+      FOCANA_E2E_UPDATER_SCENARIO: 'available',
+    },
+  });
+
+  try {
+    await page.getByRole('button', { name: 'Open Settings' }).click();
+    await expect(page.getByText('Move Focana to Applications before updating.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Check for Updates' })).toBeDisabled();
+    await expect(page.getByText('Update Ready')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('manual update check reports when the app is already current', async () => {
   const { page, cleanup } = await launchApp({
     extraEnv: {
@@ -3924,11 +3962,17 @@ test('session builder captures subtasks and hands off to the next top-level task
     await expect(page.getByTestId('session-builder-quick-start')).toBeVisible();
     await expect(page.getByTestId('session-builder-add-subtask')).toBeVisible();
     await expect(page.getByTestId('draft-task-next')).toBeVisible();
+    await expect(page.getByTestId('draft-task-next')).toHaveText('Choose time');
     await expect(page.getByText('Next-up tasks')).toBeVisible();
     await expect.poll(async () => {
       const quickStartBox = await page.getByTestId('session-builder-quick-start').boundingBox();
-      const addSubtaskBox = await page.getByTestId('session-builder-add-subtask').boundingBox();
-      return Boolean(quickStartBox && addSubtaskBox && quickStartBox.x < addSubtaskBox.x);
+      const chooseTimeBox = await page.getByTestId('draft-task-next').boundingBox();
+      return Boolean(
+        quickStartBox
+        && chooseTimeBox
+        && quickStartBox.x < chooseTimeBox.x
+        && Math.abs(quickStartBox.y - chooseTimeBox.y) <= 6,
+      );
     }).toBe(true);
 
     await page.getByTestId('session-builder-add-subtask').click();
@@ -3941,6 +3985,13 @@ test('session builder captures subtasks and hands off to the next top-level task
     await expect(page.getByTestId('session-builder-subtask-input')).toHaveCount(2);
     await expect(page.getByTestId('session-builder-next-input')).toHaveCount(1);
 
+    await page.getByTestId('draft-task-next').click();
+    await expect(page.locator('.start-chooser')).toBeVisible();
+    await expect(page.getByTestId('start-chooser-back')).toBeVisible();
+    await expect(page.getByTestId('session-builder-add-subtask')).toHaveCount(0);
+    await page.getByTestId('start-chooser-back').click();
+    await expect(page.getByTestId('session-builder')).toBeVisible();
+    await expect(page.locator('.start-chooser')).toHaveCount(0);
     await page.getByTestId('draft-task-next').click();
     await page.getByRole('button', { name: 'Freeflow' }).click();
     await expect.poll(() => readWindowMode(page)).toBe('pill');
@@ -4016,6 +4067,42 @@ test('session builder captures subtasks and hands off to the next top-level task
       const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
       return Boolean(timerState?.isRunning);
     }).toBe(false);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('session builder quick start begins freeflow from the planning page', async () => {
+  const { page, cleanup } = await launchApp({ background: false });
+
+  try {
+    await setTaskComposerValue(page, 'Quick start planned task');
+    await page.getByTestId('session-builder-add-subtask').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Small first step');
+
+    await page.getByTestId('session-builder-quick-start').click();
+    await expect(page.locator('.start-chooser')).toHaveCount(0);
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await expect.poll(async () => {
+      const [currentTask, timerState] = await Promise.all([
+        page.evaluate(() => window.electronAPI.storeGet('currentTask')),
+        page.evaluate(() => window.electronAPI.storeGet('timerState')),
+      ]);
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      return JSON.stringify({
+        task: currentTask?.text || '',
+        mode: timerState?.mode || '',
+        isRunning: Boolean(timerState?.isRunning),
+        subtask: active?.subtasks?.[0]?.title || '',
+      });
+    }).toBe(JSON.stringify({
+      task: 'Quick start planned task',
+      mode: 'freeflow',
+      isRunning: true,
+      subtask: 'Small first step',
+    }));
   } finally {
     await cleanup();
   }
@@ -4118,6 +4205,20 @@ test('session builder compact preview reveals current plan detail', async () => 
     await page.mouse.up();
     await page.waitForTimeout(150);
 
+    await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
+    const previewBox = await page.getByTestId('compact-task-plan-preview').boundingBox();
+    const viewport = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
+    expect(previewBox).toBeTruthy();
+    expect(viewport).toBeTruthy();
+    expect(previewBox.x).toBeLessThanOrEqual(8);
+    expect(viewport.width - previewBox.x - previewBox.width).toBeLessThanOrEqual(8);
+    await expect(page.getByRole('button', { name: 'Hide tasks' })).toBeVisible();
+    await page.getByRole('button', { name: 'Hide tasks' }).click();
+    await expect(page.getByTestId('compact-task-plan-preview')).toHaveCount(0);
+    await taskButton.click();
     await expect(page.getByTestId('compact-task-plan-preview')).toBeVisible();
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Draft opener');
     await expect(page.getByTestId('compact-task-plan-preview')).toContainText('Next up');

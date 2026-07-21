@@ -1,4 +1,5 @@
 const { EventEmitter } = require('events');
+const path = require('path');
 
 function getUpdateChannel(version) {
   void version;
@@ -44,6 +45,31 @@ function buildUpdateSnapshot(version, supported) {
   };
 }
 
+function getRuntimeAppPath(app) {
+  if (typeof process.env.FOCANA_E2E_APP_PATH === 'string' && process.env.FOCANA_E2E_APP_PATH.trim()) {
+    return process.env.FOCANA_E2E_APP_PATH.trim();
+  }
+
+  try {
+    if (app && typeof app.getPath === 'function') {
+      const exePath = app.getPath('exe');
+      if (typeof exePath === 'string' && exePath.trim()) {
+        return exePath;
+      }
+    }
+  } catch (error) {
+    // Fall back to process.execPath below.
+  }
+
+  return typeof process.execPath === 'string' ? process.execPath : '';
+}
+
+function isMacAppRunningFromMountedVolume(app) {
+  if (process.platform !== 'darwin') return false;
+  const appPath = path.normalize(getRuntimeAppPath(app));
+  return /^\/Volumes\/[^/]+\/.+\.app(?:\/|$)/.test(appPath);
+}
+
 function buildUpdateInfo(version) {
   return {
     version,
@@ -72,7 +98,7 @@ class MockUpdater extends EventEmitter {
       throw error;
     }
 
-    if (this.scenario === 'available') {
+    if (this.scenario === 'available' || this.scenario === 'available-then-error') {
       const updateInfo = buildUpdateInfo(this.version);
       this.emit('update-available', updateInfo);
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -84,6 +110,11 @@ class MockUpdater extends EventEmitter {
       });
       await new Promise((resolve) => setTimeout(resolve, 20));
       this.emit('update-downloaded', updateInfo);
+      if (this.scenario === 'available-then-error') {
+        const error = new Error('Mock updater failed after download');
+        this.emit('error', error);
+        throw error;
+      }
       return { updateInfo };
     }
 
@@ -119,14 +150,17 @@ function getUserFacingUpdateError(error) {
 function createUpdaterService({ app, Notification }) {
   const appVersion = app.getVersion();
   const mockScenario = process.env.FOCANA_E2E_UPDATER_SCENARIO || '';
-  const supported = Boolean(mockScenario) || app.isPackaged;
+  const runningFromMountedVolume = isMacAppRunningFromMountedVolume(app);
+  const supported = (Boolean(mockScenario) || app.isPackaged) && !runningFromMountedVolume;
   const notificationsEnabled = process.env.FOCANA_E2E !== '1';
   const snapshot = buildUpdateSnapshot(appVersion, supported);
   let currentState = supported
     ? snapshot
     : {
         ...snapshot,
-        error: 'Auto-updates are only available in packaged builds.',
+        error: runningFromMountedVolume
+          ? 'Move Focana to Applications before updating.'
+          : 'Auto-updates are only available in packaged builds.',
       };
   let mainWindow = null;
   let startupCheckTimer = null;
@@ -284,6 +318,10 @@ function createUpdaterService({ app, Notification }) {
     updater.allowPrerelease = false;
 
     updater.on('checking-for-update', () => {
+      if (currentState.status === 'downloaded') {
+        return;
+      }
+
       setState({
         status: 'checking',
         error: null,
@@ -291,6 +329,10 @@ function createUpdaterService({ app, Notification }) {
     });
 
     updater.on('update-available', (info) => {
+      if (currentState.status === 'downloaded') {
+        return;
+      }
+
       setState({
         status: 'downloading',
         availableVersion: info?.version || null,
@@ -304,6 +346,10 @@ function createUpdaterService({ app, Notification }) {
     });
 
     updater.on('download-progress', (progress) => {
+      if (currentState.status === 'downloaded') {
+        return;
+      }
+
       const nextPercent = Number.isFinite(progress?.percent)
         ? Math.max(0, Math.min(100, Math.round(progress.percent)))
         : currentState.downloadPercent;
@@ -331,6 +377,10 @@ function createUpdaterService({ app, Notification }) {
     });
 
     updater.on('update-not-available', () => {
+      if (currentState.status === 'downloaded') {
+        return;
+      }
+
       setState({
         status: 'idle',
         availableVersion: null,
@@ -386,4 +436,5 @@ function createUpdaterService({ app, Notification }) {
 module.exports = {
   createUpdaterService,
   getUpdateChannel,
+  isMacAppRunningFromMountedVolume,
 };

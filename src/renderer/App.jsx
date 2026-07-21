@@ -3,7 +3,7 @@ import { Button } from './components/ui/Button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './components/ui/Dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import {
-  X, Play, Pause, RotateCcw, Minimize2,
+  X, Play, Pause, RotateCcw, Minimize2, ChevronLeft,
   Settings, ClipboardList, Sun, Moon, Check, Undo2, BellOff, Pin,
 } from 'lucide-react';
 import posthog from 'posthog-js';
@@ -105,7 +105,7 @@ const WINDOW_SIZES = {
   startupActivationHeight: 460,
   startupUpgradeHeight: 620,
   startChooserHeight: 176,
-  pomodoroStartChooserHeight: 250,
+  pomodoroStartChooserHeight: 300,
   timerHeight: 108,
   timerAddTimeHeight: 260,
   timerPomodoroBreakHeight: 360,
@@ -9275,7 +9275,7 @@ export default function App() {
                     checkInCelebrationType={checkInCelebrationType}
                     reentryPromptActive={showReentryTaskHint}
                     reentryStrongActive={reentryStrongActive}
-                    footer={showDraftTaskPlanBuilder ? ({ submitTask }) => (
+                    footer={showDraftTaskPlanBuilder ? () => (
                       <SessionBuilderComposer
                         taskPlan={draftTaskPlan}
                         primaryTask={task}
@@ -9284,7 +9284,6 @@ export default function App() {
                         testId="session-builder-subtasks"
                         onTaskPlanChange={handleTaskPlanChange}
                         onLayoutChange={resyncFullWindowSize}
-                        onQuickStart={submitTask}
                       />
                     ) : null}
                     onFocus={() => setIsNoteFocused(true)}
@@ -9308,11 +9307,21 @@ export default function App() {
                     <div className="draft-task-builder__actions">
                       <Button
                         type="button"
+                        className="draft-task-builder__quick-start-btn"
+                        onClick={() => { void handleStartSession('freeflow', 0); }}
+                        data-testid="session-builder-quick-start"
+                      >
+                        <Play size={16} aria-hidden="true" />
+                        Quick start
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
                         className="draft-task-builder__next-btn"
                         onClick={() => handleTaskSubmit(task)}
                         data-testid="draft-task-next"
                       >
-                        Next
+                        Choose time
                       </Button>
                     </div>
                   ) : null}
@@ -9321,6 +9330,18 @@ export default function App() {
 
               {isStartModalOpen && !showPostSessionPrompt && (
                 <div className="start-chooser">
+                  <div className="start-chooser__header">
+                    <button
+                      type="button"
+                      className="start-chooser__back"
+                      onClick={() => setIsStartModalOpen(false)}
+                      data-testid="start-chooser-back"
+                    >
+                      <ChevronLeft size={16} aria-hidden="true" />
+                      Back
+                    </button>
+                    <span className="start-chooser__title">Choose time</span>
+                  </div>
                   <div className="start-chooser__row">
                     <div className="start-chooser__timer">
                       <span className="start-chooser__label">Timer</span>
@@ -9414,14 +9435,6 @@ export default function App() {
                       </Button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setIsStartModalOpen(false)}
-                    tabIndex={-1}
-                    className="start-chooser__cancel"
-                    aria-label="Cancel"
-                  >
-                    <X style={{ width: 14, height: 14 }} />
-                  </button>
                 </div>
               )}
             </div>

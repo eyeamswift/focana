@@ -36,6 +36,12 @@ Attacks the highest-friction ADHD executive-function domain and the one the copi
 - **P0 — update trust:** preserve the downloaded update state in Settings when the OS notification has already announced an update, and clarify that `latest` is the update channel rather than proof the installed version is current.
 - Guardrails: no new feature scope; this is a trust hotfix for already-shipped wake and updater surfaces.
 
+### 2.4.3 — Patch: "Update trust and cleaner planned starts"
+- **P0 — update trust:** keep ready-to-install updates visible even if a late updater event reports an error, and show clear install-location copy when Focana is launched from a mounted DMG instead of Applications.
+- **P1 — planned start flow:** split session planning from time selection so the first screen focuses on subtasks, next-up tasks, and Quick start, while the second screen handles timed, Freeflow, and Pomodoro choices.
+- **P1 — compact preview polish:** let the running task preview sit closer to the compact window edges and add a visible Hide tasks control so users can collapse subtasks without ending or changing the timer.
+- Guardrails: keep this a tight 2.4.x trust/polish release; do not pull forward the 2.5.0 regulation/reward scope or GTM lifecycle work.
+
 ### GTM Track — after 2.4.0 ships
 - **Next GTM build:** `MKT-006` (creator promo-code + affiliate attribution). Explicitly excluded from 2.4.0; finish after the task-initiation release is shipped and the creator-code model is decided.
 

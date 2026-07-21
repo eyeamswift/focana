@@ -147,7 +147,7 @@ function getUpdateStatusSummary(updateState) {
 
   switch (updateState.status) {
     case 'unsupported':
-      return 'Auto-updates are available in packaged builds published to GitHub Releases.';
+      return updateState.error || 'Auto-updates are available in packaged builds published to GitHub Releases.';
     case 'checking':
       return 'Checking GitHub Releases for updates...';
     case 'downloading':

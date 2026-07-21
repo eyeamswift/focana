@@ -639,14 +639,28 @@ html[data-window-mode='pill'] #root {
   margin-top: 0.72rem;
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
 }
 
+.draft-task-builder__quick-start-btn,
 .draft-task-builder__next-btn {
+  flex: 1 1 8.4rem;
   min-width: 7.25rem;
   min-height: 2.65rem;
   border-radius: 0.9rem;
   font-size: 0.92rem;
   font-weight: 850;
+  letter-spacing: 0;
+}
+
+.draft-task-builder__quick-start-btn {
+  gap: 0.4rem;
+}
+
+.draft-task-builder__next-btn {
+  border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-strong));
+  color: var(--text-primary);
 }
 
 .focus-stage__surface--post-session {
@@ -1663,11 +1677,50 @@ html[data-window-mode='pill'] #root {
   box-shadow: 0 14px 26px rgba(46, 31, 24, 0.08);
 }
 
+.start-chooser__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.start-chooser__back {
+  min-height: 2rem;
+  padding: 0 0.64rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.24rem;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 86%, transparent);
+  border-radius: 0.66rem;
+  background: color-mix(in srgb, var(--bg-card) 82%, transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.start-chooser__back:hover,
+.start-chooser__back:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 46%, var(--border-strong));
+  color: var(--text-primary);
+  outline: none;
+}
+
+.start-chooser__title {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
 .start-chooser__row {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding-right: 1.9rem;
 }
 
 .start-chooser__timer {
@@ -1785,26 +1838,6 @@ html[data-window-mode='pill'] #root {
   color: var(--text-on-brand);
   font-size: 0.8rem;
   white-space: nowrap;
-}
-
-.start-chooser__cancel {
-  position: absolute;
-  top: 0.62rem;
-  right: 0.62rem;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  border-radius: 0.4rem;
-}
-
-.start-chooser__cancel:hover {
-  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
-  color: var(--text-primary);
 }
 
 .task-plan-transition {
@@ -3337,7 +3370,7 @@ html[data-window-mode='pill'] #root {
 
 .pill.pill--plan-preview {
   overflow: visible;
-  transform: translateY(-84px);
+  transform: translateY(-132px);
 }
 
 .pill-pulse-wash {
@@ -3591,7 +3624,7 @@ html[data-window-mode='pill'] #root {
   left: 50%;
   top: calc(100% + 0.55rem);
   z-index: 30;
-  width: min(20rem, calc(100vw - 1rem));
+  width: calc(100vw - 0.5rem);
   max-height: 18.75rem;
   padding: 0.72rem 0.82rem;
   display: flex;
@@ -3607,6 +3640,43 @@ html[data-window-mode='pill'] #root {
   --pill-preview-row-height: 1.72rem;
   --pill-preview-row-gap: 0.22rem;
   --pill-preview-collapsed-list-height: calc((var(--pill-preview-row-height) * 3) + (var(--pill-preview-row-gap) * 2));
+}
+
+.pill-task-plan-preview__topbar {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.pill-task-plan-preview__heading {
+  color: var(--compact-text);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.pill-task-plan-preview__collapse {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--compact-ornament-border) 112%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--compact-ghost-bg) 84%, transparent);
+  color: var(--compact-text);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.pill-task-plan-preview__collapse:hover,
+.pill-task-plan-preview__collapse:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 56%, var(--compact-ornament-border));
+  background: color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  outline: none;
 }
 
 .pill-task-plan-preview__content {

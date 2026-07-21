@@ -1,0 +1,13 @@
+{
+  "version": "2.4.3",
+  "publishedAt": "2026-07-21",
+  "summary": "Focana 2.4.3 tightens update trust and makes planned sessions easier to start without crowding the screen.",
+  "improvements": [
+    "The session start flow now separates planning from choosing time, with Quick start available on the planning screen and timer/Pomodoro choices on the next screen.",
+    "Compact task preview now opens closer to the window edges and includes a clear Hide tasks control so subtasks can be tucked away again."
+  ],
+  "fixes": [
+    "Settings now keeps a ready-to-install update visible even if a late updater event reports an error after download.",
+    "Settings now explains when Focana was launched from a mounted DMG and needs to be moved to Applications before updating."
+  ]
+}
