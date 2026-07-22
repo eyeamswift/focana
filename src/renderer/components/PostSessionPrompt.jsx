@@ -44,6 +44,13 @@ function formatPausedCopy(minutes, taskText) {
   return `Paused after ${safeMinutes} min on ${taskText}.`;
 }
 
+function formatRemainingCopy(seconds) {
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (safeSeconds < 60) return 'less than 1 min left';
+  const minutes = Math.ceil(safeSeconds / 60);
+  return minutes === 1 ? '1 min left' : `${minutes} min left`;
+}
+
 function formatSaveTitle(taskText) {
   return `Save “${taskText}” for later`;
 }
@@ -218,6 +225,12 @@ export default function PostSessionPrompt({
   const dismissLabel = isPauseSurface ? 'Close paused session options' : 'Dismiss Session Wrap';
   const regionLabel = isPauseSurface ? 'Paused Session' : 'Session Wrap';
   const isChildStage = stage !== 'hub';
+  const isPausedPomodoro = isPauseSurface
+    && candidate?.completedMode === 'pomodoro'
+    && candidate?.pomodoroPauseSnapshot?.phase === 'work';
+  const pausedPomodoroRemainingCopy = isPausedPomodoro
+    ? formatRemainingCopy(candidate?.pomodoroPauseSnapshot?.remainingSeconds)
+    : '';
 
   const startTimedKeepWorking = () => {
     onKeepWorking?.({
@@ -430,6 +443,39 @@ export default function PostSessionPrompt({
     onClose: () => setStage('hub'),
     children: (
       <div className="post-session-child__body">
+        {isPausedPomodoro ? (
+          <div className="post-session-child__cta-group">
+            <Button
+              type="button"
+              className="post-session-pill-button"
+              aria-label={pausedPomodoroRemainingCopy
+                ? `Resume Pomodoro with ${pausedPomodoroRemainingCopy}`
+                : 'Resume Pomodoro'}
+              onClick={() => onKeepWorking?.({ mode: 'pomodoro', resumePaused: true })}
+            >
+              {pausedPomodoroRemainingCopy
+                ? `Resume Pomodoro (${pausedPomodoroRemainingCopy})`
+                : 'Resume Pomodoro'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-pill-button post-session-pill-button--ghost"
+              onClick={() => onKeepWorking?.({ mode: 'pomodoro' })}
+            >
+              Fresh Pomodoro
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-pill-button post-session-pill-button--ghost"
+              onClick={() => onKeepWorking?.({ mode: 'freeflow', minutes: 0 })}
+            >
+              Freeflow
+            </Button>
+          </div>
+        ) : null}
+
         <div className="post-session-fieldset">
           <span className="post-session-fieldset__label">Set timer</span>
           <div className="post-session-timer-row">
@@ -460,14 +506,26 @@ export default function PostSessionPrompt({
           >
             Start timed session
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="post-session-pill-button post-session-pill-button--ghost"
-            onClick={() => onKeepWorking?.({ mode: 'freeflow', minutes: 0 })}
-          >
-            Freeflow
-          </Button>
+          {!isPausedPomodoro ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-pill-button post-session-pill-button--ghost"
+              onClick={() => onKeepWorking?.({ mode: 'pomodoro' })}
+            >
+              Pomodoro
+            </Button>
+          ) : null}
+          {!isPausedPomodoro ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="post-session-pill-button post-session-pill-button--ghost"
+              onClick={() => onKeepWorking?.({ mode: 'freeflow', minutes: 0 })}
+            >
+              Freeflow
+            </Button>
+          ) : null}
         </div>
       </div>
     ),

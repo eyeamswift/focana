@@ -2,6 +2,10 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 11);
 }
 
+function normalizeProjectName(value) {
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 64) : '';
+}
+
 async function readSessions() {
   const sessions = await window.electronAPI.storeGet('sessions');
   return Array.isArray(sessions) ? sessions : [];
@@ -44,6 +48,7 @@ export const SessionStore = {
     const session = {
       id: generateId(),
       task: typeof data?.task === 'string' ? data.task : '',
+      project: normalizeProjectName(data?.project),
       durationMinutes: Number.isFinite(data?.duration_minutes) ? data.duration_minutes : 0,
       mode: typeof data?.mode === 'string' ? data.mode : 'freeflow',
       completed: data?.completed ?? false,

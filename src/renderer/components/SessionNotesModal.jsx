@@ -79,13 +79,16 @@ export default function SessionNotesModal({
     return minutes === 1 ? '1 minute' : `${Math.round(minutes)} minutes`;
   };
 
-  const isStopDecisionFlow = flow === 'stop-decision';
+  const isStopDecisionFlow = flow === 'stop-decision' || flow === 'pomodoro-wrap-decision';
+  const isPomodoroWrapDecisionFlow = flow === 'pomodoro-wrap-decision';
   const isResumeLaterFlow = flow === 'resume-later';
   const safeTaskName = typeof taskName === 'string' && taskName.trim()
     ? taskName.trim()
     : 'Untitled task';
-  const title = isStopDecisionFlow
-    ? 'Did you finish?'
+  const title = isPomodoroWrapDecisionFlow
+    ? 'Wrap up?'
+    : isStopDecisionFlow
+      ? 'Did you finish?'
     : isResumeLaterFlow
       ? 'Where did you leave off?'
       : 'Great focus session!';
@@ -199,15 +202,15 @@ export default function SessionNotesModal({
                         size="sm"
                         style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
                       >
-                        Save for Later
+                        Save and continue later
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent><p>Save this session and keep the task active</p></TooltipContent>
+                    <TooltipContent><p>Save this task so you can continue later</p></TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button onClick={handleComplete} size="sm" style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}>
-                        Yes, Complete
+                        Mark complete
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent><p>Save notes and mark the task complete</p></TooltipContent>

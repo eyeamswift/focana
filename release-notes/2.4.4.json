@@ -1,0 +1,16 @@
+{
+  "version": "2.4.4",
+  "publishedAt": "2026-07-22",
+  "summary": "Focana 2.4.4 adds lightweight project context and finishes the Pomodoro wrap-up polish so resuming work feels clearer.",
+  "improvements": [
+    "Start new task now includes a small optional Project field with saved project suggestions and a create-project action when the typed project is new.",
+    "Project context is carried through active work, compact mode, resumable sessions, and saved session records.",
+    "Pomodoro wrap-up now routes through the notes capture flow with Save and continue later or Mark complete instead of reopening the old Session Wrap menu.",
+    "Paused Pomodoro sessions can resume from the paused remaining time, start a fresh Pomodoro, switch to Freeflow, or use a timed session.",
+    "Focus insight ledger data is queued locally for future sync without changing the quiet, offline-first session flow."
+  ],
+  "fixes": [
+    "Ready to resume now summarizes the accumulated focus time on the current task and offers Keep going, Add break time, or Wrap up.",
+    "Pomodoro break and resume surfaces were tightened to avoid nested boxes, stale copy, and awkward extra whitespace in the small desktop window."
+  ]
+}

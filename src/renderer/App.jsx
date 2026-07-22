@@ -23,6 +23,15 @@ import {
   normalizeTimerMode,
   shouldShowLongSessionNudge,
 } from './utils/focusRhythm';
+import {
+  DEFAULT_FOCUS_INSIGHTS_SETTINGS,
+  buildFocusInsightSummary,
+  getFocusLedgerDescriptor,
+  makeCheckInLedgerPayload,
+  makeSegmentLedgerPayload,
+  makeSessionLedgerPayload,
+  normalizeFocusInsightsSettings,
+} from './utils/focusLedger';
 import appLockupDark from '../assets/logo-lockup.svg';
 import appLockupLight from '../assets/logo-lockup-light.svg';
 
@@ -33,6 +42,7 @@ import TaskPreviewModal from './components/TaskPreviewModal';
 import ContextBox from './components/ContextBox';
 import CompactMode from './components/CompactMode';
 import TaskInput from './components/TaskInput';
+import ProjectField from './components/ProjectField';
 import HistoryModal from './components/HistoryModal';
 import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
@@ -94,7 +104,7 @@ const WINDOW_SIZES = {
   idleHeight: 124,
   reentryPromptHeight: 430,
   reentryPromptStageHeights: {
-    taskEntry: 560,
+    taskEntry: 610,
     resumeChoice: 340,
     startChooser: 680,
     saveForLater: 540,
@@ -108,7 +118,8 @@ const WINDOW_SIZES = {
   pomodoroStartChooserHeight: 300,
   timerHeight: 108,
   timerAddTimeHeight: 260,
-  timerPomodoroBreakHeight: 360,
+  timerPomodoroBreakHeight: 380,
+  timerPomodoroResumeHeight: 220,
   timerLongSessionNudgeHeight: 370,
   timerCheckInPromptHeight: 280,
   timerCheckInDetourChoiceHeight: 260,
@@ -137,9 +148,74 @@ function getReentryPromptHeightForStage(stage) {
   return WINDOW_SIZES.reentryPromptStageHeights.taskEntry;
 }
 const TASK_CHARACTER_LIMIT = 96;
+const PROJECT_CHARACTER_LIMIT = 64;
 const clampTaskText = (value) => {
   if (typeof value !== 'string') return '';
   return value.slice(0, TASK_CHARACTER_LIMIT);
+};
+const clampProjectText = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.slice(0, PROJECT_CHARACTER_LIMIT);
+};
+const normalizeProjectName = (value) => (
+  typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, PROJECT_CHARACTER_LIMIT) : ''
+);
+const normalizeProjectList = (value) => {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [])
+    .map((project) => {
+      if (typeof project === 'string') return project;
+      if (project && typeof project.name === 'string') return project.name;
+      return '';
+    })
+    .map(normalizeProjectName)
+    .filter((projectName) => {
+      if (!projectName) return false;
+      const key = projectName.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 100);
+};
+const normalizePomodoroPauseSnapshot = (snapshot) => {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const config = normalizePomodoroConfig({
+    workMinutes: snapshot.workMinutes,
+    breakMinutes: snapshot.breakMinutes,
+  });
+  const workSeconds = config.workMinutes * 60;
+  const breakSeconds = config.breakMinutes * 60;
+  const phase = snapshot.phase === 'break' ? 'break' : 'work';
+  const elapsedSeconds = Math.max(0, Math.floor(Number(snapshot.elapsedSeconds) || 0));
+  const rawInitialTime = Math.max(0, Math.floor(Number(snapshot.initialTime) || 0));
+  const fallbackRemaining = phase === 'work'
+    ? Math.max(0, rawInitialTime - elapsedSeconds)
+    : breakSeconds;
+  const parsedRemainingSeconds = Number(snapshot.remainingSeconds);
+  const remainingSeconds = Number.isFinite(parsedRemainingSeconds)
+    ? Math.max(0, Math.floor(parsedRemainingSeconds))
+    : fallbackRemaining;
+  const initialTime = phase === 'work'
+    ? Math.max(rawInitialTime, elapsedSeconds + remainingSeconds)
+    : rawInitialTime;
+  const segmentDuration = Math.max(60, Math.floor(Number(snapshot.segmentDuration) || workSeconds));
+  const segmentStartElapsed = Math.max(
+    0,
+    Math.floor(Number(snapshot.segmentStartElapsed) || Math.max(0, initialTime - segmentDuration)),
+  );
+
+  return {
+    phase,
+    elapsedSeconds,
+    initialTime,
+    remainingSeconds,
+    segmentStartElapsed,
+    segmentDuration,
+    workMinutes: config.workMinutes,
+    breakMinutes: config.breakMinutes,
+    cyclesCompleted: Math.max(0, Math.floor(Number(snapshot.cyclesCompleted) || 0)),
+  };
 };
 const clampSessionMinutes = (value, fallback = 25) => {
   const parsed = Math.floor(Number(value));
@@ -323,6 +399,7 @@ function buildResumeCandidateFromSession(session, fallbacks = {}) {
     recap,
     nextSteps,
     notes: recap,
+    project: normalizeProjectName(session.project),
     taskPlan: prepareTaskPlanForStart(session.taskPlan, taskText),
     sessionId: session.id || null,
     mode: normalizeTimerMode(session.mode),
@@ -427,6 +504,8 @@ function getSystemTheme() {
 export default function App() {
   // Core state
   const [task, setTask] = useState('');
+  const [project, setProject] = useState('');
+  const [projects, setProjects] = useState([]);
   const [taskPlan, setTaskPlan] = useState(() => createTaskPlanFromTitle(''));
   const [taskPlanCompletionDismissedFor, setTaskPlanCompletionDismissedFor] = useState(null);
   const [taskPlanTransition, setTaskPlanTransition] = useState(null);
@@ -502,6 +581,8 @@ export default function App() {
   const [startupSystemEntryRevealSource, setStartupSystemEntryRevealSource] = useState(null);
   const [pinnedControls, setPinnedControls] = useState(PINNED_CONTROLS_DEFAULT);
   const [enabledMainControls, setEnabledMainControls] = useState(ENABLED_MAIN_CONTROLS_DEFAULT);
+  const [focusInsightsSettings, setFocusInsightsSettings] = useState(DEFAULT_FOCUS_INSIGHTS_SETTINGS);
+  const [focusInsightSummary, setFocusInsightSummary] = useState(() => buildFocusInsightSummary([]));
   const [suppressToolbarTooltips, setSuppressToolbarTooltips] = useState(false);
   const [compactTransitioning, setCompactTransitioning] = useState(false);
   const [toast, setToast] = useState(null);
@@ -564,6 +645,7 @@ export default function App() {
   const [systemEntryResumeCandidate, setSystemEntryResumeCandidate] = useState(null);
   const [reentrySurfaceStage, setReentrySurfaceStage] = useState('task-entry');
   const [reentrySurfaceTaskText, setReentrySurfaceTaskText] = useState('');
+  const [reentrySurfaceProject, setReentrySurfaceProject] = useState('');
   const [reentrySurfaceMinutes, setReentrySurfaceMinutes] = useState('25');
   const [reentrySurfaceSource, setReentrySurfaceSource] = useState(null);
   const [reentrySurfaceRecap, setReentrySurfaceRecap] = useState('');
@@ -581,6 +663,7 @@ export default function App() {
   const [compactSuccessCueSignal, setCompactSuccessCueSignal] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const lastNonEmptyTaskRef = useRef('');
+  const projectRef = useRef('');
   const prevDndEnabledRef = useRef(false);
 
   useEffect(() => {
@@ -591,6 +674,10 @@ export default function App() {
       lastNonEmptyTaskRef.current = '';
     }
   }, [task, isRunning, isTimerVisible]);
+
+  useEffect(() => {
+    projectRef.current = normalizeProjectName(project);
+  }, [project]);
 
   const timerRef = useRef(null);
   const sessionToSave = useRef(null);
@@ -673,6 +760,10 @@ export default function App() {
   const lastInteractionTimeRef = useRef(Date.now());
   const taskPlanTransitionAfterCompletionRef = useRef(null);
   const isRunningRef = useRef(false);
+  const focusInsightsSettingsRef = useRef(DEFAULT_FOCUS_INSIGHTS_SETTINGS);
+  const focusLedgerSessionRef = useRef(null);
+  const focusLedgerSegmentSeqRef = useRef(0);
+  const focusLedgerBackfillRunningRef = useRef(false);
   const sessionCreatePromiseRef = useRef(null);
   const sessionCreateEpochRef = useRef(0);
   const getElapsedSecondsRef = useRef(() => 0);
@@ -763,6 +854,24 @@ export default function App() {
       setPostSessionResumeCandidate(null);
     }
   }, [postSessionResumeCandidate]);
+
+  const handleProjectChange = useCallback((nextValue) => {
+    setProject(clampProjectText(nextValue));
+  }, []);
+
+  const handleCreateProject = useCallback(async (rawProject = projectRef.current) => {
+    const projectName = normalizeProjectName(rawProject);
+    if (!projectName) return;
+    const nextProjects = normalizeProjectList([...projects, projectName]);
+    setProjects(nextProjects);
+    setProject(projectName);
+    projectRef.current = projectName;
+    try {
+      await window.electronAPI.storeSet('projects', nextProjects);
+    } catch (error) {
+      console.error('Failed to save project:', error);
+    }
+  }, [projects]);
 
   const draftTaskPlan = useMemo(() => syncActiveTaskTitle(taskPlan, task), [taskPlan, task]);
   const persistableTaskPlan = useMemo(() => prepareTaskPlanForStart(taskPlan, task), [taskPlan, task]);
@@ -1153,6 +1262,10 @@ export default function App() {
     () => findLatestResumableSession(sessions),
     [sessions],
   );
+
+  useEffect(() => {
+    setFocusInsightSummary(buildFocusInsightSummary(sessions));
+  }, [sessions]);
 
   const reentryResumeCandidate = useMemo(() => {
     if (
@@ -1722,6 +1835,7 @@ export default function App() {
   const loadSessions = useCallback(async () => {
     const data = await SessionStore.list();
     setSessions(data);
+    setFocusInsightSummary(buildFocusInsightSummary(data));
   }, []);
 
   const patchSessionInLocalState = useCallback((sessionId, patch) => {
@@ -1753,6 +1867,7 @@ export default function App() {
       try {
         const created = await SessionStore.create({
           task: trimmedTask,
+          project: projectRef.current,
           duration_minutes: 0,
           mode,
           completed: false,
@@ -1794,6 +1909,325 @@ export default function App() {
     return ensureCurrentSessionId('parking lot capture');
   }, [currentSessionId, task, isTimerVisible, isRunning, ensureCurrentSessionId]);
 
+  const enqueueFocusLedgerItems = useCallback((items) => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled) return;
+    const nextItems = (Array.isArray(items) ? items : [items]).filter(Boolean);
+    if (!nextItems.length) return;
+
+    const enqueuePromise = window.electronAPI.enqueueFocusLedger?.(nextItems);
+    if (enqueuePromise) {
+      void Promise.resolve(enqueuePromise).catch((error) => {
+        console.error('Failed to queue focus ledger items:', error);
+      });
+    }
+  }, []);
+
+  const closeFocusLedgerSegment = useCallback((endElapsedSeconds, options = {}) => {
+    const settings = focusInsightsSettingsRef.current;
+    const ledgerSession = focusLedgerSessionRef.current;
+    const segment = ledgerSession?.currentSegment || null;
+    if (!settings.enabled || !ledgerSession || !segment) return;
+
+    const endedAt = options.endedAt || new Date().toISOString();
+    const activeSeconds = Math.max(0, Math.floor(Number(endElapsedSeconds) || 0) - segment.startElapsedSeconds);
+    ledgerSession.currentSegment = null;
+    void window.electronAPI.storeSet?.('focusLedgerSyncState', {
+      activeSession: null,
+      lastSyncAt: null,
+      lastError: null,
+    });
+    if (activeSeconds <= 0 && options.completed !== true) return;
+
+    enqueueFocusLedgerItems({
+      id: `segment:${segment.localSegmentId}`,
+      type: 'segment',
+      payload: makeSegmentLedgerPayload({
+        localSegmentId: segment.localSegmentId,
+        localSessionId: ledgerSession.localSessionId,
+        descriptor: segment.descriptor,
+        startedAt: segment.startedAt,
+        endedAt,
+        activeSeconds,
+        completed: options.completed === true,
+        completionEventAt: options.completed === true ? endedAt : null,
+        runtimeInfo,
+        licenseStatus,
+        settings,
+      }),
+    });
+  }, [enqueueFocusLedgerItems, licenseStatus, runtimeInfo]);
+
+  const openFocusLedgerSegment = useCallback((descriptor, startElapsedSeconds) => {
+    const ledgerSession = focusLedgerSessionRef.current;
+    if (!ledgerSession) return;
+    focusLedgerSegmentSeqRef.current += 1;
+    ledgerSession.currentSegment = {
+      localSegmentId: `${ledgerSession.localSessionId}:segment:${focusLedgerSegmentSeqRef.current}`,
+      descriptor,
+      focusKey: descriptor.focusKey,
+      startedAt: new Date().toISOString(),
+      startElapsedSeconds: Math.max(0, Math.floor(Number(startElapsedSeconds) || 0)),
+    };
+    void window.electronAPI.storeSet?.('focusLedgerSyncState', {
+      activeSession: {
+        localSessionId: ledgerSession.localSessionId,
+        localSegmentId: ledgerSession.currentSegment.localSegmentId,
+        descriptor,
+        focusKey: descriptor.focusKey,
+        startedAt: ledgerSession.currentSegment.startedAt,
+        startElapsedSeconds: ledgerSession.currentSegment.startElapsedSeconds,
+        runtimeInfo,
+        licenseStatus,
+        settings: focusInsightsSettingsRef.current,
+      },
+      lastSyncAt: null,
+      lastError: null,
+    });
+  }, [licenseStatus, runtimeInfo]);
+
+  const beginFocusLedgerSession = useCallback((sessionId, startElapsedSeconds = 0) => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled || !sessionId || !task.trim() || !licenseStatus?.installId) return null;
+    const existing = focusLedgerSessionRef.current;
+    if (existing?.localSessionId === sessionId) return existing;
+
+    if (existing?.currentSegment) {
+      closeFocusLedgerSegment(startElapsedSeconds);
+    }
+
+    const startedAt = sessionStartTime
+      ? new Date(sessionStartTime).toISOString()
+      : new Date().toISOString();
+    const nextSession = {
+      localSessionId: sessionId,
+      startedAt,
+      startElapsedSeconds: Math.max(0, Math.floor(Number(startElapsedSeconds) || 0)),
+      currentSegment: null,
+    };
+    focusLedgerSessionRef.current = nextSession;
+    focusLedgerSegmentSeqRef.current = 0;
+
+    enqueueFocusLedgerItems({
+      id: `session:${sessionId}`,
+      type: 'session',
+      payload: makeSessionLedgerPayload({
+        localSessionId: sessionId,
+        taskText: task,
+        taskPlan,
+        mode,
+        startedAt,
+        activeSeconds: 0,
+        outcome: 'started',
+        runtimeInfo,
+        licenseStatus,
+        settings,
+      }),
+    });
+
+    return nextSession;
+  }, [
+    closeFocusLedgerSegment,
+    enqueueFocusLedgerItems,
+    licenseStatus,
+    mode,
+    runtimeInfo,
+    sessionStartTime,
+    task,
+    taskPlan,
+  ]);
+
+  const finalizeFocusLedgerSession = useCallback((sessionId, options = {}) => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled || !sessionId || !licenseStatus?.installId) return;
+
+    const activeSeconds = Math.max(0, Math.floor(Number(options.activeSeconds) || getElapsedSeconds()));
+    const endedAt = options.endedAt || new Date().toISOString();
+    const ledgerSession = focusLedgerSessionRef.current?.localSessionId === sessionId
+      ? focusLedgerSessionRef.current
+      : null;
+
+    closeFocusLedgerSegment(activeSeconds, {
+      endedAt,
+      completed: options.completed === true,
+    });
+
+    const startedAt = ledgerSession?.startedAt || new Date(Date.now() - (activeSeconds * 1000)).toISOString();
+    enqueueFocusLedgerItems({
+      id: `session:${sessionId}`,
+      type: 'session',
+      payload: makeSessionLedgerPayload({
+        localSessionId: sessionId,
+        taskText: options.taskText || task,
+        taskPlan: options.taskPlanSnapshot || taskPlan,
+        mode: options.mode || mode,
+        startedAt,
+        endedAt,
+        activeSeconds,
+        wallClockSeconds: Math.max(0, Math.floor((Date.parse(endedAt) - Date.parse(startedAt)) / 1000) || activeSeconds),
+        outcome: options.outcome || (options.completed ? 'completed' : options.kept ? 'kept' : 'unknown'),
+        completed: options.completed === true,
+        kept: options.kept === true,
+        runtimeInfo,
+        licenseStatus,
+        settings,
+        clientUpdatedAt: endedAt,
+      }),
+    });
+
+    if (focusLedgerSessionRef.current?.localSessionId === sessionId) {
+      focusLedgerSessionRef.current = null;
+    }
+  }, [
+    closeFocusLedgerSegment,
+    enqueueFocusLedgerItems,
+    getElapsedSeconds,
+    licenseStatus,
+    mode,
+    runtimeInfo,
+    task,
+    taskPlan,
+  ]);
+
+  useEffect(() => {
+    focusInsightsSettingsRef.current = focusInsightsSettings;
+  }, [focusInsightsSettings]);
+
+  useEffect(() => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled) {
+      if (focusLedgerSessionRef.current?.currentSegment) {
+        closeFocusLedgerSegment(getElapsedSeconds());
+      }
+      focusLedgerSessionRef.current = null;
+      return;
+    }
+
+    if (!isRunning || !currentSessionId || !task.trim() || !licenseStatus?.installId) {
+      if (focusLedgerSessionRef.current?.currentSegment) {
+        closeFocusLedgerSegment(getElapsedSeconds());
+      }
+      return;
+    }
+
+    const elapsedSeconds = getElapsedSeconds();
+    const ledgerSession = beginFocusLedgerSession(currentSessionId, elapsedSeconds);
+    if (!ledgerSession) return;
+
+    const descriptor = getFocusLedgerDescriptor(task, taskPlan);
+    if (ledgerSession.currentSegment?.focusKey === descriptor.focusKey) return;
+
+    if (ledgerSession.currentSegment) {
+      closeFocusLedgerSegment(elapsedSeconds);
+    }
+    openFocusLedgerSegment(descriptor, elapsedSeconds);
+  }, [
+    beginFocusLedgerSession,
+    closeFocusLedgerSegment,
+    currentSessionId,
+    focusInsightsSettings,
+    getElapsedSeconds,
+    isRunning,
+    licenseStatus?.installId,
+    openFocusLedgerSegment,
+    task,
+    taskPlan,
+  ]);
+
+  const persistFocusInsightsSettings = useCallback(async (nextSettings) => {
+    const normalized = normalizeFocusInsightsSettings(nextSettings);
+    focusInsightsSettingsRef.current = normalized;
+    setFocusInsightsSettings(normalized);
+    await window.electronAPI.storeSet('focusInsightsSettings', normalized);
+    if (normalized.enabled) {
+      const latestSession = sessions.find((session) => session?.id && Number(session?.durationMinutes) > 0);
+      if (latestSession && licenseStatus?.installId) {
+        const activeSeconds = Math.max(0, Math.round(Number(latestSession.durationMinutes || 0) * 60));
+        const startedAt = latestSession.createdAt || new Date(Date.now() - activeSeconds * 1000).toISOString();
+        enqueueFocusLedgerItems({
+          id: `session:${latestSession.id}`,
+          type: 'session',
+          payload: makeSessionLedgerPayload({
+            localSessionId: latestSession.id,
+            taskText: latestSession.task || '',
+            taskPlan: latestSession.taskPlan,
+            mode: normalizeTimerMode(latestSession.mode),
+            startedAt,
+            endedAt: activeSeconds > 0 ? new Date(Date.parse(startedAt) + activeSeconds * 1000).toISOString() : startedAt,
+            activeSeconds,
+            wallClockSeconds: activeSeconds,
+            outcome: latestSession.completed ? 'completed' : (latestSession.kept ? 'saved_for_later' : 'unknown'),
+            completed: latestSession.completed === true,
+            kept: latestSession.kept === true,
+            precision: 'session_only_backfill',
+            runtimeInfo,
+            licenseStatus,
+            settings: normalized,
+          }),
+        });
+      }
+      void window.electronAPI.syncFocusLedgerQueue?.();
+    }
+  }, [enqueueFocusLedgerItems, licenseStatus, runtimeInfo, sessions]);
+
+  useEffect(() => {
+    const settings = focusInsightsSettingsRef.current;
+    if (!settings.enabled || settings.backfillCompletedAt || focusLedgerBackfillRunningRef.current) return;
+    if (!licenseStatus?.installId || !sessions.length) return;
+
+    focusLedgerBackfillRunningRef.current = true;
+    const backfillStartedAt = new Date().toISOString();
+    const items = sessions
+      .filter((session) => session?.id && Number(session?.durationMinutes) > 0)
+      .map((session) => {
+        const activeSeconds = Math.max(0, Math.round(Number(session.durationMinutes || 0) * 60));
+        const startedAt = session.createdAt || new Date(Date.now() - activeSeconds * 1000).toISOString();
+        const endedAt = activeSeconds > 0
+          ? new Date(Date.parse(startedAt) + activeSeconds * 1000).toISOString()
+          : startedAt;
+        return {
+          id: `session:${session.id}`,
+          type: 'session',
+          payload: makeSessionLedgerPayload({
+            localSessionId: session.id,
+            taskText: session.task || '',
+            taskPlan: session.taskPlan,
+            mode: normalizeTimerMode(session.mode),
+            startedAt,
+            endedAt,
+            activeSeconds,
+            wallClockSeconds: activeSeconds,
+            outcome: session.completed ? 'completed' : (session.kept ? 'saved_for_later' : 'unknown'),
+            completed: session.completed === true,
+            kept: session.kept === true,
+            precision: 'session_only_backfill',
+            runtimeInfo,
+            licenseStatus,
+            settings,
+            clientUpdatedAt: backfillStartedAt,
+          }),
+        };
+      });
+
+    if (items.length) {
+      enqueueFocusLedgerItems(items);
+    }
+
+    void persistFocusInsightsSettings({
+      ...settings,
+      backfillCompletedAt: backfillStartedAt,
+    }).finally(() => {
+      focusLedgerBackfillRunningRef.current = false;
+    });
+  }, [
+    enqueueFocusLedgerItems,
+    focusInsightsSettings,
+    licenseStatus,
+    persistFocusInsightsSettings,
+    runtimeInfo,
+    sessions,
+  ]);
+
   const saveSessionWithNotes = useCallback(async (notes) => {
     if (!task.trim() || !sessionToSave.current) return;
 
@@ -1812,6 +2246,7 @@ export default function App() {
         if (activeSessionId) {
           await SessionStore.update(activeSessionId, {
             task: task.trim(),
+            project: projectRef.current,
             durationMinutes: duration,
             mode,
             completed,
@@ -1824,6 +2259,7 @@ export default function App() {
         } else {
           const created = await SessionStore.create({
             task: task.trim(),
+            project: projectRef.current,
             duration_minutes: duration,
             mode,
             completed,
@@ -1841,6 +2277,7 @@ export default function App() {
           // record even when the active timer was very short.
           await SessionStore.update(activeSessionId, {
             task: task.trim(),
+            project: projectRef.current,
             durationMinutes: 0,
             mode,
             completed,
@@ -1860,6 +2297,7 @@ export default function App() {
         // user's explicit keep/complete choice instead of dropping the task.
         const created = await SessionStore.create({
           task: task.trim(),
+          project: projectRef.current,
           duration_minutes: 0,
           mode,
           completed,
@@ -1873,6 +2311,17 @@ export default function App() {
       }
 
       await loadSessions();
+      if (savedSessionId) {
+        finalizeFocusLedgerSession(savedSessionId, {
+          activeSeconds: Math.round(duration * 60),
+          completed,
+          kept: kept || false,
+          outcome: completed ? 'completed' : (kept ? 'saved_for_later' : 'discarded'),
+          taskText: task.trim(),
+          taskPlanSnapshot: sessionTaskPlan,
+          mode,
+        });
+      }
     } catch (error) {
       console.error('Error saving session:', error);
     }
@@ -1880,7 +2329,7 @@ export default function App() {
     sessionToSave.current = null;
     setCurrentSessionId(null);
     return savedSessionId;
-  }, [contextNotes, currentSessionId, loadSessions, mode, nextStepsNotes, task, taskPlan]);
+  }, [contextNotes, currentSessionId, finalizeFocusLedgerSession, loadSessions, mode, nextStepsNotes, task, taskPlan]);
 
   const checkpointActiveSession = useCallback(async (source = 'unknown') => {
     const trimmedTask = task.trim();
@@ -1892,6 +2341,7 @@ export default function App() {
     const durationMinutes = Number((getElapsedSeconds() / 60).toFixed(2));
     const patch = {
       task: trimmedTask,
+      project: projectRef.current,
       durationMinutes,
       mode,
       completed: false,
@@ -2613,6 +3063,11 @@ export default function App() {
         thoughtsLoadedRef.current = true;
 
         const settings = await window.electronAPI.storeGet('settings') || {};
+        const savedFocusInsightsSettings = normalizeFocusInsightsSettings(
+          await window.electronAPI.storeGet('focusInsightsSettings')
+        );
+        focusInsightsSettingsRef.current = savedFocusInsightsSettings;
+        setFocusInsightsSettings(savedFocusInsightsSettings);
         const savedResumePromptHistory = normalizeSavedResumePromptHistory(settings.systemEntryPromptedSavedResumeSignatures);
         promptedSavedResumeSignaturesRef.current = new Set(savedResumePromptHistory);
         if (
@@ -2677,12 +3132,15 @@ export default function App() {
 
         // Restore the persisted task/timer snapshot instead of wiping a live
         // session on renderer mount or reload.
-        const [savedCurrentTask, savedTimerState] = await Promise.all([
+        const [savedCurrentTask, savedTimerState, savedFocusLedgerSyncState, savedProjects] = await Promise.all([
           window.electronAPI.storeGet('currentTask'),
           window.electronAPI.storeGet('timerState'),
+          window.electronAPI.storeGet('focusLedgerSyncState'),
+          window.electronAPI.storeGet('projects'),
         ]);
 
         const restoredTaskText = typeof savedCurrentTask?.text === 'string' ? savedCurrentTask.text : '';
+        const restoredProject = normalizeProjectName(savedCurrentTask?.project);
         const restoredTaskPlan = normalizeTaskPlan(savedCurrentTask?.taskPlan, restoredTaskText);
         const restoredContextNote = typeof savedCurrentTask?.recap === 'string'
           ? savedCurrentTask.recap
@@ -2742,6 +3200,39 @@ export default function App() {
         const restoredElapsedSeconds = isCountdownMode(restoredMode) && restoredInitialTime > 0
           ? Math.min(liveElapsedSeconds, restoredInitialTime)
           : liveElapsedSeconds;
+        const activeLedgerSession = savedFocusLedgerSyncState?.activeSession;
+        if (
+          savedFocusInsightsSettings.enabled
+          && activeLedgerSession?.localSessionId
+          && activeLedgerSession?.localSegmentId
+          && activeLedgerSession?.descriptor
+          && activeLedgerSession.localSessionId === restoredCurrentSessionId
+          && restoredElapsedSeconds > Number(activeLedgerSession.startElapsedSeconds)
+        ) {
+          const recoveredSettings = normalizeFocusInsightsSettings(activeLedgerSession.settings || savedFocusInsightsSettings);
+          const recoveredRuntimeInfo = activeLedgerSession.runtimeInfo || runtimeInfo || {};
+          const recoveredLicenseStatus = activeLedgerSession.licenseStatus || licenseStatus || {};
+          enqueueFocusLedgerItems({
+            id: `segment:${activeLedgerSession.localSegmentId}`,
+            type: 'segment',
+            payload: makeSegmentLedgerPayload({
+              localSegmentId: activeLedgerSession.localSegmentId,
+              localSessionId: activeLedgerSession.localSessionId,
+              descriptor: activeLedgerSession.descriptor,
+              startedAt: activeLedgerSession.startedAt || new Date(Date.now() - restoredElapsedSeconds * 1000).toISOString(),
+              endedAt: new Date().toISOString(),
+              activeSeconds: restoredElapsedSeconds - Number(activeLedgerSession.startElapsedSeconds),
+              runtimeInfo: recoveredRuntimeInfo,
+              licenseStatus: recoveredLicenseStatus,
+              settings: recoveredSettings,
+            }),
+          });
+          await window.electronAPI.storeSet('focusLedgerSyncState', {
+            activeSession: null,
+            lastSyncAt: null,
+            lastError: null,
+          });
+        }
         const restoredDisplayTime = restoredBreakReady
           ? 0
           : restoredBreakActive
@@ -2793,6 +3284,9 @@ export default function App() {
         timedCueSegmentStartElapsedRef.current = restoredSegmentStartElapsed;
         timedCueSegmentDurationRef.current = restoredSegmentDuration;
         setTask(clampTaskText(restoredTaskText));
+        setProject(restoredProject);
+        projectRef.current = restoredProject;
+        setProjects(normalizeProjectList(savedProjects));
         setTaskPlan(restoredTaskPlan);
         setContextNotes(restoredContextNote);
         setNextStepsNotes(restoredNextSteps);
@@ -2892,6 +3386,7 @@ export default function App() {
     if (!isRunning) {
       window.electronAPI.storeSet('currentTask', {
         text: task,
+        project: normalizeProjectName(project),
         contextNote: contextNotes,
         recap: contextNotes,
         nextSteps: nextStepsNotes,
@@ -2926,7 +3421,7 @@ export default function App() {
         longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
       });
     }
-  }, [task, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, nextStepsNotes, persistableTaskPlan, sessionStateHydrated, pomodoroPhase, pomodoroBreakAcknowledged, pomodoroBreakIntention, pomodoroBreakReadyToResume]);
+  }, [task, project, time, mode, initialTime, contextNotes, isRunning, isTimerVisible, currentSessionId, nextStepsNotes, persistableTaskPlan, sessionStateHydrated, pomodoroPhase, pomodoroBreakEndsAt, pomodoroBreakAcknowledged, pomodoroBreakIntention, pomodoroBreakReadyToResume, pomodoroCyclesCompleted]);
 
   useEffect(() => {
     if (!sessionStateHydrated) return;
@@ -2934,6 +3429,7 @@ export default function App() {
 
     window.electronAPI.storeSet('currentTask', {
       text: task,
+      project: normalizeProjectName(project),
       contextNote: contextNotes,
       recap: contextNotes,
       nextSteps: nextStepsNotes,
@@ -2967,19 +3463,22 @@ export default function App() {
       longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
       longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
     });
-  }, [task, contextNotes, mode, initialTime, isRunning, isTimerVisible, nextStepsNotes, persistableTaskPlan, sessionStartTime, time, currentSessionId, sessionStateHydrated, pomodoroPhase, pomodoroBreakAcknowledged, pomodoroBreakIntention, pomodoroBreakReadyToResume]);
+  }, [task, project, contextNotes, mode, initialTime, isRunning, isTimerVisible, nextStepsNotes, persistableTaskPlan, sessionStartTime, time, currentSessionId, sessionStateHydrated, pomodoroPhase, pomodoroBreakEndsAt, pomodoroBreakAcknowledged, pomodoroBreakIntention, pomodoroBreakReadyToResume, pomodoroCyclesCompleted]);
 
   const persistIdleTimerSnapshot = useCallback(({
     taskText = task,
     recapText = contextNotes,
     nextStepsText = nextStepsNotes,
     taskPlanSnapshot = persistableTaskPlan,
+    projectName = projectRef.current,
     nextMode = mode,
     sessionId = null,
   } = {}) => {
+    const nextProject = normalizeProjectName(projectName);
     const nextTaskPlan = prepareTaskPlanForStart(taskPlanSnapshot, taskText);
     window.electronAPI.storeSet('currentTask', {
       text: taskText,
+      project: nextProject,
       contextNote: recapText,
       recap: recapText,
       nextSteps: nextStepsText,
@@ -3375,6 +3874,8 @@ export default function App() {
     setIsRunning(false);
     setTime(0);
     setTask('');
+    setProject('');
+    projectRef.current = '';
     setTaskPlan(createTaskPlanFromTitle(''));
     setTaskPlanCompletionDismissedFor(null);
     setTaskPlanTransition(null);
@@ -3501,17 +4002,34 @@ export default function App() {
     const sessionId = currentSessionId || await ensureCurrentSessionId('check-in log');
     if (!sessionId) return null;
     try {
-      return await window.electronAPI.checkInAdd?.({
+      const savedCheckIn = await window.electronAPI.checkInAdd?.({
         sessionId,
         taskText: task.trim(),
         elapsedMinutes: Number((elapsedSec / 60).toFixed(2)),
         status,
       });
+      const settings = focusInsightsSettingsRef.current;
+      if (settings.enabled && savedCheckIn) {
+        enqueueFocusLedgerItems({
+          id: `checkin:${savedCheckIn.id}`,
+          type: 'checkin',
+          payload: makeCheckInLedgerPayload({
+            checkIn: savedCheckIn,
+            taskText: task,
+            taskPlan: taskPlanRef.current,
+            elapsedSeconds: elapsedSec,
+            runtimeInfo,
+            licenseStatus,
+            settings,
+          }),
+        });
+      }
+      return savedCheckIn;
     } catch (error) {
       console.error('Failed to save check-in:', error);
       return null;
     }
-  }, [currentSessionId, task, ensureCurrentSessionId]);
+  }, [currentSessionId, enqueueFocusLedgerItems, ensureCurrentSessionId, licenseStatus, runtimeInfo, task]);
 
   const logMissedCheckInIfPrompting = useCallback((elapsedSec) => {
     if (checkInStateRef.current !== 'prompting') return false;
@@ -4514,6 +5032,38 @@ export default function App() {
     });
   }, [resetCheckInSchedule, resetCompactPulseSchedule, setTimedCueSegment]);
 
+  const presentPomodoroBreakSurface = useCallback((source = 'work-complete') => {
+    const targetHeight = source === 'break-complete'
+      ? WINDOW_SIZES.timerPomodoroResumeHeight
+      : WINDOW_SIZES.timerPomodoroBreakHeight;
+    const compactModeActive = isCompact
+      || document.documentElement.getAttribute('data-window-mode') === 'pill'
+      || windowModeDesiredRef.current === 'pill'
+      || windowModeActualRef.current === 'pill';
+
+    if (compactModeActive) {
+      handleExitCompact();
+      pendingCompactExitHeightRef.current = targetHeight;
+    } else {
+      setIsCompact(false);
+    }
+
+    void Promise.resolve(window.electronAPI.restoreFromFloatingForTimeUp?.()).catch((error) => {
+      console.warn('Failed to restore Pomodoro break surface from floating:', error);
+      return false;
+    }).finally(() => {
+      window.electronAPI.bringToFront?.();
+      window.setTimeout(() => {
+        window.electronAPI.ensureMainWindowSize?.(WINDOW_SIZES.baseWidth, targetHeight);
+        if (!dndEnabled) {
+          triggerPulse('gentle', 2);
+        }
+      }, compactModeActive ? 140 : 40);
+    });
+
+    track('pomodoro_break_surface_shown', { source });
+  }, [dndEnabled, handleExitCompact, isCompact, triggerPulse]);
+
   const startPomodoroBreak = useCallback((source = 'work-complete') => {
     const focusElapsed = Math.max(
       0,
@@ -4544,13 +5094,47 @@ export default function App() {
     clearCheckInUi();
     clearCompactSessionCues();
     resetSessionFeedbackFlow();
-    track('pomodoro_break_handoff_started', {
+    presentPomodoroBreakSurface(source);
+    track('pomodoro_break_prompt_shown', {
       source,
       focus_minutes: Math.round((focusElapsed / 60) * 10) / 10,
       break_minutes: Math.round((breakSeconds / 60) * 10) / 10,
       completed_cycles: nextCycleCount,
     });
-  }, [clearCheckInUi, clearCompactSessionCues, getElapsedSeconds, initialTime, resetSessionFeedbackFlow]);
+  }, [clearCheckInUi, clearCompactSessionCues, getElapsedSeconds, initialTime, presentPomodoroBreakSurface, resetSessionFeedbackFlow]);
+
+  const extendPomodoroBreak = useCallback(() => {
+    const extensionSeconds = Math.max(60, Math.floor(Number(pomodoroBreakSecondsRef.current) || (DEFAULT_POMODORO_PRESET.breakMinutes * 60)));
+    const currentBreakEndsAt = Number(pomodoroBreakEndsAtRef.current);
+    const baseEndsAt = Number.isFinite(currentBreakEndsAt) && currentBreakEndsAt > Date.now()
+      ? currentBreakEndsAt
+      : Date.now();
+    const nextBreakEndsAtMs = baseEndsAt + (extensionSeconds * 1000);
+    const nextRemainingSeconds = Math.max(0, Math.ceil((nextBreakEndsAtMs - Date.now()) / 1000));
+
+    pomodoroPhaseRef.current = 'break';
+    pomodoroBreakEndsAtRef.current = nextBreakEndsAtMs;
+    pomodoroBreakAcknowledgedRef.current = true;
+    pomodoroBreakReadyToResumeRef.current = false;
+    setPomodoroPhase('break');
+    setPomodoroBreakEndsAt(nextBreakEndsAtMs);
+    setPomodoroBreakAcknowledged(true);
+    setPomodoroBreakReadyToResume(false);
+    setMode(TIMER_MODES.POMODORO);
+    setTime(nextRemainingSeconds);
+    setIsTimerVisible(true);
+    setIsRunning(false);
+    setSessionStartTime(null);
+    setShowTimeUpModal(false);
+    setLongSessionNudgeVisible(false);
+    clearCheckInUi();
+    clearCompactSessionCues();
+    resetSessionFeedbackFlow();
+    track('pomodoro_break_extended', {
+      added_minutes: Math.round((extensionSeconds / 60) * 10) / 10,
+      completed_cycles: pomodoroCyclesCompletedRef.current,
+    });
+  }, [clearCheckInUi, clearCompactSessionCues, resetSessionFeedbackFlow]);
 
   const handlePomodoroBreakIntentionChange = useCallback((value) => {
     const nextValue = typeof value === 'string' ? value.slice(0, 160) : '';
@@ -4560,7 +5144,6 @@ export default function App() {
 
   const handleStartPomodoroBreakTimer = useCallback(() => {
     const intention = pomodoroBreakIntentionRef.current.trim();
-    if (!intention) return;
 
     const breakSeconds = Math.max(
       60,
@@ -4590,10 +5173,12 @@ export default function App() {
     setTime(0);
     setIsRunning(false);
     setSessionStartTime(null);
+    setFloatingBreakState({ open: false });
+    presentPomodoroBreakSurface('break-complete');
     track('pomodoro_break_completed', {
       completed_cycles: pomodoroCyclesCompletedRef.current,
     });
-  }, []);
+  }, [presentPomodoroBreakSurface, setFloatingBreakState]);
 
   // Timer logic — counts up (freeflow) or down (timed)
   useEffect(() => {
@@ -4669,12 +5254,13 @@ export default function App() {
     timeUpTriggerKeyRef.current = triggerKey;
     timeUpHandledRef.current = true;
     lastInteractionTimeRef.current = Date.now();
-    scheduleReentryCueFromNow();
 
     if (mode === TIMER_MODES.POMODORO) {
       startPomodoroBreak('work-complete');
       return undefined;
     }
+
+    scheduleReentryCueFromNow();
 
     const wasCompact = isCompact;
 
@@ -4903,7 +5489,11 @@ export default function App() {
 
   const getActiveScreenDefaultHeight = useCallback(() => {
     if (addTimeMenuOpen) return WINDOW_SIZES.timerAddTimeHeight;
-    if (mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break') return WINDOW_SIZES.timerPomodoroBreakHeight;
+    if (mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break') {
+      return Number.isFinite(Number(pomodoroBreakEndsAt)) || time > 0
+        ? WINDOW_SIZES.timerPomodoroBreakHeight
+        : WINDOW_SIZES.timerPomodoroResumeHeight;
+    }
     if (longSessionNudgeVisible) return WINDOW_SIZES.timerLongSessionNudgeHeight;
     if (hasSavedContext && !isStartModalOpen) return WINDOW_SIZES.contextHeight;
     if (checkInState === 'prompting') return WINDOW_SIZES.timerCheckInPromptHeight;
@@ -4912,7 +5502,7 @@ export default function App() {
     if (checkInState === 'resolved' && showCenteredFullWindowCheckInToast) return WINDOW_SIZES.timerHeight;
     if (checkInState === 'resolved') return WINDOW_SIZES.timerCheckInResolvedHeight;
     return WINDOW_SIZES.timerHeight;
-  }, [addTimeMenuOpen, checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroPhase, showCenteredFullWindowCheckInToast]);
+  }, [addTimeMenuOpen, checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroBreakEndsAt, pomodoroPhase, showCenteredFullWindowCheckInToast, time]);
 
   const getReentryPromptDefaultHeight = useCallback(() => {
     return getReentryPromptHeightForStage(reentrySurfaceStage);
@@ -5227,6 +5817,39 @@ export default function App() {
     });
   }, [getElapsedSeconds]);
 
+  const handlePomodoroWrapUp = useCallback(() => {
+    const trimmedTask = task.trim();
+    if (!trimmedTask) return;
+
+    const focusSeconds = Math.max(
+      0,
+      Math.floor(Number(elapsedBeforeRunRef.current) || getElapsedSeconds() || 0),
+    );
+
+    stopFlowResumeStateRef.current = {
+      canResume: false,
+      returnToCompact: false,
+      returnToFloating: false,
+    };
+    sessionToSave.current = {
+      duration: focusSeconds / 60,
+      completed: false,
+      kept: false,
+      sessionId: currentSessionId,
+      source: 'pomodoro-wrap',
+    };
+
+    setIsRunning(false);
+    setShowPostSessionPrompt(false);
+    setShowTimeUpModal(false);
+    setSessionNotesMode('pomodoro-wrap-decision');
+    setShowNotesModal(true);
+    track('pomodoro_wrap_notes_opened', {
+      completed_cycles: pomodoroCyclesCompletedRef.current,
+      focus_minutes: Math.round((focusSeconds / 60) * 10) / 10,
+    });
+  }, [currentSessionId, getElapsedSeconds, task]);
+
   const handleStop = useCallback(async (options = {}) => {
     if (!task.trim()) return;
     const explicitReturnToFloating = options?.returnToFloating;
@@ -5404,6 +6027,7 @@ export default function App() {
       taskText: candidate.taskText,
       recap: typeof candidate.recap === 'string' ? candidate.recap : (typeof candidate.notes === 'string' ? candidate.notes : ''),
       nextSteps: typeof candidate.nextSteps === 'string' ? candidate.nextSteps : '',
+      project: candidate.project || '',
       taskPlan: candidate.taskPlan,
       sessionId: candidate.sessionId || null,
       carryoverSeconds: Math.max(0, Math.floor(Number(candidate.carryoverSeconds) || 0)),
@@ -5460,6 +6084,7 @@ export default function App() {
     const hasSessionIdOverride = Object.prototype.hasOwnProperty.call(options, 'sessionId');
     const hasCarryoverOverride = Object.prototype.hasOwnProperty.call(options, 'carryoverSeconds');
     const hasTaskPlanOverride = Object.prototype.hasOwnProperty.call(options, 'taskPlan');
+    const hasProjectOverride = Object.prototype.hasOwnProperty.call(options, 'project');
     const shouldReturnToFloating = options?.returnToFloating === true;
     const shouldReturnToCompact = shouldReturnToFloating
       ? false
@@ -5469,6 +6094,7 @@ export default function App() {
     const rawTaskText = hasTaskOverride ? options.taskText : task;
     const nextTaskText = clampTaskText(typeof rawTaskText === 'string' ? rawTaskText : task).trim();
     if (!nextTaskText) return;
+    const nextProject = normalizeProjectName(hasProjectOverride ? options.project : projectRef.current);
     const nextTaskPlan = prepareTaskPlanForStart(
       hasTaskPlanOverride ? options.taskPlan : taskPlanRef.current,
       nextTaskText,
@@ -5498,6 +6124,10 @@ export default function App() {
     if (hasTaskOverride && nextTaskText !== task) {
       setTask(nextTaskText);
     }
+    if (hasProjectOverride || nextProject !== projectRef.current) {
+      setProject(nextProject);
+      projectRef.current = nextProject;
+    }
     taskPlanRef.current = nextTaskPlan;
     setTaskPlan(nextTaskPlan);
     setTaskPlanCompletionDismissedFor(null);
@@ -5517,6 +6147,7 @@ export default function App() {
       if (nextSessionId) {
         const updated = await SessionStore.update(nextSessionId, {
           task: nextTaskText,
+          project: nextProject,
           mode: normalizedSelectedMode,
           completed: false,
           notes: nextNotes || '',
@@ -5529,6 +6160,7 @@ export default function App() {
       } else {
         const created = await SessionStore.create({
           task: nextTaskText,
+          project: nextProject,
           duration_minutes: 0,
           mode: normalizedSelectedMode,
           completed: false,
@@ -5555,6 +6187,7 @@ export default function App() {
       breakMinutes: options?.pomodoroBreakMinutes,
     });
     if (normalizedSelectedMode === TIMER_MODES.POMODORO) {
+      pomodoroPhaseRef.current = 'work';
       pomodoroWorkSecondsRef.current = pomodoroConfig.workMinutes * 60;
       pomodoroBreakSecondsRef.current = pomodoroConfig.breakMinutes * 60;
       pomodoroBreakEndsAtRef.current = null;
@@ -5674,6 +6307,7 @@ export default function App() {
     setReentryPromptOverrideKind('start');
     setReentrySurfaceStage('task-entry');
     setReentrySurfaceTaskText('');
+    setReentrySurfaceProject('');
     setReentrySurfaceMinutes(String(getDefaultReentryMinutes()));
     scheduleReentryCueFromNow();
     setReentryStrongActive(false);
@@ -5887,6 +6521,12 @@ export default function App() {
 
   const handleRunningSubtaskToggle = useCallback((subtaskId, checked) => {
     const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
+    if (checked === true && basePlan.activeSubtaskId === subtaskId) {
+      closeFocusLedgerSegment(getElapsedSeconds(), {
+        completed: true,
+        endedAt: new Date().toISOString(),
+      });
+    }
     const nextPlan = toggleSubtask(basePlan, subtaskId, checked);
     taskPlanRef.current = nextPlan;
     setTaskPlan(nextPlan);
@@ -5898,7 +6538,7 @@ export default function App() {
         console.error('Failed to persist subtask completion:', error);
       });
     }
-  }, [currentSessionId, loadSessions, task]);
+  }, [closeFocusLedgerSegment, currentSessionId, getElapsedSeconds, loadSessions, task]);
 
   const handleRunningSubtaskFocus = useCallback((subtaskId) => {
     const basePlan = prepareTaskPlanForStart(taskPlanRef.current, task);
@@ -5971,6 +6611,9 @@ export default function App() {
       : clampTaskText(typeof payload?.taskText === 'string' ? payload.taskText : '').trim();
 
     if (!nextTaskText) return;
+    const nextProject = promptKind === 'resume-choice'
+      ? normalizeProjectName(resumeCandidate?.project)
+      : normalizeProjectName(payload?.project);
 
     const nextNotes = promptKind === 'resume-choice'
       ? (typeof resumeCandidate?.recap === 'string' ? resumeCandidate.recap : (typeof resumeCandidate?.notes === 'string' ? resumeCandidate.notes : ''))
@@ -6003,6 +6646,8 @@ export default function App() {
     closeFloatingReentryPrompt();
 
     setTask(nextTaskText);
+    setProject(nextProject);
+    projectRef.current = nextProject;
     setTaskPlan(nextTaskPlan);
     setTaskPlanCompletionDismissedFor(null);
     setTaskPlanTransition(null);
@@ -6018,6 +6663,7 @@ export default function App() {
     window.setTimeout(() => {
       void handleStartSession(selectedMode, safeMinutes, {
         taskText: nextTaskText,
+        project: nextProject,
         notes: nextNotes,
         nextSteps: nextNextSteps,
         taskPlan: nextTaskPlan,
@@ -6137,6 +6783,7 @@ export default function App() {
     if (payload?.promptKind !== 'resume-choice') {
       nextPayload.notes = reentrySurfaceRecap;
       nextPayload.nextSteps = reentrySurfaceNextSteps;
+      nextPayload.project = reentrySurfaceProject;
       nextPayload.carryoverSeconds = reentrySurfaceCarryoverSeconds;
     }
 
@@ -6144,6 +6791,7 @@ export default function App() {
   }, [
     reentrySurfaceCarryoverSeconds,
     reentrySurfaceNextSteps,
+    reentrySurfaceProject,
     reentrySurfaceRecap,
     reentrySurfaceTaskPlan,
     startSessionFromReentryPrompt,
@@ -6165,9 +6813,21 @@ export default function App() {
     setReentrySurfaceSource(null);
     setReentrySurfaceRecap('');
     setReentrySurfaceNextSteps('');
+    setReentrySurfaceProject('');
     setReentrySurfaceCarryoverSeconds(0);
     setReentrySurfaceTaskPlan(prepareTaskPlanForStart(null, nextTaskText));
   }, [settleReentryCueAfterInteraction]);
+
+  const handleReentrySurfaceProjectChange = useCallback((nextValue) => {
+    settleReentryCueAfterInteraction();
+    setReentrySurfaceProject(clampProjectText(nextValue));
+  }, [settleReentryCueAfterInteraction]);
+
+  const handleReentrySurfaceCreateProject = useCallback((nextProject) => {
+    settleReentryCueAfterInteraction();
+    void handleCreateProject(nextProject);
+    setReentrySurfaceProject(normalizeProjectName(nextProject));
+  }, [handleCreateProject, settleReentryCueAfterInteraction]);
 
   const handleReentrySurfaceMinutesChange = useCallback((nextValue) => {
     settleReentryCueAfterInteraction();
@@ -6231,18 +6891,23 @@ export default function App() {
     taskText,
     recap = '',
     nextSteps = '',
+    project: incomingProject = projectRef.current,
     taskPlan: incomingTaskPlan = null,
     sessionId = null,
     carryoverSeconds = 0,
     completedMinutes = 0,
     completedMode = mode,
     resolution = 'open',
+    pomodoroPauseSnapshot = null,
   }) => {
     const nextTaskText = clampTaskText(typeof taskText === 'string' ? taskText : '').trim();
     if (!nextTaskText) return null;
     const safeCompletedMode = normalizeTimerMode(completedMode);
     const safeCompletedMinutes = Math.max(1, Math.round(Number(completedMinutes) || 0));
     const safeSource = source === 'paused-current' ? 'paused-current' : 'post-session';
+    const safePomodoroPauseSnapshot = safeSource === 'paused-current' && safeCompletedMode === TIMER_MODES.POMODORO
+      ? normalizePomodoroPauseSnapshot(pomodoroPauseSnapshot)
+      : null;
 
     return {
       source: safeSource,
@@ -6250,6 +6915,7 @@ export default function App() {
       recap: typeof recap === 'string' ? recap : '',
       nextSteps: typeof nextSteps === 'string' ? nextSteps : '',
       notes: typeof recap === 'string' ? recap : '',
+      project: normalizeProjectName(incomingProject),
       taskPlan: prepareTaskPlanForStart(incomingTaskPlan, nextTaskText),
       sessionId: typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : null,
       mode: safeCompletedMode,
@@ -6257,6 +6923,7 @@ export default function App() {
       completedMinutes: safeCompletedMinutes,
       completedMode: safeCompletedMode,
       resolution: resolution === 'completed' ? 'completed' : 'open',
+      ...(safePomodoroPauseSnapshot ? { pomodoroPauseSnapshot: safePomodoroPauseSnapshot } : {}),
     };
   }, [mode]);
 
@@ -6285,6 +6952,21 @@ export default function App() {
       || windowModeDesiredRef.current === 'pill'
       || windowModeActualRef.current === 'pill';
     const elapsedSeconds = isRunning ? pauseActiveTimer() : getElapsedSeconds();
+    const pomodoroPauseSnapshot = mode === TIMER_MODES.POMODORO
+      ? normalizePomodoroPauseSnapshot({
+        phase: pomodoroPhaseRef.current,
+        elapsedSeconds,
+        initialTime,
+        remainingSeconds: pomodoroPhaseRef.current === 'break' && Number.isFinite(Number(pomodoroBreakEndsAtRef.current))
+          ? Math.max(0, Math.ceil((Number(pomodoroBreakEndsAtRef.current) - Date.now()) / 1000))
+          : Math.max(0, Math.floor(Number(initialTime) || 0) - elapsedSeconds),
+        workMinutes: pomodoroWorkSecondsRef.current / 60,
+        breakMinutes: pomodoroBreakSecondsRef.current / 60,
+        cyclesCompleted: pomodoroCyclesCompletedRef.current,
+        segmentStartElapsed: timedCueSegmentStartElapsedRef.current,
+        segmentDuration: timedCueSegmentDurationRef.current,
+      })
+      : null;
     const pauseSessionId = currentSessionId || await ensureCurrentSessionId('pause session wrap');
     const candidate = buildPostSessionResumeCandidate({
       source: 'paused-current',
@@ -6296,6 +6978,7 @@ export default function App() {
       carryoverSeconds: elapsedSeconds,
       completedMinutes: elapsedSeconds / 60,
       completedMode: mode,
+      pomodoroPauseSnapshot,
     });
     if (!candidate) return;
 
@@ -6327,6 +7010,7 @@ export default function App() {
     ensureCurrentSessionId,
     getElapsedSeconds,
     handleExitCompact,
+    initialTime,
     isCompact,
     isRunning,
     mode,
@@ -6344,6 +7028,7 @@ export default function App() {
     recap = '',
     nextSteps = '',
     sessionId = null,
+    project: incomingProject = projectRef.current,
     carryoverSeconds = 0,
     completedMinutes = 0,
     completedMode = mode,
@@ -6356,6 +7041,7 @@ export default function App() {
       taskText,
       recap,
       nextSteps,
+      project: incomingProject,
       taskPlan: incomingTaskPlan,
       sessionId,
       carryoverSeconds,
@@ -6392,6 +7078,8 @@ export default function App() {
 
     elapsedBeforeRunRef.current = 0;
     setTask(candidate.taskText);
+    setProject(candidate.project || '');
+    projectRef.current = candidate.project || '';
     setTaskPlan(candidate.taskPlan);
     setTaskPlanCompletionDismissedFor(null);
     setTaskPlanTransition(null);
@@ -6409,6 +7097,7 @@ export default function App() {
       taskText: candidate.taskText,
       recapText: candidate.recap,
       nextStepsText: candidate.nextSteps,
+      projectName: candidate.project || '',
       taskPlanSnapshot: candidate.taskPlan,
       nextMode: 'freeflow',
       sessionId: null,
@@ -6446,6 +7135,7 @@ export default function App() {
     try {
       const created = await SessionStore.create({
         task: postSessionResumeCandidate.taskText,
+        project: normalizeProjectName(postSessionResumeCandidate.project),
         duration_minutes: postSessionResumeCandidate.completedMinutes || 0,
         mode: postSessionResumeCandidate.completedMode || 'freeflow',
         completed: isCompletedPostSessionCandidate(postSessionResumeCandidate),
@@ -6487,6 +7177,7 @@ export default function App() {
       const updated = await SessionStore.update(sessionId, {
         completed,
         kept,
+        project: normalizeProjectName(postSessionResumeCandidate?.project),
         notes: splitNotes.recap,
         recap: splitNotes.recap,
         nextSteps: splitNotes.nextSteps,
@@ -6539,6 +7230,7 @@ export default function App() {
     );
     const sessionPatch = {
       task: taskText,
+      project: normalizeProjectName(postSessionResumeCandidate.project),
       durationMinutes,
       mode: normalizedMode,
       completed: Boolean(completed),
@@ -6600,6 +7292,7 @@ export default function App() {
       nextSteps: postSessionResumeCandidate?.nextSteps ?? nextStepsNotes,
     });
     const taskText = postSessionResumeCandidate?.taskText || task;
+    const nextProject = normalizeProjectName(postSessionResumeCandidate?.project || projectRef.current);
     const nextTaskPlan = prepareTaskPlanForStart(postSessionResumeCandidate?.taskPlan, taskText);
 
     elapsedBeforeRunRef.current = 0;
@@ -6610,12 +7303,15 @@ export default function App() {
     setIsTimerVisible(false);
     setSessionStartTime(null);
     setCurrentSessionId(null);
+    setProject(nextProject);
+    projectRef.current = nextProject;
     setContextNotes(splitNotes.recap);
     setNextStepsNotes(splitNotes.nextSteps);
     persistIdleTimerSnapshot({
       taskText,
       recapText: splitNotes.recap,
       nextStepsText: splitNotes.nextSteps,
+      projectName: nextProject,
       taskPlanSnapshot: nextTaskPlan,
       nextMode: 'freeflow',
       sessionId: null,
@@ -6649,12 +7345,14 @@ export default function App() {
     let sessionId = typeof candidate.sessionId === 'string' && candidate.sessionId.trim()
       ? candidate.sessionId.trim()
       : null;
+    const candidateProject = normalizeProjectName(candidate.project);
     const candidateTaskPlan = prepareTaskPlanForStart(candidate.taskPlan, candidate.taskText);
 
     try {
       if (!sessionId) {
         const created = await SessionStore.create({
           task: candidate.taskText,
+          project: candidateProject,
           duration_minutes: Math.round((Math.max(0, Number(candidate.carryoverSeconds) || 0) / 60) * 10) / 10,
           mode: normalizeTimerMode(candidate.mode),
           completed: false,
@@ -6669,6 +7367,7 @@ export default function App() {
         await SessionStore.update(sessionId, {
           completed: false,
           kept: true,
+          project: candidateProject,
           notes: splitNotes.recap,
           recap: splitNotes.recap,
           nextSteps: splitNotes.nextSteps,
@@ -6717,12 +7416,14 @@ export default function App() {
     let sessionId = typeof candidate.sessionId === 'string' && candidate.sessionId.trim()
       ? candidate.sessionId.trim()
       : null;
+    const candidateProject = normalizeProjectName(candidate.project);
     const candidateTaskPlan = prepareTaskPlanForStart(candidate.taskPlan, candidate.taskText);
 
     try {
       if (!sessionId) {
         const created = await SessionStore.create({
           task: candidate.taskText,
+          project: candidateProject,
           duration_minutes: Math.round((Math.max(0, Number(candidate.carryoverSeconds) || 0) / 60) * 10) / 10,
           mode: normalizeTimerMode(candidate.mode),
           completed: true,
@@ -6737,6 +7438,7 @@ export default function App() {
         await SessionStore.update(sessionId, {
           completed: true,
           kept: false,
+          project: candidateProject,
           notes: splitNotes.recap,
           recap: splitNotes.recap,
           nextSteps: splitNotes.nextSteps,
@@ -6817,21 +7519,33 @@ export default function App() {
     void window.electronAPI.enterFloatingMinimize?.();
   }, [clearPausedPostSessionTimerState, closePostSessionSurface, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, setFloatingBreakState, updatePostSessionSession, updateReentryBreakReturnAvailable]);
 
-  const handlePostSessionKeepWorking = useCallback(async ({ mode: nextMode, minutes = 25 } = {}) => {
+  const handlePostSessionKeepWorking = useCallback(async ({
+    mode: nextMode,
+    minutes = 25,
+    pomodoroWorkMinutes,
+    pomodoroBreakMinutes,
+    resumePaused = false,
+  } = {}) => {
     if (!postSessionResumeCandidate?.taskText) return;
 
-    const selectedMode = nextMode === 'freeflow' ? 'freeflow' : 'timed';
-    const safeMinutes = selectedMode === 'timed'
+    const selectedMode = normalizeTimerMode(nextMode);
+    const candidatePomodoroSnapshot = normalizePomodoroPauseSnapshot(postSessionResumeCandidate.pomodoroPauseSnapshot);
+    const pomodoroConfig = normalizePomodoroConfig({
+      workMinutes: pomodoroWorkMinutes ?? candidatePomodoroSnapshot?.workMinutes ?? minutes,
+      breakMinutes: pomodoroBreakMinutes ?? candidatePomodoroSnapshot?.breakMinutes,
+    });
+    const safeMinutes = selectedMode === TIMER_MODES.TIMED
       ? clampSessionMinutes(minutes, postSessionResumeCandidate.completedMode === 'timed'
         ? postSessionResumeCandidate.completedMinutes
         : 25)
-      : 0;
+      : (selectedMode === TIMER_MODES.POMODORO ? pomodoroConfig.workMinutes : 0);
     const returnToFloating = postSessionReturnToFloatingRef.current;
     const returnToCompact = returnToFloating ? false : postSessionReturnToCompactRef.current;
 
     if (postSessionIsPauseWrap) {
       const sessionId = postSessionResumeCandidate.sessionId || currentSessionId || null;
       const nextTaskText = postSessionResumeCandidate.taskText;
+      const nextProject = normalizeProjectName(postSessionResumeCandidate.project);
       const nextNotes = postSessionResumeCandidate.recap || '';
       const nextNextSteps = postSessionResumeCandidate.nextSteps || '';
       const nextTaskPlan = prepareTaskPlanForStart(postSessionResumeCandidate.taskPlan, nextTaskText);
@@ -6844,6 +7558,8 @@ export default function App() {
       closePostSessionSurface();
       setPostSessionResumeCandidate(null);
       setTask(nextTaskText);
+      setProject(nextProject);
+      projectRef.current = nextProject;
       setTaskPlan(nextTaskPlan);
       setTaskPlanCompletionDismissedFor(null);
       setTaskPlanTransition(null);
@@ -6853,10 +7569,70 @@ export default function App() {
         setCurrentSessionId(sessionId);
       }
 
+      const shouldResumePausedPomodoro = resumePaused === true
+        && selectedMode === TIMER_MODES.POMODORO
+        && candidatePomodoroSnapshot?.phase === 'work';
+
+      if (shouldResumePausedPomodoro) {
+        const workSeconds = candidatePomodoroSnapshot.workMinutes * 60;
+        const breakSeconds = candidatePomodoroSnapshot.breakMinutes * 60;
+        const pausedElapsedSeconds = candidatePomodoroSnapshot.elapsedSeconds;
+        const pausedInitialTime = candidatePomodoroSnapshot.initialTime;
+        const pausedRemainingSeconds = Math.max(0, candidatePomodoroSnapshot.remainingSeconds);
+
+        setMode(TIMER_MODES.POMODORO);
+        elapsedBeforeRunRef.current = pausedElapsedSeconds;
+        pomodoroPhaseRef.current = 'work';
+        pomodoroWorkSecondsRef.current = workSeconds;
+        pomodoroBreakSecondsRef.current = breakSeconds;
+        pomodoroBreakEndsAtRef.current = null;
+        pomodoroCyclesCompletedRef.current = candidatePomodoroSnapshot.cyclesCompleted;
+        setPomodoroWorkMinutes(String(candidatePomodoroSnapshot.workMinutes));
+        setPomodoroBreakMinutes(String(candidatePomodoroSnapshot.breakMinutes));
+        setPomodoroBreakEndsAt(null);
+        setPomodoroBreakAcknowledged(false);
+        setPomodoroBreakIntention('');
+        setPomodoroBreakReadyToResume(false);
+        setPomodoroCyclesCompleted(candidatePomodoroSnapshot.cyclesCompleted);
+        setPomodoroPhase('work');
+        setInitialTime(pausedInitialTime);
+        setTime(pausedRemainingSeconds);
+        setIsTimerVisible(true);
+        setIsRunning(true);
+        setSessionStartTime(Date.now());
+        setTimedCueSegment(
+          candidatePomodoroSnapshot.segmentStartElapsed,
+          candidatePomodoroSnapshot.segmentDuration,
+        );
+        resetCheckInSchedule(
+          TIMER_MODES.POMODORO,
+          pausedInitialTime,
+          pausedElapsedSeconds,
+        );
+        resetCompactPulseSchedule(
+          TIMER_MODES.POMODORO,
+          pausedInitialTime,
+          pausedElapsedSeconds,
+        );
+        trackDailyAppActive('session_resumed');
+        track('session_resumed', {
+          source: 'pause_session_wrap_resume_pomodoro',
+          mode: TIMER_MODES.POMODORO,
+          elapsed_minutes: Math.round((pausedElapsedSeconds / 60) * 10) / 10,
+          pomodoro_work_minutes: candidatePomodoroSnapshot.workMinutes,
+          pomodoro_break_minutes: candidatePomodoroSnapshot.breakMinutes,
+        });
+        window.setTimeout(() => {
+          restoreDisplayMode({ returnToCompact, returnToFloating });
+        }, 40);
+        return;
+      }
+
       try {
         if (sessionId) {
           await SessionStore.update(sessionId, {
             task: nextTaskText,
+            project: nextProject,
             mode: selectedMode,
             completed: false,
             kept: false,
@@ -6873,11 +7649,47 @@ export default function App() {
 
       setMode(selectedMode);
       elapsedBeforeRunRef.current = carryoverSeconds;
-      if (selectedMode === 'freeflow') {
+      if (selectedMode === TIMER_MODES.POMODORO) {
+        const workSeconds = pomodoroConfig.workMinutes * 60;
+        initialSeconds = workSeconds;
+        pomodoroPhaseRef.current = 'work';
+        pomodoroWorkSecondsRef.current = workSeconds;
+        pomodoroBreakSecondsRef.current = pomodoroConfig.breakMinutes * 60;
+        pomodoroBreakEndsAtRef.current = null;
+        pomodoroCyclesCompletedRef.current = 0;
+        setPomodoroWorkMinutes(String(pomodoroConfig.workMinutes));
+        setPomodoroBreakMinutes(String(pomodoroConfig.breakMinutes));
+        setPomodoroBreakEndsAt(null);
+        setPomodoroBreakAcknowledged(false);
+        setPomodoroBreakIntention('');
+        setPomodoroBreakReadyToResume(false);
+        setPomodoroCyclesCompleted(0);
+        setPomodoroPhase('work');
+        setInitialTime(carryoverSeconds + workSeconds);
+        setTime(workSeconds);
+      } else if (selectedMode === TIMER_MODES.FREEFLOW) {
+        pomodoroPhaseRef.current = 'idle';
+        pomodoroBreakEndsAtRef.current = null;
+        pomodoroCyclesCompletedRef.current = 0;
+        setPomodoroPhase('idle');
+        setPomodoroBreakEndsAt(null);
+        setPomodoroBreakAcknowledged(false);
+        setPomodoroBreakIntention('');
+        setPomodoroBreakReadyToResume(false);
+        setPomodoroCyclesCompleted(0);
         setInitialTime(0);
         setTime(carryoverSeconds);
       } else {
         initialSeconds = safeMinutes * 60;
+        pomodoroPhaseRef.current = 'idle';
+        pomodoroBreakEndsAtRef.current = null;
+        pomodoroCyclesCompletedRef.current = 0;
+        setPomodoroPhase('idle');
+        setPomodoroBreakEndsAt(null);
+        setPomodoroBreakAcknowledged(false);
+        setPomodoroBreakIntention('');
+        setPomodoroBreakReadyToResume(false);
+        setPomodoroCyclesCompleted(0);
         setInitialTime(carryoverSeconds + initialSeconds);
         setTime(initialSeconds);
       }
@@ -6889,23 +7701,25 @@ export default function App() {
         source: 'pause_session_wrap',
         mode: selectedMode,
         elapsed_minutes: Math.round((carryoverSeconds / 60) * 10) / 10,
+        pomodoro_work_minutes: selectedMode === TIMER_MODES.POMODORO ? pomodoroConfig.workMinutes : null,
+        pomodoro_break_minutes: selectedMode === TIMER_MODES.POMODORO ? pomodoroConfig.breakMinutes : null,
       });
 
       clearCompactSessionCues();
-      if (selectedMode === 'timed') {
+      if (isCountdownMode(selectedMode)) {
         setTimedCueSegment(carryoverSeconds, initialSeconds);
       }
       resetCheckInSchedule(
         selectedMode,
-        selectedMode === 'timed' ? carryoverSeconds + initialSeconds : initialSeconds,
+        isCountdownMode(selectedMode) ? carryoverSeconds + initialSeconds : initialSeconds,
         carryoverSeconds,
-        { restartTimedSegment: selectedMode === 'timed' },
+        { restartTimedSegment: isCountdownMode(selectedMode) },
       );
       resetCompactPulseSchedule(
         selectedMode,
-        selectedMode === 'timed' ? carryoverSeconds + initialSeconds : initialSeconds,
+        isCountdownMode(selectedMode) ? carryoverSeconds + initialSeconds : initialSeconds,
         carryoverSeconds,
-        { restartTimedSegment: selectedMode === 'timed' },
+        { restartTimedSegment: isCountdownMode(selectedMode) },
       );
       window.setTimeout(() => {
         restoreDisplayMode({ returnToCompact, returnToFloating });
@@ -6916,6 +7730,7 @@ export default function App() {
     closePostSessionSurface();
     await handleStartSession(selectedMode, safeMinutes, {
       taskText: postSessionResumeCandidate.taskText,
+      project: postSessionResumeCandidate.project || '',
       notes: postSessionResumeCandidate.recap,
       nextSteps: postSessionResumeCandidate.nextSteps,
       taskPlan: postSessionResumeCandidate.taskPlan,
@@ -6923,6 +7738,8 @@ export default function App() {
       carryoverSeconds: 0,
       returnToCompact,
       returnToFloating,
+      pomodoroWorkMinutes: pomodoroConfig.workMinutes,
+      pomodoroBreakMinutes: pomodoroConfig.breakMinutes,
     });
   }, [
     clearCompactSessionCues,
@@ -7260,6 +8077,14 @@ export default function App() {
     postSessionNotesActionRef.current = null;
     const pendingSession = sessionToSave.current;
 
+    if (sessionNotesMode === 'pomodoro-wrap-decision') {
+      setShowNotesModal(false);
+      setSessionNotesMode('complete');
+      sessionToSave.current = null;
+      resetSessionFeedbackFlow();
+      return;
+    }
+
     if (postAction === 'resume-later') {
       const endedSessionId = await saveSessionWithNotes({ recap: '', nextSteps: '' });
       setShowNotesModal(false);
@@ -7328,6 +8153,8 @@ export default function App() {
       return;
     }
 
+    const pendingSource = sessionToSave.current?.source;
+    const isPomodoroWrapStop = pendingSource === 'pomodoro-wrap';
     const durationMin = sessionToSave.current?.duration || 0;
     const splitNotes = normalizeSplitNotes(notes, {
       recap: contextNotes,
@@ -7360,6 +8187,12 @@ export default function App() {
     setIsTimerVisible(false);
     setIsCompact(false);
     setSessionStartTime(null);
+    if (isPomodoroWrapStop) {
+      handleClear();
+      enterFloatingWithoutImmediateReentry();
+      resetSessionFeedbackFlow();
+      return;
+    }
     if (shouldFocusFreshTask) {
       handleClear();
       setTimeout(() => taskInputRef.current?.focus(), 140);
@@ -7380,7 +8213,7 @@ export default function App() {
       completedMode: mode,
     });
     resetSessionFeedbackFlow();
-  }, [handleClear, mode, nextStepsNotes, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch, task, contextNotes]);
+  }, [enterFloatingWithoutImmediateReentry, handleClear, mode, nextStepsNotes, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch, task, contextNotes]);
 
   const finalizeStopFlowComplete = useCallback(async (notes = '') => {
     if (!sessionToSave.current) {
@@ -7391,6 +8224,8 @@ export default function App() {
       return;
     }
 
+    const pendingSource = sessionToSave.current?.source;
+    const isPomodoroWrapStop = pendingSource === 'pomodoro-wrap';
     const durationMin = sessionToSave.current?.duration || 0;
     const splitNotes = normalizeSplitNotes(notes, {
       recap: contextNotes,
@@ -7412,12 +8247,15 @@ export default function App() {
     };
     const shouldFocusFreshTask = reentryStartNewAfterResolveRef.current === true;
     reentryStartNewAfterResolveRef.current = false;
+    if (isPomodoroWrapStop) {
+      resetFocusRhythmState();
+    }
 
     if (shouldFocusFreshTask) {
       await finishDirectCompletion({
         completedSessionId,
         durationMin,
-        source: 'stop_flow',
+        source: isPomodoroWrapStop ? 'pomodoro_wrap' : 'stop_flow',
         completedMode: mode,
       });
       return;
@@ -7431,10 +8269,10 @@ export default function App() {
     await finishDirectCompletion({
       completedSessionId,
       durationMin,
-      source: 'stop_flow',
+      source: isPomodoroWrapStop ? 'pomodoro_wrap' : 'stop_flow',
       completedMode: mode,
     });
-  }, [contextNotes, finishDirectCompletion, mode, nextStepsNotes, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch]);
+  }, [contextNotes, finishDirectCompletion, mode, nextStepsNotes, resetFocusRhythmState, resetSessionFeedbackFlow, saveSessionWithNotes, startPendingParkingLotTaskSwitch]);
 
   const finalizeTimeUpEndSession = useCallback(async () => {
     track('post_session_choice', { choice: 'wrap_here' });
@@ -7585,6 +8423,7 @@ export default function App() {
     notes = '',
     recap,
     nextSteps = '',
+    project: incomingProject = '',
     taskPlan: incomingTaskPlan = null,
     sessionId = null,
     carryoverSeconds = 0,
@@ -7596,6 +8435,7 @@ export default function App() {
       ? recap
       : (typeof notes === 'string' ? notes : '');
     const normalizedNextSteps = typeof nextSteps === 'string' ? nextSteps : '';
+    const nextProject = normalizeProjectName(incomingProject);
     const normalizedCarryoverSeconds = Math.max(0, Math.round(Number(carryoverSeconds) || 0));
     const nextTaskPlan = normalizeTaskPlan(incomingTaskPlan, nextTask);
 
@@ -7615,6 +8455,8 @@ export default function App() {
     clearCompactSessionCues();
     clearCheckInUi();
     setTask(nextTask);
+    setProject(nextProject);
+    projectRef.current = nextProject;
     setTaskPlan(nextTaskPlan);
     setTaskPlanCompletionDismissedFor(null);
     setTaskPlanTransition(null);
@@ -7645,6 +8487,7 @@ export default function App() {
 
     window.electronAPI.storeSet('currentTask', {
       text: nextTask,
+      project: nextProject,
       contextNote: nextNotes,
       recap: nextNotes,
       nextSteps: normalizedNextSteps,
@@ -7691,6 +8534,7 @@ export default function App() {
       taskText: nextTask,
       recap: nextNotes,
       nextSteps: nextNextSteps,
+      project: session.project || '',
       taskPlan: session.taskPlan,
       sessionId: null,
       carryoverSeconds: resumeCarryoverSeconds,
@@ -8764,9 +9608,11 @@ export default function App() {
   const visibleFullScreenTaskHelper = showDraftTaskPlanBuilder ? '' : fullScreenTaskHelper;
   const canAddTimeToActiveSession = mode === TIMER_MODES.TIMED && isTimerVisible && initialTime > 0;
   const showPomodoroBreakPanel = mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break' && isTimerVisible;
-  const pomodoroBreakStatus = pomodoroBreakReadyToResume
-    ? 'ready'
-    : (pomodoroBreakAcknowledged ? 'timer' : 'handoff');
+  const pomodoroBreakState = showPomodoroBreakPanel
+    ? (pomodoroBreakReadyToResume
+      ? 'ready'
+      : (pomodoroBreakAcknowledged ? 'running' : 'prompt'))
+    : 'idle';
   const selectedPomodoroConfig = normalizePomodoroConfig({
     workMinutes: pomodoroWorkMinutes,
     breakMinutes: pomodoroBreakMinutes,
@@ -8918,12 +9764,16 @@ export default function App() {
           reentryPromptKind={reentryPromptKind}
           reentryPromptStage={reentrySurfaceStage}
           reentryPromptTaskText={reentrySurfaceTaskText}
+          reentryPromptProject={reentrySurfaceProject}
+          reentryPromptProjects={projects}
           reentryPromptMinutes={reentrySurfaceMinutes}
           reentryResumeTaskName={effectiveReentryResumeCandidate?.taskText || ''}
           reentryResumeRecap={effectiveReentryResumeCandidate?.recap || ''}
           reentryResumeNextSteps={effectiveReentryResumeCandidate?.nextSteps || ''}
           reentryBreakReturnAvailable={reentryBreakReturnAvailable && reentryPromptKind === 'resume-choice'}
           onReentryTaskTextChange={handleReentrySurfaceTaskTextChange}
+          onReentryProjectChange={handleReentrySurfaceProjectChange}
+          onReentryCreateProject={handleReentrySurfaceCreateProject}
           onReentryMinutesChange={handleReentrySurfaceMinutesChange}
           onReentryStageChange={handleReentrySurfaceStageChange}
           onReentryStartSession={handleSurfaceReentryStart}
@@ -9169,14 +10019,15 @@ export default function App() {
               {showPomodoroBreakPanel ? (
                 <PomodoroBreakPanel
                   taskName={activeTaskLabel}
+                  focusSeconds={elapsedBeforeRunRef.current}
                   time={time}
-                  completedCycles={pomodoroCyclesCompleted}
-                  status={pomodoroBreakStatus}
-                  breakIntention={pomodoroBreakIntention}
-                  onBreakIntentionChange={handlePomodoroBreakIntentionChange}
+                  breakPlan={pomodoroBreakIntention}
+                  breakState={pomodoroBreakState}
+                  onBreakPlanChange={handlePomodoroBreakIntentionChange}
                   onStartBreak={handleStartPomodoroBreakTimer}
-                  onKeepGoing={() => startNextPomodoroWorkInterval('skip-break')}
-                  onEnd={() => { void handleStop({ returnToCompact: false, returnToFloating: false }); }}
+                  onExtendBreak={extendPomodoroBreak}
+                  onStartFocus={() => startNextPomodoroWorkInterval(pomodoroBreakState === 'ready' ? 'break-complete' : 'skip-break')}
+                  onEnd={handlePomodoroWrapUp}
                 />
               ) : fullScreenTaskState === 'running' ? (
                 <RunningTaskPlan
@@ -9204,6 +10055,8 @@ export default function App() {
                   stage={reentrySurfaceStage}
                   strongActive={reentryStrongActive}
                   taskText={reentrySurfaceTaskText}
+                  project={reentrySurfaceProject}
+                  projects={projects}
                   minutes={reentrySurfaceMinutes}
                   maxTaskLength={TASK_CHARACTER_LIMIT}
                   resumeTaskName={effectiveReentryResumeCandidate?.taskText || ''}
@@ -9215,6 +10068,8 @@ export default function App() {
                   taskPlan={reentrySurfaceTaskPlan}
                   breakModeAvailable={reentryBreakReturnAvailable && reentryPromptKind === 'resume-choice'}
                   onTaskTextChange={handleReentrySurfaceTaskTextChange}
+                  onProjectChange={handleReentrySurfaceProjectChange}
+                  onCreateProject={handleReentrySurfaceCreateProject}
                   onMinutesChange={handleReentrySurfaceMinutesChange}
                   onTaskPlanChange={handleReentrySurfaceTaskPlanChange}
                   onLayoutChange={resyncFullWindowSize}
@@ -9292,6 +10147,16 @@ export default function App() {
                     onLockedInteraction={handleLockedTaskInputInteraction}
                     onHeightChange={handleTaskInputHeightChange}
                   />
+                  {fullScreenTaskState === 'draft' ? (
+                    <ProjectField
+                      inputId="draft-project"
+                      className="draft-task-builder__project-field"
+                      value={project}
+                      projects={projects}
+                      onChange={handleProjectChange}
+                      onCreateProject={handleCreateProject}
+                    />
+                  ) : null}
                   {showDraftTaskPlanBuilder ? (
                     <SessionBuilderComposer
                       taskPlan={draftTaskPlan}
@@ -9748,6 +10613,9 @@ export default function App() {
             timedPercents: TIMED_CHECKIN_PERCENTS,
           }));
         }}
+        focusInsightsSettings={focusInsightsSettings}
+        focusInsightSummary={focusInsightSummary}
+        onFocusInsightsSettingsChange={persistFocusInsightsSettings}
         updateState={updateState}
         onCheckForUpdates={handleCheckForUpdates}
         onInstallUpdate={handleInstallUpdate}

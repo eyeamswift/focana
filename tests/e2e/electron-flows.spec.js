@@ -2428,7 +2428,7 @@ test('timed session expiry opens session wrap without an immediate pulse', async
   }
 });
 
-test('pomodoro work expiry requires a break plan and waits on Ready to resume', async () => {
+test('pomodoro work expiry offers an optional break plan and waits on Ready to resume', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 
   try {
@@ -2438,28 +2438,30 @@ test('pomodoro work expiry requires a break plan and waits on Ready to resume', 
 
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
-    await expect(page.getByText('Work time is up.')).toBeVisible();
+    await expect(page.getByLabel('How are you going to break?')).toBeVisible();
 
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
-    await expect(page.getByText('Work time is up.')).toBeVisible();
+    await expect(page.getByLabel('How are you going to break?')).toBeVisible();
 
     const startBreakButton = page.getByRole('button', { name: 'Start break' });
-    await expect(startBreakButton).toBeDisabled();
-    await page.getByLabel('How are you going to break?').fill('Stretch and refill water');
     await expect(startBreakButton).toBeEnabled();
+    await page.getByLabel('How are you going to break?').fill('Stretch and refill water');
     await startBreakButton.click();
 
-    await expect(page.getByText('Break plan: Stretch and refill water')).toBeVisible();
     await expect(page.locator('.pomodoro-break-panel__timer')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add break time' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Wrap up' })).toBeVisible();
 
     await installTimeOffsetControl(page);
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
-    await expect(page.getByRole('button', { name: 'Start focus' })).toBeVisible();
-    await expect(page.getByText('Break plan: Stretch and refill water')).toBeVisible();
+    await expect(page.getByText(/That's 1 minute on "pomodoro handoff"/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keep going' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add break time' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Wrap up' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Start focus' }).click();
+    await page.getByRole('button', { name: 'Keep going' }).click();
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
   } finally {
     await cleanup();

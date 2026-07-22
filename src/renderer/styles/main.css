@@ -824,6 +824,82 @@ html[data-window-mode='pill'] #root {
   transform: translateY(-1px);
 }
 
+.project-field {
+  width: 100%;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 0.46rem;
+  margin-top: 0.54rem;
+}
+
+.project-field__label {
+  color: var(--brand-action);
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.project-field__optional {
+  margin-left: 0.2rem;
+  color: color-mix(in srgb, var(--brand-action) 68%, var(--text-secondary));
+  font-size: 0.62rem;
+  font-weight: 750;
+  text-transform: none;
+}
+
+.project-field__control {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.project-field__input {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.68rem;
+  border-radius: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 52%, var(--border-strong));
+  background: color-mix(in srgb, var(--brand-primary) 10%, var(--bg-card));
+  color: var(--brand-action);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  outline: none;
+}
+
+.project-field__input::placeholder {
+  color: color-mix(in srgb, var(--brand-action) 58%, var(--text-placeholder));
+}
+
+.project-field__input:focus {
+  border-color: color-mix(in srgb, var(--brand-primary) 82%, var(--brand-action));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+
+.project-field__create-btn {
+  height: 2rem;
+  min-height: 2rem;
+  padding: 0 0.56rem;
+  gap: 0.24rem;
+  border-radius: 0.62rem;
+  border-color: color-mix(in srgb, var(--brand-primary) 58%, var(--border-strong));
+  background: color-mix(in srgb, var(--brand-primary) 14%, var(--bg-card));
+  color: var(--brand-action);
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.project-field__create-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--brand-primary) 82%, var(--brand-action));
+  background: color-mix(in srgb, var(--brand-primary) 20%, var(--bg-card));
+}
+
 .session-builder {
   width: 100%;
   margin-top: 0.62rem;
@@ -2354,6 +2430,28 @@ html[data-window-mode='pill'] #root {
   padding-inline: 0.6rem;
 }
 
+.reentry-prompt__project-field {
+  margin-top: 0.1rem;
+}
+
+.reentry-prompt--dashboard .reentry-prompt__project-field {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.reentry-prompt--compact .reentry-prompt__project-field {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 0.34rem;
+}
+
+.reentry-prompt--compact .project-field__control {
+  flex-wrap: wrap;
+}
+
+.reentry-prompt--compact .project-field__create-btn {
+  flex: 0 0 auto;
+}
+
 .reentry-prompt__actions--column {
   flex-direction: column;
 }
@@ -2799,6 +2897,16 @@ html[data-window-mode='pill'] #root {
   box-shadow: 0 18px 36px rgba(46, 31, 24, 0.12);
 }
 
+.pomodoro-break-panel {
+  width: 100%;
+  padding: 0.1rem 0 0;
+  gap: 0.9rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .pomodoro-break-panel__icon,
 .long-session-nudge__icon {
   width: 2rem;
@@ -2808,6 +2916,11 @@ html[data-window-mode='pill'] #root {
   border-radius: 999px;
   background: color-mix(in srgb, var(--brand-primary) 18%, var(--bg-card));
   color: var(--brand-action);
+}
+
+.pomodoro-break-panel__icon {
+  width: 3rem;
+  height: 3rem;
 }
 
 .pomodoro-break-panel__body,
@@ -2832,6 +2945,11 @@ html[data-window-mode='pill'] #root {
   line-height: 1.15;
 }
 
+.pomodoro-break-panel__title {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
 .pomodoro-break-panel__copy,
 .long-session-nudge__copy {
   margin: 0.42rem 0 0;
@@ -2840,45 +2958,45 @@ html[data-window-mode='pill'] #root {
   line-height: 1.42;
 }
 
-.pomodoro-break-panel__field {
-  margin-top: 0.78rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+.pomodoro-break-panel__task {
+  margin: 0.5rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.98rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.pomodoro-break-panel__label {
+  display: block;
+  margin: 0.85rem 0 0.36rem;
   color: var(--text-primary);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: 0.86rem;
+  font-weight: 850;
 }
 
 .pomodoro-break-panel__textarea {
   width: 100%;
-  min-height: 4.7rem;
+  min-height: 5.2rem;
+  padding: 0.72rem 0.82rem;
   resize: vertical;
-  border: 1px solid var(--border-strong);
-  border-radius: 0.72rem;
-  padding: 0.62rem 0.7rem;
-  background: var(--bg-input);
+  border-radius: 0.7rem;
+  border: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
   color: var(--text-primary);
-  font-size: 0.86rem;
-  line-height: 1.38;
+  font: inherit;
+  font-size: 0.94rem;
+  font-weight: 650;
+  line-height: 1.35;
   outline: none;
 }
 
-.pomodoro-break-panel__textarea:focus-visible {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
-}
-
 .pomodoro-break-panel__textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--text-placeholder);
 }
 
-.pomodoro-break-panel__intention {
-  margin: 0.55rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+.pomodoro-break-panel__textarea:focus {
+  border-color: color-mix(in srgb, var(--brand-primary) 72%, var(--border-strong));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 16%, transparent);
 }
 
 .pomodoro-break-panel__timer {
@@ -2897,6 +3015,10 @@ html[data-window-mode='pill'] #root {
   justify-content: flex-end;
   gap: 0.48rem;
   flex-wrap: wrap;
+}
+
+.pomodoro-break-panel__actions {
+  margin-top: 0.08rem;
 }
 
 .pomodoro-break-panel__primary,

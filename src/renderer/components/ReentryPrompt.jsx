@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SessionBuilderComposer from './SessionBuilderComposer';
+import ProjectField from './ProjectField';
 import {
   DEFAULT_POMODORO_PRESET,
   POMODORO_PRESETS,
@@ -29,6 +30,8 @@ export default function ReentryPrompt({
   stage = 'task-entry',
   strongActive = false,
   taskText = '',
+  project = '',
+  projects = [],
   minutes = '25',
   maxTaskLength = 96,
   resumeTaskName = '',
@@ -39,6 +42,8 @@ export default function ReentryPrompt({
   selectedSourceId = '',
   taskPlan = null,
   onTaskTextChange,
+  onProjectChange,
+  onCreateProject,
   onMinutesChange,
   onTaskPlanChange,
   onLayoutChange,
@@ -66,6 +71,7 @@ export default function ReentryPrompt({
   const [pomodoroBreakMinutes, setPomodoroBreakMinutes] = useState(String(DEFAULT_POMODORO_PRESET.breakMinutes));
 
   const safeTaskText = typeof taskText === 'string' ? taskText : '';
+  const safeProject = typeof project === 'string' ? project : '';
   const trimmedTaskText = safeTaskText.trim();
   const safeMinutes = useMemo(() => clampMinutes(minutes), [minutes]);
   const safeResumeTaskName = typeof resumeTaskName === 'string' ? resumeTaskName.trim() : '';
@@ -184,6 +190,7 @@ export default function ReentryPrompt({
       mode: 'timed',
       minutes: safeMinutes,
       taskText: effectiveTaskName,
+      project: safeProject,
       taskPlan,
     });
   };
@@ -195,6 +202,7 @@ export default function ReentryPrompt({
       mode: 'freeflow',
       minutes: 0,
       taskText: effectiveTaskName,
+      project: safeProject,
       taskPlan,
     });
   };
@@ -212,6 +220,7 @@ export default function ReentryPrompt({
       pomodoroWorkMinutes: config.workMinutes,
       pomodoroBreakMinutes: config.breakMinutes,
       taskText: effectiveTaskName,
+      project: safeProject,
       taskPlan,
     });
   };
@@ -372,6 +381,21 @@ export default function ReentryPrompt({
                   Next
                 </button>
               </div>
+              <ProjectField
+                inputId="reentry-dashboard-project"
+                className="reentry-prompt__project-field"
+                value={safeProject}
+                projects={projects}
+                onFocus={noteInteraction}
+                onChange={(nextProject) => {
+                  noteInteraction();
+                  onProjectChange?.(nextProject);
+                }}
+                onCreateProject={(nextProject) => {
+                  noteInteraction();
+                  onCreateProject?.(nextProject);
+                }}
+              />
 
               <div className="reentry-prompt__source-stack">
                 {renderSourcePanel({
@@ -416,6 +440,21 @@ export default function ReentryPrompt({
                   handleAdvanceToChooser();
                 }}
                 placeholder="What are we focusing on next?"
+              />
+              <ProjectField
+                inputId="reentry-project"
+                className="reentry-prompt__project-field"
+                value={safeProject}
+                projects={projects}
+                onFocus={noteInteraction}
+                onChange={(nextProject) => {
+                  noteInteraction();
+                  onProjectChange?.(nextProject);
+                }}
+                onCreateProject={(nextProject) => {
+                  noteInteraction();
+                  onCreateProject?.(nextProject);
+                }}
               />
               <div className="reentry-prompt__source-row">
                 <button

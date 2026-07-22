@@ -26,7 +26,7 @@ const CHECKIN_POPUP_EXTRA_H = 148;
 const LONG_SESSION_POPUP_MIN_W = 420;
 const LONG_SESSION_POPUP_EXTRA_H = 232;
 const REENTRY_PROMPT_SIZES = {
-  'task-entry': { width: 440, height: 370 },
+  'task-entry': { width: 440, height: 426 },
   'resume-choice': { width: 440, height: 286 },
   'save-for-later': { width: 440, height: 560 },
   'start-chooser': { width: 440, height: 500 },
@@ -79,12 +79,16 @@ export default function CompactMode({
   reentryPromptKind = 'start',
   reentryPromptStage = 'task-entry',
   reentryPromptTaskText = '',
+  reentryPromptProject = '',
+  reentryPromptProjects = [],
   reentryPromptMinutes = '25',
   reentryResumeTaskName = '',
   reentryResumeRecap = '',
   reentryResumeNextSteps = '',
   reentryBreakReturnAvailable = false,
   onReentryTaskTextChange,
+  onReentryProjectChange,
+  onReentryCreateProject,
   onReentryMinutesChange,
   onReentryStageChange,
   onReentryStartSession,
@@ -549,12 +553,16 @@ export default function CompactMode({
           stage={reentryPromptStage}
           strongActive={reentryPromptStrongActive}
           taskText={reentryPromptTaskText}
+          project={reentryPromptProject}
+          projects={reentryPromptProjects}
           minutes={reentryPromptMinutes}
           resumeTaskName={reentryResumeTaskName}
           resumeRecap={reentryResumeRecap}
           resumeNextSteps={reentryResumeNextSteps}
           breakModeAvailable={reentryBreakReturnAvailable}
           onTaskTextChange={onReentryTaskTextChange}
+          onProjectChange={onReentryProjectChange}
+          onCreateProject={onReentryCreateProject}
           onMinutesChange={onReentryMinutesChange}
           onStageChange={onReentryStageChange}
           onStartSession={onReentryStartSession}

@@ -1,87 +1,112 @@
 import React from 'react';
-import { Coffee, Play, Square } from 'lucide-react';
+import { Coffee, Play, Plus, Square } from 'lucide-react';
 import { formatTime } from '../utils/time';
 
+function formatFocusDuration(seconds = 0) {
+  const totalMinutes = Math.max(1, Math.round(Math.max(0, Number(seconds) || 0) / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `${totalMinutes} ${totalMinutes === 1 ? 'minute' : 'minutes'}`;
+  }
+
+  const hourText = `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  if (minutes <= 0) return hourText;
+  return `${hourText} ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+}
+
 export default function PomodoroBreakPanel({
+  taskName = '',
+  focusSeconds = 0,
   time = 0,
-  completedCycles = 0,
-  status = 'timer',
-  breakIntention = '',
-  onBreakIntentionChange,
+  breakPlan = '',
+  breakState = 'prompt',
+  onBreakPlanChange,
   onStartBreak,
-  onKeepGoing,
+  onExtendBreak,
+  onStartFocus,
   onEnd,
 }) {
-  const cycleCopy = completedCycles > 1
-    ? `${completedCycles} focus rounds saved`
-    : '1 focus round saved';
-  const normalizedStatus = status === 'ready' || status === 'handoff' ? status : 'timer';
-  const canStartBreak = breakIntention.trim().length > 0;
-  const title = normalizedStatus === 'ready' ? 'Ready to resume?' : 'Break time';
-  const copy = normalizedStatus === 'handoff'
-    ? 'Work time is up. Name the break you are taking before you step away.'
-    : normalizedStatus === 'ready'
-      ? 'Your break is done. Start the next focus round when you feel set.'
-      : 'You are on break. Focana will wait for you when the timer ends.';
+  const normalizedBreakState = breakState === 'running' || breakState === 'ready'
+    ? breakState
+    : 'prompt';
+  const isRunning = normalizedBreakState === 'running';
+  const isReady = normalizedBreakState === 'ready';
+  const trimmedTaskName = typeof taskName === 'string' ? taskName.trim() : '';
+  const title = isReady ? 'Ready to resume?' : 'Break time';
+  const focusSummary = trimmedTaskName
+    ? `That's ${formatFocusDuration(focusSeconds)} on "${trimmedTaskName}"`
+    : `That's ${formatFocusDuration(focusSeconds)}`;
 
   return (
-    <section className="pomodoro-break-panel electron-no-drag" data-testid="pomodoro-break-panel">
+    <section
+      className={`pomodoro-break-panel pomodoro-break-panel--${normalizedBreakState} electron-no-drag`}
+      data-testid="pomodoro-break-panel"
+    >
       <div className="pomodoro-break-panel__icon" aria-hidden="true">
         <Coffee size={18} />
       </div>
       <div className="pomodoro-break-panel__body">
-        <p className="pomodoro-break-panel__eyebrow">{cycleCopy}</p>
         <h2 className="pomodoro-break-panel__title">{title}</h2>
-        <p className="pomodoro-break-panel__copy">{copy}</p>
-        {normalizedStatus === 'handoff' ? (
-          <label className="pomodoro-break-panel__field">
-            <span>How are you going to break?</span>
-            <textarea
-              className="pomodoro-break-panel__textarea"
-              value={breakIntention}
-              maxLength={160}
-              rows={3}
-              onChange={(event) => onBreakIntentionChange?.(event.target.value)}
-              placeholder="Water, stretch, breathe, step outside..."
-            />
-          </label>
-        ) : (
+        {isReady ? (
+          <p className="pomodoro-break-panel__task">{focusSummary}</p>
+        ) : null}
+        {isRunning ? (
+          <div className="pomodoro-break-panel__timer" aria-label={`Break time remaining ${formatTime(time)}`}>
+            {formatTime(time)}
+          </div>
+        ) : null}
+        {!isRunning && !isReady ? (
           <>
-            {breakIntention.trim() && (
-              <p className="pomodoro-break-panel__intention">
-                Break plan: {breakIntention.trim()}
-              </p>
-            )}
-            {normalizedStatus === 'timer' && (
-              <div className="pomodoro-break-panel__timer" aria-label={`Break time remaining ${formatTime(time)}`}>
-                {formatTime(time)}
-              </div>
-            )}
+            <label className="pomodoro-break-panel__label" htmlFor="pomodoro-break-plan">
+              How are you going to break?
+            </label>
+            <textarea
+              id="pomodoro-break-plan"
+              className="pomodoro-break-panel__textarea"
+              value={breakPlan}
+              onChange={(event) => onBreakPlanChange?.(event.target.value)}
+              placeholder="Water, stretch, breathe, step outside..."
+              rows={3}
+            />
           </>
-        )}
+        ) : null}
       </div>
       <div className="pomodoro-break-panel__actions">
-        {normalizedStatus === 'handoff' ? (
-          <button
-            type="button"
-            className="pomodoro-break-panel__primary"
-            onClick={onStartBreak}
-            disabled={!canStartBreak}
-          >
-            <Coffee size={14} aria-hidden="true" />
-            Start break
-          </button>
+        {isReady ? (
+          <>
+            <button type="button" className="pomodoro-break-panel__primary" onClick={onStartFocus}>
+              <Play size={14} aria-hidden="true" />
+              Keep going
+            </button>
+            <button type="button" className="pomodoro-break-panel__secondary" onClick={onExtendBreak}>
+              <Plus size={14} aria-hidden="true" />
+              Add break time
+            </button>
+          </>
         ) : (
-          <button type="button" className="pomodoro-break-panel__primary" onClick={onKeepGoing}>
-            <Play size={14} aria-hidden="true" />
-            {normalizedStatus === 'ready' ? 'Start focus' : 'Keep going'}
-          </button>
-        )}
-        {normalizedStatus === 'handoff' && (
-          <button type="button" className="pomodoro-break-panel__secondary" onClick={onKeepGoing}>
-            <Play size={14} aria-hidden="true" />
-            Keep going
-          </button>
+          <>
+            <button
+              type="button"
+              className="pomodoro-break-panel__primary"
+              onClick={isRunning ? onStartFocus : onStartBreak}
+            >
+              {isRunning ? <Play size={14} aria-hidden="true" /> : <Coffee size={14} aria-hidden="true" />}
+              {isRunning ? 'Keep going' : 'Start break'}
+            </button>
+            {isRunning ? (
+              <button type="button" className="pomodoro-break-panel__secondary" onClick={onExtendBreak}>
+                <Plus size={14} aria-hidden="true" />
+                Add break time
+              </button>
+            ) : (
+              <button type="button" className="pomodoro-break-panel__secondary" onClick={onStartFocus}>
+                <Play size={14} aria-hidden="true" />
+                Keep going
+              </button>
+            )}
+          </>
         )}
         <button type="button" className="pomodoro-break-panel__secondary" onClick={onEnd}>
           <Square size={13} aria-hidden="true" />

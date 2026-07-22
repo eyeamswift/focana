@@ -208,6 +208,15 @@ function getLicenseStatusLabel(status) {
   }
 }
 
+function formatInsightDuration(seconds = 0) {
+  const totalMinutes = Math.max(0, Math.round(Number(seconds || 0) / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -235,6 +244,9 @@ export default function SettingsModal({
   onDndChange,
   checkInSettings,
   onCheckInSettingsChange,
+  focusInsightsSettings,
+  focusInsightSummary,
+  onFocusInsightsSettingsChange,
   updateState,
   onCheckForUpdates,
   onInstallUpdate,
@@ -257,6 +269,10 @@ export default function SettingsModal({
   const [doNotDisturb, setDoNotDisturb] = useState(dndEnabled ?? false);
   const [checkInEnabled, setCheckInEnabled] = useState(checkInSettings?.enabled ?? true);
   const [checkInIntervalFreeflow, setCheckInIntervalFreeflow] = useState(checkInSettings?.intervalFreeflow ?? 15);
+  const [focusInsightsEnabled, setFocusInsightsEnabled] = useState(focusInsightsSettings?.enabled === true);
+  const [focusInsightsIncludeTaskTitles, setFocusInsightsIncludeTaskTitles] = useState(focusInsightsSettings?.includeTaskTitles === true);
+  const [focusInsightsWeeklyEmails, setFocusInsightsWeeklyEmails] = useState(focusInsightsSettings?.weeklyEmails !== false);
+  const [focusInsightsMilestoneEmails, setFocusInsightsMilestoneEmails] = useState(focusInsightsSettings?.milestoneEmails !== false);
   const [recordingKey, setRecordingKey] = useState(null);
   const [conflicts, setConflicts] = useState({});
   const [licenseAction, setLicenseAction] = useState('');
@@ -302,9 +318,13 @@ export default function SettingsModal({
         setCheckInIntervalFreeflow(
           Number.isFinite(settings.checkInIntervalFreeflow) ? settings.checkInIntervalFreeflow : (checkInSettings?.intervalFreeflow ?? 15)
         );
+        setFocusInsightsEnabled(focusInsightsSettings?.enabled === true);
+        setFocusInsightsIncludeTaskTitles(focusInsightsSettings?.includeTaskTitles === true);
+        setFocusInsightsWeeklyEmails(focusInsightsSettings?.weeklyEmails !== false);
+        setFocusInsightsMilestoneEmails(focusInsightsSettings?.milestoneEmails !== false);
       })();
     }
-  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, isOpen, launchAtLoginDefault, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault]);
+  }, [alwaysOnTopDefault, checkInSettings, dndEnabled, enabledControlsDefault, focusInsightsSettings, isOpen, launchAtLoginDefault, pinnedControlsDefault, preferredName, shortcuts, shortcutsEnabledDefault]);
 
   const handleSave = async () => {
     const normalizedPreferredName = normalizePreferredName(tempPreferredName);
@@ -319,6 +339,13 @@ export default function SettingsModal({
     const oldSettings = await window.electronAPI.storeGet('settings') || {};
     await window.electronAPI.savePreferredName?.(normalizedPreferredName);
     onPreferredNameChange?.(normalizedPreferredName);
+    const nextFocusInsightsSettings = {
+      ...(focusInsightsSettings || {}),
+      enabled: focusInsightsEnabled,
+      includeTaskTitles: focusInsightsEnabled && focusInsightsIncludeTaskTitles,
+      weeklyEmails: focusInsightsWeeklyEmails,
+      milestoneEmails: focusInsightsMilestoneEmails,
+    };
 
     await Promise.all([
       window.electronAPI.storeSet('settings.shortcutsEnabled', shortcutsEnabled),
@@ -331,6 +358,7 @@ export default function SettingsModal({
       window.electronAPI.storeSet('settings.checkInEnabled', checkInEnabled),
       window.electronAPI.storeSet('settings.checkInIntervalFreeflow', checkInIntervalFreeflow),
       window.electronAPI.storeSet('settings.shortcuts', normalizedShortcuts),
+      onFocusInsightsSettingsChange?.(nextFocusInsightsSettings),
     ]);
 
     // Track changed settings
@@ -339,6 +367,10 @@ export default function SettingsModal({
       shortcutsEnabled, alwaysOnTop, launchAtLogin, bringToFront, keepTextAfterCompletion,
       pinnedControls, enabledControls, doNotDisturb,
       checkInEnabled, checkInIntervalFreeflow,
+      focusInsightsEnabled,
+      focusInsightsIncludeTaskTitles,
+      focusInsightsWeeklyEmails,
+      focusInsightsMilestoneEmails,
       preferredName: normalizedPreferredName,
     };
     const oldMap = {
@@ -352,6 +384,10 @@ export default function SettingsModal({
       doNotDisturb: oldSettings.doNotDisturbEnabled,
       checkInEnabled: oldSettings.checkInEnabled,
       checkInIntervalFreeflow: oldSettings.checkInIntervalFreeflow,
+      focusInsightsEnabled: focusInsightsSettings?.enabled === true,
+      focusInsightsIncludeTaskTitles: focusInsightsSettings?.includeTaskTitles === true,
+      focusInsightsWeeklyEmails: focusInsightsSettings?.weeklyEmails !== false,
+      focusInsightsMilestoneEmails: focusInsightsSettings?.milestoneEmails !== false,
       preferredName: normalizePreferredName(preferredName),
     };
     for (const [k, v] of Object.entries(trackable)) {
@@ -378,6 +414,10 @@ export default function SettingsModal({
     setLaunchAtLogin(true);
     setBringToFront(true);
     setKeepTextAfterCompletion(false);
+    setFocusInsightsEnabled(false);
+    setFocusInsightsIncludeTaskTitles(false);
+    setFocusInsightsWeeklyEmails(true);
+    setFocusInsightsMilestoneEmails(true);
     setTempPreferredName(normalizePreferredName(preferredName));
     setPreferredNameError('');
     setPinnedControls(PINNED_CONTROLS_DEFAULT);
@@ -727,6 +767,70 @@ export default function SettingsModal({
                       {preferredNameError}
                     </p>
                   ) : null}
+                </div>
+              </div>
+
+              <div style={{
+                padding: '0.75rem',
+                background: 'var(--bg-card)',
+                borderRadius: '0.5rem',
+                border: '1px solid var(--border-subtle)',
+              }} className="space-y-3">
+                <div>
+                  <h4 style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Focus Insights</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.78, marginTop: '0.125rem' }}>
+                    Save a private focus ledger for weekly recaps and milestones.
+                  </p>
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gap: '0.5rem',
+                }}>
+                  <div style={{ border: '1px solid var(--border-subtle)', borderRadius: '0.5rem', padding: '0.5rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Total time</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{formatInsightDuration(focusInsightSummary?.totalSeconds)}</div>
+                  </div>
+                  <div style={{ border: '1px solid var(--border-subtle)', borderRadius: '0.5rem', padding: '0.5rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Completed</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{focusInsightSummary?.completedTasks || 0}</div>
+                  </div>
+                  <div style={{ border: '1px solid var(--border-subtle)', borderRadius: '0.5rem', padding: '0.5rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Top task</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {focusInsightSummary?.topTasks?.[0]?.title || 'None yet'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Focus insights and weekly roadmap</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>
+                      Sync focus time, completions, and missed check-ins for milestone and recap emails.
+                    </p>
+                  </div>
+                  <Switch checked={focusInsightsEnabled} onCheckedChange={setFocusInsightsEnabled} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', opacity: focusInsightsEnabled ? 1 : 0.5 }}>
+                  <div>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Include task names</span>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.7, marginTop: '0.125rem' }}>
+                      Leave off to sync totals and anonymous task hashes only.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={focusInsightsEnabled && focusInsightsIncludeTaskTitles}
+                    onCheckedChange={setFocusInsightsIncludeTaskTitles}
+                    disabled={!focusInsightsEnabled}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', opacity: focusInsightsEnabled ? 1 : 0.5 }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Weekly roadmap emails</span>
+                  <Switch checked={focusInsightsWeeklyEmails} onCheckedChange={setFocusInsightsWeeklyEmails} disabled={!focusInsightsEnabled} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', opacity: focusInsightsEnabled ? 1 : 0.5 }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Milestone emails</span>
+                  <Switch checked={focusInsightsMilestoneEmails} onCheckedChange={setFocusInsightsMilestoneEmails} disabled={!focusInsightsEnabled} />
                 </div>
               </div>
 

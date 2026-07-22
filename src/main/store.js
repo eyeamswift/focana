@@ -5,13 +5,14 @@ const schema = {
     type: 'object',
     properties: {
       text: { type: 'string', default: '' },
+      project: { type: 'string', default: '' },
       contextNote: { type: 'string', default: '' },
       recap: { type: 'string', default: '' },
       nextSteps: { type: 'string', default: '' },
       taskPlan: { type: 'object', default: {} },
       startedAt: { type: ['string', 'null'], default: null },
     },
-    default: { text: '', contextNote: '', recap: '', nextSteps: '', taskPlan: {}, startedAt: null },
+    default: { text: '', project: '', contextNote: '', recap: '', nextSteps: '', taskPlan: {}, startedAt: null },
   },
   timerState: {
     type: 'object',
@@ -68,6 +69,11 @@ const schema = {
     type: 'array',
     default: [],
   },
+  projects: {
+    type: 'array',
+    default: [],
+    items: { type: 'string' },
+  },
   checkIns: {
     type: 'array',
     default: [],
@@ -94,6 +100,40 @@ const schema = {
   feedbackQueue: {
     type: 'array',
     default: [],
+  },
+  focusLedgerQueue: {
+    type: 'array',
+    default: [],
+  },
+  focusInsightsSettings: {
+    type: 'object',
+    properties: {
+      enabled: { type: 'boolean', default: false },
+      includeTaskTitles: { type: 'boolean', default: false },
+      weeklyEmails: { type: 'boolean', default: true },
+      milestoneEmails: { type: 'boolean', default: true },
+      backfillCompletedAt: { type: ['string', 'null'], default: null },
+    },
+    default: {
+      enabled: false,
+      includeTaskTitles: false,
+      weeklyEmails: true,
+      milestoneEmails: true,
+      backfillCompletedAt: null,
+    },
+  },
+  focusLedgerSyncState: {
+    type: 'object',
+    properties: {
+      lastSyncAt: { type: ['string', 'null'], default: null },
+      lastError: { type: ['string', 'null'], default: null },
+      activeSession: { type: ['object', 'null'], default: null },
+    },
+    default: {
+      lastSyncAt: null,
+      lastError: null,
+      activeSession: null,
+    },
   },
   userEmail: {
     type: 'string',
