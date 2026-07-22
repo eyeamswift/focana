@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/focus-milestones",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/focus-weekly-roadmap",
+      "schedule": "0 14 * * 1"
+    }
+  ],
   "redirects": [
     {
       "source": "/x",
