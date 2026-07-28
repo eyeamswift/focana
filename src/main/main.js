@@ -942,7 +942,9 @@ function applyDndState(nextState) {
 }
 
 function shouldUseLaunchAtLoginMock() {
-  return isE2E || !app.isPackaged;
+  const execPath = path.normalize(process.execPath || '');
+  const localElectronSegment = `${path.sep}node_modules${path.sep}electron${path.sep}`;
+  return isE2E || !app.isPackaged || process.defaultApp === true || execPath.includes(localElectronSegment);
 }
 
 function getStoredLaunchAtLogin() {

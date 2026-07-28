@@ -1,0 +1,15 @@
+{
+  "version": "2.4.5",
+  "publishedAt": "2026-07-28",
+  "summary": "Focana 2.4.5 tightens the Pomodoro break experience and prevents local Electron development builds from reopening after restart.",
+  "improvements": [
+    "Pomodoro break planning, active break, and ready-to-resume windows now use state-specific compact heights so the small desktop window no longer leaves a large empty lower area.",
+    "Compact mode now labels Pomodoro breaks as Break time, or Ready to resume when the break has ended, while keeping the current task visible as secondary context.",
+    "Local Electron development builds are guarded from native launch-at-login registration so stale development shells do not reopen after a Mac restart."
+  ],
+  "fixes": [
+    "The active Pomodoro break countdown and Ready to resume surfaces no longer reuse the taller break-planning window size.",
+    "Compact Pomodoro break mode no longer presents the task name as if focus work is still active.",
+    "The launch-at-login guard now treats node_modules/electron and process.defaultApp as development-only runtimes."
+  ]
+}

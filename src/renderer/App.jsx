@@ -118,7 +118,8 @@ const WINDOW_SIZES = {
   pomodoroStartChooserHeight: 300,
   timerHeight: 108,
   timerAddTimeHeight: 260,
-  timerPomodoroBreakHeight: 380,
+  timerPomodoroBreakPromptHeight: 300,
+  timerPomodoroBreakRunningHeight: 220,
   timerPomodoroResumeHeight: 220,
   timerLongSessionNudgeHeight: 370,
   timerCheckInPromptHeight: 280,
@@ -5035,7 +5036,7 @@ export default function App() {
   const presentPomodoroBreakSurface = useCallback((source = 'work-complete') => {
     const targetHeight = source === 'break-complete'
       ? WINDOW_SIZES.timerPomodoroResumeHeight
-      : WINDOW_SIZES.timerPomodoroBreakHeight;
+      : WINDOW_SIZES.timerPomodoroBreakPromptHeight;
     const compactModeActive = isCompact
       || document.documentElement.getAttribute('data-window-mode') === 'pill'
       || windowModeDesiredRef.current === 'pill'
@@ -5490,9 +5491,9 @@ export default function App() {
   const getActiveScreenDefaultHeight = useCallback(() => {
     if (addTimeMenuOpen) return WINDOW_SIZES.timerAddTimeHeight;
     if (mode === TIMER_MODES.POMODORO && pomodoroPhase === 'break') {
-      return Number.isFinite(Number(pomodoroBreakEndsAt)) || time > 0
-        ? WINDOW_SIZES.timerPomodoroBreakHeight
-        : WINDOW_SIZES.timerPomodoroResumeHeight;
+      if (pomodoroBreakReadyToResume) return WINDOW_SIZES.timerPomodoroResumeHeight;
+      if (pomodoroBreakAcknowledged) return WINDOW_SIZES.timerPomodoroBreakRunningHeight;
+      return WINDOW_SIZES.timerPomodoroBreakPromptHeight;
     }
     if (longSessionNudgeVisible) return WINDOW_SIZES.timerLongSessionNudgeHeight;
     if (hasSavedContext && !isStartModalOpen) return WINDOW_SIZES.contextHeight;
@@ -5502,7 +5503,7 @@ export default function App() {
     if (checkInState === 'resolved' && showCenteredFullWindowCheckInToast) return WINDOW_SIZES.timerHeight;
     if (checkInState === 'resolved') return WINDOW_SIZES.timerCheckInResolvedHeight;
     return WINDOW_SIZES.timerHeight;
-  }, [addTimeMenuOpen, checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroBreakEndsAt, pomodoroPhase, showCenteredFullWindowCheckInToast, time]);
+  }, [addTimeMenuOpen, checkInState, hasSavedContext, isStartModalOpen, longSessionNudgeVisible, mode, pomodoroBreakAcknowledged, pomodoroBreakReadyToResume, pomodoroPhase, showCenteredFullWindowCheckInToast]);
 
   const getReentryPromptDefaultHeight = useCallback(() => {
     return getReentryPromptHeightForStage(reentrySurfaceStage);
@@ -9613,6 +9614,15 @@ export default function App() {
       ? 'ready'
       : (pomodoroBreakAcknowledged ? 'running' : 'prompt'))
     : 'idle';
+  const compactTaskLabel = showPomodoroBreakPanel
+    ? (pomodoroBreakState === 'ready' ? 'Ready to resume' : 'Break time')
+    : activeTaskLabel;
+  const compactTaskSummary = showPomodoroBreakPanel
+    ? activeTaskLabel
+    : compactTaskPlanSummary;
+  const compactPlanDetails = showPomodoroBreakPanel
+    ? []
+    : compactTaskPlanDetails;
   const selectedPomodoroConfig = normalizePomodoroConfig({
     workMinutes: pomodoroWorkMinutes,
     breakMinutes: pomodoroBreakMinutes,
@@ -9733,9 +9743,9 @@ export default function App() {
       // The pill itself is electron-no-drag so its mouse events fire normally.
       <div className={`app-container pill-mode electron-draggable${compactTransitioning ? ' pill-mode--transitioning' : ''}`}>
         <CompactMode
-          task={activeTaskLabel}
-          taskPlanSummary={compactTaskPlanSummary}
-          taskPlanDetails={compactTaskPlanDetails}
+          task={compactTaskLabel}
+          taskPlanSummary={compactTaskSummary}
+          taskPlanDetails={compactPlanDetails}
           isRunning={isRunning}
           time={time}
           pulseSignal={compactPulseSignal}

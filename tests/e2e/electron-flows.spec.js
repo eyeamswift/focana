@@ -2429,7 +2429,7 @@ test('timed session expiry opens session wrap without an immediate pulse', async
 });
 
 test('pomodoro work expiry offers an optional break plan and waits on Ready to resume', async () => {
-  const { page, cleanup } = await launchApp({ background: false });
+  const { electronApp, page, cleanup } = await launchApp({ background: false });
 
   try {
     await installTimeOffsetControl(page);
@@ -2439,10 +2439,14 @@ test('pomodoro work expiry offers an optional break plan and waits on Ready to r
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
     await expect(page.getByLabel('How are you going to break?')).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeLessThanOrEqual(330);
 
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
     await expect(page.getByLabel('How are you going to break?')).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeLessThanOrEqual(330);
 
     const startBreakButton = page.getByRole('button', { name: 'Start break' });
     await expect(startBreakButton).toBeEnabled();
@@ -2452,6 +2456,8 @@ test('pomodoro work expiry offers an optional break plan and waits on Ready to r
     await expect(page.locator('.pomodoro-break-panel__timer')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add break time' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Wrap up' })).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeLessThanOrEqual(250);
 
     await installTimeOffsetControl(page);
     await setTimeOffset(page, 65000);
@@ -2460,6 +2466,8 @@ test('pomodoro work expiry offers an optional break plan and waits on Ready to r
     await expect(page.getByRole('button', { name: 'Keep going' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add break time' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Wrap up' })).toBeVisible();
+    await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
+      .toBeLessThanOrEqual(250);
 
     await page.getByRole('button', { name: 'Keep going' }).click();
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
@@ -2623,7 +2631,10 @@ test('timed session expiry with next-up asks for pickup note before done for now
     await expect(page.getByRole('heading', { name: 'Leave a pickup note' })).toBeVisible();
     await expect(page.getByText('Where did you leave off?')).toBeVisible();
     await page.locator('textarea[name="notes"]').fill('Stopped at the second theme cluster.');
-    await page.getByRole('button', { name: 'Done for now' }).click();
+    const doneForNowButton = page.getByRole('button', { name: 'Done for now' });
+    await expect(doneForNowButton).toBeVisible();
+    await expect(doneForNowButton).toBeEnabled();
+    await doneForNowButton.click();
 
     await expect.poll(async () => page.evaluate(async () => {
       const sessions = await window.electronAPI.storeGet('sessions');
