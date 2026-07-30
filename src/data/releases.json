@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.4.6",
+    "publishedAt": "2026-07-30",
+    "displayDate": "Thursday, July 30, 2026",
+    "summary": "Focana 2.4.6 is a small hotfix that keeps focus sessions running through missed check-ins and tightens compact mode's Tasks preview.",
+    "improvements": [
+      "Missed check-ins now record the miss and clear the prompt without pausing the active timer.",
+      "Compact mode's Tasks preview now sizes the temporary expanded window to the visible panel instead of leaving hidden space below it."
+    ],
+    "fixes": [
+      "Missing a check-in no longer drops users into a generic Ready to resume loop while they are still trying to stay with the current task.",
+      "The compact Tasks preview now aligns closer to the bottom work-area edge when expanded from the floating pill."
+    ]
+  },
+  {
     "version": "2.4.5",
     "publishedAt": "2026-07-28",
     "displayDate": "Tuesday, July 28, 2026",
