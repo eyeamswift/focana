@@ -273,7 +273,6 @@ const TIMED_COMPACT_PULSE_PERCENTS = [0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.9];
 const FREEFLOW_PULSE_INTERVAL_SECONDS = 5 * 60 + 3; // +3s offset to avoid check-in collision
 const CHECKIN_PROMPT_COOLDOWN_MS = 30 * 1000;
 const MISSED_CHECKIN_RESPONSE_TIMEOUT_MS = 60 * 1000;
-const MISSED_CHECKIN_RETRY_INTERVAL_MS = 3 * 60 * 1000;
 const COMPACT_SUCCESS_CUE_MS = 800;
 const REENTRY_DELAY_MS = 5 * 60 * 1000;
 const REENTRY_LOOP_MS = 30 * 1000;
@@ -792,9 +791,6 @@ export default function App() {
   const reentryRemainingMsRef = useRef(null);
   const reentrySnoozeUntilRef = useRef(0);
   const reentrySnoozeUntilReopenRef = useRef(false);
-  const missedCheckInRetryAtRef = useRef(null);
-  const missedCheckInResumePromptDeadlineRef = useRef(null);
-  const missedCheckInResumeLoopActiveRef = useRef(false);
   const postSessionBreakUntilRef = useRef(0);
   const postSessionBreakPromptPendingRef = useRef(false);
   const postSessionLastBreakOptionsRef = useRef({ minutes: 5, showTimer: true });
@@ -1471,9 +1467,6 @@ export default function App() {
   }, [getElapsedSeconds, syncDisplayedTime]);
 
   const resumeActiveTimer = useCallback((source = 'unknown') => {
-    missedCheckInRetryAtRef.current = null;
-    missedCheckInResumePromptDeadlineRef.current = null;
-    missedCheckInResumeLoopActiveRef.current = false;
     reentrySurfaceSignatureRef.current = '';
     updateReentryBreakReturnAvailable(false);
     setReentryPromptOverrideKind(null);
@@ -2692,21 +2685,7 @@ export default function App() {
     reentryRemainingMsRef.current = null;
   }, []);
 
-  const clearMissedCheckInResumeLoop = useCallback(({ hidePrompt = false } = {}) => {
-    missedCheckInRetryAtRef.current = null;
-    missedCheckInResumePromptDeadlineRef.current = null;
-    missedCheckInResumeLoopActiveRef.current = false;
-
-    if (!hidePrompt) return;
-    reentrySurfaceSignatureRef.current = '';
-    setReentryPromptOverrideKind(null);
-    setReentryAttentionVisible(false);
-    setReentryStrongActive(false);
-    closeFloatingReentryPrompt();
-  }, [closeFloatingReentryPrompt]);
-
   const snoozeReentryAttention = useCallback((kind = '10m') => {
-    clearMissedCheckInResumeLoop();
     const now = Date.now();
     if (kind === 'reopen') {
       reentrySnoozeUntilRef.current = 0;
@@ -2738,7 +2717,7 @@ export default function App() {
     updateReentryBreakReturnAvailable(false);
     closeFloatingReentryPrompt();
     void window.electronAPI.enterFloatingMinimize?.();
-  }, [clearMissedCheckInResumeLoop, closeFloatingReentryPrompt, updateReentryBreakReturnAvailable]);
+  }, [closeFloatingReentryPrompt, updateReentryBreakReturnAvailable]);
 
   const pauseReentryAttention = useCallback((now = Date.now()) => {
     const hadVisibleReentry = reentryAttentionVisibleRef.current
@@ -3594,9 +3573,6 @@ export default function App() {
     checkInResponseDeadlineRef.current = null;
     checkInReturnToCompactRef.current = false;
     checkInReturnToFloatingRef.current = false;
-    missedCheckInRetryAtRef.current = null;
-    missedCheckInResumePromptDeadlineRef.current = null;
-    missedCheckInResumeLoopActiveRef.current = false;
     checkInPromptSurfaceRef.current = 'full';
     pendingCompactCheckInPromptRef.current = false;
     clearCheckInUi();
@@ -3900,15 +3876,13 @@ export default function App() {
     postSessionBreakUntilRef.current = 0;
     postSessionBreakPromptPendingRef.current = false;
     updateReentryBreakReturnAvailable(false);
-    clearMissedCheckInResumeLoop();
-
     clearSystemEntryPending();
     setReentryPromptOverrideKind(null);
     clearCompactSessionCues();
     resetReentryAttention();
     resetFocusRhythmState();
     setFloatingBreakState({ open: false });
-  }, [clearCompactSessionCues, clearMissedCheckInResumeLoop, clearSystemEntryPending, invalidatePendingSessionCreation, resetFocusRhythmState, resetReentryAttention, resetSessionFeedbackFlow, setFloatingBreakState, updateReentryBreakReturnAvailable]);
+  }, [clearCompactSessionCues, clearSystemEntryPending, invalidatePendingSessionCreation, resetFocusRhythmState, resetReentryAttention, resetSessionFeedbackFlow, setFloatingBreakState, updateReentryBreakReturnAvailable]);
 
   useEffect(() => {
     handleClearRef.current = handleClear;
@@ -4331,61 +4305,6 @@ export default function App() {
     return () => window.clearInterval(intervalId);
   }, [dndEnabled, getElapsedSeconds, hasBlockingWindowOpen, isCompact, isRunning, longSessionNudgeVisible, mode, requestCompactEntry, task]);
 
-  const scheduleMissedCheckInResumeRetry = useCallback((delayMs = MISSED_CHECKIN_RETRY_INTERVAL_MS) => {
-    if (!missedCheckInResumeLoopActiveRef.current) return false;
-    missedCheckInRetryAtRef.current = Date.now() + Math.max(0, Math.floor(Number(delayMs) || 0));
-    missedCheckInResumePromptDeadlineRef.current = null;
-    reentryEligibleSinceRef.current = null;
-    reentryNextCueAtRef.current = null;
-    reentryRemainingMsRef.current = null;
-    reentrySurfaceSignatureRef.current = '';
-    updateReentryBreakReturnAvailable(false);
-    setSystemEntryResumeCandidate(null);
-    setReentryPromptOverrideKind(null);
-    setReentryAttentionVisible(false);
-    setReentryStrongActive(false);
-    closeFloatingReentryPrompt();
-    return true;
-  }, [closeFloatingReentryPrompt, updateReentryBreakReturnAvailable]);
-
-  const presentMissedCheckInResumePrompt = useCallback(() => {
-    if (!missedCheckInResumeLoopActiveRef.current) return false;
-    if (isRunning || !isTimerVisible || !task.trim()) {
-      clearMissedCheckInResumeLoop({ hidePrompt: true });
-      return false;
-    }
-    if (startupSetupGateActive || showPostSessionPrompt || isStartModalOpen || hasBlockingWindowOpen || dndEnabled) {
-      return false;
-    }
-
-    missedCheckInRetryAtRef.current = null;
-    missedCheckInResumePromptDeadlineRef.current = Date.now() + MISSED_CHECKIN_RESPONSE_TIMEOUT_MS;
-    reentrySnoozeUntilRef.current = 0;
-    reentrySnoozeUntilReopenRef.current = false;
-    updateReentryBreakReturnAvailable(false);
-    clearSystemEntryPending();
-    setSystemEntryResumeCandidate(null);
-    setReentryPromptOverrideKind('resume-choice');
-    setReentrySurfaceStage('resume-choice');
-    scheduleReentryCueFromNow(0);
-    setReentryAttentionVisible(true);
-    setReentryStrongActive(true);
-    return true;
-  }, [
-    clearMissedCheckInResumeLoop,
-    clearSystemEntryPending,
-    dndEnabled,
-    hasBlockingWindowOpen,
-    isRunning,
-    isStartModalOpen,
-    isTimerVisible,
-    scheduleReentryCueFromNow,
-    showPostSessionPrompt,
-    startupSetupGateActive,
-    task,
-    updateReentryBreakReturnAvailable,
-  ]);
-
   const handleMissedCheckInResponseTimeout = useCallback(async () => {
     if (checkInStateRef.current !== 'prompting') {
       checkInResponseDeadlineRef.current = null;
@@ -4394,7 +4313,7 @@ export default function App() {
 
     checkInResponseDeadlineRef.current = null;
     const elapsedSec = getElapsedSeconds();
-    const sessionId = currentSessionId || await ensureCurrentSessionId('missed check-in pause');
+    const sessionId = currentSessionId || await ensureCurrentSessionId('missed check-in');
     if (sessionId && sessionId !== currentSessionId) {
       setCurrentSessionId(sessionId);
     }
@@ -4402,19 +4321,24 @@ export default function App() {
     await logCheckIn('missed', elapsedSec);
     track('checkin_responded', { response: 'missed' });
 
-    const pausedElapsed = isRunningRef.current ? pauseActiveTimer() : elapsedSec;
-    elapsedBeforeRunRef.current = Math.max(0, Math.floor(Number(pausedElapsed) || 0));
+    if (checkInShortIntervalRef.current) {
+      checkInShortIntervalRef.current = false;
+      checkInForcedNextRef.current = null;
+      resetCheckInSchedule(mode, initialTime, elapsedSec);
+    } else {
+      advanceCheckInScheduleAfterResult(elapsedSec);
+    }
     clearCheckInUi();
-    missedCheckInResumeLoopActiveRef.current = true;
-    scheduleMissedCheckInResumeRetry(MISSED_CHECKIN_RETRY_INTERVAL_MS);
   }, [
+    advanceCheckInScheduleAfterResult,
     clearCheckInUi,
     currentSessionId,
     ensureCurrentSessionId,
     getElapsedSeconds,
+    initialTime,
     logCheckIn,
-    pauseActiveTimer,
-    scheduleMissedCheckInResumeRetry,
+    mode,
+    resetCheckInSchedule,
   ]);
 
   useEffect(() => {
@@ -4515,17 +4439,6 @@ export default function App() {
       }
 
       if (postSessionBreakUntilRef.current > now) {
-        closeFloatingReentryPrompt();
-        setReentryAttentionVisible(false);
-        setReentryStrongActive(false);
-        return;
-      }
-
-      if (
-        missedCheckInResumeLoopActiveRef.current
-        && Number.isFinite(missedCheckInRetryAtRef.current)
-        && now < missedCheckInRetryAtRef.current
-      ) {
         closeFloatingReentryPrompt();
         setReentryAttentionVisible(false);
         setReentryStrongActive(false);
@@ -4706,39 +4619,12 @@ export default function App() {
         void handleMissedCheckInResponseTimeout();
       }
 
-      if (
-        missedCheckInResumeLoopActiveRef.current
-        && Number.isFinite(missedCheckInRetryAtRef.current)
-        && now >= missedCheckInRetryAtRef.current
-      ) {
-        presentMissedCheckInResumePrompt();
-      }
-
-      if (
-        missedCheckInResumeLoopActiveRef.current
-        && Number.isFinite(missedCheckInResumePromptDeadlineRef.current)
-        && now >= missedCheckInResumePromptDeadlineRef.current
-      ) {
-        missedCheckInResumePromptDeadlineRef.current = null;
-
-        if (
-          reentrySurfaceStage === 'resume-choice'
-          || reentryFloatingPromptOpenRef.current
-        ) {
-          scheduleMissedCheckInResumeRetry(MISSED_CHECKIN_RETRY_INTERVAL_MS);
-        }
-      }
     };
 
     tick();
     const intervalId = window.setInterval(tick, 1000);
     return () => window.clearInterval(intervalId);
-  }, [
-    handleMissedCheckInResponseTimeout,
-    presentMissedCheckInResumePrompt,
-    reentrySurfaceStage,
-    scheduleMissedCheckInResumeRetry,
-  ]);
+  }, [handleMissedCheckInResponseTimeout]);
 
   useEffect(() => {
     if (!isCompact) return;
@@ -6101,7 +5987,6 @@ export default function App() {
       nextTaskText,
     );
 
-    clearMissedCheckInResumeLoop();
     clearSystemEntryPending();
     setReentryPromptOverrideKind(null);
     postSessionBreakUntilRef.current = 0;

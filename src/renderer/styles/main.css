@@ -3492,7 +3492,7 @@ html[data-window-mode='pill'] #root {
 
 .pill.pill--plan-preview {
   overflow: visible;
-  transform: translateY(-132px);
+  transform: translateY(var(--compact-plan-preview-offset, -164px));
 }
 
 .pill-pulse-wash {
@@ -3744,10 +3744,11 @@ html[data-window-mode='pill'] #root {
 .pill-task-plan-preview {
   position: absolute;
   left: 50%;
-  top: calc(100% + 0.55rem);
+  top: calc(100% + var(--compact-plan-preview-gap, 8px));
   z-index: 30;
   width: calc(100vw - 0.5rem);
-  max-height: 18.75rem;
+  height: calc(var(--compact-plan-preview-extra-height, 328px) - var(--compact-plan-preview-gap, 8px));
+  max-height: none;
   padding: 0.72rem 0.82rem;
   display: flex;
   flex-direction: column;
@@ -3967,7 +3968,7 @@ html[data-window-mode='pill'] #root {
 .pill-task-plan-preview__edit {
   width: 100%;
   min-height: 1.8rem;
-  margin-top: 0.58rem;
+  margin-top: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;

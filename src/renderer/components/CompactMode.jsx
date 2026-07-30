@@ -19,7 +19,8 @@ const TASK_DOCK_GAP = 8;
 const TASK_MIN_W = 64;
 const TASK_MAX_W = 220; // max task width before wrapping
 const PLAN_PREVIEW_W = 360;
-const PLAN_PREVIEW_H = 380;
+const PLAN_PREVIEW_H = 328;
+const PLAN_PREVIEW_GAP = 8;
 const PLAN_PREVIEW_LIMIT = 3;
 const CHECKIN_POPUP_MIN_W = 420;
 const CHECKIN_POPUP_EXTRA_H = 148;
@@ -541,7 +542,15 @@ export default function CompactMode({
   const pillGlowStyle = checkInPromptActive
     ? { boxShadow: '0 0 0 2px rgba(217, 119, 6, 0.35), var(--shadow-minimal)', borderColor: '#D97706' }
     : undefined;
-  const pillStyle = { height: pillH, '--compact-dock-width': `${DOCK_W}px`, ...(pillGlowStyle || {}) };
+  const pillStyle = {
+    height: pillH,
+    '--compact-dock-width': `${DOCK_W}px`,
+    '--compact-pill-height': `${pillH}px`,
+    '--compact-plan-preview-extra-height': `${PLAN_PREVIEW_H}px`,
+    '--compact-plan-preview-offset': `${PLAN_PREVIEW_H / -2}px`,
+    '--compact-plan-preview-gap': `${PLAN_PREVIEW_GAP}px`,
+    ...(pillGlowStyle || {}),
+  };
 
   if (reentryPromptActive) {
     return (
