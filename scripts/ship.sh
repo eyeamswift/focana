@@ -140,6 +140,18 @@ update_local_env() {
   fi
 }
 
+html_escape_for_grep() {
+  node - "$1" <<'NODE'
+const text = process.argv[2] || '';
+process.stdout.write(text
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;'));
+NODE
+}
+
 cleanup_temp_files() {
   if [ -n "${RELEASE_NOTES_BODY_FILE:-}" ] && [ -f "${RELEASE_NOTES_BODY_FILE:-}" ]; then
     rm -f "$RELEASE_NOTES_BODY_FILE"
@@ -360,6 +372,7 @@ print_release_confirmation() {
   local arm64_headers
   local x64_headers
   local release_summary
+  local release_summary_html
   local friends_checkout_path="/api/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG/checkout"
   local friends_url="https://focana.app/friends-and-family/$CONFIRM_FRIENDS_AND_FAMILY_SLUG"
 
@@ -371,6 +384,7 @@ print_release_confirmation() {
   arm64_headers="$(curl -fsSI "https://focana.app/api/download?arch=arm64")" || fail "Could not fetch https://focana.app/api/download?arch=arm64 for final confirmation"
   x64_headers="$(curl -fsSI "https://focana.app/api/download?arch=x64")" || fail "Could not fetch https://focana.app/api/download?arch=x64 for final confirmation"
   release_summary="$(node -e "const fs=require('fs'); const note=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(note.summary || '').trim());" "$PROJECT_ROOT/release-notes/$VERSION.json")"
+  release_summary_html="$(html_escape_for_grep "$release_summary")"
 
   grep -Fq "/api/download?arch=arm64" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the Apple Silicon download route"
   grep -Fq "/api/download?arch=x64" <<<"$download_html" || fail "Final confirmation failed: /download does not reference the Intel download route"
@@ -388,7 +402,9 @@ print_release_confirmation() {
   done
   grep -Fq "Version $VERSION" <<<"$updates_html" || fail "Final confirmation failed: /updates does not show Version $VERSION"
   if [ -n "$release_summary" ]; then
-    grep -Fq "$release_summary" <<<"$updates_html" || fail "Final confirmation failed: /updates does not include the approved release summary"
+    if ! grep -Fq "$release_summary" <<<"$updates_html" && ! grep -Fq "$release_summary_html" <<<"$updates_html"; then
+      fail "Final confirmation failed: /updates does not include the approved release summary"
+    fi
   fi
 
   printf '\n'
