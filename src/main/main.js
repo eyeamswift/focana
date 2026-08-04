@@ -802,6 +802,7 @@ function sanitizeStoreValue(key, value) {
           pomodoroWorkMinutes: clampNumber(value.pomodoroWorkMinutes, 1, 240, 25),
           pomodoroBreakMinutes: clampNumber(value.pomodoroBreakMinutes, 1, 120, 5),
           pomodoroBreakEndsAt: sanitizeOptionalIsoTimestamp(value.pomodoroBreakEndsAt),
+          pomodoroBreakReturnToCompact: Boolean(value.pomodoroBreakReturnToCompact),
           pomodoroCyclesCompleted: Math.floor(clampNumber(value.pomodoroCyclesCompleted, 0, 1000, 0)),
           longSessionNudgeAcknowledged: Boolean(value.longSessionNudgeAcknowledged),
           longSessionNudgeSnoozeUntilElapsed: Number.isFinite(Number(value.longSessionNudgeSnoozeUntilElapsed))

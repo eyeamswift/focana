@@ -701,6 +701,8 @@ export default function App() {
   const pomodoroBreakIntentionRef = useRef('');
   const pomodoroBreakReadyToResumeRef = useRef(false);
   const pomodoroCyclesCompletedRef = useRef(0);
+  const pomodoroBreakReturnToCompactRef = useRef(false);
+  const startChooserReturnToCompactRef = useRef(null);
   const longSessionNudgeAcknowledgedRef = useRef(false);
   const longSessionNudgeSnoozeUntilElapsedRef = useRef(null);
   const parkingLotReturnToCompactRef = useRef(false);
@@ -3247,6 +3249,7 @@ export default function App() {
         pomodoroBreakAcknowledgedRef.current = restoredBreakAcknowledged && !restoredBreakPending;
         pomodoroBreakIntentionRef.current = restoredBreakIntention;
         pomodoroBreakReadyToResumeRef.current = restoredBreakReady;
+        pomodoroBreakReturnToCompactRef.current = Boolean(savedTimerState?.pomodoroBreakReturnToCompact);
         pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(savedTimerState?.pomodoroCyclesCompleted) || 0));
         longSessionNudgeAcknowledgedRef.current = Boolean(savedTimerState?.longSessionNudgeAcknowledged);
         longSessionNudgeSnoozeUntilElapsedRef.current = Number.isFinite(Number(savedTimerState?.longSessionNudgeSnoozeUntilElapsed))
@@ -3396,6 +3399,7 @@ export default function App() {
         pomodoroBreakAcknowledged: pomodoroBreakAcknowledgedRef.current,
         pomodoroBreakIntention: pomodoroBreakIntentionRef.current,
         pomodoroBreakReadyToResume: pomodoroBreakReadyToResumeRef.current,
+        pomodoroBreakReturnToCompact: pomodoroBreakReturnToCompactRef.current,
         pomodoroCyclesCompleted: pomodoroCyclesCompletedRef.current,
         longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
         longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
@@ -3439,6 +3443,7 @@ export default function App() {
       pomodoroBreakAcknowledged: pomodoroBreakAcknowledgedRef.current,
       pomodoroBreakIntention: pomodoroBreakIntentionRef.current,
       pomodoroBreakReadyToResume: pomodoroBreakReadyToResumeRef.current,
+      pomodoroBreakReturnToCompact: pomodoroBreakReturnToCompactRef.current,
       pomodoroCyclesCompleted: pomodoroCyclesCompletedRef.current,
       longSessionNudgeAcknowledged: longSessionNudgeAcknowledgedRef.current,
       longSessionNudgeSnoozeUntilElapsed: longSessionNudgeSnoozeUntilElapsedRef.current,
@@ -3486,6 +3491,7 @@ export default function App() {
       pomodoroBreakAcknowledged: false,
       pomodoroBreakIntention: '',
       pomodoroBreakReadyToResume: false,
+      pomodoroBreakReturnToCompact: false,
       pomodoroCyclesCompleted: 0,
       longSessionNudgeAcknowledged: false,
       longSessionNudgeSnoozeUntilElapsed: null,
@@ -3735,6 +3741,7 @@ export default function App() {
     pomodoroBreakAcknowledgedRef.current = false;
     pomodoroBreakIntentionRef.current = '';
     pomodoroBreakReadyToResumeRef.current = false;
+    pomodoroBreakReturnToCompactRef.current = Boolean(nextTimerState?.pomodoroBreakReturnToCompact);
     pomodoroCyclesCompletedRef.current = Math.max(0, Math.floor(Number(nextTimerState?.pomodoroCyclesCompleted) || 0));
     setTask(clampTaskText(nextTask));
     setTaskPlan(nextTaskPlan);
@@ -3819,6 +3826,7 @@ export default function App() {
     pomodoroBreakAcknowledgedRef.current = false;
     pomodoroBreakIntentionRef.current = '';
     pomodoroBreakReadyToResumeRef.current = false;
+    pomodoroBreakReturnToCompactRef.current = false;
     pomodoroCyclesCompletedRef.current = 0;
     pomodoroWorkSecondsRef.current = DEFAULT_POMODORO_PRESET.workMinutes * 60;
     pomodoroBreakSecondsRef.current = DEFAULT_POMODORO_PRESET.breakMinutes * 60;
@@ -4919,6 +4927,42 @@ export default function App() {
     });
   }, [resetCheckInSchedule, resetCompactPulseSchedule, setTimedCueSegment]);
 
+  const openPomodoroWorkTimeChooser = useCallback(() => {
+    const carryoverSeconds = Math.max(0, Math.floor(Number(elapsedBeforeRunRef.current) || 0));
+
+    pomodoroPhaseRef.current = 'idle';
+    pomodoroBreakEndsAtRef.current = null;
+    pomodoroBreakAcknowledgedRef.current = false;
+    pomodoroBreakIntentionRef.current = '';
+    pomodoroBreakReadyToResumeRef.current = false;
+    setPomodoroPhase('idle');
+    setPomodoroBreakEndsAt(null);
+    setPomodoroBreakAcknowledged(false);
+    setPomodoroBreakIntention('');
+    setPomodoroBreakReadyToResume(false);
+    setMode(TIMER_MODES.FREEFLOW);
+
+    const chooserOpened = prepareTaskForStartChooserRef.current({
+      taskText: task,
+      recap: contextNotes,
+      nextSteps: nextStepsNotes,
+      project,
+      taskPlan: persistableTaskPlan,
+      sessionId: currentSessionId,
+      carryoverSeconds,
+      returnToCompact: pomodoroBreakReturnToCompactRef.current,
+    });
+    if (!chooserOpened) return;
+
+    track('pomodoro_work_time_chooser_shown', {
+      completed_cycles: pomodoroCyclesCompletedRef.current,
+    });
+    window.setTimeout(() => {
+      sessionMinutesInputRef.current?.focus();
+      sessionMinutesInputRef.current?.select();
+    }, 80);
+  }, [contextNotes, currentSessionId, nextStepsNotes, persistableTaskPlan, project, task]);
+
   const presentPomodoroBreakSurface = useCallback((source = 'work-complete') => {
     const targetHeight = source === 'break-complete'
       ? WINDOW_SIZES.timerPomodoroResumeHeight
@@ -4927,6 +4971,10 @@ export default function App() {
       || document.documentElement.getAttribute('data-window-mode') === 'pill'
       || windowModeDesiredRef.current === 'pill'
       || windowModeActualRef.current === 'pill';
+
+    if (source === 'work-complete') {
+      pomodoroBreakReturnToCompactRef.current = compactModeActive;
+    }
 
     if (compactModeActive) {
       handleExitCompact();
@@ -5972,12 +6020,16 @@ export default function App() {
     const hasCarryoverOverride = Object.prototype.hasOwnProperty.call(options, 'carryoverSeconds');
     const hasTaskPlanOverride = Object.prototype.hasOwnProperty.call(options, 'taskPlan');
     const hasProjectOverride = Object.prototype.hasOwnProperty.call(options, 'project');
+    const chooserReturnToCompact = startChooserReturnToCompactRef.current;
+    startChooserReturnToCompactRef.current = null;
     const shouldReturnToFloating = options?.returnToFloating === true;
     const shouldReturnToCompact = shouldReturnToFloating
       ? false
-      : options?.returnToCompact === false
-        ? false
-        : true;
+      : typeof options?.returnToCompact === 'boolean'
+        ? options.returnToCompact
+        : typeof chooserReturnToCompact === 'boolean'
+          ? chooserReturnToCompact
+          : true;
     const rawTaskText = hasTaskOverride ? options.taskText : task;
     const nextTaskText = clampTaskText(typeof rawTaskText === 'string' ? rawTaskText : task).trim();
     if (!nextTaskText) return;
@@ -8313,6 +8365,7 @@ export default function App() {
     taskPlan: incomingTaskPlan = null,
     sessionId = null,
     carryoverSeconds = 0,
+    returnToCompact = null,
     suppressHistoryPop = false,
   }) => {
     const nextTask = clampTaskText(typeof taskText === 'string' ? taskText : '').trim();
@@ -8330,6 +8383,9 @@ export default function App() {
     modalStackRef.current = [];
     invalidatePendingSessionCreation();
     suppressHistoryPopRef.current = suppressHistoryPop;
+    startChooserReturnToCompactRef.current = typeof returnToCompact === 'boolean'
+      ? returnToCompact
+      : null;
     elapsedBeforeRunRef.current = 0;
     historyResumeCarryoverSecondsRef.current = normalizedCarryoverSeconds;
     parkingLotReturnToFloatingRef.current = false;
@@ -8394,6 +8450,7 @@ export default function App() {
       checkInTimedPendingIndex: null,
       compactPulseTimedIndex: 0,
       currentSessionId: sessionId || null,
+      pomodoroBreakReturnToCompact: false,
     });
     return true;
   }, [clearCheckInUi, clearCompactSessionCues, invalidatePendingSessionCreation, resetSessionFeedbackFlow]);
@@ -9921,7 +9978,7 @@ export default function App() {
                   onBreakPlanChange={handlePomodoroBreakIntentionChange}
                   onStartBreak={handleStartPomodoroBreakTimer}
                   onExtendBreak={extendPomodoroBreak}
-                  onStartFocus={() => startNextPomodoroWorkInterval(pomodoroBreakState === 'ready' ? 'break-complete' : 'skip-break')}
+                  onChooseWorkTime={openPomodoroWorkTimeChooser}
                   onEnd={handlePomodoroWrapUp}
                 />
               ) : fullScreenTaskState === 'running' ? (

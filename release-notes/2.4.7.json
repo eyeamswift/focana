@@ -1,0 +1,13 @@
+{
+  "version": "2.4.7",
+  "publishedAt": "2026-08-03",
+  "summary": "Focana 2.4.7 makes returning from Pomodoro breaks more flexible and keeps compact timers in place.",
+  "improvements": [
+    "Pomodoro break actions now say Keep working and return to Choose time, so the next focus block can be five minutes, another custom timer, Freeflow, or a fresh Pomodoro.",
+    "The current task and accumulated focus time carry forward while choosing the next work duration."
+  ],
+  "fixes": [
+    "Keep working no longer silently assumes another 25-minute Pomodoro interval.",
+    "A Pomodoro break that expands from compact mode now returns the next active timer to the same compact size, including after the break window reloads."
+  ]
+}

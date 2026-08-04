@@ -25,7 +25,7 @@ export default function PomodoroBreakPanel({
   onBreakPlanChange,
   onStartBreak,
   onExtendBreak,
-  onStartFocus,
+  onChooseWorkTime,
   onEnd,
 }) {
   const normalizedBreakState = breakState === 'running' || breakState === 'ready'
@@ -76,9 +76,9 @@ export default function PomodoroBreakPanel({
       <div className="pomodoro-break-panel__actions">
         {isReady ? (
           <>
-            <button type="button" className="pomodoro-break-panel__primary" onClick={onStartFocus}>
+            <button type="button" className="pomodoro-break-panel__primary" onClick={onChooseWorkTime}>
               <Play size={14} aria-hidden="true" />
-              Keep going
+              Keep working
             </button>
             <button type="button" className="pomodoro-break-panel__secondary" onClick={onExtendBreak}>
               <Plus size={14} aria-hidden="true" />
@@ -90,10 +90,10 @@ export default function PomodoroBreakPanel({
             <button
               type="button"
               className="pomodoro-break-panel__primary"
-              onClick={isRunning ? onStartFocus : onStartBreak}
+              onClick={isRunning ? onChooseWorkTime : onStartBreak}
             >
               {isRunning ? <Play size={14} aria-hidden="true" /> : <Coffee size={14} aria-hidden="true" />}
-              {isRunning ? 'Keep going' : 'Start break'}
+              {isRunning ? 'Keep working' : 'Start break'}
             </button>
             {isRunning ? (
               <button type="button" className="pomodoro-break-panel__secondary" onClick={onExtendBreak}>
@@ -101,9 +101,9 @@ export default function PomodoroBreakPanel({
                 Add break time
               </button>
             ) : (
-              <button type="button" className="pomodoro-break-panel__secondary" onClick={onStartFocus}>
+              <button type="button" className="pomodoro-break-panel__secondary" onClick={onChooseWorkTime}>
                 <Play size={14} aria-hidden="true" />
-                Keep going
+                Keep working
               </button>
             )}
           </>

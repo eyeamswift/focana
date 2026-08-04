@@ -2434,11 +2434,14 @@ test('pomodoro work expiry offers an optional break plan and waits on Ready to r
   try {
     await installTimeOffsetControl(page);
     await startPomodoroSession(page, 'pomodoro handoff', { workMinutes: 1, breakMinutes: 1 });
-    await exitCompactMode(page);
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+    const compactBoundsBeforeBreak = await readMainWindowBounds(electronApp);
 
     await setTimeOffset(page, 65000);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
     await expect(page.getByRole('heading', { name: 'Break time' })).toBeVisible();
     await expect(page.getByLabel('How are you going to break?')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keep working' })).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
       .toBeLessThanOrEqual(330);
 
@@ -2454,6 +2457,7 @@ test('pomodoro work expiry offers an optional break plan and waits on Ready to r
     await startBreakButton.click();
 
     await expect(page.locator('.pomodoro-break-panel__timer')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keep working' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add break time' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Wrap up' })).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
@@ -2463,14 +2467,30 @@ test('pomodoro work expiry offers an optional break plan and waits on Ready to r
     await setTimeOffset(page, 65000);
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toBeVisible({ timeout: 7000 });
     await expect(page.getByText(/That's 1 minute on "pomodoro handoff"/)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Keep going' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keep working' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add break time' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Wrap up' })).toBeVisible();
     await expect.poll(async () => (await readMainWindowBounds(electronApp))?.height || 0, { timeout: 7000 })
       .toBeLessThanOrEqual(250);
 
-    await page.getByRole('button', { name: 'Keep going' }).click();
+    await page.getByRole('button', { name: 'Keep working' }).click();
     await expect(page.getByRole('heading', { name: 'Ready to resume?' })).toHaveCount(0);
+    await expect(page.locator('.start-chooser')).toBeVisible();
+
+    const minutesInput = page.locator('.start-chooser__input').first();
+    await setNumberInputValue(minutesInput, 5);
+    await minutesInput.press('Enter');
+    await expect.poll(async () => {
+      const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+      return timerState.mode === 'timed'
+        && timerState.isRunning === true
+        && timerState.seconds <= 300
+        && timerState.seconds >= 295;
+    }).toBe(true);
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    const compactBoundsAfterResume = await readMainWindowBounds(electronApp);
+    expect({ width: compactBoundsAfterResume?.width, height: compactBoundsAfterResume?.height })
+      .toEqual({ width: compactBoundsBeforeBreak?.width, height: compactBoundsBeforeBreak?.height });
   } finally {
     await cleanup();
   }
