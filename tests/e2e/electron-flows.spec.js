@@ -4141,6 +4141,57 @@ test('session builder quick start begins freeflow from the planning page', async
   }
 });
 
+test('completing a focused subtask keeps its parent and sibling steps open', async () => {
+  const { page, cleanup } = await launchApp({ background: true });
+
+  try {
+    await setTaskComposerValue(page, 'Focused subtask parent');
+    await page.getByTestId('session-builder-add-subtask').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(0), 'Focused first step');
+    await page.getByTestId('session-builder-add-subtask').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-subtask-input').nth(1), 'Sibling step');
+
+    await page.getByTestId('session-builder-quick-start').click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+
+    await page.locator('.pill-task').click();
+    await page.getByTestId('compact-plan-subtask-focus').first().click();
+    await exitCompactMode(page);
+
+    await expect(page.getByRole('button', { name: 'Complete Step' })).toBeVisible();
+    await page.getByRole('button', { name: 'Complete Step' }).click();
+    await expect(page.getByText('Complete this step?')).toBeVisible();
+    await expect(page.getByText(/Your main task and other steps will stay open/)).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'Complete step', exact: true }).click();
+
+    await expect.poll(async () => page.evaluate(async () => {
+      const [currentTask, timerState, sessions] = await Promise.all([
+        window.electronAPI.storeGet('currentTask'),
+        window.electronAPI.storeGet('timerState'),
+        window.electronAPI.storeGet('sessions'),
+      ]);
+      const plan = currentTask?.taskPlan || {};
+      const active = Array.isArray(plan.items) ? plan.items.find((item) => item.id === plan.activeTaskId) : null;
+      const session = (sessions || []).find((item) => item?.task === 'Focused subtask parent');
+      return JSON.stringify({
+        parentCompleted: Boolean(active?.completed),
+        activeSubtaskId: plan.activeSubtaskId || null,
+        subtaskCompletion: (active?.subtasks || []).map((item) => item.completed === true),
+        sessionCompleted: Boolean(session?.completed),
+        timerRunning: Boolean(timerState?.isRunning),
+      });
+    })).toBe(JSON.stringify({
+      parentCompleted: false,
+      activeSubtaskId: null,
+      subtaskCompletion: [true, false],
+      sessionCompleted: false,
+      timerRunning: true,
+    }));
+  } finally {
+    await cleanup();
+  }
+});
+
 test('session builder completes a next-up-only plan from the normal complete button', async () => {
   const { page, cleanup } = await launchApp({ background: false });
 

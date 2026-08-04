@@ -1699,11 +1699,16 @@ function handleSystemUnlockScreen() {
 
 function getFloatingWindowState() {
   const timerState = store.get('timerState', {});
+  const currentTask = store.get('currentTask', {});
   const isRunning = Boolean(timerState && typeof timerState === 'object' && timerState.isRunning);
   const timerVisible = Boolean(timerState && typeof timerState === 'object' && timerState.timerVisible);
   const totalSeconds = Number(timerState?.seconds) || 0;
   const timerMode = sanitizeTimerMode(timerState?.mode);
   const theme = store.get('settings.theme', 'light') === 'dark' ? 'dark' : 'light';
+  const completionTarget = typeof currentTask?.taskPlan?.activeSubtaskId === 'string'
+    && currentTask.taskPlan.activeSubtaskId.trim()
+    ? 'step'
+    : 'task';
 
   if (floatingReentryState.open) {
     return {
@@ -1739,6 +1744,7 @@ function getFloatingWindowState() {
     theme,
     running: isRunning,
     canAddTime: timerMode === 'timed' && timerVisible && Math.max(0, Number(timerState?.initialTime) || 0) > 0,
+    completionTarget,
     breakActive: false,
     breakTimerVisible: false,
   };

@@ -66,6 +66,7 @@ export default function CompactMode({
   onPlay,
   onPause,
   onComplete,
+  completeLabel = 'Complete task',
   canAddTime = false,
   onAddTime,
   longSessionNudgeVisible = false,
@@ -703,7 +704,8 @@ export default function CompactMode({
               <button
                 className="pill-btn"
                 onClick={ctrl(onComplete)}
-                title="Complete"
+                title={completeLabel}
+                aria-label={completeLabel}
                 disabled={!task || !task.trim()}
               >
                 <Check style={{ width: 14, height: 14 }} />

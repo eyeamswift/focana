@@ -6334,6 +6334,34 @@ export default function App() {
     if (!task.trim()) return null;
 
     const preparedTaskPlan = prepareTaskPlanForStart(taskPlanSnapshot, task);
+    const focusedPlanSubtask = getActiveSubtask(preparedTaskPlan);
+    if (focusedPlanSubtask?.id) {
+      closeFocusLedgerSegment(getElapsedSeconds(), {
+        completed: true,
+        endedAt: new Date().toISOString(),
+      });
+      const nextPlan = toggleSubtask(preparedTaskPlan, focusedPlanSubtask.id, true);
+      taskPlanRef.current = nextPlan;
+      setTaskPlan(nextPlan);
+      setTaskPlanCompletionDismissedFor(null);
+
+      if (currentSessionId) {
+        try {
+          await SessionStore.update(currentSessionId, {
+            taskPlan: prepareTaskPlanForStart(nextPlan, task),
+          });
+          await loadSessions();
+        } catch (error) {
+          console.error('Failed to persist focused subtask completion:', error);
+          showToast('warning', 'Step completed here, but could not be saved yet');
+          return currentSessionId;
+        }
+      }
+
+      showToast('success', 'Step complete. Your main task is still open.');
+      return currentSessionId;
+    }
+
     const activePlanTaskForCompletion = getActiveTask(preparedTaskPlan);
     const completedTaskPlan = activePlanTaskForCompletion?.id
       ? setTaskCompleted(preparedTaskPlan, activePlanTaskForCompletion.id, true)
@@ -6399,6 +6427,7 @@ export default function App() {
       bringToFront,
     });
   }, [
+    closeFocusLedgerSegment,
     contextNotes,
     currentSessionId,
     ensureCurrentSessionId,
@@ -6410,7 +6439,9 @@ export default function App() {
     mode,
     nextStepsNotes,
     pauseActiveTimer,
+    loadSessions,
     saveSessionWithNotes,
+    showToast,
     task,
     taskPlan,
   ]);
@@ -9626,12 +9657,12 @@ export default function App() {
             disabled={!task.trim()}
             variant="outline"
             className="focus-control-btn focus-control-btn--outline"
-            aria-label="Complete Task"
+            aria-label={focusedSubtask ? 'Complete Step' : 'Complete Task'}
           >
             <Check className="focus-control-icon" style={{ width: isShortFullWindow ? 9 : 11, height: isShortFullWindow ? 9 : 11 }} />
           </Button>
         </TooltipTrigger>
-        <TooltipContent><p>Complete Task</p></TooltipContent>
+        <TooltipContent><p>{focusedSubtask ? 'Complete Step' : 'Complete Task'}</p></TooltipContent>
       </Tooltip>
       {canAddTimeToActiveSession ? (
         <AddTimeControl
@@ -9646,7 +9677,12 @@ export default function App() {
     <Dialog open={activeCompleteConfirmOpen} onOpenChange={setActiveCompleteConfirmOpen}>
       <DialogContent style={{ background: 'var(--bg-surface)', borderColor: 'var(--brand-action)', maxWidth: '24rem' }}>
         <DialogHeader>
-          <DialogTitle>Are you sure?</DialogTitle>
+          <DialogTitle>{focusedSubtask ? 'Complete this step?' : 'Complete this task?'}</DialogTitle>
+          {focusedSubtask ? (
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5, marginTop: '0.4rem' }}>
+              Only “{activeTaskLabel}” will be completed. Your main task and other steps will stay open.
+            </p>
+          ) : null}
         </DialogHeader>
         <DialogFooter style={{ marginTop: '1rem', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
           <Button
@@ -9670,7 +9706,7 @@ export default function App() {
             onClick={handleConfirmActiveComplete}
             style={{ background: 'var(--brand-primary)', color: 'var(--text-on-brand)' }}
           >
-            Mark complete
+            {focusedSubtask ? 'Complete step' : 'Mark complete'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -9702,6 +9738,7 @@ export default function App() {
           onPlay={handlePlay}
           onPause={handlePause}
           onComplete={handleActiveComplete}
+          completeLabel={focusedSubtask ? 'Complete step' : 'Complete task'}
           canAddTime={canAddTimeToActiveSession}
           onAddTime={(minutes) => addTimeToActiveTimedSession(minutes, 'compact')}
           longSessionNudgeVisible={longSessionNudgeVisible}

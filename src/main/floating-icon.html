@@ -1072,6 +1072,9 @@
         timerLabel.textContent = nextTimeText;
         timerToggleButton.setAttribute('aria-label', currentRunning ? 'Pause timer' : 'Resume timer');
         timerToggleButton.setAttribute('title', currentRunning ? 'Pause timer' : 'Resume timer');
+        const completeLabel = state?.completionTarget === 'step' ? 'Complete step' : 'Complete task';
+        timerCompleteButton.setAttribute('aria-label', completeLabel);
+        timerCompleteButton.setAttribute('title', completeLabel);
         timerAddTimeButton.hidden = !currentCanAddTime;
         timerAddTimeButton.setAttribute('aria-hidden', currentCanAddTime ? 'false' : 'true');
         timerToggleIcon.innerHTML = currentRunning
