@@ -800,6 +800,38 @@ function SaasHubBadge({ location = "pricing" }) {
   );
 }
 
+function LaunchBuffBadge({ location = "recognition" }) {
+  return (
+    <a
+      href="https://launchbuff.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Featured on LaunchBuff"
+      onClick={() => phCapture("external_badge_clicked", { source: "launchbuff", location })}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <img
+        src="https://launchbuff.com/badge-featured-light.svg"
+        alt="Featured on LaunchBuff"
+        width="256"
+        height="80"
+        loading="lazy"
+        decoding="async"
+        style={{
+          width: "256px",
+          maxWidth: "100%",
+          height: "auto",
+          display: "block",
+        }}
+      />
+    </a>
+  );
+}
+
 function EmailCaptureModal({
   open,
   onClose,
@@ -3119,8 +3151,9 @@ export default function FocanaLanding() {
           padding: "32px 0 10px",
         }}
       >
-        <div className="section" style={{ display: "flex", justifyContent: "center" }}>
+        <div className="section" style={{ display: "flex", justifyContent: "center", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <SaasHubBadge location="between_hero_and_pricing" />
+          <LaunchBuffBadge location="between_hero_and_pricing" />
         </div>
       </section>
 
