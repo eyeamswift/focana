@@ -122,7 +122,23 @@ async function launchApp({
       if (didCleanup) return;
       didCleanup = true;
       try {
-        await electronApp.close();
+        const appProcess = electronApp.process();
+        let closeTimeoutId = null;
+        const closedGracefully = await Promise.race([
+          electronApp.close().then(() => true, () => false),
+          new Promise((resolve) => {
+            closeTimeoutId = setTimeout(() => resolve(false), 10000);
+          }),
+        ]);
+        if (closeTimeoutId) clearTimeout(closeTimeoutId);
+
+        if (!closedGracefully && appProcess && appProcess.exitCode === null) {
+          appProcess.kill('SIGKILL');
+          await Promise.race([
+            new Promise((resolve) => appProcess.once('exit', resolve)),
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+          ]);
+        }
       } finally {
         if (deleteStoreDir) {
           removeStoreDir(effectiveStoreDir);
@@ -2061,9 +2077,7 @@ test('floating re-entry prompt requires explicit snooze selection for ten minute
   try {
     await installTimeOffsetControl(page);
 
-    await page.evaluate(async () => {
-      await window.electronAPI.enterFloatingMinimize();
-    });
+    await page.getByRole('button', { name: 'Minimize to Floating' }).click();
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 10000 })
@@ -2111,9 +2125,7 @@ test('floating re-entry prompt mirrors the idle start flow for new tasks', async
   try {
     await installTimeOffsetControl(page);
 
-    await page.evaluate(() => {
-      window.electronAPI.toggleFloatingMinimize();
-    });
+    await page.getByRole('button', { name: 'Minimize to Floating' }).click();
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
@@ -2168,9 +2180,7 @@ test('floating idle re-entry prompt can open To-Do from the task-entry step', as
 
   try {
     await installTimeOffsetControl(page);
-    await page.evaluate(() => {
-      window.electronAPI.toggleFloatingMinimize();
-    });
+    await page.getByRole('button', { name: 'Minimize to Floating' }).click();
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await setTimeOffset(page, ONE_MINUTE_TIMED_WRAP_OFFSET_MS + (5 * 60 * 1000) + 2000);
@@ -2377,7 +2387,7 @@ test("compact complete button saves the task and opens What's next", async () =>
     await startFreeflowSession(page, 'compact-complete-direct');
 
     await page.locator('.pill-timer-button').click();
-    await page.locator('button[title="Complete"]').click();
+    await page.getByRole('button', { name: 'Complete task', exact: true }).click();
     await page.getByRole('button', { name: 'Mark complete' }).click();
 
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
@@ -3217,7 +3227,7 @@ test('compact controls reveal in-place and auto-hide without shifting the pill w
     const baseBounds = await readMainWindowBounds(electronApp);
     expect(baseBounds).toBeTruthy();
 
-    const completeButton = page.locator('button[title="Complete"]');
+    const completeButton = page.getByRole('button', { name: 'Complete task', exact: true });
     await page.locator('.pill-timer-button').click();
     await expect(completeButton).toBeVisible();
 
@@ -4162,7 +4172,7 @@ test('completing a focused subtask keeps its parent and sibling steps open', asy
     await page.getByRole('button', { name: 'Complete Step' }).click();
     await expect(page.getByText('Complete this step?')).toBeVisible();
     await expect(page.getByText(/Your main task and other steps will stay open/)).toBeVisible();
-    await page.getByRole('dialog').getByRole('button', { name: 'Complete step', exact: true }).click();
+    await page.getByRole('button', { name: 'Complete step', exact: true }).click();
 
     await expect.poll(async () => page.evaluate(async () => {
       const [currentTask, timerState, sessions] = await Promise.all([
