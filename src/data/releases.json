@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.4.8",
+    "publishedAt": "2026-08-04",
+    "displayDate": "Tuesday, August 4, 2026",
+    "summary": "Focana 2.4.8 keeps focused steps separate from their parent tasks when you mark work complete.",
+    "improvements": [
+      "Completion controls now clearly say whether they will complete the focused step or the full task across full, compact, and floating views.",
+      "The focused-step confirmation explains that the main task and other steps will stay open."
+    ],
+    "fixes": [
+      "Completing a focused subtask now completes only that step instead of completing the parent task and every sibling subtask.",
+      "The active focus timer now continues after a focused step is completed, preserving the rest of the task plan."
+    ]
+  },
+  {
     "version": "2.4.7",
     "publishedAt": "2026-08-03",
     "displayDate": "Monday, August 3, 2026",
