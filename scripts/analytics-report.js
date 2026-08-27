@@ -10,8 +10,8 @@ const DEFAULT_TOP_USERS = 5;
 const DEFAULT_RECENT_DAYS = 14;
 const DEFAULT_PAGE_SIZE = 1000;
 const DEFAULT_ENV_CANDIDATES = [
-  path.resolve(__dirname, '../../focana-landing/.env'),
-  path.resolve(__dirname, '../../focana-landing/.env.local'),
+  path.resolve(__dirname, '../web/.env'),
+  path.resolve(__dirname, '../web/.env.local'),
   path.resolve(__dirname, '../.env'),
   path.resolve(__dirname, '../.env.local'),
 ];

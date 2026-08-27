@@ -1,0 +1,205 @@
+---
+import EditorialLayout from '../layouts/EditorialLayout.astro';
+import { SITE_CONTACT_EMAIL, SITE_NAME, SITE_OG_IMAGE } from '../data/site';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = `${SITE_NAME} Privacy Policy`;
+const description =
+  'How Focana collects, stores, and uses information across the marketing site, email capture flows, checkout, and support forms.';
+const canonicalURL = `${SITE_ORIGIN}/privacy`;
+
+const webPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: title,
+  description,
+  url: canonicalURL,
+};
+---
+
+<EditorialLayout
+  title={title}
+  description={description}
+  canonicalURL={canonicalURL}
+  ogImage={SITE_OG_IMAGE}
+  jsonLd={webPageSchema}
+>
+  <main class="privacy-page">
+    <section class="policy-card">
+      <span class="eyebrow">Privacy</span>
+      <h1>{title}</h1>
+      <p class="effective-date">Effective April 20, 2026</p>
+      <p>
+        This page explains what information we collect through the Focana website, email capture
+        flows, checkout-related pages, and support forms, and how we use that information.
+      </p>
+    </section>
+
+    <section class="policy-grid">
+      <article class="policy-section">
+        <h2>What we collect</h2>
+        <ul>
+          <li>Email addresses you submit through waitlists, newsletter forms, or checkout-start flows.</li>
+          <li>Optional phone numbers you choose to provide in beta or waitlist forms.</li>
+          <li>Survey responses, app feedback, and support information you send to us.</li>
+          <li>Purchase and fulfillment information sent through Lemon Squeezy when you buy Focana.</li>
+          <li>Basic analytics and page interaction data through Vercel Analytics, Vercel Speed Insights, and PostHog.</li>
+        </ul>
+      </article>
+
+      <article class="policy-section">
+        <h2>How we use it</h2>
+        <ul>
+          <li>To deliver downloads, confirmations, receipts, and product access details.</li>
+          <li>To manage waitlists, beta signups, email updates, and purchase follow-up.</li>
+          <li>To understand how people find the site and which content or flows are working.</li>
+          <li>To improve product onboarding, support, release communications, and site usability.</li>
+        </ul>
+      </article>
+
+      <article class="policy-section">
+        <h2>Tools and service providers</h2>
+        <p>
+          We use Supabase to store submitted form data and operational records, Loops for email
+          marketing and contact creation, Lemon Squeezy for checkout and purchase webhooks, and
+          Vercel plus PostHog for site analytics and performance monitoring.
+        </p>
+        <p>
+          These providers may process information on our behalf to help us run the site, fulfill
+          purchases, send emails, and understand site performance.
+        </p>
+      </article>
+
+      <article class="policy-section">
+        <h2>Local storage and browser-side data</h2>
+        <p>
+          The site may use browser storage for limited UX needs such as remembering submitted email
+          capture state, reducing repeated modals, or preserving short-lived survey flow context.
+        </p>
+      </article>
+
+      <article class="policy-section">
+        <h2>Your choices</h2>
+        <p>
+          You can choose not to submit forms, and you can contact us to request deletion or updates
+          to information you previously provided through the website.
+        </p>
+        <p>
+          Marketing emails sent through our providers should include unsubscribe functionality when
+          applicable.
+        </p>
+      </article>
+
+      <article class="policy-section">
+        <h2>Contact</h2>
+        <p>
+          If you have privacy questions or data requests, email{' '}
+          <a href={`mailto:${SITE_CONTACT_EMAIL}`}>{SITE_CONTACT_EMAIL}</a>.
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <style>
+    .privacy-page {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 72px 0 96px;
+    }
+
+    .policy-card,
+    .policy-section {
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .policy-card {
+      padding: 32px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(229, 212, 177, 0.84);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .policy-card h1 {
+      margin-top: 18px;
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(38px, 5vw, 62px);
+      line-height: 1.04;
+      letter-spacing: -0.05em;
+    }
+
+    .effective-date,
+    .policy-card p,
+    .policy-section p,
+    .policy-section li {
+      margin-top: 16px;
+      font-size: 18px;
+      line-height: 1.8;
+      color: var(--muted-soft);
+    }
+
+    .policy-grid {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+
+    .policy-section {
+      padding: 28px;
+    }
+
+    .policy-section h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(28px, 3vw, 38px);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .policy-section ul {
+      margin-top: 18px;
+      padding-left: 22px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .policy-section a {
+      color: var(--text);
+      text-decoration-color: rgba(217, 119, 6, 0.45);
+      text-decoration-thickness: 1.5px;
+      text-underline-offset: 3px;
+    }
+
+    @media (max-width: 820px) {
+      .policy-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .privacy-page {
+        width: min(100% - 32px, 1180px);
+        padding-top: 52px;
+        padding-bottom: 72px;
+      }
+
+      .policy-card,
+      .policy-section {
+        padding: 24px;
+      }
+    }
+  </style>
+</EditorialLayout>

@@ -1,0 +1,80 @@
+---
+type Props = {
+  subtitle?: string;
+};
+
+const { subtitle = 'The desktop focus buddy for busy brains.' } = Astro.props;
+---
+
+<div class="brand-header">
+  <a href="/" class="brand-link" aria-label="Focana home">
+    <img src="/favicon.png" alt="" class="brand-mark" width="44" height="44" />
+    <span class="brand-copy">
+      <span class="brand-name">Focana</span>
+      <span class="brand-subtitle">{subtitle}</span>
+    </span>
+  </a>
+</div>
+
+<style>
+  .brand-header {
+    margin-bottom: 28px;
+  }
+
+  .brand-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(92, 64, 51, 0.12);
+    flex-shrink: 0;
+  }
+
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .brand-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 23px;
+    font-weight: 800;
+    line-height: 1;
+    color: #5C4033;
+    letter-spacing: -0.03em;
+  }
+
+  .brand-subtitle {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #8B6F47;
+  }
+
+  @media (max-width: 520px) {
+    .brand-header {
+      margin-bottom: 24px;
+    }
+
+    .brand-link {
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+    }
+
+    .brand-name {
+      font-size: 21px;
+    }
+  }
+</style>

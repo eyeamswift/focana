@@ -13,6 +13,7 @@
   - `VITE_ENABLE_ANALYTICS=true`
   - `VITE_POSTHOG_KEY=...`
   - `VITE_POSTHOG_HOST=https://us.i.posthog.com` (optional; defaults to US ingestion)
+- Link the web directory to the existing `focana-landing` Vercel project once per clone with `vercel link --cwd web`. The generated `web/.vercel/project.json` must remain ignored.
 - Standard releases must use a new non-prerelease semver such as `1.2.0`.
 - Do not ship artifacts from `npm run build` or `npm run build:mac`. Those commands can still generate local builds that are not safe for release.
 
@@ -33,7 +34,7 @@
    ```bash
    ./scripts/ship.sh --skip-build
    ```
-   `ship.sh` creates and pushes the version tag, publishes the GitHub release, syncs landing release notes, updates Vercel env vars, deploys preview and production for `focana.app`, and verifies the live pages.
+   `ship.sh` creates and pushes the version tag, publishes the GitHub release, syncs `web/` release notes in the monorepo, updates Vercel env vars, deploys preview and production for `focana.app`, and verifies the live pages.
 
 ## Preferred One-Command Flow
 
@@ -118,7 +119,7 @@ Do not use tray `Restart App` to install the update.
 After publishing a new release:
 
 - confirm the landing-page CTA copy still matches launch messaging
-- if you uploaded new Mac files in Lemon Squeezy, update the landing env file IDs before deploying `/Users/swift/focana-landing`
+- if you uploaded new Mac files in Lemon Squeezy, update the landing env file IDs before deploying `/Users/swift/focana/web`
 - keep the checkout and verified download flow pointed at Lemon, not GitHub assets
 
 ## Best Prompt To Give Codex Next Time

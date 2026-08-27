@@ -1,6 +1,15 @@
 # Codex Workspace Instructions
 
-Focana is a desktop Electron focus app for ADHD users. In this repo, treat UI work as product-sensitive HealthTech work: warm, low-friction, ADHD-aware, and careful with claims.
+Focana is a desktop Electron focus app for ADHD users. This monorepo also contains the Astro website, checkout experience, and hosted APIs under `web/`. Treat UI work as product-sensitive HealthTech work: warm, low-friction, ADHD-aware, and careful with claims.
+
+## Monorepo Boundaries
+
+- Keep the Electron desktop app at the repository root and the Astro/Vercel project under `web/`.
+- Keep desktop and web dependencies independent; use the root scripts to run both projects.
+- Treat checkout, licensing, downloads, feedback, and Focus Ledger changes as cross-product flows. Inspect both desktop callers and `web/src/pages/api` handlers when a contract changes.
+- Vercel deploys from `web/`; GitHub Releases distributes the desktop app.
+- Run `npm run test:web` and `npm run build:web` for web or hosted API changes.
+- Run `npm run test:all` when a change crosses desktop and web boundaries.
 
 ## UI Specialist Mode
 
