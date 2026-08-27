@@ -13,6 +13,7 @@
   - `VITE_ENABLE_ANALYTICS=true`
   - `VITE_POSTHOG_KEY=...`
   - `VITE_POSTHOG_HOST=https://us.i.posthog.com` (optional; defaults to US ingestion)
+- Link the web directory to the existing `focana-landing` Vercel project once per clone with `vercel link --cwd web`. The generated `web/.vercel/project.json` must remain ignored.
 - Standard releases must use a new non-prerelease semver such as `1.2.0`.
 - Do not ship artifacts from `npm run build` or `npm run build:mac`. Those commands can still generate local builds that are not safe for release.
 

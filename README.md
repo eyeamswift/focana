@@ -12,6 +12,15 @@ Focana is a desktop focus app for ADHD users. This monorepo contains the Electro
 
 ## Common commands
 
+Install both projects after a fresh clone:
+
+```sh
+npm ci
+npm ci --prefix web
+```
+
+Then run either product from the same workspace:
+
 ```sh
 npm run dev:desktop
 npm run dev:web
@@ -21,3 +30,9 @@ npm run build:web
 ```
 
 The desktop and web projects retain independent dependencies and deployment targets. GitHub Releases distributes the desktop app, while Vercel deploys from `web/`.
+
+Release operators should link the ignored local Vercel configuration once per clone:
+
+```sh
+vercel link --cwd web
+```

@@ -55,3 +55,11 @@ npm run dev:web
 ## Deployment
 
 Configured for Vercel. Set the Vercel project root directory to `web` and keep the existing environment variables in the Vercel project.
+
+Link a fresh clone to the existing Vercel project before running release automation:
+
+```sh
+vercel link --cwd web
+```
+
+The generated `web/.vercel/` directory is local-only and must not be committed.
