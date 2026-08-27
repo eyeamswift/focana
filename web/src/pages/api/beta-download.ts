@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 
 import { createLoopsContact } from '../../lib/loops';
 import { hasJsonContentType, isTrustedOrigin } from '../../lib/requestSecurity';
+import { notifyTrialDownloaded } from '../../lib/trialDownloadNotification';
 
 export const prerender = false;
 
@@ -44,18 +45,19 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Insert into Supabase
+    const submittedAt = new Date().toISOString();
     const supabaseRes = await fetch(`${supabaseUrl}/rest/v1/Beta_Downloads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`,
-        'Prefer': 'return=minimal',
+        'Prefer': 'return=representation',
       },
       body: JSON.stringify({
         email,
         phone: phone || null,
-        created_at: new Date().toISOString(),
+        created_at: submittedAt,
       }),
     });
 
@@ -75,6 +77,16 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    const insertedRows = await supabaseRes.json() as Array<{ id?: string }>;
+    const betaDownloadId = insertedRows[0]?.id;
+    if (!betaDownloadId) {
+      console.error('[beta-download] Supabase insert returned no ID');
+      return new Response(JSON.stringify({ error: 'Service unavailable' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+
     // Post to Loops API
     if (loopsApiKey) {
       try {
@@ -85,6 +97,18 @@ export const POST: APIRoute = async ({ request }) => {
       } catch (loopsErr) {
         // Log but don't fail the request if Loops fails
         console.error('Loops API error:', loopsErr);
+      }
+
+      try {
+        await notifyTrialDownloaded(loopsApiKey, {
+          betaDownloadId,
+          downloadEmail: email,
+          submittedAt,
+        });
+      } catch (loopsErr) {
+        // The download is already stored and available, so an owner-email
+        // outage must not interrupt the downloader's access.
+        console.error('[beta-download] Owner notification failed:', loopsErr);
       }
     }
 
