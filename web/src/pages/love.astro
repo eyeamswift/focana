@@ -162,7 +162,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         </div>
       </form>
 
-      <div class="success-state" id="success-state" hidden tabindex="-1">
+      <div class="success-state" id="success-state" hidden tabindex="-1" role="status" aria-live="polite">
         <span class="success-mark" aria-hidden="true">✓</span>
         <h2>Thank you—this means a lot.</h2>
         <p>
@@ -358,7 +358,10 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         form.hidden = true;
         if (successState instanceof HTMLElement) {
           successState.hidden = false;
-          successState.focus();
+          window.requestAnimationFrame(() => {
+            successState.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            successState.focus({ preventScroll: true });
+          });
         }
       } catch {
         showFormError('We could not save your story right now. Please try again.');
@@ -382,6 +385,11 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
     .love-page p,
     .love-page fieldset {
       margin: 0;
+    }
+
+    #testimonial-form[hidden],
+    .success-state[hidden] {
+      display: none !important;
     }
 
     .love-page {
