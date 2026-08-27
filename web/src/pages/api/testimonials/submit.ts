@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 
 import { isValidEmail, normalizeEmail } from '../../../lib/emailCapture';
 import { hasJsonContentType, isTrustedOrigin } from '../../../lib/requestSecurity';
+import { notifyTestimonialSubmitted } from '../../../lib/testimonialNotification';
 import {
   createSupabaseTestimonialStore,
   resolveTestimonialEligibility,
@@ -81,7 +82,21 @@ export const POST: APIRoute = async ({ request }) => {
       consentShare: body.consentShare === true,
     };
 
-    await saveTestimonial(submission, eligibility, store);
+    const savedTestimonial = await saveTestimonial(submission, eligibility, store);
+
+    try {
+      await notifyTestimonialSubmitted(import.meta.env.LOOPS_API_KEY, {
+        testimonialId: savedTestimonial.id,
+        accessVerified: eligibility !== null,
+        attribution: submission.attribution,
+        selectedFeatures: submission.selectedFeatures,
+      });
+    } catch (error) {
+      // The testimonial is already safely stored, so an email outage must not
+      // make the submitter retry or create a duplicate testimonial.
+      console.warn('[testimonials/submit] Owner notification failed:', error);
+    }
+
     return json({ ok: true, accessVerified: eligibility !== null }, 201);
   } catch (error) {
     if (error instanceof TestimonialValidationError) {

@@ -4,10 +4,14 @@ type LoopsContactPayload = {
   [key: string]: unknown;
 };
 
-type LoopsEventPayload = {
+export type LoopsEventPayload = {
   email: string;
   eventName: string;
   [key: string]: unknown;
+};
+
+type LoopsEventOptions = {
+  idempotencyKey?: string;
 };
 
 export async function createLoopsContact(
@@ -33,7 +37,8 @@ export async function createLoopsContact(
 
 export async function sendLoopsEvent(
   loopsApiKey: string | undefined,
-  payload: LoopsEventPayload
+  payload: LoopsEventPayload,
+  options: LoopsEventOptions = {}
 ) {
   if (!loopsApiKey) return;
 
@@ -42,6 +47,7 @@ export async function sendLoopsEvent(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${loopsApiKey}`,
+      ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
     },
     body: JSON.stringify(payload),
   });

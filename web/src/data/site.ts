@@ -1,4 +1,4 @@
-import { SITE_ORIGIN } from '../lib/siteOrigin';
+import { SITE_ORIGIN } from '../lib/siteOrigin.ts';
 
 export const SITE_NAME = 'Focana';
 export const SITE_CONTACT_EMAIL = 'hello@focana.app';
