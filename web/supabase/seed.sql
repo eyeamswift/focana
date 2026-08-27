@@ -1,0 +1,1 @@
+-- Intentionally empty. The local Supabase CLI config expects a seed file.

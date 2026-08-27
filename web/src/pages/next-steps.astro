@@ -1,0 +1,357 @@
+---
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
+import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = "Focana — Next Steps";
+const description = "Open Focana, paste your license key, and start your first session.";
+const canonicalURL = `${SITE_ORIGIN}/next-steps`;
+const arm64DirectDownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
+const x64DirectDownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
+const arm64DownloadUrl = arm64DirectDownloadUrl ? "/api/download?arch=arm64" : "";
+const x64DownloadUrl = x64DirectDownloadUrl ? "/api/download?arch=x64" : "";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script>
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group identify setPersonProperties setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroups onFeatureFlags addFeatureFlagsHandler onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_vZ4qnRVsao0nnscIJsBxC8LqOpPbNns5AE9ibSYhUdr', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-01-30'
+      })
+    </script>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: linear-gradient(160deg, #FFFEF8 0%, #FFF9E6 50%, #FEF3C722 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 620px;
+        background: white;
+        border-radius: 24px;
+        padding: 42px 36px;
+        box-shadow: 0 24px 80px rgba(92, 64, 51, 0.12);
+      }
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #D97706;
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 30px;
+        font-weight: 800;
+        color: #5C4033;
+        margin-bottom: 10px;
+      }
+      .subtitle {
+        color: #8B6F47;
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+      .help-heading {
+        font-family: 'Outfit', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        color: #5C4033;
+        margin-bottom: 12px;
+      }
+      .download-buttons {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .download-btn {
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        border: none;
+      }
+      .download-btn:hover:not([aria-disabled="true"]) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3);
+      }
+      .download-btn.primary {
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+      }
+      .download-btn[aria-disabled="true"] {
+        opacity: 0.45;
+        pointer-events: none;
+        transform: none;
+        box-shadow: none;
+      }
+      .retry-label {
+        font-family: 'Outfit', sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        color: #5C4033;
+        margin-bottom: 12px;
+      }
+      .intel-link {
+        color: #8B6F47;
+        font-size: 13px;
+        line-height: 1.5;
+        text-decoration: none;
+      }
+      .intel-link:hover {
+        color: #D97706;
+        text-decoration: underline;
+      }
+      .intel-link[aria-disabled="true"] {
+        opacity: 0.45;
+        pointer-events: none;
+        text-decoration: none;
+      }
+      .support-note {
+        color: #8B6F47;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .support-note a {
+        color: #D97706;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .support-note a:hover {
+        text-decoration: underline;
+      }
+      @media (max-width: 520px) {
+        .card { padding: 34px 22px; }
+        h1 { font-size: 25px; }
+        .download-btn { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <CheckoutBrandHeader subtitle="Set up your download and start your first session." />
+      <h1>Get ready to focus!</h1>
+      <p class="subtitle">Your download is in progress. Check your Downloads folder for a .dmg file.</p>
+
+      <p class="help-heading">Download didn't work?</p>
+      <p class="retry-label">Retry</p>
+
+      <div class="download-buttons">
+        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Download Focana</a>
+        <a href={x64DownloadUrl || "#"} class="intel-link" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">(download Focana for Intel processor)</a>
+      </div>
+
+      <p class="support-note">
+        Need more assistance? Email <a href="mailto:hello@focana.app">hello@focana.app</a> and include your purchase email or order id if you have it.
+      </p>
+    </div>
+
+    <script>
+      (function() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var customerEmail = urlParams.get('email') || '';
+        var orderId = urlParams.get('order_id') || '';
+        var selectedChip = urlParams.get('chip') || '';
+        var pendingSurveyKey = 'focana_pending_survey';
+
+        var armBtn = document.getElementById('arm-btn');
+        var intelBtn = document.getElementById('intel-btn');
+
+        function phCapture(event, props) {
+          if (window.posthog) window.posthog.capture(event, props);
+        }
+
+        function readStoredContext() {
+          try {
+            var storedContext = window.sessionStorage.getItem('focana_purchase_context');
+            if (!storedContext) return;
+            var parsedContext = JSON.parse(storedContext);
+            if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
+            if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
+            if (!selectedChip && parsedContext.chip) selectedChip = parsedContext.chip;
+          } catch (err) {
+            console.error('Failed to read stored purchase context:', err);
+          }
+        }
+
+        function readReferrerContext() {
+          try {
+            if (!document.referrer) return;
+            var referrerUrl = new URL(document.referrer);
+            if (referrerUrl.origin !== window.location.origin) return;
+            if (!customerEmail) customerEmail = referrerUrl.searchParams.get('email') || '';
+            if (!orderId) orderId = referrerUrl.searchParams.get('order_id') || '';
+            if (!selectedChip) selectedChip = referrerUrl.searchParams.get('chip') || '';
+          } catch (err) {
+            console.error('Failed to read referrer purchase context:', err);
+          }
+        }
+
+        function persistContext(chip) {
+          try {
+            var existing = window.sessionStorage.getItem('focana_purchase_context');
+            var parsed = existing ? JSON.parse(existing) : {};
+            var nextContext = {
+              email: customerEmail || parsed.email || '',
+              orderId: orderId || parsed.orderId || '',
+              chip: chip || selectedChip || parsed.chip || ''
+            };
+            selectedChip = nextContext.chip;
+            window.sessionStorage.setItem('focana_purchase_context', JSON.stringify(nextContext));
+          } catch (err) {
+            console.error('Failed to store purchase context:', err);
+          }
+        }
+
+        function readPendingSurvey() {
+          try {
+            var stored = window.sessionStorage.getItem(pendingSurveyKey);
+            return stored ? JSON.parse(stored) : null;
+          } catch (err) {
+            console.error('Failed to read pending survey:', err);
+            return null;
+          }
+        }
+
+        function clearPendingSurvey() {
+          try {
+            window.sessionStorage.removeItem(pendingSurveyKey);
+          } catch (err) {
+            console.error('Failed to clear pending survey:', err);
+          }
+        }
+
+        function sendPendingSurvey(payload) {
+          return fetch('/api/survey', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+            credentials: 'same-origin'
+          }).then(function(response) {
+            if (!response.ok) {
+              return response.text().then(function(text) {
+                throw new Error(text || ('Request failed with status ' + response.status));
+              });
+            }
+
+            clearPendingSurvey();
+            return true;
+          }).catch(function(error) {
+            console.error('Pending survey retry failed:', error);
+            return false;
+          });
+        }
+
+        function retryPendingSurvey(attempt) {
+          var pendingSurvey = readPendingSurvey();
+          if (!pendingSurvey) return;
+
+          var payload = {
+            email: customerEmail || pendingSurvey.email || '',
+            order_id: orderId || pendingSurvey.order_id || '',
+            how_found: pendingSurvey.how_found || null,
+            focus_struggles: Array.isArray(pendingSurvey.focus_struggles) ? pendingSurvey.focus_struggles : [],
+            tools_tried: Array.isArray(pendingSurvey.tools_tried) ? pendingSurvey.tools_tried : []
+          };
+
+          if ((!payload.email && !payload.order_id) || (!payload.how_found && !payload.focus_struggles.length && !payload.tools_tried.length)) {
+            return;
+          }
+
+          sendPendingSurvey(payload).then(function(saved) {
+            if (!saved && attempt < 4) {
+              window.setTimeout(function() {
+                retryPendingSurvey(attempt + 1);
+              }, attempt * 2500);
+            }
+          });
+        }
+
+        function getIsAppleSilicon() {
+          try {
+            if (!/Mac/.test(navigator.userAgent)) return null;
+            if (/ARM/.test(navigator.userAgent)) return true;
+            if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
+          } catch (err) {}
+          return null;
+        }
+
+        function handleDownloadClick(event, chip, button) {
+          var downloadUrl = button.dataset.downloadUrl || '';
+          if (!downloadUrl) {
+            event.preventDefault();
+            return;
+          }
+
+          persistContext(chip);
+
+          phCapture('next_steps_download_clicked', {
+            email: customerEmail,
+            order_id: orderId,
+            chip: chip
+          });
+        }
+
+        readStoredContext();
+        readReferrerContext();
+        persistContext(selectedChip);
+        retryPendingSurvey(1);
+
+        phCapture('next_steps_page_viewed', {
+          email: customerEmail,
+          order_id: orderId,
+          chip: selectedChip || 'unknown'
+        });
+
+        armBtn.addEventListener('click', function(event) {
+          handleDownloadClick(event, 'apple_silicon', armBtn);
+        });
+
+        intelBtn.addEventListener('click', function(event) {
+          handleDownloadClick(event, 'intel', intelBtn);
+        });
+      })();
+    </script>
+    <Analytics />
+    <SpeedInsights />
+  </body>
+</html>

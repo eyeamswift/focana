@@ -1,0 +1,850 @@
+---
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
+import {
+  createSupabaseFriendsAndFamilyInviteStore,
+  isActiveFriendsAndFamilyInvite,
+  normalizeCreatorSlug,
+} from '../../lib/friendsAndFamily';
+import { SITE_ORIGIN } from '../../lib/siteOrigin';
+
+export const prerender = false;
+
+const creatorSlug = normalizeCreatorSlug(Astro.params.slug);
+const title = 'Welcome to Focana';
+const description = 'Private early access to Focana for ADHD creators.';
+const canonicalURL = creatorSlug
+  ? `${SITE_ORIGIN}/friends-and-family/${creatorSlug}`
+  : `${SITE_ORIGIN}/friends-and-family`;
+
+const checkoutPath = creatorSlug
+  ? `/api/friends-and-family/${creatorSlug}/checkout`
+  : '#';
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let invite = null;
+let inviteState: 'ready' | 'not_found' | 'unavailable' = 'not_found';
+
+if (!creatorSlug) {
+  Astro.response.status = 404;
+} else if (!supabaseUrl || !supabaseServiceKey) {
+  Astro.response.status = 503;
+  inviteState = 'unavailable';
+} else {
+  try {
+    const inviteStore = createSupabaseFriendsAndFamilyInviteStore({
+      supabaseUrl,
+      supabaseServiceKey,
+    });
+
+    invite = await inviteStore.findInviteBySlug(creatorSlug);
+
+    if (isActiveFriendsAndFamilyInvite(invite)) {
+      inviteState = 'ready';
+    } else {
+      Astro.response.status = 404;
+    }
+  } catch (error) {
+    console.error('[friends-and-family-page] Failed to load invite:', error);
+    Astro.response.status = 500;
+    inviteState = 'unavailable';
+  }
+}
+
+const isInviteReady = inviteState === 'ready';
+const inviteFirstName = invite?.name?.trim().split(/\s+/).filter(Boolean)[0] || null;
+const inviteHeading = inviteFirstName
+  ? `${inviteFirstName}, Welcome to the Focana family.`
+  : 'Welcome to the Focana family.';
+const inviteErrorMessage =
+  invite?.status === 'claimed'
+    ? 'This invite link has already been used.'
+    : invite?.status === 'revoked'
+      ? 'This invite link is no longer available.'
+      : inviteState === 'unavailable'
+        ? 'This invite link is temporarily unavailable.'
+        : 'This invite link is not available.';
+
+const features = [
+  {
+    title: 'Body doubling',
+    body: "The app stays visible at all times. It's the accountability partner that never cancels — a digital body double that routinely checks in to make sure you're on task.",
+  },
+  {
+    title: 'Externalized working memory',
+    body: "Your current task stays written on screen so your brain doesn't have to hold it. Focana holds the answer to 'what am I supposed to be doing right now?'",
+  },
+  {
+    title: 'Thought offloading',
+    body: 'Every thought can feel like an emergency with ADHD. The Parking Lot gives you a space to write it down so your brain can release it and get back to the task. Everything gets presented back at the end of your session.',
+  },
+  {
+    title: 'Self-monitoring',
+    body: "Subtle visual animations and gentle check-ins ask 'Still focused?' because most of us don't notice we've drifted until 40 minutes later. Focana does the metacognitive work your brain skips.",
+  },
+  {
+    title: 'Context continuity',
+    body: "You get pulled away, come back, and can't remember where you were. Session History preserves your context so you pick up exactly where you left off.",
+  },
+  {
+    title: 'Time blindness support',
+    body: "A visible, always-present timer makes the passage of time something you can actually see. Most tools hide the clock behind a tab you'll never look at.",
+  },
+  {
+    title: 'Dopamine-positive design',
+    body: "No streak shaming, no 'you only did 2 of 5 tasks' guilt. When you finish a session, Focana celebrates what you did instead of punishing what you didn't.",
+  },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+
+    <script>
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group identify setPersonProperties setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags resetGroups onFeatureFlags addFeatureFlagsHandler onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_vZ4qnRVsao0nnscIJsBxC8LqOpPbNns5AE9ibSYhUdr', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-01-30'
+      })
+    </script>
+
+    <style>
+      :root {
+        --deep-amber: #D97706;
+        --warm-brown: #5C4033;
+        --soft-cream: #FFF9E6;
+        --brown-muted: #8B6F47;
+        --card-border: rgba(92, 64, 51, 0.14);
+        --founder-violet: #7657F6;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background:
+          radial-gradient(circle at top left, rgba(217, 119, 6, 0.12), transparent 28%),
+          linear-gradient(180deg, #FFFDF6 0%, var(--soft-cream) 62%, #FFF5DA 100%);
+        color: var(--warm-brown);
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 28px 0 88px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        margin-bottom: 48px;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .brand-logo {
+        display: block;
+        width: 150px;
+        height: auto;
+      }
+
+      .hero {
+        margin-bottom: 56px;
+      }
+
+      .hero-copy,
+      .feature-card,
+      .closing {
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid var(--card-border);
+        border-radius: 26px;
+        box-shadow: 0 22px 48px rgba(92, 64, 51, 0.08);
+        backdrop-filter: blur(12px);
+      }
+
+      .hero-copy {
+        padding: 42px 38px;
+      }
+
+      .eyebrow {
+        display: flex;
+        width: fit-content;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(217, 119, 6, 0.11);
+        color: var(--deep-amber);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin: 0 auto 22px;
+      }
+
+      .hero h1,
+      .section-title,
+      .closing h2 {
+        font-family: 'Outfit', sans-serif;
+        letter-spacing: -0.04em;
+        color: var(--warm-brown);
+      }
+
+      .hero h1 {
+        font-size: clamp(40px, 6vw, 62px);
+        line-height: 0.94;
+        margin: 0 0 18px;
+        max-width: none;
+        text-align: left;
+      }
+
+      .hero p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--brown-muted);
+        margin: 0;
+        max-width: none;
+      }
+
+      .hero-copy-text {
+        display: flex;
+        flex-direction: column;
+        gap: 34px;
+      }
+
+      .hero-subtitle strong,
+      .hero-brand-note strong {
+        font-weight: 800;
+        color: var(--warm-brown);
+      }
+
+      .hero-emphasis {
+        text-decoration: underline;
+        text-decoration-thickness: 0.08em;
+        text-underline-offset: 0.12em;
+      }
+
+      .hero-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 36px;
+      }
+
+      .cta-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: fit-content;
+        min-width: 220px;
+        padding: 16px 24px;
+        border-radius: 16px;
+        border: none;
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        font-size: 16px;
+        font-weight: 800;
+        text-decoration: none;
+        box-shadow: 0 16px 30px rgba(217, 119, 6, 0.25);
+        transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+        cursor: pointer;
+      }
+
+      .cta:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 18px 34px rgba(217, 119, 6, 0.28);
+      }
+
+      .cta[aria-disabled="true"] {
+        opacity: 0.68;
+        pointer-events: none;
+      }
+
+      .microcopy {
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--brown-muted);
+      }
+
+      .error {
+        display: none;
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: rgba(185, 28, 28, 0.08);
+        border: 1px solid rgba(185, 28, 28, 0.14);
+        color: #8a2b2b;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .error[data-visible="true"] {
+        display: block;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 18px;
+        margin-bottom: 22px;
+      }
+
+      .section-title {
+        font-size: clamp(30px, 4vw, 44px);
+        margin: 0;
+      }
+
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin-bottom: 56px;
+      }
+
+      .feature-card {
+        padding: 24px 24px 22px;
+      }
+
+      .features-grid .feature-card:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+        max-width: calc((100% - 18px) / 2);
+        justify-self: center;
+      }
+
+      .feature-card h3 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 22px;
+        letter-spacing: -0.03em;
+        margin: 0 0 12px;
+      }
+
+      .feature-card p {
+        margin: 0;
+        color: var(--brown-muted);
+        font-size: 15px;
+        line-height: 1.72;
+      }
+
+      .closing {
+        padding: 34px 32px;
+      }
+
+      .closing-label {
+        margin: 0 0 24px;
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(30px, 4vw, 44px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+        color: var(--warm-brown);
+      }
+
+      .closing-grid {
+        display: grid;
+        grid-template-columns: 160px minmax(0, 1fr);
+        gap: 30px;
+        align-items: start;
+      }
+
+      .closing-portrait {
+        width: 160px;
+        height: 160px;
+        border-radius: 999px;
+        border: 6px solid white;
+        box-shadow: 0 18px 38px rgba(92, 64, 51, 0.14);
+        overflow: hidden;
+      }
+
+      .closing-portrait img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .closing-copy {
+        max-width: 58rem;
+      }
+
+      .closing-copy p {
+        margin: 0 0 18px;
+        color: var(--brown-muted);
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .closing-copy p:last-of-type {
+        margin-bottom: 26px;
+      }
+
+      .closing-signoff {
+        margin: 0 0 30px;
+        font-size: 17px;
+        line-height: 1.65;
+        color: var(--warm-brown);
+      }
+
+      .closing-signoff strong {
+        font-weight: 800;
+      }
+
+      .closing-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      .closing .microcopy {
+        margin-top: 12px;
+      }
+
+      .landing-bridge {
+        width: min(100%, 920px);
+        margin: 28px auto 0;
+        padding: 34px 32px;
+        background: var(--warm-brown);
+        border: 1px solid rgba(92, 64, 51, 0.22);
+        border-radius: 26px;
+        box-shadow: 0 22px 48px rgba(92, 64, 51, 0.14);
+      }
+
+      .landing-bridge h2 {
+        margin: 0 0 12px;
+        font-family: 'Outfit', sans-serif;
+        font-size: clamp(28px, 4vw, 40px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+        color: #FFF9E6;
+      }
+
+      .landing-bridge p {
+        margin: 0 0 22px;
+        max-width: 42rem;
+        color: rgba(255, 249, 230, 0.82);
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .landing-bridge-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: #FFF9E6;
+        font-size: 16px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .landing-bridge-link:hover {
+        text-decoration: underline;
+      }
+
+      @media (max-width: 860px) {
+        .features-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .shell {
+          width: min(100% - 24px, 1180px);
+          padding-bottom: 64px;
+        }
+
+        .hero-copy,
+        .closing,
+        .feature-card {
+          border-radius: 22px;
+        }
+
+        .hero-copy {
+          padding: 34px 24px;
+        }
+
+        .hero {
+          margin-bottom: 48px;
+        }
+
+        .closing {
+          padding: 26px 22px;
+        }
+
+        .landing-bridge {
+          padding: 26px 22px;
+          border-radius: 22px;
+        }
+
+        .closing-grid {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+
+        .closing-portrait {
+          width: 132px;
+          height: 132px;
+          margin: 0 auto;
+        }
+
+        .closing-copy {
+          max-width: none;
+        }
+
+        .closing-copy p {
+          font-size: 17px;
+          margin-bottom: 18px;
+        }
+
+        .closing-signoff {
+          font-size: 17px;
+          margin-bottom: 24px;
+        }
+
+        .section-header {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .cta {
+          width: 100%;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .hero h1 {
+          font-size: 34px;
+          line-height: 1.02;
+        }
+
+        .hero p {
+          font-size: 17px;
+          line-height: 1.6;
+        }
+
+        .hero-brand-note {
+          font-size: 13px;
+        }
+
+        .closing-copy p {
+          font-size: 17px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    {isInviteReady ? (
+      <main class="shell">
+        <a class="brand" href="/" target="_blank" rel="noreferrer" aria-label="Open the Focana home page in a new tab">
+          <img src="/focana-nav-logo.svg" alt="Focana" class="brand-logo" width="150" height="40" />
+        </a>
+
+        <section class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">Private early access</div>
+            <h1>{inviteHeading}</h1>
+            <div class="hero-copy-text">
+              <p class="hero-subtitle">
+                You're getting early access to a desktop focus system built specifically for ADHD brains.
+                <span class="hero-emphasis">100% free</span>. No strings. The only cost is your honest
+                feedback.
+              </p>
+              <p class="hero-brand-note">
+                <strong>Focana is the flagship product from NeurDi Labs</strong>, a HealthTech
+                company building executive function tools for neurodivergent brains. More are on the
+                way.
+              </p>
+            </div>
+            <div class="hero-actions">
+              <div class="cta-group">
+                <a
+                  class="cta"
+                  href={`${checkoutPath}?location=hero`}
+                  data-friends-checkout-trigger
+                  data-checkout-location="hero"
+                  aria-disabled="false"
+                >
+                  Get Focana Free <span aria-hidden="true">&rarr;</span>
+                </a>
+                <div class="microcopy">macOS · Instant download</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="friends-and-family-features">
+          <div class="section-header">
+            <h2 id="friends-and-family-features" class="section-title">7 Proven ADHD Coping Mechanisms. One calm desktop tool.</h2>
+          </div>
+
+          <div class="features-grid">
+            {features.map((feature) => (
+              <article class="feature-card">
+                <h3>{feature.title}</h3>
+                <p>{feature.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section class="closing">
+          <div class="closing-label">Founder Story</div>
+          <div class="closing-grid">
+            <div class="closing-portrait">
+              <img src="/founder-story.jpeg" alt="Justin, founder of NeurDi Labs" width="160" height="160" />
+            </div>
+            <div class="closing-copy">
+              <p>
+                I was diagnosed with ADHD at 30 — after college, grad school, and nearly a decade into
+                my career. I showed flashes of what I was capable of, but mostly felt like a
+                high-potential underperformer. That led me down a dark path of shame, guilt, and
+                depression.
+              </p>
+              <p>I tried every productivity tool I could find, but none of them stuck.</p>
+              <p>
+                NeurDi Labs exists because I got tired of waiting for someone else to build what I
+                needed — what we needed. Tools designed specifically for neurodivergent brains.
+              </p>
+              <p>
+                Focana is the first tool we're building from that mission: real daily support, not more
+                hustle. Just something that works with your wiring.
+              </p>
+              <p class="closing-signoff"><strong>Justin</strong> — Founder, NeurDi Labs</p>
+              <div class="closing-actions">
+                <a
+                  class="cta"
+                  href={`${checkoutPath}?location=footer`}
+                  data-friends-checkout-trigger
+                  data-checkout-location="footer"
+                  aria-disabled="false"
+                >
+                  Get Focana Free <span aria-hidden="true">&rarr;</span>
+                </a>
+                <div class="microcopy">macOS · Instant download</div>
+              </div>
+            </div>
+          </div>
+          <div class="error" data-checkout-error aria-live="polite"></div>
+        </section>
+
+        <section class="landing-bridge" aria-labelledby="public-landing-bridge">
+          <h2 id="public-landing-bridge">Want to see the full public Focana story?</h2>
+          <p>
+            This invite page is the private short version. The main Focana landing page shows the full
+            product story, positioning, and feature walkthrough for people discovering it for the first
+            time.
+          </p>
+          <a class="landing-bridge-link" href="/" target="_blank" rel="noreferrer" aria-label="Open the public Focana landing page in a new tab">
+            Open the public landing page <span aria-hidden="true">&rarr;</span>
+          </a>
+        </section>
+      </main>
+    ) : (
+      <main class="shell">
+        <section class="closing">
+          <h2>Invite unavailable</h2>
+          <p>{inviteErrorMessage}</p>
+        </section>
+      </main>
+    )}
+
+    {isInviteReady && (
+      <script define:vars={{ creatorSlug, checkoutPath }}>
+        (function () {
+          if (!creatorSlug) return;
+
+          const checkoutTriggers = document.querySelectorAll('[data-friends-checkout-trigger]');
+          const checkoutError = document.querySelector('[data-checkout-error]');
+          let checkoutReadyPromise = null;
+
+          function capture(eventName, props) {
+            if (window.posthog) window.posthog.capture(eventName, props);
+          }
+
+          function showError(message) {
+            if (!checkoutError) return;
+            checkoutError.textContent = message;
+            checkoutError.setAttribute('data-visible', 'true');
+          }
+
+          function clearError() {
+            if (!checkoutError) return;
+            checkoutError.textContent = '';
+            checkoutError.setAttribute('data-visible', 'false');
+          }
+
+          function getCheckoutSuccessContext(event) {
+            const payload = event?.data || {};
+            const nestedOrder = payload.order || {};
+            const attributes = payload.attributes || nestedOrder.attributes || {};
+
+            const email =
+              payload.user_email ||
+              attributes.user_email ||
+              nestedOrder.user_email ||
+              '';
+
+            const orderId =
+              payload.id ||
+              payload.order_id ||
+              nestedOrder.id ||
+              nestedOrder.order_id ||
+              '';
+
+            return {
+              email: email ? String(email).trim() : '',
+              orderId: orderId ? String(orderId).trim() : '',
+            };
+          }
+
+          function setupLemon() {
+            if (!window.LemonSqueezy || window.__focanaFriendsAndFamilyCheckoutSetup) return;
+
+            window.__focanaFriendsAndFamilyCheckoutSetup = true;
+            window.LemonSqueezy.Setup({
+              eventHandler: (event) => {
+                if (event.event === 'Checkout.Success') {
+                  const { email, orderId } = getCheckoutSuccessContext(event);
+
+                  try {
+                    window.sessionStorage.setItem(
+                      'focana_purchase_context',
+                      JSON.stringify({ email, orderId, creatorSlug })
+                    );
+                  } catch {}
+
+                  capture('friends_and_family_checkout_completed', {
+                    creator_slug: creatorSlug,
+                    order_id: orderId || null,
+                  });
+
+                  const redirectUrl = new URL('/download', window.location.origin);
+                  if (email) redirectUrl.searchParams.set('email', email);
+                  if (orderId) redirectUrl.searchParams.set('order_id', orderId);
+                  window.location.href = redirectUrl.toString();
+                }
+              },
+            });
+          }
+
+          function waitForCheckoutOverlay() {
+            if (window.LemonSqueezy?.Url?.Open) {
+              setupLemon();
+              return Promise.resolve(window.LemonSqueezy);
+            }
+
+            if (checkoutReadyPromise) return checkoutReadyPromise;
+
+            checkoutReadyPromise = new Promise((resolve, reject) => {
+              let pollId = null;
+              let timeoutId = null;
+
+              const finish = (callback) => {
+                if (pollId) window.clearInterval(pollId);
+                if (timeoutId) window.clearTimeout(timeoutId);
+                checkoutReadyPromise = null;
+                callback();
+              };
+
+              pollId = window.setInterval(() => {
+                if (!window.LemonSqueezy?.Url?.Open) return;
+                setupLemon();
+                finish(() => resolve(window.LemonSqueezy));
+              }, 50);
+
+              timeoutId = window.setTimeout(() => {
+                finish(() => reject(new Error('Lemon checkout overlay did not become available in time.')));
+              }, 10000);
+            });
+
+            return checkoutReadyPromise;
+          }
+
+          async function requestCheckout(location) {
+            const response = await fetch(checkoutPath, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ location }),
+            });
+
+            const payload = await response.json().catch(() => null);
+
+            if (!response.ok || !payload?.checkoutUrl) {
+              throw new Error(payload?.error || 'Could not create checkout.');
+            }
+
+            return payload.checkoutUrl;
+          }
+
+          capture('friends_and_family_landing_viewed', {
+            creator_slug: creatorSlug,
+          });
+
+          checkoutTriggers.forEach((trigger) => {
+            trigger.addEventListener('click', async (event) => {
+              event.preventDefault();
+              clearError();
+
+              const location = trigger.getAttribute('data-checkout-location') || 'unknown';
+              const originalText = trigger.innerHTML;
+
+              trigger.setAttribute('aria-disabled', 'true');
+              trigger.textContent = 'Opening checkout...';
+
+              capture('friends_and_family_checkout_clicked', {
+                creator_slug: creatorSlug,
+                location,
+              });
+
+              try {
+                const [lemon, checkoutUrl] = await Promise.all([
+                  waitForCheckoutOverlay(),
+                  requestCheckout(location),
+                ]);
+
+                lemon.Url.Open(checkoutUrl);
+              } catch (error) {
+                console.error('Failed to open friends-and-family checkout:', error);
+                showError('Could not open the checkout right now. Please try again in a moment.');
+                window.location.href = trigger.href;
+              } finally {
+                trigger.removeAttribute('aria-disabled');
+                trigger.innerHTML = originalText;
+              }
+            });
+          });
+        })();
+      </script>
+    )}
+
+    <Analytics />
+    <SpeedInsights />
+  </body>
+</html>

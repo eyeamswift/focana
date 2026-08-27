@@ -1,0 +1,373 @@
+---
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = "Focana — Quick Survey";
+const description = "Tell us a little about how you found Focana and what you want it to solve.";
+const canonicalURL = `${SITE_ORIGIN}/survey`;
+const fallbackSiteOrigin = SITE_ORIGIN;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script>
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group identify setPersonProperties setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroups onFeatureFlags addFeatureFlagsHandler onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_vZ4qnRVsao0nnscIJsBxC8LqOpPbNns5AE9ibSYhUdr', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-01-30'
+      })
+    </script>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: linear-gradient(160deg, #FFFEF8 0%, #FFF9E6 50%, #FEF3C722 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .page-wrapper {
+        width: 100%;
+        max-width: 620px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .survey-card {
+        background: white;
+        border-radius: 24px;
+        box-shadow: 0 24px 80px rgba(92, 64, 51, 0.12);
+      }
+      .survey-card {
+        padding: 36px 32px;
+      }
+      h2 {
+        font-family: 'Outfit', sans-serif;
+        color: #5C4033;
+      }
+      h2 {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .helper-text {
+        color: #8B6F47;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .skip-link {
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .action-btn {
+        border: none;
+        border-radius: 12px;
+        padding: 14px 20px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+      }
+      .action-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      .survey-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .skip-link {
+        border: none;
+        background: none;
+        color: #8B6F47;
+        padding: 4px 0;
+        white-space: nowrap;
+      }
+      .skip-link:hover {
+        color: #D97706;
+        text-decoration: underline;
+      }
+      .survey-question {
+        margin-bottom: 24px;
+      }
+      .question-label {
+        display: block;
+        font-family: 'Outfit', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        color: #5C4033;
+        margin-bottom: 12px;
+      }
+      .survey-options {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .survey-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1.5px solid #E5D4B1;
+        background: #FFFEF8;
+        cursor: pointer;
+        font-size: 14px;
+        color: #5C4033;
+        line-height: 1.4;
+      }
+      .survey-option:hover {
+        border-color: #D97706;
+        background: #FFF9E6;
+      }
+      .survey-option input[type="radio"],
+      .survey-option input[type="checkbox"] {
+        accent-color: #F59E0B;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+      @media (max-width: 520px) {
+        .survey-card { padding: 28px 20px; }
+        .survey-header { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-wrapper">
+      <div class="survey-card">
+        <div class="survey-header">
+          <div>
+            <h2>Help us Make Focana Better</h2>
+            <p class="helper-text">Your download is in progress. While you wait, answer three quick questions to help us improve the Focana experience.</p>
+          </div>
+          <button class="skip-link" id="survey-skip" type="button">Skip</button>
+        </div>
+
+        <form id="survey-form" method="POST" action="/api/survey-submit">
+          <input type="hidden" name="email" id="survey-email" value="" />
+          <input type="hidden" name="order_id" id="survey-order-id" value="" />
+          <input type="hidden" name="chip" id="survey-chip" value="" />
+          <div class="survey-question">
+            <label class="question-label">1. How'd you find Focana?</label>
+            <div class="survey-options">
+              <label class="survey-option"><input type="radio" name="how_found" value="Reddit" /><span>Reddit</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Twitter / X" /><span>Twitter / X</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="TikTok" /><span>TikTok</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="YouTube" /><span>YouTube</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="A friend or coworker" /><span>A friend or coworker</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="An ADHD creator or coach" /><span>An ADHD creator or coach</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Product Hunt" /><span>Product Hunt</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Google search" /><span>Google search</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Blog or article" /><span>Blog or article</span></label>
+              <label class="survey-option"><input type="radio" name="how_found" value="Other" /><span>Other</span></label>
+            </div>
+          </div>
+
+          <div class="survey-question">
+            <label class="question-label">2. What's your biggest focus struggle?</label>
+            <div class="survey-options">
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I can't start tasks even when I know what to do" /><span>I can't start tasks even when I know what to do</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I lose track of what I'm working on when I switch apps" /><span>I lose track of what I'm working on when I switch apps</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I don't notice time passing until it's too late" /><span>I don't notice time passing until it's too late</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="Random thoughts pull me off track constantly" /><span>Random thoughts pull me off track constantly</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I've tried other tools and nothing sticks" /><span>I've tried other tools and nothing sticks</span></label>
+              <label class="survey-option"><input type="checkbox" name="focus_struggles" value="I forget where I left off between work sessions" /><span>I forget where I left off between work sessions</span></label>
+            </div>
+          </div>
+
+          <div class="survey-question">
+            <label class="question-label">3. What have you tried before?</label>
+            <div class="survey-options">
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Phone timers or alarms" /><span>Phone timers or alarms</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Pomodoro apps (Forest, Focus Keeper, etc.)" /><span>Pomodoro apps (Forest, Focus Keeper, etc.)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Notion / Todoist / task managers" /><span>Notion / Todoist / task managers</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Focus music (Brain.fm, Endel, lo-fi)" /><span>Focus music (Brain.fm, Endel, lo-fi)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Website blockers (Cold Turkey, Freedom)" /><span>Website blockers (Cold Turkey, Freedom)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Body doubling (Focusmate, co-working streams)" /><span>Body doubling (Focusmate, co-working streams)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Sticky notes (physical or digital)" /><span>Sticky notes (physical or digital)</span></label>
+              <label class="survey-option"><input type="checkbox" name="tools_tried" value="Nothing — this is my first try" /><span>Nothing — this is my first try</span></label>
+            </div>
+          </div>
+
+          <button type="submit" class="action-btn" id="survey-submit">Send and continue</button>
+        </form>
+      </div>
+    </div>
+
+    <script define:vars={{ fallbackSiteOrigin }}>
+      (function() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var customerEmail = urlParams.get('email') || '';
+        var orderId = urlParams.get('order_id') || '';
+        var selectedChip = urlParams.get('chip') || '';
+        var redirectScheduled = false;
+
+        var surveyForm = document.getElementById('survey-form');
+        var surveySkip = document.getElementById('survey-skip');
+        var surveySubmit = document.getElementById('survey-submit');
+        var surveyEmailInput = document.getElementById('survey-email');
+        var surveyOrderIdInput = document.getElementById('survey-order-id');
+        var surveyChipInput = document.getElementById('survey-chip');
+
+        function phCapture(event, props) {
+          if (window.posthog) window.posthog.capture(event, props);
+        }
+
+        function resolveFlowOrigin() {
+          try {
+            var currentUrl = new URL(window.location.origin);
+            if (!['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(currentUrl.hostname)) {
+              return currentUrl.origin;
+            }
+          } catch (err) {}
+
+          return fallbackSiteOrigin;
+        }
+
+        function readStoredContext() {
+          try {
+            var storedContext = window.sessionStorage.getItem('focana_purchase_context');
+            if (!storedContext) return;
+            var parsedContext = JSON.parse(storedContext);
+            if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
+            if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
+            if (!selectedChip && parsedContext.chip) selectedChip = parsedContext.chip;
+          } catch (err) {
+            console.error('Failed to read stored purchase context:', err);
+          }
+        }
+
+        function readReferrerContext() {
+          try {
+            if (!document.referrer) return;
+            var referrerUrl = new URL(document.referrer);
+            if (referrerUrl.origin !== window.location.origin) return;
+            if (!customerEmail) customerEmail = referrerUrl.searchParams.get('email') || '';
+            if (!orderId) orderId = referrerUrl.searchParams.get('order_id') || '';
+            if (!selectedChip) selectedChip = referrerUrl.searchParams.get('chip') || '';
+          } catch (err) {
+            console.error('Failed to read referrer purchase context:', err);
+          }
+        }
+
+        function persistContext(chip) {
+          try {
+            var existing = window.sessionStorage.getItem('focana_purchase_context');
+            var parsed = existing ? JSON.parse(existing) : {};
+            var nextContext = {
+              email: customerEmail || parsed.email || '',
+              orderId: orderId || parsed.orderId || '',
+              chip: chip || selectedChip || parsed.chip || ''
+            };
+            selectedChip = nextContext.chip;
+            window.sessionStorage.setItem('focana_purchase_context', JSON.stringify(nextContext));
+          } catch (err) {
+            console.error('Failed to store purchase context:', err);
+          }
+        }
+
+        function syncHiddenFields() {
+          surveyEmailInput.value = customerEmail;
+          surveyOrderIdInput.value = orderId;
+          surveyChipInput.value = selectedChip;
+        }
+
+        function redirectToNextSteps() {
+          if (redirectScheduled) return;
+          redirectScheduled = true;
+
+          persistContext(selectedChip);
+
+          var nextUrl = new URL('/next-steps', resolveFlowOrigin());
+          if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
+          if (orderId) nextUrl.searchParams.set('order_id', orderId);
+          if (selectedChip) nextUrl.searchParams.set('chip', selectedChip);
+
+          window.setTimeout(function() {
+            window.location.href = nextUrl.toString();
+          }, 180);
+        }
+
+        readStoredContext();
+        readReferrerContext();
+        persistContext(selectedChip);
+        surveyForm.action = new URL('/api/survey-submit', resolveFlowOrigin()).toString();
+        syncHiddenFields();
+
+        phCapture('survey_page_viewed', {
+          email: customerEmail,
+          order_id: orderId,
+          chip: selectedChip || 'unknown'
+        });
+
+        surveySkip.addEventListener('click', function() {
+          phCapture('survey_skipped', {
+            email: customerEmail,
+            order_id: orderId,
+            chip: selectedChip || 'unknown'
+          });
+          redirectToNextSteps();
+        });
+
+        surveyForm.addEventListener('submit', function() {
+          surveySubmit.disabled = true;
+          surveySubmit.textContent = 'Saving...';
+
+          var howFoundEl = surveyForm.querySelector('input[name="how_found"]:checked');
+          var howFound = howFoundEl ? howFoundEl.value : null;
+          var focusStruggles = [];
+          var toolsTried = [];
+
+          surveyForm.querySelectorAll('input[name="focus_struggles"]:checked').forEach(function(cb) {
+            focusStruggles.push(cb.value);
+          });
+
+          surveyForm.querySelectorAll('input[name="tools_tried"]:checked').forEach(function(cb) {
+            toolsTried.push(cb.value);
+          });
+
+          phCapture('survey_completed', {
+            email: customerEmail,
+            order_id: orderId,
+            chip: selectedChip || 'unknown',
+            how_found: howFound,
+            focus_struggles: focusStruggles,
+            tools_tried: toolsTried
+          });
+          syncHiddenFields();
+        });
+      })();
+    </script>
+    <Analytics />
+    <SpeedInsights />
+  </body>
+</html>

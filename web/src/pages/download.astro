@@ -1,0 +1,345 @@
+---
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
+import CheckoutBrandHeader from '../components/CheckoutBrandHeader.astro';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = "Download Focana";
+const description = "Choose the right Focana build for your Mac.";
+const canonicalURL = `${SITE_ORIGIN}/download`;
+const arm64DirectDownloadUrl = import.meta.env.PUBLIC_GITHUB_ARM64_DMG_URL || "";
+const x64DirectDownloadUrl = import.meta.env.PUBLIC_GITHUB_X64_DMG_URL || "";
+const arm64DownloadUrl = arm64DirectDownloadUrl ? "/api/download?arch=arm64" : "";
+const x64DownloadUrl = x64DirectDownloadUrl ? "/api/download?arch=x64" : "";
+const fallbackSiteOrigin = SITE_ORIGIN;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script>
+      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group identify setPersonProperties setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroups onFeatureFlags addFeatureFlagsHandler onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      posthog.init('phc_vZ4qnRVsao0nnscIJsBxC8LqOpPbNns5AE9ibSYhUdr', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-01-30'
+      })
+    </script>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: linear-gradient(160deg, #FFFEF8 0%, #FFF9E6 50%, #FEF3C722 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 580px;
+        background: white;
+        border-radius: 24px;
+        padding: 42px 36px;
+        box-shadow: 0 24px 80px rgba(92, 64, 51, 0.12);
+      }
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #D97706;
+        margin-bottom: 12px;
+      }
+      .download-buttons {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .download-btn {
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        border: none;
+      }
+      .download-btn:hover:not([aria-disabled="true"]) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(217, 119, 6, 0.3);
+      }
+      .download-btn.primary {
+        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+        box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25);
+      }
+      .download-btn[aria-disabled="true"] {
+        opacity: 0.45;
+        pointer-events: none;
+        transform: none;
+        box-shadow: none;
+      }
+      .intel-link {
+        color: #8B6F47;
+        font-size: 13px;
+        line-height: 1.5;
+        text-decoration: none;
+      }
+      .intel-link:hover {
+        color: #D97706;
+        text-decoration: underline;
+      }
+      .intel-link[aria-disabled="true"] {
+        opacity: 0.45;
+        pointer-events: none;
+        text-decoration: none;
+      }
+      .chip-help {
+        font-size: 12px;
+        color: #7A6548;
+        line-height: 1.7;
+        margin-bottom: 18px;
+        text-align: left;
+      }
+      .chip-help strong {
+        color: #8B6F47;
+      }
+      .not-sure-box {
+        background: #F5F5F5;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 20px;
+        text-align: left;
+        font-size: 12px;
+        color: #7A6548;
+        line-height: 1.5;
+      }
+      .info-tooltip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .info-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #E5D4B1;
+        color: #5C4033;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+      .tooltip-img {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 10px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+        padding: 8px;
+        z-index: 10;
+        width: 280px;
+      }
+      .tooltip-img img {
+        width: 100%;
+        border-radius: 8px;
+        display: block;
+      }
+      .info-tooltip:hover .tooltip-img,
+      .info-tooltip:focus-within .tooltip-img {
+        display: block;
+      }
+      .support-note {
+        color: #8B6F47;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .support-note a {
+        color: #D97706;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .support-note a:hover {
+        text-decoration: underline;
+      }
+      @media (max-width: 520px) {
+        .card { padding: 34px 22px; }
+        .download-btn { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <CheckoutBrandHeader subtitle="Instant access to your Mac download." />
+      <p style="font-size: 22px; font-weight: 700; color: #5C4033; margin-bottom: 20px;">Almost there...</p>
+
+      <div class="download-buttons">
+        <a href={arm64DownloadUrl || "#"} class="download-btn primary" id="arm-btn" data-download-url={arm64DownloadUrl} aria-disabled={arm64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">Download Focana</a>
+        <div style="height: 20px;"></div>
+        <a href={x64DownloadUrl || "#"} class="intel-link" id="intel-btn" data-download-url={x64DownloadUrl} aria-disabled={x64DownloadUrl ? "false" : "true"} target="_blank" rel="noopener noreferrer">(download Focana for Intel processor)</a>
+      </div>
+
+      <p class="chip-help">
+        <strong>Apple Silicon (M1-M4):</strong> MacBook Air/Pro 2020+, iMac 2021+, Mac Mini 2020+<br />
+        <strong>Intel:</strong> MacBook Air/Pro 2019 and earlier, iMac 2020 and earlier
+      </p>
+
+      <div style="height: 36px;"></div>
+      <div class="not-sure-box">
+        <span class="info-tooltip">
+          Not sure which to pick? Click the icon in the top left of your screen and select "About This Mac."
+          <span class="info-icon" tabindex="0" aria-label="Show helper image">?</span>
+          <span class="tooltip-img"><img src="/download-help.png" alt="Screenshot showing Apple menu with About This Mac highlighted" /></span>
+        </span>
+      </div>
+
+      <p class="support-note">
+        If the download does not start, try the other button or email <a href="mailto:hello@focana.app">hello@focana.app</a>.
+      </p>
+    </div>
+
+    <script define:vars={{ fallbackSiteOrigin }}>
+      (function() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var customerEmail = urlParams.get('email') || '';
+        var orderId = urlParams.get('order_id') || '';
+
+        var armBtn = document.getElementById('arm-btn');
+        var intelBtn = document.getElementById('intel-btn');
+
+        function phCapture(event, props) {
+          if (window.posthog) window.posthog.capture(event, props);
+        }
+
+        function readStoredContext() {
+          try {
+            var storedContext = window.sessionStorage.getItem('focana_purchase_context');
+            if (!storedContext) return;
+            var parsedContext = JSON.parse(storedContext);
+            if (!customerEmail && parsedContext.email) customerEmail = parsedContext.email;
+            if (!orderId && parsedContext.orderId) orderId = parsedContext.orderId;
+          } catch (err) {
+            console.error('Failed to read stored purchase context:', err);
+          }
+        }
+
+        function persistContext(chip) {
+          try {
+            var existing = window.sessionStorage.getItem('focana_purchase_context');
+            var parsed = existing ? JSON.parse(existing) : {};
+            var nextContext = {
+              email: customerEmail || parsed.email || '',
+              orderId: orderId || parsed.orderId || '',
+              chip: chip || parsed.chip || ''
+            };
+            window.sessionStorage.setItem('focana_purchase_context', JSON.stringify(nextContext));
+          } catch (err) {
+            console.error('Failed to store purchase context:', err);
+          }
+        }
+
+        function getIsAppleSilicon() {
+          try {
+            if (!/Mac/.test(navigator.userAgent)) return null;
+            if (/ARM/.test(navigator.userAgent)) return true;
+            if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
+          } catch (err) {}
+          return null;
+        }
+
+        function resolveFlowOrigin() {
+          try {
+            var currentUrl = new URL(window.location.origin);
+            if (!['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(currentUrl.hostname)) {
+              return currentUrl.origin;
+            }
+          } catch (err) {}
+
+          return fallbackSiteOrigin;
+        }
+
+        function redirectToNextSteps(chip) {
+          var nextUrl = new URL('/next-steps', resolveFlowOrigin());
+          if (customerEmail) nextUrl.searchParams.set('email', customerEmail);
+          if (orderId) nextUrl.searchParams.set('order_id', orderId);
+          if (chip) nextUrl.searchParams.set('chip', chip);
+
+          window.setTimeout(function() {
+            window.location.href = nextUrl.toString();
+          }, 180);
+        }
+
+        function handleChipClick(event, chip, button) {
+          var downloadUrl = button.dataset.downloadUrl || '';
+          if (!downloadUrl) {
+            event.preventDefault();
+            return;
+          }
+
+          persistContext(chip);
+
+          phCapture('dmg_downloaded', {
+            chip: chip,
+            email: customerEmail,
+            order_id: orderId
+          });
+
+          redirectToNextSteps(chip);
+        }
+
+        readStoredContext();
+        persistContext('');
+
+        var isArm = getIsAppleSilicon();
+
+        phCapture('download_page_viewed', {
+          email: customerEmail,
+          order_id: orderId,
+          chip_detected: isArm === true ? 'apple_silicon' : isArm === false ? 'intel' : 'unknown'
+        });
+
+        armBtn.addEventListener('click', function(event) {
+          handleChipClick(event, 'apple_silicon', armBtn);
+        });
+
+        intelBtn.addEventListener('click', function(event) {
+          handleChipClick(event, 'intel', intelBtn);
+        });
+      })();
+    </script>
+    <Analytics />
+    <SpeedInsights />
+  </body>
+</html>

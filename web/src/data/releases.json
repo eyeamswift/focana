@@ -1,0 +1,435 @@
+[
+  {
+    "version": "2.4.8",
+    "publishedAt": "2026-08-04",
+    "displayDate": "Tuesday, August 4, 2026",
+    "summary": "Focana 2.4.8 keeps focused steps separate from their parent tasks when you mark work complete.",
+    "improvements": [
+      "Completion controls now clearly say whether they will complete the focused step or the full task across full, compact, and floating views.",
+      "The focused-step confirmation explains that the main task and other steps will stay open."
+    ],
+    "fixes": [
+      "Completing a focused subtask now completes only that step instead of completing the parent task and every sibling subtask.",
+      "The active focus timer now continues after a focused step is completed, preserving the rest of the task plan."
+    ]
+  },
+  {
+    "version": "2.4.7",
+    "publishedAt": "2026-08-03",
+    "displayDate": "Monday, August 3, 2026",
+    "summary": "Focana 2.4.7 makes returning from Pomodoro breaks more flexible and keeps compact timers in place.",
+    "improvements": [
+      "Pomodoro break actions now say Keep working and return to Choose time, so the next focus block can be five minutes, another custom timer, Freeflow, or a fresh Pomodoro.",
+      "The current task and accumulated focus time carry forward while choosing the next work duration."
+    ],
+    "fixes": [
+      "Keep working no longer silently assumes another 25-minute Pomodoro interval.",
+      "A Pomodoro break that expands from compact mode now returns the next active timer to the same compact size, including after the break window reloads."
+    ]
+  },
+  {
+    "version": "2.4.6",
+    "publishedAt": "2026-07-30",
+    "displayDate": "Thursday, July 30, 2026",
+    "summary": "Focana 2.4.6 is a small hotfix that keeps focus sessions running through missed check-ins and tightens compact mode's Tasks preview.",
+    "improvements": [
+      "Missed check-ins now record the miss and clear the prompt without pausing the active timer.",
+      "Compact mode's Tasks preview now sizes the temporary expanded window to the visible panel instead of leaving hidden space below it."
+    ],
+    "fixes": [
+      "Missing a check-in no longer drops users into a generic Ready to resume loop while they are still trying to stay with the current task.",
+      "The compact Tasks preview now aligns closer to the bottom work-area edge when expanded from the floating pill."
+    ]
+  },
+  {
+    "version": "2.4.5",
+    "publishedAt": "2026-07-28",
+    "displayDate": "Tuesday, July 28, 2026",
+    "summary": "Focana 2.4.5 tightens the Pomodoro break experience and prevents local Electron development builds from reopening after restart.",
+    "improvements": [
+      "Pomodoro break planning, active break, and ready-to-resume windows now use state-specific compact heights so the small desktop window no longer leaves a large empty lower area.",
+      "Compact mode now labels Pomodoro breaks as Break time, or Ready to resume when the break has ended, while keeping the current task visible as secondary context.",
+      "Local Electron development builds are guarded from native launch-at-login registration so stale development shells do not reopen after a Mac restart."
+    ],
+    "fixes": [
+      "The active Pomodoro break countdown and Ready to resume surfaces no longer reuse the taller break-planning window size.",
+      "Compact Pomodoro break mode no longer presents the task name as if focus work is still active.",
+      "The launch-at-login guard now treats node_modules/electron and process.defaultApp as development-only runtimes."
+    ]
+  },
+  {
+    "version": "2.4.4",
+    "publishedAt": "2026-07-22",
+    "displayDate": "Wednesday, July 22, 2026",
+    "summary": "Focana 2.4.4 adds lightweight project context and finishes the Pomodoro wrap-up polish so resuming work feels clearer.",
+    "improvements": [
+      "Start new task now includes a small optional Project field with saved project suggestions and a create-project action when the typed project is new.",
+      "Project context is carried through active work, compact mode, resumable sessions, and saved session records.",
+      "Pomodoro wrap-up now routes through the notes capture flow with Save and continue later or Mark complete instead of reopening the old Session Wrap menu.",
+      "Paused Pomodoro sessions can resume from the paused remaining time, start a fresh Pomodoro, switch to Freeflow, or use a timed session.",
+      "Focus insight ledger data is queued locally for future sync without changing the quiet, offline-first session flow."
+    ],
+    "fixes": [
+      "Ready to resume now summarizes the accumulated focus time on the current task and offers Keep going, Add break time, or Wrap up.",
+      "Pomodoro break and resume surfaces were tightened to avoid nested boxes, stale copy, and awkward extra whitespace in the small desktop window."
+    ]
+  },
+  {
+    "version": "2.4.3",
+    "publishedAt": "2026-07-21",
+    "displayDate": "Tuesday, July 21, 2026",
+    "summary": "Focana 2.4.3 tightens update trust and makes planned sessions easier to start without crowding the screen.",
+    "improvements": [
+      "The session start flow now separates planning from choosing time, with Quick start available on the planning screen and timer/Pomodoro choices on the next screen.",
+      "Compact task preview now opens closer to the window edges and includes a clear Hide tasks control so subtasks can be tucked away again."
+    ],
+    "fixes": [
+      "Settings now keeps a ready-to-install update visible even if a late updater event reports an error after download.",
+      "Settings now explains when Focana was launched from a mounted DMG and needs to be moved to Applications before updating."
+    ]
+  },
+  {
+    "version": "2.4.2",
+    "publishedAt": "2026-07-20",
+    "displayDate": "Monday, July 20, 2026",
+    "summary": "Focana 2.4.2 keeps wake-up resume prompts and update Settings in sync with what the app already knows.",
+    "improvements": [],
+    "fixes": [
+      "Wake and login resume prompts now keep showing Ready to resume when saved work is available, instead of falling back to What's next on repeated wake.",
+      "Settings now keeps a downloaded update in the ready-to-install state even if a later update check reports an error.",
+      "Settings update copy now labels the update channel clearly instead of making the current version sound like the newest published release."
+    ]
+  },
+  {
+    "version": "2.4.1",
+    "publishedAt": "2026-07-17",
+    "displayDate": "Friday, July 17, 2026",
+    "summary": "Focana 2.4.1 makes saved work easier to pick back up and Pomodoro breaks harder to miss.",
+    "improvements": [
+      "The visible saved-work surface is now To-Do, focused on resumable work instead of a full session log.",
+      "Completed and discarded sessions remain recoverable through Session records without taking over the first view.",
+      "Pomodoro work completion now asks for a short break plan before the break countdown starts.",
+      "Pomodoro break completion now waits on a Ready to resume screen instead of automatically starting the next focus interval."
+    ],
+    "fixes": [
+      "Re-entry prompts, floating prompts, Settings, and the tray now use consistent To-Do language for saved work.",
+      "Pomodoro break handoff state now persists through reloads so the user is not stranded mid-transition."
+    ]
+  },
+  {
+    "version": "2.4.0",
+    "publishedAt": "2026-07-07",
+    "displayDate": "Tuesday, July 7, 2026",
+    "summary": "Focana 2.4.0 makes planned work easier to start, resume, and keep visible without turning task planning into project management.",
+    "improvements": [
+      "Running checklists now prioritize active subtasks by hiding completed rows until Show completed or View all is chosen.",
+      "A subtask can now become the visible focus from the running checklist while preserving the original main task and plan structure.",
+      "Timed wrap flows now support a cleaner handoff when a next-up task is already queued.",
+      "The 2.4.0 planning model keeps structure optional and focused on task initiation, so users can break work down without being forced into a project-management workflow."
+    ],
+    "fixes": []
+  },
+  {
+    "version": "2.3.0",
+    "publishedAt": "2026-07-06",
+    "displayDate": "Monday, July 6, 2026",
+    "summary": "Focana 2.3.0 adds a trustworthy focus rhythm with Pomodoro, gentle long-session break checks, and mid-session timer extension.",
+    "improvements": [
+      "Pomodoro is now a first-class start option with 25/5, 50/10, and custom work/break lengths.",
+      "Pomodoro breaks stay skippable with Keep going, preserving the same focus run without an interim wrap-up.",
+      "Long timed and Freeflow sessions can now offer a gentle 90-minute break check that respects quiet-time rules and stays out of Pomodoro mode.",
+      "Timed sessions now support adding more time mid-session from full, compact, and floating timer controls.",
+      "Focus nudges now share calmer suppression behavior around Do Not Disturb, active typing, paused sessions, and snoozed re-entry."
+    ],
+    "fixes": [
+      "Floating re-entry snooze now stays quiet without pulsing the minimized logo during the snooze window.",
+      "Pomodoro work intervals now transition into internal break state instead of the normal Time Up flow."
+    ]
+  },
+  {
+    "version": "2.2.4",
+    "publishedAt": "2026-07-02",
+    "displayDate": "Thursday, July 2, 2026",
+    "summary": "Focana 2.2.4 is a focused hotfix for resuming saved planned tasks.",
+    "improvements": [],
+    "fixes": [
+      "Resuming a saved task now restores its planned subtasks and completion state instead of reopening as a title-only task."
+    ]
+  },
+  {
+    "version": "2.2.3",
+    "publishedAt": "2026-07-01",
+    "displayDate": "Wednesday, July 1, 2026",
+    "summary": "Focana 2.2.3 tightens compact mode, switches the trial to 7 days, and prepares lifecycle email follow-up for the paid launch.",
+    "improvements": [
+      "Compact mode now shows clearer checkboxes for subtasks and Next-up items, including direct checkoff for Next-up work.",
+      "The free trial now runs for 7 days before the day-8 upgrade gate appears.",
+      "The day-8 upgrade screen now explains that Lemon emails the license key after checkout, with a clearer path for users who already have a key.",
+      "A Supabase lifecycle bridge is now available for Loops trial, checkout, and license activation emails."
+    ],
+    "fixes": [
+      "Clicking the compact task area to view subtasks no longer grabs or drags the whole compact window.",
+      "Clicking the compact timer to open controls no longer accidentally drags the window.",
+      "Interacting with compact checklist items no longer leaves the window stuck following the mouse."
+    ]
+  },
+  {
+    "version": "2.2.2",
+    "publishedAt": "2026-06-24",
+    "displayDate": "Wednesday, June 24, 2026",
+    "summary": "Focana 2.2.2 is a focused hotfix for compact mode and the new task builder controls.",
+    "improvements": [
+      "Quick start now appears before Add subtask when you are setting up a new task.",
+      "A clear Next button now appears at the bottom of the task builder after you enter a task."
+    ],
+    "fixes": [
+      "Clicking subtasks in compact mode no longer grabs the window or leaves the preview cut off.",
+      "The floating re-entry snooze flow now uses a more reliable test path so release checks catch timing issues cleanly."
+    ]
+  },
+  {
+    "version": "2.2.1",
+    "publishedAt": "2026-06-24",
+    "displayDate": "Wednesday, June 24, 2026",
+    "summary": "Focana 2.2.1 tightens the task planning screens from 2.2.0, with cleaner compact previews and more reliable start and edit paths.",
+    "improvements": [
+      "What's next? now keeps Start new task, the input, and Next together, with full-width Session History and Parking Lot lists below.",
+      "Session History details now include the session builder, so subtasks and Next-up tasks can be adjusted before restarting.",
+      "Active timer and session builder lists now show three rows by default, with scrolling, View all, and Show less when there is more.",
+      "Compact mode now separates task and timer actions: click the task to expand Subtasks and Next up, or click the time for controls.",
+      "Compact previews now support checking off subtasks and use clearer Subtasks and Next up sections.",
+      "Quick start is now visible in the task builder when a task is ready to begin.",
+      "Notes are now one field for immediate next steps, links, resources, or return notes."
+    ],
+    "fixes": [
+      "The floating X now follows the delayed pulse path instead of immediately reopening the old What's next? screen.",
+      "Ready-to-resume and history restore now keep task plans, subtasks, and Next-up tasks attached.",
+      "Compact previews now keep the three-row cap visible, scroll correctly, and avoid clipped list items.",
+      "The compact task summary is now centered inside the outlined task area."
+    ]
+  },
+  {
+    "version": "2.2.0",
+    "publishedAt": "2026-06-23",
+    "displayDate": "Tuesday, June 23, 2026",
+    "summary": "Focana 2.2.0 makes planning and restarting work calmer, cleaner, and easier to adjust mid-session.",
+    "improvements": [
+      "What's next? is simpler, with Start new task, Session History, and Parking Lot in a calmer stacked layout.",
+      "Session History now shows task names only; click one to review details before starting.",
+      "Session Builder is cleaner, with subtasks and Next-up tasks separated more clearly.",
+      "Subtasks can now be edited while the timer is running, with an Edit plan path from compact mode."
+    ],
+    "fixes": [
+      "Spaces now work in subtask fields.",
+      "Enter now adds the next subtask row.",
+      "Subtasks now save correctly when continuing through Ready to resume."
+    ]
+  },
+  {
+    "version": "2.1.0",
+    "publishedAt": "2026-06-22",
+    "displayDate": "Monday, June 22, 2026",
+    "summary": "Focana 2.1.0 makes it easier to choose what to do next, restart saved work, and avoid accidental completions.",
+    "improvements": [
+      "What's next? now shows unfinished Parking Lot items, resumable Session History, and a Start new task row in one calmer dashboard.",
+      "Choosing a Parking Lot item or resumable History session now fills the task row first, so you can review it before starting.",
+      "Session Builder is now available as an optional step after choosing a task, with subtasks and next-up tasks carried into the session.",
+      "Running checklist items now give you a short Undo window after checking them off."
+    ],
+    "fixes": [
+      "Clicking complete while a timer is running now asks Are you sure? with Pause, Go back, and Mark complete options.",
+      "Saving next-step notes from a paused task now returns Focana to the minimized float instead of immediately showing Ready to resume.",
+      "The minimized float now stays quiet after that pause handoff until the normal re-entry reminder cadence."
+    ]
+  },
+  {
+    "version": "2.0.0",
+    "publishedAt": "2026-06-17",
+    "displayDate": "Wednesday, June 17, 2026",
+    "summary": "Focana 2.0.0 introduces Session Builder, a structured way to enter a primary focus, optional subtasks, and next-up tasks before you start.",
+    "improvements": [
+      "Added a collapsible Session Builder below the primary task field for optional subtasks and next-up tasks.",
+      "Running sessions now show plan details, let you check off subtasks individually, and reveal overflow plan items when space is tight.",
+      "Completing all subtasks now prompts you before closing the parent task, then hands off to the next top-level task without auto-starting it.",
+      "Structured task plans now persist through active sessions, session history, compact mode, and app restarts while preserving existing single-task labels.",
+      "Post-session breaks now support custom whole-minute durations from 1 to 240 minutes while keeping the existing quick presets."
+    ],
+    "fixes": [
+      "Back to Break Mode now restores the prior break timer or quiet-logo state instead of ending the break.",
+      "Break timer clicks no longer stop the break countdown.",
+      "Re-entry flows from Session History and Parking Lot now restore the correct prompt state after modal round trips.",
+      "Floating drag smoke coverage now waits for the app to settle at the clamped edge before ending the drag."
+    ]
+  },
+  {
+    "version": "1.8.0",
+    "publishedAt": "2026-06-16",
+    "displayDate": "Tuesday, June 16, 2026",
+    "summary": "Focana 1.8.0 makes check-ins and resume prompts calmer when you step away.",
+    "improvements": [
+      "Missed check-ins now pause your timer and bring back Ready to resume a few minutes later.",
+      "Ready to resume keeps checking back until you resume or snooze."
+    ],
+    "fixes": [
+      "Ready to resume no longer keeps appearing for the same saved task after you have already seen it.",
+      "Fixed a lingering pulse after finishing a check-in.",
+      "Smoothed out wake and resume handoffs."
+    ]
+  },
+  {
+    "version": "1.7.3",
+    "publishedAt": "2026-06-12",
+    "displayDate": "Friday, June 12, 2026",
+    "summary": "Focana 1.7.3 tightens the handoff back into work after saving a session or moving into floating mode.",
+    "improvements": [],
+    "fixes": [
+      "Saving a resumed task for later now takes you straight to the What's next? screen so you can choose the next focus without seeing the resume prompt again.",
+      "Manually minimizing Focana to floating mode now stays quiet instead of immediately opening an overdue What's next? or Ready to resume? prompt."
+    ]
+  },
+  {
+    "version": "1.7.2",
+    "publishedAt": "2026-06-02",
+    "displayDate": "Tuesday, June 2, 2026",
+    "summary": "Focana 1.7.2 makes wake, pause, and next-task flows calmer and more reliable.",
+    "improvements": [],
+    "fixes": [
+      "Focana now waits longer before opening the resume prompt after your Mac wakes.",
+      "The What's next? screen now fits properly, including the Next button.",
+      "Resume prompts no longer pulse right away when they appear.",
+      "Timer-end prompts no longer pulse unnecessarily as the timer finishes.",
+      "Pausing a session now shows clearer paused-session language.",
+      "Done for now is now Save and continue later, making it clearer that your task will be waiting when you come back.",
+      "Saving a paused session for later now keeps it available to resume reliably."
+    ]
+  },
+  {
+    "version": "1.7.1",
+    "publishedAt": "2026-05-21",
+    "displayDate": "Thursday, May 21, 2026",
+    "summary": "Focana 1.7.1 is a stability hotfix for the 1.7 release, focused on making wake, pause, and floating-mode handoffs feel dependable again.",
+    "improvements": [],
+    "fixes": [
+      "Fixed a macOS window issue that could make Focana close unexpectedly during floating or Session Wrap handoffs.",
+      "Fixed the Done for now path from Pause so Focana reliably returns to the floating icon instead of disappearing from view.",
+      "Fixed wake re-entry timing so Focana opens the return-to-work prompt promptly after your Mac wakes.",
+      "Improved packaged smoke coverage for pause, floating, and wake-related handoffs so these flows are checked before release."
+    ]
+  },
+  {
+    "version": "1.7.0",
+    "publishedAt": "2026-05-19",
+    "displayDate": "Tuesday, May 19, 2026",
+    "summary": "Focana 1.7.0 makes returning to work more deliberate, with smarter re-entry after interruptions, a clearer app-managed trial and upgrade path, and a more useful pause flow that can wrap, resume, or save the active session.",
+    "improvements": [
+      "Added an auto re-entry rule so interrupted work can come back in the right surface without asking you to rebuild context from scratch.",
+      "Added an app-managed trial and upgrade flow that makes activation, upgrade prompts, and packaged release behavior clearer.",
+      "Improved resident app flows so relaunching, waking, quitting, and returning from compact or floating mode preserve focus more intentionally.",
+      "Pause now opens a dismissible Session Wrap, letting you keep working, mark the task complete, take a break, start something new, or save the paused session for later."
+    ],
+    "fixes": [
+      "Fixed direct completion and wake re-entry paths so saved work and next-step prompts stay aligned after interruptions.",
+      "Fixed compact quit behavior and startup window selection edge cases that could leave Focana in the wrong surface.",
+      "Improved shortcut and check-in focus handling so temporary global actions return attention to the right place.",
+      "Added release safeguards for analytics configuration and expanded packaged-flow coverage around floating, compact, and pause session states."
+    ]
+  },
+  {
+    "version": "1.6.0",
+    "publishedAt": "2026-04-23",
+    "displayDate": "Thursday, April 23, 2026",
+    "summary": "Focana 1.6.0 makes startup and quitting more intentional, with launch at login, clearer resume behavior, and safer ways to keep the app resident instead of accidentally closing it.",
+    "improvements": [
+      "Added Launch at login in Settings so Focana can open automatically when you sign in.",
+      "Startup now uses a clearer set of surfaces: clean starts open the normal idle window, while interrupted or resumable work comes back in clearer resume states.",
+      "Quit confirmation now offers Cancel, Minimize, Hide, and Quit so it is easier to keep Focana resident instead of accidentally shutting it down."
+    ],
+    "fixes": [
+      "Restoring from floating minimize now more reliably returns to the correct window state instead of surfacing stale hidden-window state.",
+      "Sleep, relaunch, and update restart flows now preserve interrupted work more consistently across startup and resume.",
+      "Release tooling now finds shared .env.release files from the main checkout when you run ship flows from a fresh worktree."
+    ]
+  },
+  {
+    "version": "1.5.1",
+    "publishedAt": "2026-04-22",
+    "displayDate": "Wednesday, April 22, 2026",
+    "summary": "Focana makes the return-to-work flow feel tighter in 1.5.1, with a cleaner resume prompt and a faster way to close out saved work before moving on.",
+    "improvements": [
+      "Resume prompts now use a tighter layout in both full and compact windows, with copy and spacing that keep the key actions visible more consistently.",
+      "The re-entry chooser now labels the active task more clearly so it is easier to confirm what you are picking back up."
+    ],
+    "fixes": [
+      "If you choose Start Something New from a resumable prompt, you can now mark the saved task complete with recap and next steps instead of being forced to keep it open.",
+      "Resume and save-for-later surfaces now size more reliably so notes fields and controls are less likely to feel cramped."
+    ]
+  },
+  {
+    "version": "1.5.0",
+    "publishedAt": "2026-04-22",
+    "displayDate": "Wednesday, April 22, 2026",
+    "summary": "Focana now gives you a cleaner handoff at the end of a session, whether you want a break, another focused block, or a fresh start.",
+    "improvements": [
+      "Session Wrap now offers clearer next steps: Take a break, Keep working, Start a new task, or Done for now.",
+      "Keep working now supports a faster timed restart flow, including Enter-to-start from the post-session timer field.",
+      "Break mode now lets you choose whether minimizing shows the countdown timer, with quicker click behavior for returning to work.",
+      "Idle nudges now ask “What’s next?” and keep Session History and Parking Lot easy to reach from the re-entry prompt."
+    ],
+    "fixes": [
+      "Timed sessions now hand off directly into Session Wrap instead of getting stranded at 00:00 or falling into a separate timeout modal.",
+      "Post-session notes and follow-up screens now size more reliably so actions and text fields stay visible.",
+      "Break-time floating interactions now behave more predictably whether the countdown is hidden or shown."
+    ]
+  },
+  {
+    "version": "1.4.0",
+    "publishedAt": "2026-04-21",
+    "displayDate": "Tuesday, April 21, 2026",
+    "summary": "Focana now helps you maintain momentum after a session ends and resume work with less friction.",
+    "improvements": [
+      "Ending a session now opens a guided post-session flow with Take a break, Start another session, and Done for now.",
+      "Session notes are now split into Immediate next step and Additional details so restart cues stay separate from background context.",
+      "Starting another session after a wrap-up now drops you into a clean composer with Parking Lot and Session History close by.",
+      "Keep for Later is now available as a global shortcut with Cmd/Ctrl+Shift+K for quick Parking Lot capture.",
+      "Focused check-ins now support Cmd/Ctrl+Shift+Y for a quick Yes response when Focana is frontmost."
+    ],
+    "fixes": [
+      "Floating re-entry prompts now stay in the floating flow more reliably instead of unexpectedly restoring the main window.",
+      "Save for Later, break, and done-for-now handoffs now preserve task continuity more reliably across full, compact, and floating windows.",
+      "The new post-session and notes screens now size more cleanly so actions and text fields stay visible."
+    ]
+  },
+  {
+    "version": "1.3.3",
+    "publishedAt": "2026-04-15",
+    "displayDate": "Wednesday, April 15, 2026",
+    "summary": "Focana now does a better job helping you re-enter work with intention instead of drifting back in automatically.",
+    "improvements": [
+      "Idle prompts now guide you back into focus across full, compact, and floating modes.",
+      "Resumable tasks now offer clearer choices to resume or start something new.",
+      "Floating prompts now resize more cleanly and keep key actions visible.",
+      "Snooze options are now more explicit and intentional."
+    ],
+    "fixes": [
+      "Save for Later notes now save more reliably.",
+      "Prompt and window-state handoffs between full, compact, and floating modes are more stable.",
+      "Time's up and resume-later flows now preserve task state more reliably."
+    ]
+  },
+  {
+    "version": "1.3.2",
+    "publishedAt": "2026-04-08",
+    "displayDate": "Wednesday, April 8, 2026",
+    "summary": "Small fixes, smoother focus sessions, and a cleaner release notes home for keeping up with what ships next.",
+    "improvements": [
+      "You can move completed or discarded sessions back to Resume.",
+      "Switching tasks from Parking Lot during an active session is now smoother.",
+      "Parking Lot delete and clear actions are now safer.",
+      "Full-window dragging feels more reliable."
+    ],
+    "fixes": [
+      "Sessions now pause when your Mac sleeps.",
+      "Timers over an hour are now easier to read."
+    ]
+  }
+]
