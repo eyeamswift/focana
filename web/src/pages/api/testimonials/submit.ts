@@ -44,8 +44,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const email = normalizeEmail(stringValue(body.email));
-  if (email && !isValidEmail(email)) {
-    return json({ error: 'Please enter a valid email or leave it blank.', field: 'email' }, 400);
+  if (!isValidEmail(email)) {
+    return json({ error: 'Please enter a valid email.', field: 'email' }, 400);
   }
 
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
@@ -78,10 +78,7 @@ export const POST: APIRoute = async ({ request }) => {
       otherFeature: stringValue(body.otherFeature),
       featureStory: stringValue(body.featureStory),
       recommendationQuote: stringValue(body.recommendationQuote),
-      consentWebsite: body.consentWebsite === true,
-      consentSocial: body.consentSocial === true,
-      consentLaunchMaterials: body.consentLaunchMaterials === true,
-      editingConsent: body.editingConsent === true,
+      consentShare: body.consentShare === true,
     };
 
     await saveTestimonial(submission, eligibility, store);

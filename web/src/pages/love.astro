@@ -102,56 +102,54 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
               <span class="step-number">2</span>
               <div>
                 <h2>How may we credit and share it?</h2>
-                <p>Choose how your name appears and where Focana may share your words.</p>
+                <p>Choose whether we may share it and how your name should appear.</p>
               </div>
             </div>
 
-            <div class="name-grid">
+            <fieldset class="plain-fieldset consent-fieldset" id="publishingConsent" tabindex="-1" aria-describedby="consent-help consent-status">
+              <legend>May Focana share your testimonial?</legend>
+              <label class="check-row">
+                <input type="checkbox" name="consentShare" />
+                <span>Yes, Focana may share my testimonial.</span>
+              </label>
+              <p class="field-help" id="consent-help">Nothing is published automatically. We review every submission first.</p>
+            </fieldset>
+            <p class="field-status" id="consent-status" role="status" aria-live="polite"></p>
+
+            <fieldset class="plain-fieldset attribution-fieldset" id="attribution-fieldset" tabindex="-1">
+              <legend>How should we show your name?</legend>
+              <label class="check-row"><input type="radio" name="attribution" value="anonymous" checked /><span>Anonymous</span></label>
+              <label class="check-row"><input type="radio" name="attribution" value="first_name" /><span>First name</span></label>
+              <label class="check-row"><input type="radio" name="attribution" value="first_last_initial" /><span>First name + last initial</span></label>
+            </fieldset>
+
+            <div class="name-grid" id="name-fields" hidden>
               <div>
                 <label class="field-label" for="firstName">First name</label>
-                <input id="firstName" name="firstName" type="text" maxlength="80" autocomplete="given-name" required />
+                <input id="firstName" name="firstName" type="text" maxlength="80" autocomplete="given-name" />
               </div>
-              <div>
-                <label class="field-label" for="lastName">Last name <span>Only needed for last initial</span></label>
+              <div id="last-name-field" hidden>
+                <label class="field-label" for="lastName">Last name</label>
                 <input id="lastName" name="lastName" type="text" maxlength="80" autocomplete="family-name" />
               </div>
             </div>
 
-            <fieldset class="plain-fieldset" id="attribution-fieldset" tabindex="-1">
-              <legend>Show my name as</legend>
-              <label class="check-row"><input type="radio" name="attribution" value="first_name" checked /><span>First name</span></label>
-              <label class="check-row"><input type="radio" name="attribution" value="first_last_initial" /><span>First name + last initial</span></label>
-              <label class="check-row"><input type="radio" name="attribution" value="anonymous" /><span>Anonymous</span></label>
-            </fieldset>
-
-            <fieldset class="plain-fieldset consent-fieldset" id="publishingConsent" tabindex="-1" aria-describedby="consent-help consent-status">
-              <legend>Focana may share my submitted words in</legend>
-              <p class="field-help" id="consent-help">Choose at least one. Nothing is published automatically.</p>
-              <label class="check-row"><input type="checkbox" name="consentWebsite" /><span>Focana’s website</span></label>
-              <label class="check-row"><input type="checkbox" name="consentSocial" /><span>Focana’s social media</span></label>
-              <label class="check-row"><input type="checkbox" name="consentLaunchMaterials" /><span>Emails and launch materials</span></label>
-            </fieldset>
-            <p class="field-status" id="consent-status" role="status" aria-live="polite"></p>
-
-            <label class="check-row editing-row">
-              <input type="checkbox" name="editingConsent" />
-              <span>Focana may shorten my words for length or clarity without changing their meaning.</span>
-            </label>
-
             <div class="email-field">
-              <label class="field-label" for="email">Email <span>Optional</span></label>
+              <label class="field-label" for="email">Email</label>
               <input
                 id="email"
                 name="email"
                 type="email"
                 autocomplete="email"
                 inputmode="email"
+                required
                 aria-describedby="email-help"
                 placeholder="you@example.com"
               />
               <p class="field-help" id="email-help">
-                We’ll only use this to check for existing Focana access. It won’t be shown or add
-                you to marketing emails.
+                We’ll use this to check whether you already have Focana access. A match marks your
+                testimonial verified; no match still submits it as unverified. It won’t be shown or
+                add you to marketing emails.
               </p>
             </div>
 
@@ -175,8 +173,8 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         <span class="success-mark" aria-hidden="true">✓</span>
         <h2>Thank you—this means a lot.</h2>
         <p>
-          Your story is saved for review. We’ll only share it in the places you selected and with
-          the name format you chose.
+          Your story is saved for review. We’ll only share it with your permission and the name
+          format you chose.
         </p>
         <a href="/">Back to Focana</a>
       </div>
@@ -193,6 +191,9 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
     const consentStatus = document.querySelector('#consent-status');
     const otherFeatureWrap = document.querySelector('#other-feature-wrap');
     const otherFeatureInput = document.querySelector('#otherFeature');
+    const nameFields = document.querySelector('#name-fields');
+    const lastNameField = document.querySelector('#last-name-field');
+    const firstNameInput = document.querySelector('#firstName');
     const lastNameInput = document.querySelector('#lastName');
 
     if (!(form instanceof HTMLFormElement)) {
@@ -220,6 +221,34 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         if (otherFeatureInput instanceof HTMLInputElement) otherFeatureInput.required = otherSelected;
       });
     });
+
+    const attributionInputs = Array.from(form.querySelectorAll('input[name="attribution"]'));
+
+    function updateAttributionFields() {
+      const selected = attributionInputs.find(
+        (input) => input instanceof HTMLInputElement && input.checked
+      );
+      const attribution = selected instanceof HTMLInputElement ? selected.value : 'anonymous';
+      const needsFirstName = attribution !== 'anonymous';
+      const needsLastName = attribution === 'first_last_initial';
+
+      if (nameFields instanceof HTMLElement) {
+        nameFields.hidden = !needsFirstName;
+        nameFields.dataset.mode = attribution;
+      }
+      if (lastNameField instanceof HTMLElement) lastNameField.hidden = !needsLastName;
+      if (firstNameInput instanceof HTMLInputElement) {
+        firstNameInput.required = needsFirstName;
+        if (!needsFirstName) firstNameInput.value = '';
+      }
+      if (lastNameInput instanceof HTMLInputElement) {
+        lastNameInput.required = needsLastName;
+        if (!needsLastName) lastNameInput.value = '';
+      }
+    }
+
+    attributionInputs.forEach((input) => input.addEventListener('change', updateAttributionFields));
+    updateAttributionFields();
 
     function showFormError(message) {
       if (!(formError instanceof HTMLElement)) return;
@@ -273,11 +302,9 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       }
 
       const formData = new FormData(form);
-      const hasPublishingConsent = ['consentWebsite', 'consentSocial', 'consentLaunchMaterials']
-        .some((name) => formData.has(name));
-      if (!hasPublishingConsent) {
+      if (!formData.has('consentShare')) {
         if (consentStatus instanceof HTMLElement) {
-          consentStatus.textContent = 'Please choose at least one place where Focana may share your words.';
+          consentStatus.textContent = 'Please confirm that Focana may share your testimonial.';
           consentStatus.dataset.state = 'error';
         }
         focusField('publishingConsent');
@@ -289,7 +316,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         emailInput.value.trim() &&
         !emailInput.validity.valid
       ) {
-        showFormError('Please enter a valid email or leave it blank.');
+        showFormError('Please enter a valid email.');
         emailInput.focus();
         return;
       }
@@ -312,10 +339,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         otherFeature: formData.get('otherFeature'),
         featureStory: formData.get('featureStory'),
         recommendationQuote: formData.get('recommendationQuote'),
-        consentWebsite: formData.has('consentWebsite'),
-        consentSocial: formData.has('consentSocial'),
-        consentLaunchMaterials: formData.has('consentLaunchMaterials'),
-        editingConsent: formData.has('editingConsent'),
+        consentShare: formData.has('consentShare'),
         companyWebsite: '',
       };
 
@@ -614,6 +638,11 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
+      margin-top: 18px;
+    }
+
+    .name-grid[data-mode='first_name'] {
+      grid-template-columns: 1fr;
     }
 
     .plain-fieldset {
@@ -640,11 +669,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
     }
 
     .consent-fieldset .field-help {
-      margin: -4px 0 4px;
-    }
-
-    .editing-row {
-      margin-top: 18px;
+      margin: 2px 0 0 27px;
     }
 
     .submit-note {

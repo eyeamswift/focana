@@ -73,10 +73,7 @@ function submission(
     featureStory:
       'I normally lose the task when I switch apps. Keeping it visible helped me return right away.',
     recommendationQuote: 'It makes returning to the task much easier.',
-    consentWebsite: true,
-    consentSocial: false,
-    consentLaunchMaterials: false,
-    editingConsent: true,
+    consentShare: true,
     ...overrides,
   };
 }
@@ -147,15 +144,12 @@ test('eligibility rejects invalid and unmatched emails', async () => {
   assert.equal(await resolveTestimonialEligibility('missing@example.com', store), null);
 });
 
-test('normalization preserves one or two feature choices and exact consent', () => {
+test('normalization preserves one or two feature choices and broad sharing consent', () => {
   const submittedAt = '2026-08-27T17:00:00.000Z';
   const result = normalizeTestimonialSubmission(
     submission({
       firstName: '  Nylobie  ',
       selectedFeatures: ['always_visible', 'gentle_checkins'],
-      consentWebsite: true,
-      consentSocial: true,
-      consentLaunchMaterials: false,
     }),
     customerEligibility,
     submittedAt
@@ -165,7 +159,8 @@ test('normalization preserves one or two feature choices and exact consent', () 
   assert.deepEqual(result.selected_features, ['always_visible', 'gentle_checkins']);
   assert.equal(result.consent_website, true);
   assert.equal(result.consent_social, true);
-  assert.equal(result.consent_launch_materials, false);
+  assert.equal(result.consent_launch_materials, true);
+  assert.equal(result.editing_consent, false);
   assert.equal(result.submitted_email, 'nylobie@example.com');
   assert.equal(result.verified_email, 'nylobie@example.com');
   assert.equal(result.access_verified, true);
@@ -202,21 +197,14 @@ test('normalization rejects incomplete attribution or publishing permission', ()
 
   assertValidationError(
     () => normalizeTestimonialSubmission(
-      submission({ consentWebsite: false, consentSocial: false, consentLaunchMaterials: false }),
+      submission({ consentShare: false }),
       customerEligibility
     ),
     'publishingConsent'
   );
 });
 
-test('normalization accepts blank or unmatched email as unverified', () => {
-  const blankEmail = normalizeTestimonialSubmission(submission({ email: '' }), null);
-  assert.equal(blankEmail.submitted_email, null);
-  assert.equal(blankEmail.verified_email, null);
-  assert.equal(blankEmail.verification_source, null);
-  assert.equal(blankEmail.verification_source_id, null);
-  assert.equal(blankEmail.access_verified, false);
-
+test('normalization accepts an unmatched email as unverified', () => {
   const unmatchedEmail = normalizeTestimonialSubmission(
     submission({ email: ' NewUser@Example.com ' }),
     null
@@ -226,11 +214,26 @@ test('normalization accepts blank or unmatched email as unverified', () => {
   assert.equal(unmatchedEmail.access_verified, false);
 });
 
-test('normalization rejects a malformed optional email', () => {
+test('normalization requires a valid email', () => {
+  assertValidationError(
+    () => normalizeTestimonialSubmission(submission({ email: '' }), null),
+    'email'
+  );
+
   assertValidationError(
     () => normalizeTestimonialSubmission(submission({ email: 'not-an-email' }), null),
     'email'
   );
+});
+
+test('anonymous attribution does not require a name', () => {
+  const result = normalizeTestimonialSubmission(
+    submission({ attribution: 'anonymous', firstName: '', lastName: '' }),
+    customerEligibility
+  );
+
+  assert.equal(result.first_name, 'Anonymous');
+  assert.equal(result.last_name, null);
 });
 
 test('normalization does not apply verification from a different email', () => {
@@ -264,21 +267,25 @@ test('saving a verified testimonial writes the pending story and consent history
     event_type: 'granted',
     consent_version: '2026-08-27',
     consent_website: true,
-    consent_social: false,
-    consent_launch_materials: false,
-    editing_consent: true,
+    consent_social: true,
+    consent_launch_materials: true,
+    editing_consent: false,
     created_at: submittedAt,
   });
 });
 
-test('saving an unverified testimonial still writes the story and consent history', async () => {
+test('saving an unmatched testimonial still writes the story and consent history', async () => {
   const store = new MemoryTestimonialStore();
 
-  const result = await saveTestimonial(submission({ email: '' }), null, store);
+  const result = await saveTestimonial(
+    submission({ email: 'unmatched@example.com' }),
+    null,
+    store
+  );
 
   assert.equal(result.id, 'testimonial-1');
   assert.equal(store.testimonials[0].access_verified, false);
-  assert.equal(store.testimonials[0].submitted_email, null);
+  assert.equal(store.testimonials[0].submitted_email, 'unmatched@example.com');
   assert.equal(store.testimonials[0].verified_email, null);
   assert.equal(store.consentEvents.length, 1);
 });

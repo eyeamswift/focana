@@ -45,18 +45,15 @@ type FriendsAndFamilyAccessRow = {
 };
 
 export type TestimonialSubmissionInput = {
-  email?: string | null;
-  firstName: string;
+  email: string;
+  firstName?: string | null;
   lastName?: string | null;
   attribution: TestimonialAttribution;
   selectedFeatures: TestimonialFeature[];
   otherFeature?: string | null;
   featureStory: string;
   recommendationQuote?: string | null;
-  consentWebsite: boolean;
-  consentSocial: boolean;
-  consentLaunchMaterials: boolean;
-  editingConsent: boolean;
+  consentShare: boolean;
 };
 
 export type TestimonialInsert = {
@@ -192,14 +189,23 @@ export function normalizeTestimonialSubmission(
   const otherFeature = trimText(raw.otherFeature) || null;
   const verifiedEligibility = eligibility?.email === email ? eligibility : null;
 
-  if (email && !isValidEmail(email)) {
+  if (!isValidEmail(email)) {
     throw new TestimonialValidationError(
       'email',
-      'Please enter a valid email or leave it blank.'
+      'Please enter a valid email.'
     );
   }
 
-  assertLength('firstName', firstName, 1, 'Please enter your first name.');
+  if (!isTestimonialAttribution(raw.attribution)) {
+    throw new TestimonialValidationError(
+      'attribution',
+      'Please choose how you would like to be credited.'
+    );
+  }
+
+  if (raw.attribution !== 'anonymous') {
+    assertLength('firstName', firstName, 1, 'Please enter your first name.');
+  }
   assertLength(
     'featureStory',
     featureStory,
@@ -216,13 +222,6 @@ export function normalizeTestimonialSubmission(
     'Please keep this answer under 2,000 characters.'
   );
   assertMaxLength('otherFeature', otherFeature, 160, 'Please keep this answer under 160 characters.');
-
-  if (!isTestimonialAttribution(raw.attribution)) {
-    throw new TestimonialValidationError(
-      'attribution',
-      'Please choose how you would like to be credited.'
-    );
-  }
 
   if (raw.attribution === 'first_last_initial' && !lastName) {
     throw new TestimonialValidationError(
@@ -252,14 +251,10 @@ export function normalizeTestimonialSubmission(
     );
   }
 
-  const consentWebsite = raw.consentWebsite === true;
-  const consentSocial = raw.consentSocial === true;
-  const consentLaunchMaterials = raw.consentLaunchMaterials === true;
-
-  if (!consentWebsite && !consentSocial && !consentLaunchMaterials) {
+  if (raw.consentShare !== true) {
     throw new TestimonialValidationError(
       'publishingConsent',
-      'Please choose at least one place where Focana may share your words.'
+      'Please confirm that Focana may share your testimonial.'
     );
   }
 
@@ -270,17 +265,17 @@ export function normalizeTestimonialSubmission(
     submitted_email: email || null,
     verified_email: verifiedEligibility?.email || null,
     access_verified: verifiedEligibility !== null,
-    first_name: firstName,
-    last_name: lastName,
+    first_name: raw.attribution === 'anonymous' ? 'Anonymous' : firstName,
+    last_name: raw.attribution === 'first_last_initial' ? lastName : null,
     attribution_preference: raw.attribution,
     selected_features: selectedFeatures,
     other_feature: selectedFeatures.includes('other') ? otherFeature : null,
     feature_story: featureStory,
     recommendation_quote: recommendationQuote,
-    consent_website: consentWebsite,
-    consent_social: consentSocial,
-    consent_launch_materials: consentLaunchMaterials,
-    editing_consent: raw.editingConsent === true,
+    consent_website: true,
+    consent_social: true,
+    consent_launch_materials: true,
+    editing_consent: false,
     consent_version: TESTIMONIAL_CONSENT_VERSION,
     consented_at: submittedAt,
     status: 'pending',
