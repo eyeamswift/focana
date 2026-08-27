@@ -33,7 +33,7 @@
    ```bash
    ./scripts/ship.sh --skip-build
    ```
-   `ship.sh` creates and pushes the version tag, publishes the GitHub release, syncs landing release notes, updates Vercel env vars, deploys preview and production for `focana.app`, and verifies the live pages.
+   `ship.sh` creates and pushes the version tag, publishes the GitHub release, syncs `web/` release notes in the monorepo, updates Vercel env vars, deploys preview and production for `focana.app`, and verifies the live pages.
 
 ## Preferred One-Command Flow
 
@@ -118,7 +118,7 @@ Do not use tray `Restart App` to install the update.
 After publishing a new release:
 
 - confirm the landing-page CTA copy still matches launch messaging
-- if you uploaded new Mac files in Lemon Squeezy, update the landing env file IDs before deploying `/Users/swift/focana-landing`
+- if you uploaded new Mac files in Lemon Squeezy, update the landing env file IDs before deploying `/Users/swift/focana/web`
 - keep the checkout and verified download flow pointed at Lemon, not GitHub assets
 
 ## Best Prompt To Give Codex Next Time

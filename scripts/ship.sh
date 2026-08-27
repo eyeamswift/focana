@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LANDING_ROOT="$PROJECT_ROOT/../focana-landing"
+LANDING_ROOT="$PROJECT_ROOT/web"
 RELEASE_DIR="$PROJECT_ROOT/release"
 VERCEL_PROJECT_FILE="$LANDING_ROOT/.vercel/project.json"
 
@@ -301,11 +301,12 @@ verify_friends_and_family_flow() {
   ok "Landing and friends-and-family checkout flows stay wired to /download and the refreshed DMG routes"
 }
 
-commit_landing_release_notes() {
+commit_web_release_notes() {
   local release_file="$LANDING_ROOT/src/data/releases.json"
+  local release_path="web/src/data/releases.json"
 
   if [ "$DRY_RUN" = true ]; then
-    info "Would commit and push $release_file on landing main if it changed"
+    info "Would commit and push $release_path on monorepo main if it changed"
     return
   fi
 
@@ -313,15 +314,15 @@ commit_landing_release_notes() {
     fail "Expected synced landing release data at $release_file"
   fi
 
-  if git -C "$LANDING_ROOT" diff --quiet -- "$release_file" && git -C "$LANDING_ROOT" diff --cached --quiet -- "$release_file"; then
+  if git -C "$PROJECT_ROOT" diff --quiet -- "$release_path" && git -C "$PROJECT_ROOT" diff --cached --quiet -- "$release_path"; then
     info "Landing release data already matches $VERSION"
     return
   fi
 
-  git -C "$LANDING_ROOT" add src/data/releases.json
-  git -C "$LANDING_ROOT" commit -m "Update release notes for $VERSION"
-  git -C "$LANDING_ROOT" push origin main
-  ok "Landing release notes committed and pushed"
+  git -C "$PROJECT_ROOT" add "$release_path"
+  git -C "$PROJECT_ROOT" commit -m "Update web release notes for $VERSION"
+  git -C "$PROJECT_ROOT" push origin main
+  ok "Web release notes committed and pushed with the monorepo"
 }
 
 verify_landing_production() {
@@ -429,23 +430,18 @@ done
 require_github_auth
 vercel whoami >/dev/null 2>&1 || fail "Vercel CLI is not authenticated. Run 'vercel login' first."
 
-[ -d "$LANDING_ROOT" ] || fail "Missing landing repo: $LANDING_ROOT"
+[ -d "$LANDING_ROOT" ] || fail "Missing web app: $LANDING_ROOT"
 [ -f "$VERCEL_PROJECT_FILE" ] || fail "Missing Vercel link file: $VERCEL_PROJECT_FILE"
 
-LANDING_BRANCH="$(git -C "$LANDING_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')"
+CURRENT_BRANCH="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'unknown')"
 
-if [ "$SKIP_BUILD" = false ] && [ "$DRY_RUN" = false ]; then
+if [ "$DRY_RUN" = false ]; then
   if [ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]; then
-    fail "Git working tree is dirty. Commit or stash changes, or rerun with --skip-build."
+    fail "Monorepo working tree is dirty. Commit or stash changes before shipping."
   fi
-fi
-
-if [ "$DRY_RUN" = false ] && [ "$LANDING_BRANCH" != "main" ]; then
-  fail "Landing repo must be on main before shipping so production download links and the updates page stay in sync. Current branch: $LANDING_BRANCH"
-fi
-
-if [ "$DRY_RUN" = false ] && [ -n "$(git -C "$LANDING_ROOT" status --porcelain)" ]; then
-  fail "Landing repo is dirty. Commit or stash changes before shipping so production deploys stay reproducible."
+  if [ "$CURRENT_BRANCH" != "main" ]; then
+    fail "Releases must run from monorepo main so the desktop tag and web deployment stay in sync. Current branch: $CURRENT_BRANCH"
+  fi
 fi
 
 if [ "$DRY_RUN" = true ]; then
@@ -566,8 +562,8 @@ fi
 info "Step 7/11: Sync landing updates data"
 sync_landing_release_notes
 
-info "Step 8/12: Commit and push landing release notes"
-commit_landing_release_notes
+info "Step 8/12: Commit and push web release notes"
+commit_web_release_notes
 
 info "Step 9/12: Update Vercel env vars (production + preview)"
 if [ "$DRY_RUN" = true ]; then

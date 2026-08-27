@@ -1,6 +1,6 @@
-# Focana Landing Page
+# Focana Web
 
-Landing page for [focana.app](https://focana.app) — the desktop focus app for distracted minds.
+Website, checkout experience, and hosted APIs for [focana.app](https://focana.app). This project lives in the Focana monorepo alongside the desktop app.
 
 ## Tech Stack
 
@@ -11,16 +11,16 @@ Landing page for [focana.app](https://focana.app) — the desktop focus app for 
 
 ## Setup
 
-1. Install dependencies:
+1. From the repository root, install web dependencies:
 
 ```sh
-npm install
+npm --prefix web install
 ```
 
-2. Copy `.env.example` to `.env` and fill in your values:
+2. Copy `web/.env.example` to `web/.env` and fill in your values:
 
 ```sh
-cp .env.example .env
+cp web/.env.example web/.env
 ```
 
 Required env vars:
@@ -36,21 +36,22 @@ Required env vars:
    - `email` (text, unique)
    - `created_at` (timestamptz)
 
-4. Run the dev server:
+4. Run the dev server from the repository root:
 
 ```sh
-npm run dev
+npm run dev:web
 ```
 
 ## Commands
 
 | Command           | Action                                       |
 | :---------------- | :------------------------------------------- |
-| `npm install`     | Install dependencies                         |
-| `npm run dev`     | Start local dev server at `localhost:4321`    |
-| `npm run build`   | Build production site to `./dist/`           |
-| `npm run preview` | Preview build locally before deploying       |
+| `npm --prefix web install`     | Install web dependencies                         |
+| `npm run dev:web`              | Start the web app at `localhost:4321`             |
+| `npm run build:web`            | Build the web app to `web/dist/`                  |
+| `npm run test:web`             | Run the web tests                                 |
+| `npm --prefix web run preview` | Preview the built web app locally                 |
 
 ## Deployment
 
-Configured for Vercel. Connect the repo to Vercel and set the env vars in the Vercel dashboard.
+Configured for Vercel. Set the Vercel project root directory to `web` and keep the existing environment variables in the Vercel project.

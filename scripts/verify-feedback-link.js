@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..');
-const landingRoot = path.resolve(projectRoot, '../focana-landing');
+const landingRoot = path.resolve(projectRoot, 'web');
 const landingEnvPath = path.join(landingRoot, '.env');
 
 function fail(message) {

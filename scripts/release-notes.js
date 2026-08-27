@@ -4,7 +4,7 @@ const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..');
 const notesRoot = path.join(projectRoot, 'release-notes');
-const defaultLandingRoot = path.resolve(projectRoot, '../focana-landing');
+const defaultLandingRoot = path.resolve(projectRoot, 'web');
 const packageJsonPath = path.join(projectRoot, 'package.json');
 const defaultVersion = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version;
 const todayIso = new Date().toISOString().slice(0, 10);
@@ -276,7 +276,7 @@ function usage() {
     '  node scripts/release-notes.js init [--version 1.3.2]',
     '  node scripts/release-notes.js validate [--version 1.3.2]',
     '  node scripts/release-notes.js render-github [--version 1.3.2]',
-    '  node scripts/release-notes.js sync-landing [--landing-root ../focana-landing]',
+    '  node scripts/release-notes.js sync-landing [--landing-root web]',
     '',
   ].join('\n'));
 }
