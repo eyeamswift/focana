@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   normalizeTestimonialSubmission,
   resolveTestimonialEligibility,
-  saveVerifiedTestimonial,
+  saveTestimonial,
   TestimonialValidationError,
   type TestimonialConsentEventInsert,
   type TestimonialEligibility,
@@ -64,6 +64,7 @@ function submission(
   overrides: Partial<TestimonialSubmissionInput> = {}
 ): TestimonialSubmissionInput {
   return {
+    email: 'nylobie@example.com',
     firstName: 'Nylobie',
     lastName: '',
     attribution: 'first_name',
@@ -165,6 +166,9 @@ test('normalization preserves one or two feature choices and exact consent', () 
   assert.equal(result.consent_website, true);
   assert.equal(result.consent_social, true);
   assert.equal(result.consent_launch_materials, false);
+  assert.equal(result.submitted_email, 'nylobie@example.com');
+  assert.equal(result.verified_email, 'nylobie@example.com');
+  assert.equal(result.access_verified, true);
   assert.equal(result.status, 'pending');
   assert.equal(result.consented_at, submittedAt);
 });
@@ -205,11 +209,47 @@ test('normalization rejects incomplete attribution or publishing permission', ()
   );
 });
 
+test('normalization accepts blank or unmatched email as unverified', () => {
+  const blankEmail = normalizeTestimonialSubmission(submission({ email: '' }), null);
+  assert.equal(blankEmail.submitted_email, null);
+  assert.equal(blankEmail.verified_email, null);
+  assert.equal(blankEmail.verification_source, null);
+  assert.equal(blankEmail.verification_source_id, null);
+  assert.equal(blankEmail.access_verified, false);
+
+  const unmatchedEmail = normalizeTestimonialSubmission(
+    submission({ email: ' NewUser@Example.com ' }),
+    null
+  );
+  assert.equal(unmatchedEmail.submitted_email, 'newuser@example.com');
+  assert.equal(unmatchedEmail.verified_email, null);
+  assert.equal(unmatchedEmail.access_verified, false);
+});
+
+test('normalization rejects a malformed optional email', () => {
+  assertValidationError(
+    () => normalizeTestimonialSubmission(submission({ email: 'not-an-email' }), null),
+    'email'
+  );
+});
+
+test('normalization does not apply verification from a different email', () => {
+  const result = normalizeTestimonialSubmission(
+    submission({ email: 'someone-else@example.com' }),
+    customerEligibility
+  );
+
+  assert.equal(result.submitted_email, 'someone-else@example.com');
+  assert.equal(result.verified_email, null);
+  assert.equal(result.customer_id, null);
+  assert.equal(result.access_verified, false);
+});
+
 test('saving a verified testimonial writes the pending story and consent history', async () => {
   const store = new MemoryTestimonialStore();
   const submittedAt = '2026-08-27T17:00:00.000Z';
 
-  const result = await saveVerifiedTestimonial(
+  const result = await saveTestimonial(
     submission(),
     customerEligibility,
     store,
@@ -231,12 +271,24 @@ test('saving a verified testimonial writes the pending story and consent history
   });
 });
 
+test('saving an unverified testimonial still writes the story and consent history', async () => {
+  const store = new MemoryTestimonialStore();
+
+  const result = await saveTestimonial(submission({ email: '' }), null, store);
+
+  assert.equal(result.id, 'testimonial-1');
+  assert.equal(store.testimonials[0].access_verified, false);
+  assert.equal(store.testimonials[0].submitted_email, null);
+  assert.equal(store.testimonials[0].verified_email, null);
+  assert.equal(store.consentEvents.length, 1);
+});
+
 test('saving removes the testimonial if its consent history cannot be recorded', async () => {
   const store = new MemoryTestimonialStore();
   store.failConsentInsert = true;
 
   await assert.rejects(
-    saveVerifiedTestimonial(submission(), customerEligibility, store),
+    saveTestimonial(submission(), customerEligibility, store),
     /consent insert failed/
   );
 
@@ -256,4 +308,14 @@ test('testimonial migration defaults to manual review and preserves consent hist
   assert.match(migration, /create table if not exists public\.testimonial_consent_events/i);
   assert.match(migration, /alter table public\.testimonials enable row level security/i);
   assert.match(migration, /alter table public\.testimonial_consent_events enable row level security/i);
+
+  const optionalVerificationMigration = await readFile(
+    new URL('../supabase/migrations/012_optional_testimonial_verification.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(optionalVerificationMigration, /add column if not exists submitted_email text null/i);
+  assert.match(optionalVerificationMigration, /add column if not exists access_verified boolean not null default false/i);
+  assert.match(optionalVerificationMigration, /alter column verification_source drop not null/i);
+  assert.match(optionalVerificationMigration, /alter column verification_source_id drop not null/i);
+  assert.match(optionalVerificationMigration, /alter column verified_email drop not null/i);
 });

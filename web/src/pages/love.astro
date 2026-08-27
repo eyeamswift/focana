@@ -27,42 +27,14 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
 
     <section class="form-card" id="testimonial-card" aria-labelledby="form-title">
       <form id="testimonial-form" novalidate>
-        <div class="form-section email-section">
+        <div class="form-section">
           <div class="section-heading">
             <span class="step-number">1</span>
             <div>
-              <h2 id="form-title">First, find your Focana access</h2>
-              <p>Use the email from your purchase, beta download, or friends-and-family access.</p>
+              <h2 id="form-title">What helped?</h2>
+              <p>Choose the one or two parts of Focana that mattered most.</p>
             </div>
           </div>
-
-          <label class="field-label" for="email">Email</label>
-          <div class="email-row">
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autocomplete="email"
-              inputmode="email"
-              required
-              aria-describedby="email-help email-status"
-              placeholder="you@example.com"
-            />
-            <span class="verified-badge" id="verified-badge" hidden aria-hidden="true">Found</span>
-          </div>
-          <p class="field-help" id="email-help">We use this only to confirm that you have Focana access.</p>
-          <p class="field-status" id="email-status" role="status" aria-live="polite"></p>
-        </div>
-
-        <div id="story-fields" hidden>
-          <div class="form-section">
-            <div class="section-heading">
-              <span class="step-number">2</span>
-              <div>
-                <h2>What helped?</h2>
-                <p>Choose the one or two parts of Focana that mattered most.</p>
-              </div>
-            </div>
 
             <fieldset class="feature-fieldset" aria-describedby="feature-status">
               <legend class="sr-only">Choose one or two Focana features</legend>
@@ -124,14 +96,14 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
               maxlength="2000"
               placeholder="I’d tell them…"
             ></textarea>
-          </div>
+        </div>
 
-          <div class="form-section">
+        <div class="form-section">
             <div class="section-heading">
-              <span class="step-number">3</span>
+              <span class="step-number">2</span>
               <div>
                 <h2>How may we credit and share it?</h2>
-                <p>Your email is never shown with your testimonial.</p>
+                <p>Choose how your name appears and where Focana may share your words.</p>
               </div>
             </div>
 
@@ -167,6 +139,23 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
               <span>Focana may shorten my words for length or clarity without changing their meaning.</span>
             </label>
 
+            <div class="email-field">
+              <label class="field-label" for="email">Email <span>Optional</span></label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                aria-describedby="email-help"
+                placeholder="you@example.com"
+              />
+              <p class="field-help" id="email-help">
+                We’ll only use this to check for existing Focana access. It won’t be shown or add
+                you to marketing emails.
+              </p>
+            </div>
+
             <div class="honeypot" aria-hidden="true">
               <label for="companyWebsite">Company website</label>
               <input id="companyWebsite" name="companyWebsite" type="text" tabindex="-1" autocomplete="off" />
@@ -180,7 +169,6 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
 
             <p class="form-error" id="form-error" role="alert" hidden></p>
             <button class="submit-button" id="submit-button" type="submit">Share my story</button>
-          </div>
         </div>
       </form>
 
@@ -199,9 +187,6 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
   <script>
     const form = document.querySelector('#testimonial-form');
     const emailInput = document.querySelector('#email');
-    const emailStatus = document.querySelector('#email-status');
-    const verifiedBadge = document.querySelector('#verified-badge');
-    const storyFields = document.querySelector('#story-fields');
     const formError = document.querySelector('#form-error');
     const submitButton = document.querySelector('#submit-button');
     const successState = document.querySelector('#success-state');
@@ -211,85 +196,9 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
     const otherFeatureInput = document.querySelector('#otherFeature');
     const lastNameInput = document.querySelector('#lastName');
 
-    if (!(form instanceof HTMLFormElement) || !(emailInput instanceof HTMLInputElement)) {
+    if (!(form instanceof HTMLFormElement)) {
       throw new Error('Testimonial form could not be initialized');
     }
-
-    let verifiedEmail = '';
-    let lookupTimer;
-    let lookupSequence = 0;
-
-    const normalizeEmail = (value) => value.trim().toLowerCase();
-    const looksLikeEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
-    function setEmailState(state, message) {
-      if (emailStatus instanceof HTMLElement) {
-        emailStatus.textContent = message;
-        emailStatus.dataset.state = state;
-      }
-
-      const found = state === 'verified';
-      if (verifiedBadge instanceof HTMLElement) verifiedBadge.hidden = !found;
-      if (storyFields instanceof HTMLElement) storyFields.hidden = !found;
-      emailInput.setAttribute('aria-invalid', state === 'error' ? 'true' : 'false');
-    }
-
-    function clearVerification(message = '') {
-      verifiedEmail = '';
-      setEmailState('idle', message);
-    }
-
-    async function checkEligibility({ showInvalid = false } = {}) {
-      const email = normalizeEmail(emailInput.value);
-      const sequence = ++lookupSequence;
-
-      if (!looksLikeEmail(email)) {
-        clearVerification(showInvalid && email ? 'Please enter a valid email.' : '');
-        if (showInvalid && email) setEmailState('error', 'Please enter a valid email.');
-        return false;
-      }
-
-      if (email === verifiedEmail) return true;
-
-      setEmailState('checking', 'Checking your Focana access…');
-      try {
-        const response = await fetch('/api/testimonials/eligibility', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        const result = await response.json();
-        if (sequence !== lookupSequence || email !== normalizeEmail(emailInput.value)) return false;
-
-        if (response.ok && result.eligible === true) {
-          verifiedEmail = email;
-          setEmailState('verified', 'Access found. You can share your story below.');
-          return true;
-        }
-
-        clearVerification();
-        setEmailState('error', result.error || 'We could not find Focana access under that email.');
-        return false;
-      } catch {
-        if (sequence !== lookupSequence) return false;
-        clearVerification();
-        setEmailState('error', 'We could not check that email right now. Please try again.');
-        return false;
-      }
-    }
-
-    emailInput.addEventListener('input', () => {
-      window.clearTimeout(lookupTimer);
-      if (normalizeEmail(emailInput.value) !== verifiedEmail) clearVerification();
-      if (looksLikeEmail(normalizeEmail(emailInput.value))) {
-        lookupTimer = window.setTimeout(() => checkEligibility(), 550);
-      }
-    });
-
-    emailInput.addEventListener('blur', () => {
-      window.clearTimeout(lookupTimer);
-      checkEligibility({ showInvalid: true });
-    });
 
     const featureInputs = Array.from(form.querySelectorAll('input[name="selectedFeatures"]'));
     featureInputs.forEach((input) => {
@@ -340,11 +249,6 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       if (featureStatus instanceof HTMLElement) featureStatus.textContent = '';
       if (consentStatus instanceof HTMLElement) consentStatus.textContent = '';
 
-      if (normalizeEmail(emailInput.value) !== verifiedEmail && !(await checkEligibility({ showInvalid: true }))) {
-        emailInput.focus();
-        return;
-      }
-
       const selectedFeatures = featureInputs
         .filter((item) => item instanceof HTMLInputElement && item.checked)
         .map((item) => item.value);
@@ -381,6 +285,16 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
         return;
       }
 
+      if (
+        emailInput instanceof HTMLInputElement &&
+        emailInput.value.trim() &&
+        !emailInput.validity.valid
+      ) {
+        showFormError('Please enter a valid email or leave it blank.');
+        emailInput.focus();
+        return;
+      }
+
       if (!form.checkValidity()) {
         form.reportValidity();
         return;
@@ -391,7 +305,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       }
 
       const payload = {
-        email: verifiedEmail,
+        email: formData.get('email'),
         firstName: formData.get('firstName'),
         lastName: formData.get('lastName'),
         attribution: attribution instanceof HTMLInputElement ? attribution.value : '',
@@ -515,13 +429,8 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       border-top: 1px solid rgba(229, 212, 177, 0.72);
     }
 
-    .form-section:first-child,
-    #story-fields > .form-section:first-child {
+    .form-section:first-child {
       border-top: 0;
-    }
-
-    #story-fields {
-      border-top: 1px solid rgba(229, 212, 177, 0.72);
     }
 
     .section-heading {
@@ -605,25 +514,8 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.17);
     }
 
-    .email-row {
-      position: relative;
-    }
-
-    .email-row input {
-      padding-right: 90px;
-    }
-
-    .verified-badge {
-      position: absolute;
-      top: 50%;
-      right: 12px;
-      translate: 0 -50%;
-      padding: 5px 9px;
-      border-radius: 999px;
-      background: #eaf7e7;
-      color: #39713b;
-      font-size: 12px;
-      font-weight: 800;
+    .email-field {
+      margin-top: 28px;
     }
 
     .field-help,
@@ -641,10 +533,6 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
     .field-status {
       min-height: 20px;
       margin-top: 6px;
-    }
-
-    .field-status[data-state='verified'] {
-      color: #39713b;
     }
 
     .field-status[data-state='error'],

@@ -5,7 +5,7 @@ import { hasJsonContentType, isTrustedOrigin } from '../../../lib/requestSecurit
 import {
   createSupabaseTestimonialStore,
   resolveTestimonialEligibility,
-  saveVerifiedTestimonial,
+  saveTestimonial,
   TestimonialValidationError,
   type TestimonialSubmissionInput,
 } from '../../../lib/testimonialService';
@@ -44,13 +44,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const email = normalizeEmail(stringValue(body.email));
-  if (!isValidEmail(email)) {
-    return json({ error: 'Please enter a valid email.', field: 'email' }, 400);
-  }
-
-  // Quietly accept obvious bot submissions without adding them to the review queue.
-  if (stringValue(body.companyWebsite).trim()) {
-    return json({ ok: true }, 201);
+  if (email && !isValidEmail(email)) {
+    return json({ error: 'Please enter a valid email or leave it blank.', field: 'email' }, 400);
   }
 
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
@@ -63,19 +58,17 @@ export const POST: APIRoute = async ({ request }) => {
   const store = createSupabaseTestimonialStore({ supabaseUrl, supabaseServiceKey });
 
   try {
-    // Never trust the earlier browser check; eligibility is resolved again at submission.
-    const eligibility = await resolveTestimonialEligibility(email, store);
-    if (!eligibility) {
-      return json(
-        {
-          error: 'We could not find Focana access under that email. Try the email you used for your purchase, beta download, or friends-and-family access.',
-          field: 'email',
-        },
-        403
-      );
+    let eligibility = null;
+    if (email) {
+      try {
+        eligibility = await resolveTestimonialEligibility(email, store);
+      } catch (error) {
+        console.warn('[testimonials/submit] Verification lookup failed; saving as unverified:', error);
+      }
     }
 
     const submission: TestimonialSubmissionInput = {
+      email,
       firstName: stringValue(body.firstName),
       lastName: stringValue(body.lastName),
       attribution: stringValue(body.attribution) as TestimonialSubmissionInput['attribution'],
@@ -91,8 +84,8 @@ export const POST: APIRoute = async ({ request }) => {
       editingConsent: body.editingConsent === true,
     };
 
-    await saveVerifiedTestimonial(submission, eligibility, store);
-    return json({ ok: true }, 201);
+    await saveTestimonial(submission, eligibility, store);
+    return json({ ok: true, accessVerified: eligibility !== null }, 201);
   } catch (error) {
     if (error instanceof TestimonialValidationError) {
       return json({ error: error.message, field: error.field }, 400);

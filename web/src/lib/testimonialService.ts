@@ -45,6 +45,7 @@ type FriendsAndFamilyAccessRow = {
 };
 
 export type TestimonialSubmissionInput = {
+  email?: string | null;
   firstName: string;
   lastName?: string | null;
   attribution: TestimonialAttribution;
@@ -60,9 +61,11 @@ export type TestimonialSubmissionInput = {
 
 export type TestimonialInsert = {
   customer_id: string | null;
-  verification_source: TestimonialVerificationSource;
-  verification_source_id: string;
-  verified_email: string;
+  verification_source: TestimonialVerificationSource | null;
+  verification_source_id: string | null;
+  submitted_email: string | null;
+  verified_email: string | null;
+  access_verified: boolean;
   first_name: string;
   last_name: string | null;
   attribution_preference: TestimonialAttribution;
@@ -178,14 +181,23 @@ export async function resolveTestimonialEligibility(
 
 export function normalizeTestimonialSubmission(
   raw: TestimonialSubmissionInput,
-  eligibility: TestimonialEligibility,
+  eligibility: TestimonialEligibility | null,
   submittedAt = new Date().toISOString()
 ): TestimonialInsert {
+  const email = normalizeEmail(trimText(raw.email));
   const firstName = trimText(raw.firstName);
   const lastName = trimText(raw.lastName) || null;
   const featureStory = trimText(raw.featureStory);
   const recommendationQuote = trimText(raw.recommendationQuote) || null;
   const otherFeature = trimText(raw.otherFeature) || null;
+  const verifiedEligibility = eligibility?.email === email ? eligibility : null;
+
+  if (email && !isValidEmail(email)) {
+    throw new TestimonialValidationError(
+      'email',
+      'Please enter a valid email or leave it blank.'
+    );
+  }
 
   assertLength('firstName', firstName, 1, 'Please enter your first name.');
   assertLength(
@@ -252,10 +264,12 @@ export function normalizeTestimonialSubmission(
   }
 
   return {
-    customer_id: eligibility.customerId,
-    verification_source: eligibility.source,
-    verification_source_id: eligibility.sourceId,
-    verified_email: eligibility.email,
+    customer_id: verifiedEligibility?.customerId || null,
+    verification_source: verifiedEligibility?.source || null,
+    verification_source_id: verifiedEligibility?.sourceId || null,
+    submitted_email: email || null,
+    verified_email: verifiedEligibility?.email || null,
+    access_verified: verifiedEligibility !== null,
     first_name: firstName,
     last_name: lastName,
     attribution_preference: raw.attribution,
@@ -273,9 +287,9 @@ export function normalizeTestimonialSubmission(
   };
 }
 
-export async function saveVerifiedTestimonial(
+export async function saveTestimonial(
   raw: TestimonialSubmissionInput,
-  eligibility: TestimonialEligibility,
+  eligibility: TestimonialEligibility | null,
   store: TestimonialStore,
   submittedAt = new Date().toISOString()
 ) {
