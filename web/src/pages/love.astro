@@ -147,9 +147,8 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
                 placeholder="you@example.com"
               />
               <p class="field-help" id="email-help">
-                We’ll use this to check whether you already have Focana access. A match marks your
-                testimonial verified; no match still submits it as unverified. It won’t be shown or
-                add you to marketing emails.
+                Your email is only used to verify Focana access—not for marketing. Change or
+                withdraw permission anytime: <a href={`mailto:${SITE_CONTACT_EMAIL}`}>{SITE_CONTACT_EMAIL}</a>.
               </p>
             </div>
 
@@ -157,12 +156,6 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
               <label for="companyWebsite">Company website</label>
               <input id="companyWebsite" name="companyWebsite" type="text" tabindex="-1" autocomplete="off" />
             </div>
-
-            <p class="submit-note">
-              By submitting, you confirm these are your honest words. You can change or withdraw
-              permission later by emailing <a href={`mailto:${SITE_CONTACT_EMAIL}`}>{SITE_CONTACT_EMAIL}</a>.
-              See our <a href="/privacy">Privacy Policy</a>.
-            </p>
 
             <p class="form-error" id="form-error" role="alert" hidden></p>
             <button class="submit-button" id="submit-button" type="submit">Share my story</button>
@@ -536,8 +529,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
     }
 
     .field-help,
-    .field-status,
-    .submit-note {
+    .field-status {
       color: var(--muted);
       font-size: 13px;
       line-height: 1.55;
@@ -672,11 +664,7 @@ const canonicalURL = `${SITE_ORIGIN}/love`;
       margin: 2px 0 0 27px;
     }
 
-    .submit-note {
-      margin-top: 24px;
-    }
-
-    .submit-note a {
+    .field-help a {
       color: var(--text);
       font-weight: 700;
     }
