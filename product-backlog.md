@@ -56,6 +56,7 @@ This should be the next deploy. It is not `3.0.0`: it completes the 2.4 task-ini
 
 ### GTM Track — after 2.4.0 ships
 - **Next GTM build:** `MKT-006` (creator promo-code + affiliate attribution). Explicitly excluded from 2.4.0; finish after the task-initiation release is shipped and the creator-code model is decided.
+- **Verified word-of-mouth loop:** `MKT-008` adds an optional give-$10/get-$10 share link only after a testimonial has been submitted. The reward is for a resulting paid membership, never for giving a testimonial or saying something positive.
 - **Pricing model decision:** `LIC-003` replaces the shipped day-8 full-app paywall with a free-for-life tier and calm Focana Plus feature gates. Decide before rewriting lifecycle emails, landing-page copy, and attribution so `MKT-001`, `MKT-003`, `MKT-004`, and `MKT-005` do not keep optimizing around trial copy.
 
 ### 2.5.0 — "Focus Insights + earned progress"
@@ -286,6 +287,16 @@ Ship the Focus Ledger as a user-benefit layer, not founder analytics: help users
 - Commits: —
 
 ## Later
+
+### MKT-008 — A completed testimonial can unlock an optional give-$10/get-$10 referral link
+- Priority: High
+- Status: Later
+- Version: TBD
+- Why it matters: A happy user who has just described Focana’s value is in a natural position to share it, but testimonial consent and referral compensation must remain clearly separate. A transparent referral loop can turn genuine word of mouth into paid growth without paying for praise.
+- Files: post-testimonial success flow under `web/src/pages/love.astro`, referral landing route, Lemon checkout creation/API, Lemon webhook handling, referral terms/privacy copy, Supabase referral/payout migration, payout operations, `web/vercel.json`, web tests
+- Related: `MKT-005`, `MKT-006`, `LIC-002`, `LIC-003`
+- Notes: Build in later phases after the testimonial capture flow is live. **Phase 4 — share experience:** after any valid testimonial submission, regardless of sentiment, attribution choice, or publishing permissions, offer an optional personal link at `focana.app/share/[opaque-code]`. Explain that a new customer receives `$10 off` the `$79 lifetime membership` and the referrer earns `$10` if that person becomes and remains a paid member. Default share copy must disclose the referrer benefit; never frame the payout as compensation for the testimonial. Use opaque codes with no email or other PII. **Phase 5 — attribution and payment integrity:** add Supabase `referrers`, `referrals`, and `payouts`; create lifetime-only Lemon checkouts with the discount and referral code in trusted custom metadata; make webhook processing idempotent; credit the first valid referral only; require a new customer; block self-referrals; void pending rewards after refunds or chargebacks; and mature a reward only after a `30-day` hold. **Phase 6 — payout operations and policy:** pilot with at most `25` referrers, request payout details only after the first reward is eligible, and use founder-reviewed manual PayPal payouts before automating. Add plain-language referral terms, privacy coverage, disclosure guidance, dispute handling, and founder-readable exports rather than a full dashboard. Acceptance should verify the offer never appears before testimonial completion, the testimonial remains valid if the user declines sharing, the discount is exactly `$10`, attribution survives checkout and webhook delivery, duplicate/self/existing-customer/refunded orders do not earn rewards, the 30-day maturity and payout states are auditable, and all share surfaces disclose the financial relationship.
+- Commits: —
 
 ### TASK-002 — Session planning should require a project-based task hierarchy
 - Priority: High

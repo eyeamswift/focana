@@ -1,0 +1,900 @@
+---
+import EditorialLayout from '../layouts/EditorialLayout.astro';
+import { SITE_CONTACT_EMAIL, SITE_NAME, SITE_OG_IMAGE } from '../data/site';
+import { SITE_ORIGIN } from '../lib/siteOrigin';
+
+const title = `Share your Focana story | ${SITE_NAME}`;
+const description = 'Tell us which parts of Focana have helped and what changed for you.';
+const canonicalURL = `${SITE_ORIGIN}/love`;
+---
+
+<EditorialLayout
+  title={title}
+  description={description}
+  canonicalURL={canonicalURL}
+  ogImage={SITE_OG_IMAGE}
+>
+  <meta slot="head" name="robots" content="noindex" />
+
+  <main class="love-page">
+    <section class="love-intro" aria-labelledby="love-title">
+      <span class="eyebrow">A note from you</span>
+      <h1 id="love-title">Share your Focana story</h1>
+      <p class="intro-copy">
+        If Focana has made focusing a little easier, we’d love to hear about it.
+      </p>
+    </section>
+
+    <section class="form-card" id="testimonial-card" aria-labelledby="form-title">
+      <form id="testimonial-form" novalidate>
+        <div class="form-section email-section">
+          <div class="section-heading">
+            <span class="step-number">1</span>
+            <div>
+              <h2 id="form-title">First, find your Focana access</h2>
+              <p>Use the email from your purchase, beta download, or friends-and-family access.</p>
+            </div>
+          </div>
+
+          <label class="field-label" for="email">Email</label>
+          <div class="email-row">
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              inputmode="email"
+              required
+              aria-describedby="email-help email-status"
+              placeholder="you@example.com"
+            />
+            <span class="verified-badge" id="verified-badge" hidden aria-hidden="true">Found</span>
+          </div>
+          <p class="field-help" id="email-help">We use this only to confirm that you have Focana access.</p>
+          <p class="field-status" id="email-status" role="status" aria-live="polite"></p>
+        </div>
+
+        <div id="story-fields" hidden>
+          <div class="form-section">
+            <div class="section-heading">
+              <span class="step-number">2</span>
+              <div>
+                <h2>What helped?</h2>
+                <p>Choose the one or two parts of Focana that mattered most.</p>
+              </div>
+            </div>
+
+            <fieldset class="feature-fieldset" aria-describedby="feature-status">
+              <legend class="sr-only">Choose one or two Focana features</legend>
+              <div class="feature-grid">
+                <label class="choice-card">
+                  <input type="checkbox" name="selectedFeatures" value="always_visible" />
+                  <span><strong>Keeping my task and timer visible</strong><small>Across the apps where I work</small></span>
+                </label>
+                <label class="choice-card">
+                  <input type="checkbox" name="selectedFeatures" value="gentle_checkins" />
+                  <span><strong>Gentle check-ins</strong><small>A calm prompt to notice where my focus went</small></span>
+                </label>
+                <label class="choice-card">
+                  <input type="checkbox" name="selectedFeatures" value="parking_lot" />
+                  <span><strong>Parking Lot</strong><small>Saving distracting thoughts without following them</small></span>
+                </label>
+                <label class="choice-card">
+                  <input type="checkbox" name="selectedFeatures" value="session_history" />
+                  <span><strong>Picking up where I left off</strong><small>With session notes and saved work</small></span>
+                </label>
+                <label class="choice-card">
+                  <input type="checkbox" name="selectedFeatures" value="quick_start" />
+                  <span><strong>Quick start</strong><small>Getting into a focus session with less setup</small></span>
+                </label>
+                <label class="choice-card">
+                  <input type="checkbox" name="selectedFeatures" value="other" />
+                  <span><strong>Something else</strong><small>Tell us which part helped</small></span>
+                </label>
+              </div>
+            </fieldset>
+            <p class="field-status" id="feature-status" role="status" aria-live="polite"></p>
+
+            <div class="other-feature" id="other-feature-wrap" hidden>
+              <label class="field-label" for="otherFeature">Which part of Focana?</label>
+              <input id="otherFeature" name="otherFeature" type="text" maxlength="160" />
+            </div>
+
+            <label class="field-label story-label" for="featureStory">
+              Tell us how one or both of those have helped you. What would normally have happened?
+              What happened instead?
+            </label>
+            <textarea
+              id="featureStory"
+              name="featureStory"
+              rows="7"
+              minlength="20"
+              maxlength="4000"
+              required
+              placeholder="Before Focana… Now…"
+            ></textarea>
+
+            <label class="field-label optional-label" for="recommendationQuote">
+              What would you tell someone considering Focana? <span>Optional</span>
+            </label>
+            <textarea
+              id="recommendationQuote"
+              name="recommendationQuote"
+              rows="4"
+              maxlength="2000"
+              placeholder="I’d tell them…"
+            ></textarea>
+          </div>
+
+          <div class="form-section">
+            <div class="section-heading">
+              <span class="step-number">3</span>
+              <div>
+                <h2>How may we credit and share it?</h2>
+                <p>Your email is never shown with your testimonial.</p>
+              </div>
+            </div>
+
+            <div class="name-grid">
+              <div>
+                <label class="field-label" for="firstName">First name</label>
+                <input id="firstName" name="firstName" type="text" maxlength="80" autocomplete="given-name" required />
+              </div>
+              <div>
+                <label class="field-label" for="lastName">Last name <span>Only needed for last initial</span></label>
+                <input id="lastName" name="lastName" type="text" maxlength="80" autocomplete="family-name" />
+              </div>
+            </div>
+
+            <fieldset class="plain-fieldset" id="attribution-fieldset" tabindex="-1">
+              <legend>Show my name as</legend>
+              <label class="check-row"><input type="radio" name="attribution" value="first_name" checked /><span>First name</span></label>
+              <label class="check-row"><input type="radio" name="attribution" value="first_last_initial" /><span>First name + last initial</span></label>
+              <label class="check-row"><input type="radio" name="attribution" value="anonymous" /><span>Anonymous</span></label>
+            </fieldset>
+
+            <fieldset class="plain-fieldset consent-fieldset" id="publishingConsent" tabindex="-1" aria-describedby="consent-help consent-status">
+              <legend>Focana may share my submitted words in</legend>
+              <p class="field-help" id="consent-help">Choose at least one. Nothing is published automatically.</p>
+              <label class="check-row"><input type="checkbox" name="consentWebsite" /><span>Focana’s website</span></label>
+              <label class="check-row"><input type="checkbox" name="consentSocial" /><span>Focana’s social media</span></label>
+              <label class="check-row"><input type="checkbox" name="consentLaunchMaterials" /><span>Emails and launch materials</span></label>
+            </fieldset>
+            <p class="field-status" id="consent-status" role="status" aria-live="polite"></p>
+
+            <label class="check-row editing-row">
+              <input type="checkbox" name="editingConsent" />
+              <span>Focana may shorten my words for length or clarity without changing their meaning.</span>
+            </label>
+
+            <div class="honeypot" aria-hidden="true">
+              <label for="companyWebsite">Company website</label>
+              <input id="companyWebsite" name="companyWebsite" type="text" tabindex="-1" autocomplete="off" />
+            </div>
+
+            <p class="submit-note">
+              By submitting, you confirm these are your honest words. You can change or withdraw
+              permission later by emailing <a href={`mailto:${SITE_CONTACT_EMAIL}`}>{SITE_CONTACT_EMAIL}</a>.
+              See our <a href="/privacy">Privacy Policy</a>.
+            </p>
+
+            <p class="form-error" id="form-error" role="alert" hidden></p>
+            <button class="submit-button" id="submit-button" type="submit">Share my story</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="success-state" id="success-state" hidden tabindex="-1">
+        <span class="success-mark" aria-hidden="true">✓</span>
+        <h2>Thank you—this means a lot.</h2>
+        <p>
+          Your story is saved for review. We’ll only share it in the places you selected and with
+          the name format you chose.
+        </p>
+        <a href="/">Back to Focana</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.querySelector('#testimonial-form');
+    const emailInput = document.querySelector('#email');
+    const emailStatus = document.querySelector('#email-status');
+    const verifiedBadge = document.querySelector('#verified-badge');
+    const storyFields = document.querySelector('#story-fields');
+    const formError = document.querySelector('#form-error');
+    const submitButton = document.querySelector('#submit-button');
+    const successState = document.querySelector('#success-state');
+    const featureStatus = document.querySelector('#feature-status');
+    const consentStatus = document.querySelector('#consent-status');
+    const otherFeatureWrap = document.querySelector('#other-feature-wrap');
+    const otherFeatureInput = document.querySelector('#otherFeature');
+    const lastNameInput = document.querySelector('#lastName');
+
+    if (!(form instanceof HTMLFormElement) || !(emailInput instanceof HTMLInputElement)) {
+      throw new Error('Testimonial form could not be initialized');
+    }
+
+    let verifiedEmail = '';
+    let lookupTimer;
+    let lookupSequence = 0;
+
+    const normalizeEmail = (value) => value.trim().toLowerCase();
+    const looksLikeEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+    function setEmailState(state, message) {
+      if (emailStatus instanceof HTMLElement) {
+        emailStatus.textContent = message;
+        emailStatus.dataset.state = state;
+      }
+
+      const found = state === 'verified';
+      if (verifiedBadge instanceof HTMLElement) verifiedBadge.hidden = !found;
+      if (storyFields instanceof HTMLElement) storyFields.hidden = !found;
+      emailInput.setAttribute('aria-invalid', state === 'error' ? 'true' : 'false');
+    }
+
+    function clearVerification(message = '') {
+      verifiedEmail = '';
+      setEmailState('idle', message);
+    }
+
+    async function checkEligibility({ showInvalid = false } = {}) {
+      const email = normalizeEmail(emailInput.value);
+      const sequence = ++lookupSequence;
+
+      if (!looksLikeEmail(email)) {
+        clearVerification(showInvalid && email ? 'Please enter a valid email.' : '');
+        if (showInvalid && email) setEmailState('error', 'Please enter a valid email.');
+        return false;
+      }
+
+      if (email === verifiedEmail) return true;
+
+      setEmailState('checking', 'Checking your Focana access…');
+      try {
+        const response = await fetch('/api/testimonials/eligibility', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const result = await response.json();
+        if (sequence !== lookupSequence || email !== normalizeEmail(emailInput.value)) return false;
+
+        if (response.ok && result.eligible === true) {
+          verifiedEmail = email;
+          setEmailState('verified', 'Access found. You can share your story below.');
+          return true;
+        }
+
+        clearVerification();
+        setEmailState('error', result.error || 'We could not find Focana access under that email.');
+        return false;
+      } catch {
+        if (sequence !== lookupSequence) return false;
+        clearVerification();
+        setEmailState('error', 'We could not check that email right now. Please try again.');
+        return false;
+      }
+    }
+
+    emailInput.addEventListener('input', () => {
+      window.clearTimeout(lookupTimer);
+      if (normalizeEmail(emailInput.value) !== verifiedEmail) clearVerification();
+      if (looksLikeEmail(normalizeEmail(emailInput.value))) {
+        lookupTimer = window.setTimeout(() => checkEligibility(), 550);
+      }
+    });
+
+    emailInput.addEventListener('blur', () => {
+      window.clearTimeout(lookupTimer);
+      checkEligibility({ showInvalid: true });
+    });
+
+    const featureInputs = Array.from(form.querySelectorAll('input[name="selectedFeatures"]'));
+    featureInputs.forEach((input) => {
+      input.addEventListener('change', () => {
+        const selected = featureInputs.filter((item) => item instanceof HTMLInputElement && item.checked);
+        if (selected.length > 2 && input instanceof HTMLInputElement) {
+          input.checked = false;
+          if (featureStatus instanceof HTMLElement) {
+            featureStatus.textContent = 'Choose up to two—the ones that mattered most.';
+            featureStatus.dataset.state = 'error';
+          }
+        } else if (featureStatus instanceof HTMLElement) {
+          featureStatus.textContent = '';
+        }
+
+        const otherSelected = featureInputs.some(
+          (item) => item instanceof HTMLInputElement && item.value === 'other' && item.checked
+        );
+        if (otherFeatureWrap instanceof HTMLElement) otherFeatureWrap.hidden = !otherSelected;
+        if (otherFeatureInput instanceof HTMLInputElement) otherFeatureInput.required = otherSelected;
+      });
+    });
+
+    function showFormError(message) {
+      if (!(formError instanceof HTMLElement)) return;
+      formError.textContent = message;
+      formError.hidden = false;
+    }
+
+    function focusField(field) {
+      const fieldMap = {
+        email: '#email',
+        firstName: '#firstName',
+        lastName: '#lastName',
+        selectedFeatures: 'input[name="selectedFeatures"]',
+        otherFeature: '#otherFeature',
+        featureStory: '#featureStory',
+        attribution: '#attribution-fieldset',
+        publishingConsent: '#publishingConsent',
+      };
+      const target = form.querySelector(fieldMap[field] || '#form-error');
+      if (target instanceof HTMLElement) target.focus();
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (formError instanceof HTMLElement) formError.hidden = true;
+      if (featureStatus instanceof HTMLElement) featureStatus.textContent = '';
+      if (consentStatus instanceof HTMLElement) consentStatus.textContent = '';
+
+      if (normalizeEmail(emailInput.value) !== verifiedEmail && !(await checkEligibility({ showInvalid: true }))) {
+        emailInput.focus();
+        return;
+      }
+
+      const selectedFeatures = featureInputs
+        .filter((item) => item instanceof HTMLInputElement && item.checked)
+        .map((item) => item.value);
+      if (selectedFeatures.length < 1 || selectedFeatures.length > 2) {
+        if (featureStatus instanceof HTMLElement) {
+          featureStatus.textContent = 'Please choose one or two Focana features.';
+          featureStatus.dataset.state = 'error';
+        }
+        focusField('selectedFeatures');
+        return;
+      }
+
+      const attribution = form.querySelector('input[name="attribution"]:checked');
+      if (
+        attribution instanceof HTMLInputElement &&
+        attribution.value === 'first_last_initial' &&
+        lastNameInput instanceof HTMLInputElement &&
+        !lastNameInput.value.trim()
+      ) {
+        showFormError('Please add your last name so we can use its initial.');
+        lastNameInput.focus();
+        return;
+      }
+
+      const formData = new FormData(form);
+      const hasPublishingConsent = ['consentWebsite', 'consentSocial', 'consentLaunchMaterials']
+        .some((name) => formData.has(name));
+      if (!hasPublishingConsent) {
+        if (consentStatus instanceof HTMLElement) {
+          consentStatus.textContent = 'Please choose at least one place where Focana may share your words.';
+          consentStatus.dataset.state = 'error';
+        }
+        focusField('publishingConsent');
+        return;
+      }
+
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      if (formData.get('companyWebsite')) {
+        return;
+      }
+
+      const payload = {
+        email: verifiedEmail,
+        firstName: formData.get('firstName'),
+        lastName: formData.get('lastName'),
+        attribution: attribution instanceof HTMLInputElement ? attribution.value : '',
+        selectedFeatures,
+        otherFeature: formData.get('otherFeature'),
+        featureStory: formData.get('featureStory'),
+        recommendationQuote: formData.get('recommendationQuote'),
+        consentWebsite: formData.has('consentWebsite'),
+        consentSocial: formData.has('consentSocial'),
+        consentLaunchMaterials: formData.has('consentLaunchMaterials'),
+        editingConsent: formData.has('editingConsent'),
+        companyWebsite: '',
+      };
+
+      if (submitButton instanceof HTMLButtonElement) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Saving your story…';
+      }
+
+      try {
+        const response = await fetch('/api/testimonials/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          showFormError(result.error || 'We could not save your story right now. Please try again.');
+          focusField(result.field);
+          return;
+        }
+
+        form.hidden = true;
+        if (successState instanceof HTMLElement) {
+          successState.hidden = false;
+          successState.focus();
+        }
+      } catch {
+        showFormError('We could not save your story right now. Please try again.');
+      } finally {
+        if (submitButton instanceof HTMLButtonElement) {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Share my story';
+        }
+      }
+    });
+  </script>
+
+  <style>
+    .love-page,
+    .love-page * {
+      box-sizing: border-box;
+    }
+
+    .love-page h1,
+    .love-page h2,
+    .love-page p,
+    .love-page fieldset {
+      margin: 0;
+    }
+
+    .love-page {
+      width: min(980px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 64px 0 96px;
+    }
+
+    .love-intro {
+      max-width: 760px;
+      margin: 0 auto 28px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      padding: 8px 14px;
+      border: 1px solid rgba(229, 212, 177, 0.9);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.76);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2 {
+      font-family: 'Outfit', sans-serif;
+      color: var(--text);
+    }
+
+    h1 {
+      margin-top: 18px;
+      font-size: clamp(40px, 7vw, 66px);
+      line-height: 1;
+      letter-spacing: -0.055em;
+    }
+
+    .intro-copy {
+      max-width: 680px;
+      margin: 20px auto 0;
+      color: var(--muted-soft);
+      font-size: 19px;
+      line-height: 1.7;
+    }
+
+    .form-card {
+      overflow: hidden;
+      max-width: 800px;
+      margin: 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow);
+    }
+
+    .form-section {
+      padding: 34px;
+      border-top: 1px solid rgba(229, 212, 177, 0.72);
+    }
+
+    .form-section:first-child,
+    #story-fields > .form-section:first-child {
+      border-top: 0;
+    }
+
+    #story-fields {
+      border-top: 1px solid rgba(229, 212, 177, 0.72);
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .step-number {
+      display: grid;
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 12px;
+      background: #fff4cf;
+      color: #8f3d0b;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+    }
+
+    .section-heading h2 {
+      font-size: 24px;
+      line-height: 1.2;
+      letter-spacing: -0.025em;
+    }
+
+    .section-heading p {
+      margin-top: 6px;
+      color: var(--muted-soft);
+      line-height: 1.55;
+    }
+
+    .field-label,
+    .plain-fieldset legend {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .field-label span,
+    .optional-label span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    input[type='email'],
+    input[type='text'],
+    textarea {
+      width: 100%;
+      border: 1.5px solid var(--line);
+      border-radius: 13px;
+      background: #fffef9;
+      color: var(--text);
+      font: inherit;
+      font-size: 16px;
+      line-height: 1.5;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    input[type='email'],
+    input[type='text'] {
+      min-height: 50px;
+      padding: 11px 14px;
+    }
+
+    textarea {
+      resize: vertical;
+      padding: 13px 14px;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent-deep);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.17);
+    }
+
+    .email-row {
+      position: relative;
+    }
+
+    .email-row input {
+      padding-right: 90px;
+    }
+
+    .verified-badge {
+      position: absolute;
+      top: 50%;
+      right: 12px;
+      translate: 0 -50%;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #eaf7e7;
+      color: #39713b;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .field-help,
+    .field-status,
+    .submit-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .field-help {
+      margin-top: 8px;
+    }
+
+    .field-status {
+      min-height: 20px;
+      margin-top: 6px;
+    }
+
+    .field-status[data-state='verified'] {
+      color: #39713b;
+    }
+
+    .field-status[data-state='error'],
+    .form-error {
+      color: #9d351d;
+    }
+
+    .feature-fieldset,
+    .plain-fieldset {
+      border: 0;
+      padding: 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .choice-card,
+    .check-row {
+      cursor: pointer;
+    }
+
+    .choice-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      min-width: 0;
+      padding: 14px;
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
+      background: #fffef9;
+      color: var(--text);
+      line-height: 1.35;
+    }
+
+    .choice-card:has(input:checked) {
+      border-color: var(--accent-deep);
+      background: #fff9e7;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.11);
+    }
+
+    .choice-card input,
+    .check-row input {
+      flex: 0 0 auto;
+      width: 17px;
+      height: 17px;
+      margin-top: 2px;
+      accent-color: var(--accent-deep);
+    }
+
+    .choice-card span {
+      min-width: 0;
+    }
+
+    .choice-card strong,
+    .choice-card small {
+      display: block;
+    }
+
+    .choice-card strong {
+      font-size: 14px;
+    }
+
+    .choice-card small {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .other-feature {
+      margin: 6px 0 22px;
+    }
+
+    .story-label {
+      margin-top: 22px;
+    }
+
+    .optional-label {
+      margin-top: 22px;
+    }
+
+    .name-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .plain-fieldset {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      color: var(--muted-soft);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .consent-fieldset {
+      margin-top: 28px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fffdf6;
+    }
+
+    .consent-fieldset .field-help {
+      margin: -4px 0 4px;
+    }
+
+    .editing-row {
+      margin-top: 18px;
+    }
+
+    .submit-note {
+      margin-top: 24px;
+    }
+
+    .submit-note a {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .form-error {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border: 1px solid rgba(157, 53, 29, 0.2);
+      border-radius: 12px;
+      background: rgba(157, 53, 29, 0.06);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .submit-button {
+      width: 100%;
+      min-height: 52px;
+      margin-top: 18px;
+      border: 0;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #c45a16, #9b3f0c);
+      box-shadow: 0 10px 22px rgba(155, 63, 12, 0.2);
+      color: white;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 800;
+    }
+
+    .submit-button:hover:not(:disabled) {
+      filter: brightness(1.04);
+      transform: translateY(-1px);
+    }
+
+    .submit-button:disabled {
+      cursor: wait;
+      opacity: 0.68;
+    }
+
+    .success-state {
+      padding: 64px 34px;
+      text-align: center;
+    }
+
+    .success-mark {
+      display: grid;
+      width: 54px;
+      height: 54px;
+      margin: 0 auto 18px;
+      place-items: center;
+      border-radius: 18px;
+      background: #eaf7e7;
+      color: #39713b;
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .success-state h2 {
+      font-size: clamp(30px, 5vw, 42px);
+      letter-spacing: -0.04em;
+    }
+
+    .success-state p {
+      max-width: 560px;
+      margin: 16px auto 0;
+      color: var(--muted-soft);
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    .success-state a {
+      display: inline-flex;
+      margin-top: 24px;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .honeypot {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 680px) {
+      .love-page {
+        width: min(100% - 24px, 800px);
+        padding: 42px 0 72px;
+      }
+
+      .intro-copy {
+        font-size: 17px;
+      }
+
+      .form-card {
+        border-radius: 22px;
+      }
+
+      .form-section,
+      .success-state {
+        padding: 26px 20px;
+      }
+
+      .feature-grid,
+      .name-grid {
+        grid-template-columns: 1fr;
+      }
+
+    }
+  </style>
+</EditorialLayout>
