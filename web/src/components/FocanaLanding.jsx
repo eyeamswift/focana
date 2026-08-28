@@ -1922,7 +1922,17 @@ export default function FocanaLanding() {
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes headlineFade { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .section { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+        .section {
+          width: 100%;
+          max-width: 1600px;
+          margin: 0 auto;
+          padding: 0 clamp(24px, 3vw, 48px);
+        }
+        #pricing,
+        #features,
+        #faq {
+          scroll-margin-top: 88px;
+        }
         .cta-btn {
           background: ${COLORS.sunshineYellow};
           color: ${COLORS.warmBrown};
@@ -1999,20 +2009,18 @@ export default function FocanaLanding() {
           transform: translateY(-2px);
           box-shadow: 0 8px 30px rgba(245, 158, 11, 0.28);
         }
-        .hero-section::after {
-          content: "";
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: -1px;
-          height: 120px;
-          background: linear-gradient(180deg, rgba(255, 249, 230, 0) 0%, rgba(255, 254, 248, 0.88) 68%, #FFFFFF 100%);
-          pointer-events: none;
-          z-index: 1;
+        .hero-section {
+          padding-bottom: clamp(58px, 5vw, 92px) !important;
+        }
+        .hero-shell {
+          max-width: 1720px !important;
+        }
+        .hero-split {
+          max-width: none !important;
         }
         .hero-headline-stack {
           font-family: 'Outfit', sans-serif;
-          font-size: clamp(34px, 3.75vw, 52px);
+          font-size: clamp(38px, 3.65vw, 64px);
           font-weight: 850;
           line-height: 1.04;
           letter-spacing: 0;
@@ -2043,7 +2051,7 @@ export default function FocanaLanding() {
           text-align: center;
         }
         .hero-video-frame {
-          flex: 1 1 0;
+          flex: 1.06 1 0;
           min-width: 300px;
           aspect-ratio: 4 / 3;
           display: flex;
@@ -2052,6 +2060,37 @@ export default function FocanaLanding() {
           border: 1px solid rgba(92, 64, 51, 0.14);
           box-shadow: 0 22px 54px rgba(92, 64, 51, 0.16);
           background: ${COLORS.warmBrown};
+        }
+        .recognition-section {
+          background: linear-gradient(180deg, ${COLORS.softCream} 0%, ${COLORS.warmVanilla} 58%, #FFFFFF 100%);
+          padding: 10px 0 34px;
+        }
+        .pricing-section {
+          background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 78%, ${COLORS.softCream} 100%);
+        }
+        .pricing-shell {
+          max-width: 1240px !important;
+        }
+        .features-section {
+          background: linear-gradient(180deg, ${COLORS.softCream} 0%, ${COLORS.warmVanilla} 180px, #FFFFFF 560px) !important;
+          border-top: none !important;
+          box-shadow: none !important;
+        }
+        .features-shell {
+          max-width: 1560px !important;
+        }
+        .zigzag-row {
+          align-items: center;
+          gap: clamp(42px, 6vw, 104px) !important;
+        }
+        .feature-media {
+          flex: 1.12 1 0 !important;
+        }
+        .feature-copy {
+          flex: 0.88 1 0 !important;
+        }
+        .feature-copy p {
+          max-width: 560px;
         }
         .feature-card {
           background: white;
@@ -2696,6 +2735,9 @@ export default function FocanaLanding() {
           .zigzag-row {
             flex-direction: column !important;
           }
+          .feature-copy p {
+            max-width: none;
+          }
         }
         @media (max-width: 480px) {
           .modal-inner {
@@ -3083,13 +3125,12 @@ export default function FocanaLanding() {
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }} />
 
-        <div className="section" style={{ position: "relative", zIndex: 2, maxWidth: "1320px" }}>
+        <div className="section hero-shell" style={{ position: "relative", zIndex: 2 }}>
           {/* Split: Headline + CTA left, Video right */}
           <div className="hero-split" style={{
             display: "flex",
             alignItems: "center",
             gap: "48px",
-            maxWidth: "1220px",
             margin: "0 auto",
             animation: "fadeUp 0.6s ease 0.2s both",
           }}>
@@ -3145,11 +3186,8 @@ export default function FocanaLanding() {
       </section>
 
       <section
+        className="recognition-section"
         aria-label="Focana recognition"
-        style={{
-          background: "white",
-          padding: "32px 0 10px",
-        }}
       >
         <div className="section" style={{ display: "flex", justifyContent: "center", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
           <SaasHubBadge location="between_hero_and_pricing" />
@@ -3158,13 +3196,12 @@ export default function FocanaLanding() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" style={{
+      <section id="pricing" className="pricing-section" style={{
         padding: "70px 0 100px",
-        background: "white",
         borderTop: "none",
         boxShadow: "none",
       }}>
-        <div className="section" style={{ maxWidth: "960px" }}>
+        <div className="section pricing-shell">
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
             <h2 style={{
               fontFamily: "'Outfit', sans-serif", fontSize: "clamp(32px, 4vw, 48px)",
@@ -3278,13 +3315,10 @@ export default function FocanaLanding() {
       {SHOW_BRAIN_STATE_SECTION && <BrainStatePicker onDownload={openPricingSection} />}
 
       {/* FEATURES */}
-      <section id="features" style={{
-        padding: "48px 0 100px 0",
-        background: "white",
-        borderTop: `1px solid ${COLORS.beigeBorder}`,
-        boxShadow: "inset 0 18px 34px rgba(92, 64, 51, 0.035)",
+      <section id="features" className="features-section" style={{
+        padding: "88px 0 112px 0",
       }}>
-        <div className="section">
+        <div className="section features-shell">
           {[
             {
               id: "feature-get-started",
@@ -3319,12 +3353,12 @@ export default function FocanaLanding() {
           ].map((row, i) => {
             const isOdd = i % 2 === 0; // 0-indexed: rows 0,2,4 = video left; rows 1,3 = video right
             const videoEl = (
-              <div key="video" style={{ flex: "1 1 50%", minWidth: 0 }}>
+              <div key="video" className="feature-media" style={{ flex: "1 1 50%", minWidth: 0 }}>
                 <FeatureVideo src={row.video} />
               </div>
             );
             const copyEl = (
-              <div key="copy" style={{
+              <div key="copy" className="feature-copy" style={{
                 flex: "1 1 50%", minWidth: 0,
                 display: "flex", alignItems: "center",
               }}>
