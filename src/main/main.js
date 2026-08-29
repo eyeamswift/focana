@@ -1175,6 +1175,20 @@ async function returnFocusToPreviousApp(source) {
   return activateApplicationTarget(target);
 }
 
+function showWindowForCurrentRun(win, { focus = true } = {}) {
+  if (!win || win.isDestroyed()) return;
+
+  if (isE2EBackground && typeof win.showInactive === 'function') {
+    win.showInactive();
+  } else {
+    win.show();
+  }
+
+  if (focus && !isE2EBackground) {
+    win.focus();
+  }
+}
+
 function revealMainWindow({ focusMain = true } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
 
@@ -1193,9 +1207,8 @@ function revealMainWindow({ focusMain = true } = {}) {
   }
 
   if (!mainWindow.isVisible()) {
-    mainWindow.show();
-  }
-  if (focusMain) {
+    showWindowForCurrentRun(mainWindow, { focus: focusMain });
+  } else if (focusMain && !isE2EBackground) {
     mainWindow.focus();
   }
 
@@ -1250,7 +1263,7 @@ function primeHiddenRendererWhileFloating() {
   if (typeof mainWindow.setOpacity === 'function') {
     mainWindow.setOpacity(0);
   }
-  mainWindow.show();
+  showWindowForCurrentRun(mainWindow, { focus: false });
   pendingHiddenRendererPrimeTimer = setTimeout(() => {
     pendingHiddenRendererPrimeTimer = null;
     hiddenRendererPriming = false;
@@ -1927,7 +1940,7 @@ function createFloatingIconWindow() {
     fullscreenable: false,
     movable: true,
     skipTaskbar: true,
-    show: isE2E,
+    show: isE2E && !isE2EBackground,
     webPreferences: {
       preload: path.join(__dirname, 'floatingPreload.js'),
       contextIsolation: true,
@@ -1961,10 +1974,7 @@ function createFloatingIconWindow() {
 function showFloatingIconWindow({ focusFloating = true } = {}) {
   if (!floatingIconWindow || floatingIconWindow.isDestroyed()) return;
 
-  floatingIconWindow.show();
-  if (focusFloating) {
-    floatingIconWindow.focus();
-  }
+  showWindowForCurrentRun(floatingIconWindow, { focus: focusFloating });
   if (typeof floatingIconWindow.moveTop === 'function') {
     floatingIconWindow.moveTop();
   }
@@ -2034,8 +2044,7 @@ function exitFloatingIconMode({ focusMain = true } = {}) {
       }, 'display')
       : currentMainBounds;
     setMainWindowBoundsClamped(nextBounds, { persist: true, areaType: 'display' });
-    mainWindow.show();
-    if (focusMain) mainWindow.focus();
+    showWindowForCurrentRun(mainWindow, { focus: focusMain });
   }
 }
 
@@ -2454,8 +2463,7 @@ ipcMain.on('bring-to-front', (_event, payload = {}) => {
     mainWindow.setOpacity(1);
   }
   setMainWindowBoundsClamped(mainWindow.getBounds(), { areaType: 'display' });
-  mainWindow.show();
-  mainWindow.focus();
+  showWindowForCurrentRun(mainWindow, { focus: true });
 });
 
 ipcMain.handle('focus:return-previous-app', (_event, source) => {
@@ -2549,7 +2557,7 @@ ipcMain.handle('exit-floating-for-compact', () => {
       }, 'display')
       : currentMainBounds;
     setMainWindowBoundsClamped(nextBounds, { persist: false, areaType: 'display' });
-    mainWindow.show();
+    showWindowForCurrentRun(mainWindow, { focus: false });
   }
 
   return true;
@@ -2989,13 +2997,18 @@ ipcMain.handle('ensure-main-window-size', (_, minWidth = FULL_MIN_WIDTH, minHeig
 
   const nextBounds = getSizedMainWindowBounds(minWidth, minHeight);
   if (!nextBounds) return false;
-  if (boundsEqual(mainWindow.getBounds(), nextBounds)) return false;
+  const workArea = screen.getDisplayMatching(nextBounds).workArea;
+  const safeMinimumHeight = Math.min(nextBounds.height, workArea.height);
 
   mainWindow.setResizable(true);
-  mainWindow.setMinimumSize(FULL_MIN_WIDTH, FULL_MIN_HEIGHT);
+  // Keep the active full-screen surface reachable when macOS or the user
+  // attempts to shrink the window below the renderer's measured content.
+  // Later screen changes call this handler again and can lower the minimum.
+  mainWindow.setMinimumSize(FULL_MIN_WIDTH, safeMinimumHeight);
+  if (boundsEqual(mainWindow.getBounds(), nextBounds)) return false;
   setMainWindowBoundsClamped(
     nextBounds,
-    { persist: true, areaType: 'display' }
+    { persist: true, areaType: 'workArea' }
   );
   return true;
 });

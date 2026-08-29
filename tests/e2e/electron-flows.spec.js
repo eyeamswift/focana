@@ -16,6 +16,7 @@ const PILL_TASK_SELECTOR = '.pill-content > .pill-task .pill-task-text';
 const NAME_GATE_HEADING = 'One more thing. What should we call you?';
 const SYSTEM_ENTRY_TEST_DELAY_MS = '900';
 const ONE_MINUTE_TIMED_WRAP_OFFSET_MS = 65 * 1000;
+const FORCE_BACKGROUND_AUDIT = process.env.FOCANA_E2E_BACKGROUND === '1';
 const FOCUSED_CHECKIN_MESSAGES = [
   'Nice, keep going',
   'Good Job! 🍊',
@@ -76,6 +77,7 @@ async function launchApp({
   extraEnv = null,
 } = {}) {
   const effectiveStoreDir = storeDir || createStoreDir(seedConfig);
+  const forceBackground = process.env.FOCANA_E2E_BACKGROUND === '1';
   if (storeDir && seedConfig) {
     writeSeedConfig(storeDir, seedConfig);
   }
@@ -86,7 +88,7 @@ async function launchApp({
     env: {
       ...process.env,
       FOCANA_E2E: '1',
-      FOCANA_E2E_BACKGROUND: background ? '1' : '0',
+      FOCANA_E2E_BACKGROUND: (forceBackground || background) ? '1' : '0',
       FOCANA_STORE_CWD: effectiveStoreDir,
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
       ...(extraEnv || {}),
@@ -1016,7 +1018,7 @@ test('theme and always-on-top survive relaunch after tray and runtime changes', 
     await expect.poll(async () => firstLaunch.electronApp.evaluate(({ BrowserWindow }) => {
       const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
       return main ? main.isAlwaysOnTop() : null;
-    })).toBe(true);
+    })).toBe(FORCE_BACKGROUND_AUDIT ? false : true);
 
     await sendTrayThemeSelect(firstLaunch.electronApp, 'light');
     await setAlwaysOnTopEnabled(firstLaunch.page, false);
@@ -3373,7 +3375,7 @@ test('always-on-top persistence applies to floating icon mode', async () => {
     await expect.poll(async () => electronApp.evaluate(({ BrowserWindow }) => {
       const main = BrowserWindow.getAllWindows().find((win) => !win.webContents.getURL().includes('floating-icon.html'));
       return main ? main.isAlwaysOnTop() : null;
-    })).toBe(true);
+    })).toBe(FORCE_BACKGROUND_AUDIT ? false : true);
 
     await setAlwaysOnTopEnabled(page, false);
     await expect.poll(async () => page.evaluate(() => window.electronAPI.storeGet('settings.alwaysOnTop'))).toBe(false);
@@ -3397,6 +3399,7 @@ test('always-on-top persistence applies to floating icon mode', async () => {
 
 test('macOS always-on-top enables workspace visibility for main and floating windows', async () => {
   test.skip(process.platform !== 'darwin', 'macOS-only workspace visibility behavior');
+  test.skip(FORCE_BACKGROUND_AUDIT, 'Background audits intentionally disable always-on-top and workspace activation.');
 
   const { electronApp, page, cleanup } = await launchApp({ background: false });
 

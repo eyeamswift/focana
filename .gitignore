@@ -5,6 +5,8 @@ release/
 *.log
 playwright-report/
 test-results/
+outputs/
+tmp/
 .env
 .env.*
 !.env.release.example
