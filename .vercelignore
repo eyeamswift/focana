@@ -1,0 +1,12 @@
+node_modules/
+release/
+outputs/
+dist/
+playwright-report/
+test-results/
+tmp/
+web/node_modules/
+web/dist/
+web/.vercel/
+web/.env
+web/.env.*

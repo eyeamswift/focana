@@ -5,6 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LANDING_ROOT="$PROJECT_ROOT/web"
 RELEASE_DIR="$PROJECT_ROOT/release"
 VERCEL_PROJECT_FILE="$LANDING_ROOT/.vercel/project.json"
+VERCEL_DEPLOY_PROJECT_FILE="$PROJECT_ROOT/.vercel/project.json"
 
 SKIP_BUILD=false
 DRY_RUN=false
@@ -13,6 +14,16 @@ info() { printf '\033[1;34m[ship]\033[0m %s\n' "$1"; }
 ok() { printf '\033[1;32m[ship]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[ship]\033[0m %s\n' "$1"; }
 fail() { printf '\033[1;31m[ship]\033[0m %s\n' "$1" >&2; exit 1; }
+
+prepare_vercel_deploy_root() {
+  # The linked Vercel project uses `web` as its Root Directory. Deploying with
+  # `web` as the CLI cwd applies that setting twice (`web/web`). Mirror the
+  # local project link at the repository root so Vercel applies it once.
+  mkdir -p "$(dirname "$VERCEL_DEPLOY_PROJECT_FILE")"
+  if [ ! -f "$VERCEL_DEPLOY_PROJECT_FILE" ] || ! cmp -s "$VERCEL_PROJECT_FILE" "$VERCEL_DEPLOY_PROJECT_FILE"; then
+    cp "$VERCEL_PROJECT_FILE" "$VERCEL_DEPLOY_PROJECT_FILE"
+  fi
+}
 
 append_unique_root() {
   local candidate="$1"
@@ -589,13 +600,14 @@ fi
 
 info "Step 11/12: Redeploy Vercel preview and production"
 if [ "$DRY_RUN" = true ]; then
-  info "Would trigger a preview deploy for $LANDING_ROOT"
-  info "Would trigger a production deploy for $LANDING_ROOT"
+  info "Would trigger a preview deploy for $LANDING_ROOT from $PROJECT_ROOT"
+  info "Would trigger a production deploy for $LANDING_ROOT from $PROJECT_ROOT"
 else
-  vercel --cwd "$LANDING_ROOT" --yes
+  prepare_vercel_deploy_root
+  vercel --cwd "$PROJECT_ROOT" --yes
   ok "Vercel preview deploy triggered"
 
-  vercel --cwd "$LANDING_ROOT" --prod --yes
+  vercel --cwd "$PROJECT_ROOT" --prod --yes
   ok "Vercel production deploy triggered"
 fi
 

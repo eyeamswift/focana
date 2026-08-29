@@ -7,6 +7,7 @@ playwright-report/
 test-results/
 outputs/
 tmp/
+.vercel/
 .env
 .env.*
 !.env.release.example
