@@ -52,11 +52,18 @@ import CheckInPromptPopup from './components/CheckInPromptPopup';
 import PostSessionParkingLotModal from './components/PostSessionParkingLotModal';
 import ReentryPrompt from './components/ReentryPrompt';
 import PostSessionPrompt from './components/PostSessionPrompt';
+import FocusFactCard from './components/FocusFactCard';
 import SessionBuilderComposer from './components/SessionBuilderComposer';
 import RunningTaskPlan, { TaskPlanTransitionPrompt } from './components/RunningTaskPlan';
 import AddTimeControl from './components/AddTimeControl';
 import PomodoroBreakPanel from './components/PomodoroBreakPanel';
 import LongSessionNudge from './components/LongSessionNudge';
+import {
+  applyFocusFactReaction,
+  buildFocusFactArticleUrl,
+  normalizeFocusFactsState,
+  selectFocusFactForDate,
+} from './utils/focusFacts';
 import {
   createTaskPlanFromTitle,
   getActiveSubtask,
@@ -135,6 +142,7 @@ const WINDOW_SIZES = {
     parkingLot: [420, 500],
     postSessionParkingLot: [520, 560],
     postSessionPrompt: [560, 280],
+    focusFact: [560, 520],
     timeUp: [540, 460],
     notes: [440, 620],
     quickCapture: [420, 340],
@@ -595,6 +603,7 @@ export default function App() {
   const [postSessionSurfaceKind, setPostSessionSurfaceKind] = useState('post-session');
   const [postSessionFeedbackEnabled, setPostSessionFeedbackEnabled] = useState(false);
   const [postSessionStartAssist, setPostSessionStartAssist] = useState(false);
+  const [focusFactPresentation, setFocusFactPresentation] = useState(null);
   const [parkingLotTaskSwitchConfirm, setParkingLotTaskSwitchConfirm] = useState(null);
   const [activeCompleteConfirmOpen, setActiveCompleteConfirmOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -1336,27 +1345,75 @@ export default function App() {
       return b.originalIndex - a.originalIndex;
     }), [thoughts]);
 
-  const reentryHistoryItems = useMemo(() => sessions
-    .filter((session) => (
-      !session?.completed
-      && Boolean(session?.kept)
-      && typeof session?.task === 'string'
-      && session.task.trim()
-    ))
-    .map((session, index) => ({
-      id: session.id || `history-${index}`,
-      sourceId: `history:${session.id || index}`,
-      title: session.task.trim(),
-      meta: '',
-      note: '',
-      session,
-      createdAtMs: getSortableDateMs(session.createdAt),
-      originalIndex: index,
-    }))
-    .sort((a, b) => {
+  const reentryHistoryItems = useMemo(() => {
+    const queuedPlanItems = [];
+
+    sessions.forEach((session, sessionIndex) => {
+      if (session?.completed !== true) return;
+
+      const plan = normalizeTaskPlan(session.taskPlan, session.task || '');
+      plan.items.forEach((planItem, planItemIndex) => {
+        const title = typeof planItem?.title === 'string' ? planItem.title.trim() : '';
+        if (!title || planItem.completed === true || planItem.id === plan.activeTaskId) return;
+
+        const remainingItems = plan.items
+          .slice(planItemIndex)
+          .filter((item) => item?.completed !== true && typeof item?.title === 'string' && item.title.trim());
+        const queuedTaskPlan = normalizeTaskPlan({
+          ...plan,
+          activeTaskId: planItem.id,
+          activeSubtaskId: null,
+          items: remainingItems,
+        }, title);
+        const parentTask = typeof session.task === 'string' ? session.task.trim() : '';
+        const sourceSessionId = session.id || `session-${sessionIndex}`;
+
+        queuedPlanItems.push({
+          id: `${sourceSessionId}:up-next:${planItem.id || planItemIndex}`,
+          sourceId: `history-up-next:${sourceSessionId}:${planItem.id || planItemIndex}`,
+          kind: 'up-next',
+          title,
+          meta: 'Up next',
+          note: parentTask ? `Queued after ${parentTask}` : '',
+          project: normalizeProjectName(session.project),
+          taskPlan: queuedTaskPlan,
+          createdAtMs: getSortableDateMs(session.createdAt),
+          sessionOrder: sessionIndex,
+          planItemIndex,
+        });
+      });
+    });
+
+    queuedPlanItems.sort((a, b) => {
       if (a.createdAtMs !== b.createdAtMs) return b.createdAtMs - a.createdAtMs;
-      return b.originalIndex - a.originalIndex;
-    }), [sessions]);
+      if (a.sessionOrder !== b.sessionOrder) return a.sessionOrder - b.sessionOrder;
+      return a.planItemIndex - b.planItemIndex;
+    });
+
+    const savedSessionItems = sessions
+      .filter((session) => (
+        !session?.completed
+        && Boolean(session?.kept)
+        && typeof session?.task === 'string'
+        && session.task.trim()
+      ))
+      .map((session, index) => ({
+        id: session.id || `history-${index}`,
+        sourceId: `history:${session.id || index}`,
+        title: session.task.trim(),
+        meta: '',
+        note: '',
+        session,
+        createdAtMs: getSortableDateMs(session.createdAt),
+        originalIndex: index,
+      }))
+      .sort((a, b) => {
+        if (a.createdAtMs !== b.createdAtMs) return b.createdAtMs - a.createdAtMs;
+        return b.originalIndex - a.originalIndex;
+      });
+
+    return [...queuedPlanItems, ...savedSessionItems];
+  }, [sessions]);
 
   const effectiveReentryResumeCandidate = systemEntryResumeCandidate || reentryResumeCandidate;
 
@@ -2962,6 +3019,7 @@ export default function App() {
   }, [isCompact, handleExitCompact]);
 
   const requestCompactEntry = useCallback(({ restorePreviousBounds = false, delayMs = 0 } = {}) => {
+    if (focusFactPresentation) return;
     pendingCompactRestoreRef.current = restorePreviousBounds === true;
     if (delayMs > 0) {
       setTimeout(() => {
@@ -2970,7 +3028,7 @@ export default function App() {
       return;
     }
     setIsCompact(true);
-  }, []);
+  }, [focusFactPresentation]);
 
   const closeQuitResidentInfo = useCallback(({ returnToPreviousDisplayMode = false } = {}) => {
     setShowQuitResidentInfo(false);
@@ -2997,6 +3055,7 @@ export default function App() {
 
   const handleShortcutAction = useCallback((shortcutPayload) => {
     (async () => {
+      if (focusFactPresentation) return;
       const { action, focusReturnSource } = normalizeShortcutEventPayload(shortcutPayload);
       if (!action) return;
       const settings = await window.electronAPI.storeGet('settings') || {};
@@ -3032,7 +3091,7 @@ export default function App() {
           break;
       }
     })();
-  }, [handleShortcutStartPause, handleShortcutNewTask, handleShortcutToggleCompact, handleShortcutCompleteTask, isCompact, handleExitCompact]);
+  }, [focusFactPresentation, handleShortcutStartPause, handleShortcutNewTask, handleShortcutToggleCompact, handleShortcutCompleteTask, isCompact, handleExitCompact]);
 
   // Load data from electron-store on mount
   useEffect(() => {
@@ -4251,6 +4310,7 @@ export default function App() {
     distractionJarOpen ||
     Boolean(postSessionParkingLotSessionId) ||
     showPostSessionPrompt ||
+    Boolean(focusFactPresentation) ||
     showTimeUpModal ||
     showNotesModal ||
     showQuickCapture ||
@@ -4358,7 +4418,7 @@ export default function App() {
   }, [showSurfaceReentryPrompt, systemEntryRevealPending]);
 
   useEffect(() => {
-    if (!showPostSessionPrompt && !systemEntryPendingActive) return undefined;
+    if (!showPostSessionPrompt && !focusFactPresentation && !systemEntryPendingActive) return undefined;
 
     let cancelled = false;
     const tick = () => {
@@ -4372,7 +4432,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [reconcilePendingSystemEntryReveal, showPostSessionPrompt, systemEntryPendingActive]);
+  }, [focusFactPresentation, reconcilePendingSystemEntryReveal, showPostSessionPrompt, systemEntryPendingActive]);
 
   useEffect(() => {
     const cleanupStarted = window.electronAPI.onSystemEntryEvent?.((payload = {}) => {
@@ -5277,8 +5337,9 @@ export default function App() {
   }, []);
 
   const handleMinimizeToFloating = useCallback(() => {
+    if (focusFactPresentation) return;
     enterFloatingWithoutImmediateReentry();
-  }, [enterFloatingWithoutImmediateReentry]);
+  }, [enterFloatingWithoutImmediateReentry, focusFactPresentation]);
 
   const handleQuitApp = () => {
     window.electronAPI.quitApp?.();
@@ -5446,9 +5507,10 @@ export default function App() {
   const getIdleScreenDefaultHeight = useCallback(() => {
     if (startupGateState !== 'ready') return getStartupGateFallbackHeight();
     if (showSurfaceReentryPrompt) return getReentryPromptDefaultHeight();
+    if (focusFactPresentation) return WINDOW_SIZES.modal.focusFact[1];
     if (showPostSessionPrompt) return WINDOW_SIZES.modal.postSessionPrompt[1];
     return isStartModalOpen ? WINDOW_SIZES.pomodoroStartChooserHeight : WINDOW_SIZES.idleHeight;
-  }, [getReentryPromptDefaultHeight, getStartupGateFallbackHeight, isStartModalOpen, showPostSessionPrompt, showSurfaceReentryPrompt, startupGateState]);
+  }, [focusFactPresentation, getReentryPromptDefaultHeight, getStartupGateFallbackHeight, isStartModalOpen, showPostSessionPrompt, showSurfaceReentryPrompt, startupGateState]);
 
   const getStartupTargetHeight = useCallback(() => {
     if (startupGateState !== 'ready') return measureStartupGateHeight();
@@ -5605,7 +5667,7 @@ export default function App() {
   }, []);
 
   useLayoutEffect(() => {
-    if (!showPostSessionPrompt) return undefined;
+    if (!showPostSessionPrompt && !focusFactPresentation) return undefined;
     if (!startupRevealComplete) return undefined;
     if (isCompact) return undefined;
 
@@ -5620,7 +5682,7 @@ export default function App() {
       window.clearTimeout(syncNow);
       window.clearTimeout(syncSettled);
     };
-  }, [isCompact, postSessionLayoutVersion, resyncFullWindowSize, showPostSessionPrompt, startupRevealComplete]);
+  }, [focusFactPresentation, isCompact, postSessionLayoutVersion, resyncFullWindowSize, showPostSessionPrompt, startupRevealComplete]);
 
   useEffect(() => {
     if (isCompact || compactTransitioning || !didJustExitCompactRef.current) return undefined;
@@ -6257,33 +6319,10 @@ export default function App() {
     }
   }, [clearPulse, closeFloatingReentryPrompt, getDefaultReentryMinutes, handleClear, scheduleReentryCueFromNow]);
 
-  const finishDirectCompletion = useCallback(async ({
-    completedSessionId = null,
-    durationMin = 0,
-    source = 'direct',
-    completedMode = mode,
+  const continueAfterDirectCompletion = useCallback(({
+    pendingTaskPlanTransition = null,
     bringToFront = false,
   } = {}) => {
-    const normalizedDuration = Math.round((Number(durationMin) || 0) * 10) / 10;
-    const normalizedMode = normalizeTimerMode(completedMode);
-    const normalizedSource = typeof source === 'string' && source.trim() ? source.trim() : 'direct';
-
-    track('session_completed', {
-      mode: normalizedMode,
-      duration_minutes: normalizedDuration,
-      source: normalizedSource,
-    });
-    triggerConfetti(1200);
-    resetSessionFeedbackFlow();
-
-    try {
-      const allSessions = await SessionStore.list();
-      const streak = computeStreak(allSessions);
-      if (streak >= 2) track('session_streak', { streak_count: streak });
-    } catch (_) { /* non-critical */ }
-
-    const pendingTaskPlanTransition = taskPlanTransitionAfterCompletionRef.current;
-    taskPlanTransitionAfterCompletionRef.current = null;
     if (pendingTaskPlanTransition?.nextTask?.title) {
       const nextPlan = setActiveTask(
         pendingTaskPlanTransition.taskPlan,
@@ -6314,15 +6353,147 @@ export default function App() {
         nextMode: 'freeflow',
         sessionId: null,
       });
-      if (bringToFront) {
-        window.electronAPI.bringToFront?.();
-      }
-      return completedSessionId;
+      if (bringToFront) window.electronAPI.bringToFront?.();
+      return;
     }
 
     openWhatsNextPrompt({ bringToFront });
+  }, [openWhatsNextPrompt, persistIdleTimerSnapshot]);
+
+  const presentFocusFact = useCallback(async ({ destination, suppress = false } = {}) => {
+    if (suppress || isCompact) return false;
+    try {
+      const floatingMinimized = await window.electronAPI.getFloatingMinimized?.();
+      if (floatingMinimized) return false;
+
+      const rawState = await window.electronAPI.storeGet('focusFacts');
+      const selection = selectFocusFactForDate(rawState, new Date());
+      if (!selection.fact) return false;
+
+      const [userEmail, license] = await Promise.all([
+        window.electronAPI.storeGet('userEmail'),
+        window.electronAPI.getLicenseStatus?.(),
+      ]);
+      const state = normalizeFocusFactsState(selection.state);
+      const existingEmail = state.email
+        || (typeof userEmail === 'string' ? userEmail.trim() : '')
+        || (typeof license?.customerEmail === 'string' ? license.customerEmail.trim() : '');
+
+      await window.electronAPI.storeSet('focusFacts', state);
+      setFocusFactPresentation({
+        fact: selection.fact,
+        reaction: state.reactions[selection.fact.id] || null,
+        existingEmail,
+        emailAlreadySent: state.emailedFactIds.includes(selection.fact.id),
+        emailRequestId: typeof crypto?.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `focus-fact-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        destination,
+      });
+      track('focus_fact_impression', { fact_id: selection.fact.id });
+      return true;
+    } catch (error) {
+      console.warn('Failed to prepare Focus Fact:', error);
+      return false;
+    }
+  }, [isCompact]);
+
+  const handleFocusFactReaction = useCallback(async (reaction) => {
+    const factId = focusFactPresentation?.fact?.id;
+    if (!factId || !['up', 'down'].includes(reaction)) return;
+    try {
+      const current = await window.electronAPI.storeGet('focusFacts');
+      const next = applyFocusFactReaction(current, factId, reaction);
+      await window.electronAPI.storeSet('focusFacts', next);
+      setFocusFactPresentation((previous) => previous ? { ...previous, reaction } : previous);
+      track('focus_fact_reaction', { fact_id: factId, reaction });
+    } catch (error) {
+      console.warn('Failed to save Focus Fact reaction:', error);
+    }
+  }, [focusFactPresentation?.fact?.id]);
+
+  const handleFocusFactReadArticle = useCallback(() => {
+    const factId = focusFactPresentation?.fact?.id;
+    const url = buildFocusFactArticleUrl(factId);
+    if (!factId || !url) return;
+    track('focus_fact_article_click', { fact_id: factId });
+    void window.electronAPI.openExternalUrl?.(url);
+  }, [focusFactPresentation?.fact?.id]);
+
+  const handleFocusFactEmailArticle = useCallback(async (email) => {
+    const factId = focusFactPresentation?.fact?.id;
+    if (!factId) throw new Error('This article is not available right now.');
+    const requestId = focusFactPresentation?.emailRequestId;
+    if (!requestId) throw new Error('This article request is not available right now.');
+
+    track('focus_fact_email_request', { fact_id: factId });
+    try {
+      await window.electronAPI.emailFocusFactArticle?.({ email, factId, requestId });
+      const current = normalizeFocusFactsState(await window.electronAPI.storeGet('focusFacts'));
+      const next = {
+        ...current,
+        email: email.trim(),
+        emailedFactIds: [...new Set([...current.emailedFactIds, factId])],
+      };
+      await window.electronAPI.storeSet('focusFacts', next);
+      setFocusFactPresentation((previous) => previous ? {
+        ...previous,
+        existingEmail: email.trim(),
+        emailAlreadySent: true,
+      } : previous);
+      track('focus_fact_email_delivery', { fact_id: factId, accepted: true });
+    } catch (error) {
+      track('focus_fact_email_delivery', { fact_id: factId, accepted: false });
+      throw error;
+    }
+  }, [focusFactPresentation?.emailRequestId, focusFactPresentation?.fact?.id]);
+
+  const handleFocusFactContinue = useCallback(() => {
+    const destination = focusFactPresentation?.destination;
+    setFocusFactPresentation(null);
+    if (destination?.kind === 'floating') {
+      enterFloatingWithoutImmediateReentry();
+      return;
+    }
+    continueAfterDirectCompletion(destination);
+  }, [continueAfterDirectCompletion, enterFloatingWithoutImmediateReentry, focusFactPresentation?.destination]);
+
+  const finishDirectCompletion = useCallback(async ({
+    completedSessionId = null,
+    durationMin = 0,
+    source = 'direct',
+    completedMode = mode,
+    bringToFront = false,
+    allowFocusFact = true,
+  } = {}) => {
+    const normalizedDuration = Math.round((Number(durationMin) || 0) * 10) / 10;
+    const normalizedMode = normalizeTimerMode(completedMode);
+    const normalizedSource = typeof source === 'string' && source.trim() ? source.trim() : 'direct';
+
+    track('session_completed', {
+      mode: normalizedMode,
+      duration_minutes: normalizedDuration,
+      source: normalizedSource,
+    });
+    triggerConfetti(1200);
+    resetSessionFeedbackFlow();
+
+    try {
+      const allSessions = await SessionStore.list();
+      const streak = computeStreak(allSessions);
+      if (streak >= 2) track('session_streak', { streak_count: streak });
+    } catch (_) { /* non-critical */ }
+
+    const pendingTaskPlanTransition = taskPlanTransitionAfterCompletionRef.current;
+    taskPlanTransitionAfterCompletionRef.current = null;
+    const destination = { pendingTaskPlanTransition, bringToFront };
+    const factPresented = await presentFocusFact({
+      destination,
+      suppress: !allowFocusFact || normalizedSource === 'resume_prompt' || normalizedSource === 'checkin',
+    });
+    if (!factPresented) continueAfterDirectCompletion(destination);
     return completedSessionId;
-  }, [mode, openWhatsNextPrompt, persistIdleTimerSnapshot, resetSessionFeedbackFlow, triggerConfetti]);
+  }, [continueAfterDirectCompletion, mode, presentFocusFact, resetSessionFeedbackFlow, triggerConfetti]);
 
   const completeActiveSessionDirect = useCallback(async ({
     source = 'direct',
@@ -6827,6 +6998,24 @@ export default function App() {
   }, [settleReentryCueAfterInteraction]);
 
   const handleOpenReentryHistoryDetails = useCallback((item) => {
+    if (item?.kind === 'up-next') {
+      const nextTaskText = clampTaskText(typeof item?.title === 'string' ? item.title : '').trim();
+      if (!nextTaskText) return;
+
+      settleReentryCueAfterInteraction();
+      setReentrySurfaceTaskText(nextTaskText);
+      setReentrySurfaceProject(normalizeProjectName(item.project));
+      setReentrySurfaceSource({
+        kind: 'up-next',
+        id: typeof item.sourceId === 'string' ? item.sourceId : `history-up-next:${item.id || nextTaskText}`,
+      });
+      setReentrySurfaceRecap('');
+      setReentrySurfaceNextSteps('');
+      setReentrySurfaceCarryoverSeconds(0);
+      setReentrySurfaceTaskPlan(prepareTaskPlanForStart(item.taskPlan, nextTaskText));
+      return;
+    }
+
     const session = item?.session;
     if (!session || typeof session !== 'object') return;
 
@@ -7726,7 +7915,9 @@ export default function App() {
     trackDailyAppActive,
   ]);
 
-  const handlePostSessionStartNewTaskMarkComplete = useCallback(async () => {
+  const handlePostSessionStartNewTaskMarkComplete = useCallback(async (options = {}) => {
+    const suppressFocusFact = Boolean(options?.alreadyCompleted)
+      || postSessionIsPauseWrap;
     let completedSessionId = postSessionResumeCandidate?.sessionId || null;
     if (postSessionResumeCandidate?.taskText) {
       if (!isCompletedPostSessionCandidate(postSessionResumeCandidate)) {
@@ -7757,6 +7948,7 @@ export default function App() {
         : (postSessionResumeCandidate?.completedMinutes || 0),
       source: postSessionIsPauseWrap ? 'pause_session_wrap' : 'post_session_new_task',
       completedMode: postSessionResumeCandidate?.completedMode || mode,
+      allowFocusFact: !suppressFocusFact,
     });
   }, [closePostSessionSurface, finishDirectCompletion, mode, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
 
@@ -7856,6 +8048,7 @@ export default function App() {
   ]);
 
   const handlePostSessionDoneForNow = useCallback(async (notes = {}) => {
+    const suppressFocusFact = postSessionIsPauseWrap;
     const splitNotes = normalizeSplitNotes(notes, {
       recap: postSessionResumeCandidate?.recap,
       nextSteps: postSessionResumeCandidate?.nextSteps,
@@ -7886,8 +8079,12 @@ export default function App() {
       ));
     }
     closePostSessionSurface();
-    enterFloatingWithoutImmediateReentry();
-  }, [clearPausedPostSessionTimerState, closePostSessionSurface, enterFloatingWithoutImmediateReentry, postSessionIsPauseWrap, postSessionResumeCandidate, savePausedPostSessionChoice, updatePostSessionSession]);
+    const factPresented = await presentFocusFact({
+      destination: { kind: 'floating' },
+      suppress: suppressFocusFact,
+    });
+    if (!factPresented) enterFloatingWithoutImmediateReentry();
+  }, [clearPausedPostSessionTimerState, closePostSessionSurface, enterFloatingWithoutImmediateReentry, postSessionIsPauseWrap, postSessionResumeCandidate, presentFocusFact, savePausedPostSessionChoice, updatePostSessionSession]);
 
   const handleDismissPauseSessionWrap = useCallback(() => {
     if (!postSessionIsPauseWrap) return;
@@ -9808,7 +10005,7 @@ export default function App() {
           initialNextSteps={nextStepsNotes}
         />
         <TimeUpModal
-          isOpen={showTimeUpModal && !showPostSessionPrompt}
+          isOpen={showTimeUpModal && !showPostSessionPrompt && !focusFactPresentation}
           taskName={task}
           onEndSession={handleTimeUpEndSession}
           onAddTime={handleTimeUpAddTime}
@@ -9935,7 +10132,7 @@ export default function App() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="Enter Compact Mode" onClick={() => requestCompactEntry()} size="icon" variant="ghost" className="full-header__tool-btn">
+                <Button aria-label="Enter Compact Mode" onClick={() => requestCompactEntry()} size="icon" variant="ghost" className="full-header__tool-btn" disabled={Boolean(focusFactPresentation)}>
                   <Minimize2 style={{ width: 16, height: 16 }} />
                 </Button>
               </TooltipTrigger>
@@ -9944,7 +10141,7 @@ export default function App() {
             {enabledMainControls.floatingMinimize && pinnedControls.floatingMinimize && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button aria-label="Minimize to Floating" onClick={handleMinimizeToFloating} size="icon" variant="ghost" className="full-header__tool-btn">
+                  <Button aria-label="Minimize to Floating" onClick={handleMinimizeToFloating} size="icon" variant="ghost" className="full-header__tool-btn" disabled={Boolean(focusFactPresentation)}>
                     <X style={{ width: 16, height: 16 }} />
                   </Button>
                 </TooltipTrigger>
@@ -10002,9 +10199,9 @@ export default function App() {
         )}
 
         {/* Content */}
-        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState}${showPostSessionPrompt ? ' full-view-content--post-session' : ''}${showSurfaceReentryPrompt ? ' full-view-content--reentry' : ''} ${getPulseClassName()}`}>
-          <div className={`focus-stage focus-stage--${fullScreenTaskState}${showPostSessionPrompt ? ' focus-stage--post-session' : ''}${showSurfaceReentryPrompt ? ' focus-stage--reentry' : ''}`}>
-            <div className={`focus-stage__surface${showPostSessionPrompt ? ' focus-stage__surface--post-session' : ''}${showSurfaceReentryPrompt ? ' focus-stage__surface--reentry' : ''}`}>
+        <div className={`full-view-content electron-draggable full-view-content--${fullScreenTaskState}${showPostSessionPrompt || focusFactPresentation ? ' full-view-content--post-session' : ''}${showSurfaceReentryPrompt && !focusFactPresentation ? ' full-view-content--reentry' : ''} ${getPulseClassName()}`}>
+          <div className={`focus-stage focus-stage--${fullScreenTaskState}${showPostSessionPrompt || focusFactPresentation ? ' focus-stage--post-session' : ''}${showSurfaceReentryPrompt && !focusFactPresentation ? ' focus-stage--reentry' : ''}`}>
+            <div className={`focus-stage__surface${showPostSessionPrompt || focusFactPresentation ? ' focus-stage__surface--post-session' : ''}${showSurfaceReentryPrompt && !focusFactPresentation ? ' focus-stage__surface--reentry' : ''}`}>
               {showPomodoroBreakPanel ? (
                 <PomodoroBreakPanel
                   taskName={activeTaskLabel}
@@ -10036,6 +10233,19 @@ export default function App() {
                   onLayoutChange={resyncFullWindowSize}
                   builderOpenSignal={runningPlanBuilderOpenSignal}
                 />
+              ) : focusFactPresentation ? (
+                <div className="post-session-stage">
+                  <FocusFactCard
+                    fact={focusFactPresentation.fact}
+                    initialReaction={focusFactPresentation.reaction}
+                    existingEmail={focusFactPresentation.existingEmail}
+                    emailAlreadySent={focusFactPresentation.emailAlreadySent}
+                    onReact={handleFocusFactReaction}
+                    onReadArticle={handleFocusFactReadArticle}
+                    onEmailArticle={handleFocusFactEmailArticle}
+                    onContinue={handleFocusFactContinue}
+                  />
+                </div>
               ) : showSurfaceReentryPrompt ? (
                 <ReentryPrompt
                   isOpen
@@ -10182,7 +10392,7 @@ export default function App() {
                 </div>
               )}
 
-              {isStartModalOpen && !showPostSessionPrompt && (
+              {isStartModalOpen && !showPostSessionPrompt && !focusFactPresentation && (
                 <div className="start-chooser">
                   <div className="start-chooser__header">
                     <button
@@ -10411,7 +10621,7 @@ export default function App() {
               </div>
             )}
 
-            {!showPostSessionPrompt && hasSavedContext && !isStartModalOpen && (
+            {!showPostSessionPrompt && !focusFactPresentation && hasSavedContext && !isStartModalOpen && (
               <ContextBox
                 recap={contextNotes}
                 nextSteps={nextStepsNotes}
@@ -10422,7 +10632,7 @@ export default function App() {
               />
             )}
 
-            {!showPostSessionPrompt && longSessionNudgeVisible && !showPomodoroBreakPanel && !isStartModalOpen ? (
+            {!showPostSessionPrompt && !focusFactPresentation && longSessionNudgeVisible && !showPomodoroBreakPanel && !isStartModalOpen ? (
               <LongSessionNudge
                 taskName={activeTaskLabel}
                 onTakeBreak={handleLongSessionTakeBreak}
@@ -10431,7 +10641,7 @@ export default function App() {
               />
             ) : null}
 
-            {!showPostSessionPrompt && isTimerVisible && fullScreenTaskState !== 'running' && !showPomodoroBreakPanel && (
+            {!showPostSessionPrompt && !focusFactPresentation && isTimerVisible && fullScreenTaskState !== 'running' && !showPomodoroBreakPanel && (
               <div className={`focus-timer-panel focus-timer-panel--${fullScreenTaskState}${isShortFullWindow ? ' focus-timer-panel--compact' : ''}`}>
                 <div className="focus-timer-panel__body">
                   <div className="focus-timer-panel__clock">{formatTime(time)}</div>
@@ -10506,7 +10716,7 @@ export default function App() {
         initialNextSteps={nextStepsNotes}
       />
       <TimeUpModal
-        isOpen={showTimeUpModal && !showPostSessionPrompt}
+        isOpen={showTimeUpModal && !showPostSessionPrompt && !focusFactPresentation}
         taskName={task}
         onEndSession={handleTimeUpEndSession}
         onAddTime={handleTimeUpAddTime}

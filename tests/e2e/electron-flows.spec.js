@@ -668,7 +668,18 @@ async function openTimedSessionWrap(page, taskName, minutes = 1) {
   await expectPostSessionPrompt(page, taskName);
 }
 
+async function continuePastFocusFactIfPresent(page) {
+  const focusFact = page.getByTestId('focus-fact-card');
+  const appeared = await focusFact.waitFor({ state: 'visible', timeout: 1200 })
+    .then(() => true, () => false);
+  if (!appeared) return false;
+  await focusFact.getByRole('button', { name: 'Continue' }).click();
+  await expect(focusFact).toHaveCount(0);
+  return true;
+}
+
 async function expectWhatsNextPrompt(page) {
+  await continuePastFocusFactIfPresent(page);
   await expect(page.getByRole('heading', { name: "What's next?" })).toBeVisible();
   await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toBeVisible();
   await expect(page.getByText('Start new task')).toBeVisible();
@@ -1197,6 +1208,7 @@ test('manual launches with a saved task still keep the normal idle task shell', 
 test("login launch floats first, then opens What's next after the system-entry delay", async () => {
   const { electronApp, page, cleanup } = await launchApp({
     background: false,
+    seedConfig: { userEmail: '' },
     waitForTaskInput: false,
     extraEnv: {
       FOCANA_E2E_LAUNCH_SOURCE: 'login',
@@ -2210,6 +2222,10 @@ test('save and continue later manual reopen stays in the idle shell until a syst
     });
     await page.getByRole('button', { name: 'Save for later' }).click();
 
+    await expect(page.getByTestId('focus-fact-card')).toBeVisible();
+    await expect(page.getByTestId('focus-fact-card')).not.toContainText('save-for-later-default-resume');
+    await page.getByTestId('focus-fact-card').getByRole('button', { name: 'Continue' }).click();
+
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
 
@@ -2235,6 +2251,8 @@ test('floating resumable re-entry comes back after save and continue later and s
     await page.getByTestId('post-session-done').click();
     await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
     await page.getByRole('button', { name: 'Save for later' }).click();
+
+    await continuePastFocusFactIfPresent(page);
 
     const floatingWindow = await waitForFloatingWindow(electronApp);
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
@@ -2282,6 +2300,8 @@ test("resume save-for-later can mark complete with confetti and hand off directl
     await expect(page.getByRole('heading', { name: 'Save and continue later' })).toBeVisible();
     await page.getByRole('button', { name: 'Save for later' }).click();
 
+    await continuePastFocusFactIfPresent(page);
+
     await expect.poll(async () => JSON.stringify(await readWindowVisibilityState(electronApp)), { timeout: 7000 })
       .toBe(JSON.stringify({ mainVisible: false, floatingVisible: true }));
     const floatingWindow = await waitForFloatingWindow(electronApp);
@@ -2313,11 +2333,22 @@ test("resume save-for-later can mark complete with confetti and hand off directl
   }
 });
 
-test("post-session prompt can mark complete and hand off directly into What's next", async () => {
-  const { page, cleanup } = await launchApp({ background: false });
+test("marking a paused active task complete shows its queued tasks in What's next", async () => {
+  const { page, cleanup } = await launchApp({ background: true });
 
   try {
-    await openTimedSessionWrap(page, 'resume-choice-task');
+    await setTaskComposerValue(page, 'resume-choice-task');
+    await page.getByTestId('session-builder-add-next').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(0), 'Send the project update');
+    await page.getByTestId('session-builder-add-next').click();
+    await setTextControlValue(page, page.getByTestId('session-builder-next-input').nth(1), 'Review tomorrow’s priorities');
+    await page.locator(TASK_INPUT_SELECTOR).press('Enter');
+    await page.getByRole('button', { name: 'Freeflow' }).click();
+    await expect.poll(() => readWindowMode(page)).toBe('pill');
+    await page.locator('.pill-timer-button').click();
+    await page.locator('button[title="Pause"]').click();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expectPauseSessionPrompt(page, 'resume-choice-task');
 
     await page.getByTestId('post-session-mark-complete').click();
 
@@ -2326,13 +2357,27 @@ test("post-session prompt can mark complete and hand off directly into What's ne
     await expectWhatsNextPrompt(page);
     await expect(page.getByTestId('reentry-open-parking')).toBeVisible();
     await expect(page.getByTestId('reentry-open-history')).toBeVisible();
+    const queuedTasks = page.getByTestId('reentry-up-next-task');
+    await expect(queuedTasks).toHaveCount(2);
+    await expect(queuedTasks.nth(0)).toContainText('Send the project update');
+    await expect(queuedTasks.nth(1)).toContainText('Review tomorrow’s priorities');
+    await expect(queuedTasks.nth(0)).toContainText('Up next');
+
+    await queuedTasks.nth(0).click();
+    await expect(page.locator(REENTRY_TASK_INPUT_SELECTOR)).toHaveValue('Send the project update');
+    await expect(page.getByTestId('session-builder-next-input')).toHaveCount(0);
   } finally {
     await cleanup();
   }
 });
 
-test("full-window complete button saves the task and opens What's next", async () => {
-  const { page, cleanup } = await launchApp({ background: false });
+test("full-window completion shows one sourced Focus Fact before What's next", async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    extraEnv: {
+      FOCANA_FOCUS_FACT_EMAIL_API_URL: 'http://127.0.0.1:9/focus-fact-email',
+    },
+  });
 
   try {
     await startFreeflowSession(page, 'full-complete-direct');
@@ -2342,6 +2387,40 @@ test("full-window complete button saves the task and opens What's next", async (
     await page.getByRole('button', { name: 'Mark complete' }).click();
 
     await expect(page.getByRole('region', { name: 'Session Wrap' })).toHaveCount(0);
+    const focusFact = page.getByTestId('focus-fact-card');
+    await expect(focusFact).toBeVisible();
+    await expectLocatorFullyInViewport(focusFact);
+    await expect(focusFact).not.toContainText('full-complete-direct');
+    await expect(focusFact.getByRole('button', { name: /Read .* in your browser/ })).toBeVisible();
+    await focusFact.getByRole('button', { name: 'This Focus Fact was useful' }).click();
+    const emailAction = page.getByTestId('focus-fact-email-action');
+    await expect(emailAction).toBeVisible();
+    await expect(focusFact.getByLabel('Email address')).toHaveCount(0);
+    await expect(focusFact).toContainText('One article email only. This does not subscribe you to marketing.');
+    await emailAction.click();
+    await expect(focusFact.getByLabel('Email address')).toBeVisible();
+    await focusFact.getByLabel('Email address').fill('reader@example.com');
+    await emailAction.click();
+    await expect(focusFact.getByRole('alert')).toContainText('did not go through');
+    await expect(emailAction).toBeEnabled();
+    await expectLocatorFullyInViewport(emailAction);
+
+    await focusFact.getByRole('button', { name: /Read .* in your browser/ }).click();
+    const articleUrl = new URL(await readE2ELastExternalUrl(page));
+    expect(articleUrl.origin).toBe('https://focana.app');
+    expect(articleUrl.pathname).toBe('/blog/out-of-sight-out-of-mind-adhd');
+    expect(articleUrl.searchParams.get('utm_source')).toBe('focana_desktop');
+    expect(articleUrl.searchParams.get('utm_medium')).toBe('focus_fact');
+
+    await sendTrayThemeSelect(electronApp, 'dark');
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
+    await expect(focusFact).toBeVisible();
+
+    const focusFactsState = await page.evaluate(() => window.electronAPI.storeGet('focusFacts'));
+    expect(focusFactsState.impressionDateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(focusFactsState.reactions[focusFactsState.dailyFactId]).toBe('up');
+
+    await focusFact.getByRole('button', { name: 'Continue' }).click();
     await expectWhatsNextPrompt(page);
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     const completedSession = savedSessions.find((session) => session?.task === 'full-complete-direct');
@@ -2665,6 +2744,9 @@ test('timed session expiry with next-up asks for pickup note before done for now
     await expect(doneForNowButton).toBeVisible();
     await expect(doneForNowButton).toBeEnabled();
     await doneForNowButton.click();
+
+    await expect(page.getByTestId('focus-fact-card')).toBeVisible();
+    await page.getByTestId('focus-fact-card').getByRole('button', { name: 'Continue' }).click();
 
     await expect.poll(async () => page.evaluate(async () => {
       const sessions = await window.electronAPI.storeGet('sessions');
@@ -3894,6 +3976,7 @@ test("pause session wrap mark complete saves the task and opens What's next", as
     await page.getByTestId('post-session-mark-complete').click();
 
     await expect(page.getByRole('region', { name: 'Paused Session' })).toHaveCount(0);
+    await expect(page.getByTestId('focus-fact-card')).toHaveCount(0);
     await expectWhatsNextPrompt(page);
     const savedSessions = await page.evaluate(() => window.electronAPI.storeGet('sessions'));
     const completedSession = savedSessions.find((session) => session?.task === 'pause mark complete');
@@ -3935,6 +4018,57 @@ test('pause session wrap keep working resumes the same active session', async ()
     expect(stateAfter.timerState?.isRunning).toBe(true);
     expect(stateAfter.timerState?.currentSessionId).toBe(sessionIdBefore);
     expect(stateAfter.matchingCount).toBe(1);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('long Freeflow pause can continue as a fresh timed countdown through compact and full sizes', async () => {
+  const { page, cleanup } = await launchApp({
+    background: true,
+    seedConfig: {
+      settings: {
+        checkInEnabled: false,
+      },
+    },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'long freeflow timed handoff');
+    await setTimeOffset(page, ((8 * 60 * 60) + 10) * 1000);
+    await expect.poll(() => readDisplayedTimerSeconds(page)).toBeGreaterThanOrEqual((8 * 60 * 60) + 10);
+
+    await page.locator('.pill-timer-button').click();
+    await page.locator('button[title="Pause"]').click();
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('full');
+    await expectPauseSessionPrompt(page, 'long freeflow timed handoff');
+
+    await page.getByTestId('post-session-primary').click();
+    await setNumberInputValue(page.getByTestId('post-session-keep-working-minutes'), 25);
+    await page.getByRole('button', { name: 'Start timed session' }).click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect.poll(() => readDisplayedTimerSeconds(page)).toBeGreaterThanOrEqual(1498);
+    await expect.poll(() => readDisplayedTimerSeconds(page)).toBeLessThanOrEqual(1500);
+
+    const timedBefore = await readDisplayedTimerSeconds(page);
+    await setTimeOffset(page, (((8 * 60 * 60) + 20) * 1000));
+    await expect.poll(() => readDisplayedTimerSeconds(page)).toBeLessThanOrEqual(timedBefore - 9);
+
+    for (let transition = 0; transition < 3; transition += 1) {
+      await exitCompactMode(page);
+      await expect(page.locator('.focus-hero')).toContainText('long freeflow timed handoff');
+      await expect(page.locator('.focus-hero__clock')).toHaveText(/^\d{2}:\d{2}$/);
+      await page.locator('button[aria-label="Enter Compact Mode"]').click();
+      await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+      await expect(page.locator('.pill-timer')).toHaveText(/^\d{2}:\d{2}$/);
+    }
+
+    const timerState = await page.evaluate(() => window.electronAPI.storeGet('timerState'));
+    expect(timerState?.mode).toBe('timed');
+    expect(timerState?.isRunning).toBe(true);
+    expect(timerState?.initialTime).toBeGreaterThan((8 * 60 * 60) + (25 * 60));
   } finally {
     await cleanup();
   }
@@ -4074,6 +4208,7 @@ test('session builder captures subtasks and hands off to the next top-level task
     await expect(page.getByTestId('task-plan-complete-prompt')).toContainText('Mark Prepare launch email complete?');
 
     await page.getByTestId('task-plan-complete-prompt').getByRole('button', { name: 'Mark complete' }).click();
+    await continuePastFocusFactIfPresent(page);
     await expect(page.getByTestId('task-plan-transition')).toBeVisible();
     await expect(page.getByTestId('task-plan-transition')).toContainText('Prepare launch email is done.');
     await expect(page.getByTestId('task-plan-transition')).toContainText('Next up: Update Product Hunt checklist');
@@ -4217,6 +4352,8 @@ test('session builder completes a next-up-only plan from the normal complete but
     await exitCompactMode(page);
     await page.getByRole('button', { name: 'Complete Task' }).click();
     await page.getByRole('button', { name: 'Mark complete' }).click();
+
+    await continuePastFocusFactIfPresent(page);
 
     await expect(page.getByTestId('task-plan-transition')).toBeVisible();
     await expect(page.getByTestId('task-plan-transition')).toContainText('Primary without subtasks is done.');

@@ -32,6 +32,14 @@ Required env vars:
 - `PUBLIC_LEMONSQUEEZY_MONTHLY_CHECKOUT_URL` — Lemon Squeezy checkout URL for the $10/month plan
 - `PUBLIC_LEMONSQUEEZY_LIFETIME_CHECKOUT_URL` — Lemon Squeezy checkout URL for the $79 lifetime plan
 
+### Focus Fact article email
+
+The desktop app posts explicit one-time article requests to `/api/focus-fact-email`. In Loops,
+configure a transactional workflow for the `focus_fact_article_requested` event using
+`articleTitle` and `articleUrl`. The payload sets `consentScope` to `one_time_article` and
+`marketingConsent` to `false`; this event must not add the recipient to a newsletter or lifecycle
+campaign. Loops receives an idempotency key per request so retries do not create duplicate sends.
+
 3. Create a `Beta_Downloads` table in Supabase with columns:
    - `email` (text, unique)
    - `created_at` (timestamptz)

@@ -14,6 +14,7 @@ const { createTray, popupCompactContextMenu, popupFloatingContextMenu, popupMain
 const { addCheckIn, getCheckInsBySession, updateCheckIn } = require('./checkInStore');
 const { createFeedbackSyncService } = require('./feedbackSync');
 const { createFocusLedgerSyncService } = require('./focusLedgerSync');
+const { requestFocusFactEmail } = require('./focusFactEmail');
 const { createLicenseService } = require('./licenseService');
 const { createUpdaterService } = require('./updater');
 
@@ -186,6 +187,7 @@ const ALLOWED_STORE_KEYS = new Set([
   'focusLedgerQueue',
   'focusInsightsSettings',
   'focusLedgerSyncState',
+  'focusFacts',
   'userEmail',
   'preferredName',
   'emailPromptSkipped',
@@ -836,6 +838,35 @@ function sanitizeStoreValue(key, value) {
           : null,
         activeSession: ensurePlainObject(value.activeSession) ? value.activeSession : null,
       };
+    case 'focusFacts':
+      if (!ensurePlainObject(value)) throw new Error('focusFacts must be an object');
+      {
+        const sanitizeFactIds = (items) => Array.isArray(items)
+          ? [...new Set(items
+            .map((item) => (typeof item === 'string' ? item.trim().slice(0, 80) : ''))
+            .filter(Boolean))].slice(0, 100)
+          : [];
+        const reactions = ensurePlainObject(value.reactions)
+          ? Object.fromEntries(Object.entries(value.reactions)
+            .filter(([factId, reaction]) => (
+              typeof factId === 'string'
+              && factId.trim()
+              && (reaction === 'up' || reaction === 'down')
+            ))
+            .slice(0, 100)
+            .map(([factId, reaction]) => [factId.trim().slice(0, 80), reaction]))
+          : {};
+        return {
+          dailyDateKey: typeof value.dailyDateKey === 'string' ? value.dailyDateKey.trim().slice(0, 10) : '',
+          dailyFactId: typeof value.dailyFactId === 'string' ? value.dailyFactId.trim().slice(0, 80) : '',
+          impressionDateKey: typeof value.impressionDateKey === 'string' ? value.impressionDateKey.trim().slice(0, 10) : '',
+          cycleSeenFactIds: sanitizeFactIds(value.cycleSeenFactIds),
+          dislikedFactIds: sanitizeFactIds(value.dislikedFactIds),
+          reactions,
+          emailedFactIds: sanitizeFactIds(value.emailedFactIds),
+          email: typeof value.email === 'string' ? value.email.trim().slice(0, 320) : '',
+        };
+      }
     case 'userEmail':
       if (typeof value !== 'string') throw new Error('userEmail must be a string');
       return value.trim().slice(0, 320);
@@ -2381,6 +2412,10 @@ ipcMain.handle('focus-ledger:enqueue', (_event, items) => {
 
 ipcMain.handle('focus-ledger:sync', () => {
   return focusLedgerSyncService.syncNow({ reason: 'renderer-request' });
+});
+
+ipcMain.handle('focus-facts:email-article', (_event, request) => {
+  return requestFocusFactEmail(request);
 });
 
 ipcMain.on('minimize-to-tray', () => {

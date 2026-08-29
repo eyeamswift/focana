@@ -4337,6 +4337,162 @@ html[data-window-mode='pill'] #root {
 }
 
 /* === Post-Session Prompt === */
+.focus-fact-card {
+  width: min(100%, 35rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.4rem;
+  border-radius: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 34%, var(--border-strong));
+  background:
+    radial-gradient(120% 120% at 8% 0%, color-mix(in srgb, var(--brand-primary) 14%, transparent) 0%, transparent 52%),
+    var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 24px 48px rgba(46, 31, 24, 0.14);
+  -webkit-app-region: no-drag;
+}
+
+.focus-fact-card__eyebrow {
+  color: var(--brand-action);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.focus-fact-card__title {
+  font-size: 1.75rem;
+  line-height: 1.05;
+  font-weight: 750;
+}
+
+.focus-fact-card__fact {
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.focus-fact-card__source {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.focus-fact-card__source:hover {
+  color: var(--brand-action);
+}
+
+.focus-fact-card__reaction {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.focus-fact-card__reaction-button {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: transform 0.16s ease, color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.focus-fact-card__reaction-button:hover,
+.focus-fact-card__reaction-button[aria-pressed='true'] {
+  transform: translateY(-1px);
+  color: var(--brand-action);
+  border-color: color-mix(in srgb, var(--brand-action) 64%, var(--border-strong));
+  background: color-mix(in srgb, var(--brand-primary) 12%, var(--bg-surface));
+}
+
+.focus-fact-card__email {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, var(--border-default));
+  background: color-mix(in srgb, var(--brand-primary) 7%, var(--bg-surface));
+}
+
+.focus-fact-card__email-field {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.focus-fact-card__email-button {
+  min-height: 2.65rem;
+  gap: 0.5rem;
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.focus-fact-card__promise,
+.focus-fact-card__status,
+.focus-fact-card__error {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.focus-fact-card__error {
+  min-height: 1.15rem;
+  color: var(--error-surface-text);
+}
+
+.focus-fact-card__continue {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 0.1rem;
+  border-radius: 0.9rem;
+  background: var(--brand-primary);
+  color: var(--text-on-brand);
+  font-weight: 750;
+}
+
+.focus-fact-card__source:focus-visible,
+.focus-fact-card__reaction-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand-primary) 72%, white);
+  outline-offset: 3px;
+}
+
+@media (max-width: 520px) {
+  .focus-fact-card {
+    padding: 1.1rem;
+  }
+
+  .focus-fact-card__title {
+    font-size: 1.55rem;
+  }
+}
+
 .post-session-panel {
   display: flex;
   justify-content: center;

@@ -262,6 +262,7 @@ export default function ReentryPrompt({
               key={sourceId || titleText}
               type="button"
               className={`reentry-prompt__source-item${isSelected ? ' is-selected' : ''}`}
+              data-testid={item?.kind === 'up-next' ? 'reentry-up-next-task' : undefined}
               onClick={() => {
                 noteInteraction();
                 onSelect?.(item);

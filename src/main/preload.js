@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncFeedbackQueue: () => ipcRenderer.invoke('feedback:sync'),
   enqueueFocusLedger: (items) => ipcRenderer.invoke('focus-ledger:enqueue', items),
   syncFocusLedgerQueue: () => ipcRenderer.invoke('focus-ledger:sync'),
+  emailFocusFactArticle: (request) => ipcRenderer.invoke('focus-facts:email-article', request),
   bringToFront: (options) => ipcRenderer.send('bring-to-front', options),
   armFocusReturnSource: (source) => ipcRenderer.invoke('focus:arm-previous-app', source),
   returnFocusToPreviousApp: (source) => ipcRenderer.invoke('focus:return-previous-app', source),

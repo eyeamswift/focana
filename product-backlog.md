@@ -4,6 +4,10 @@
 
 Release-theme view of the backlog. Order = build order. Items keep their stable IDs and full detail in the sections below; this section is the prioritized scheduling lens. `Status: Later` + a target `Version` = planned for that release but not yet started.
 
+### Recently shipped — 2.4.9 "Focus Facts after focus"
+- **P0:** `MKT-007` post-session Focus Facts. Show one short, sourced fact only after the user has fully resolved a session with `Mark complete`, `Done for now`, or `Save and continue later`; collect a lightweight thumbs-up/down reaction; after thumbs-up, offer an explicit one-time `Email me the article` action.
+- Guardrails: never surface facts during active focus, pauses, breaks, check-ins, time-up decisions, compact/floating mode, or re-entry prompts; a thumbs-up is not email consent; do not subscribe someone to ongoing marketing without separate consent; do not infer an ADHD diagnosis or sensitive behavioral profile from reactions.
+
 ### 2.2.5 — In flight (in-session loop + boundaries + infra)
 Finish the execution loop and exit surfaces: `UPD-001`, `UX-014`, `UX-015`, `UX-016`, `UX-018`, `UX-019`, `UX-020`, `UX-021`. Marketing stream runs in parallel: `MKT-001`..`MKT-005`. Quick close: verify `UX-005` is delivered by `UX-020` and close it rather than rebuild.
 
@@ -95,6 +99,16 @@ Ship the Focus Ledger as a user-benefit layer, not founder analytics: help users
 - Commits: `86d3e4b`, `152f6dd`, `f08d999`, `3b30d27`
 
 ## Next Up
+
+### MKT-007 — Post-session Focus Facts should reward curiosity without opening a focus rabbit hole
+- Priority: High
+- Status: Shipped
+- Version: 2.4.9
+- Why it matters: Focana can turn useful attention and focus education into qualified visits to its article library without undermining the product's core promise to protect focus. Waiting until a session is fully resolved keeps the educational moment celebratory and prevents an in-session `Learn more` link from becoming the distraction.
+- Files: `src/renderer/App.jsx`, `src/renderer/components/PostSessionPrompt.jsx`, new Focus Fact UI/data module as needed, `src/main/store.js`, `src/main/main.js`, `src/main/preload.js`, `tests/e2e/electron-flows.spec.js`, `web/src/data/blog.ts`, `web/src/pages/blog/index.astro`, `web/src/pages/blog/[slug].astro`, hosted article-email endpoint/service, email template/provider wiring
+- Related: `UX-014`, `ANA-004`, `MKT-001`, `MKT-003`, `MKT-004`, `MKT-005`
+- Notes: Add a lightweight final Focus Fact state only after a terminal session resolution: `Mark complete`, `Done for now`, or `Save and continue later`. Never show it during active focus, Pause, Take a break, Add time, Keep working, Pomodoro transitions, check-ins, time-up choices, compact/floating mode, or re-entry prompts. Show at most one fact per local day, keep that day's fact stable, cycle through the available set before repeating, and suppress facts the user has disliked. Let users react with thumbs up/down without requiring an explanation. A thumbs-up must only reveal an explicit `Email me the article` action; it must not send email by itself. The send action should promise one article email and must not enroll the user in a newsletter or lifecycle campaign without separate consent. Reuse an existing deliverable email when appropriately consented; otherwise request it only after the user asks for the article. Each fact must map to a substantial, sourced Focana article rather than a thin fact page. Email links should use campaign parameters that distinguish desktop Focus Fact traffic from organic search. Track only fact ID, impression, reaction, explicit email request, delivery, and article open/click; do not attach task text or infer diagnosis/sensitive traits. Acceptance should cover all allowed and forbidden surfaces, daily frequency and no-repeat behavior, thumbs-up/down behavior, explicit one-time email consent, delivery failure/retry copy, external article URLs, light/dark layout, keyboard and screen-reader affordances, and the complete desktop-to-hosted-email contract with `npm run test:all`.
+- Commits: —
 
 ### UPD-001 — Focana should quietly check for updates every 4 hours while running
 - Priority: High
