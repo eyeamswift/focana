@@ -17,6 +17,9 @@ const NAME_GATE_HEADING = 'One more thing. What should we call you?';
 const SYSTEM_ENTRY_TEST_DELAY_MS = '900';
 const ONE_MINUTE_TIMED_WRAP_OFFSET_MS = 65 * 1000;
 const FORCE_BACKGROUND_AUDIT = process.env.FOCANA_E2E_BACKGROUND === '1';
+const COMPACT_STATE_AUDIT_DIR = process.env.FOCANA_COMPACT_STATE_AUDIT_DIR
+  ? path.resolve(process.env.FOCANA_COMPACT_STATE_AUDIT_DIR)
+  : null;
 const FOCUSED_CHECKIN_MESSAGES = [
   'Nice, keep going',
   'Good Job! 🍊',
@@ -148,6 +151,15 @@ async function launchApp({
       }
     },
   };
+}
+
+async function captureCompactStateScreenshot(page, fileName) {
+  if (!COMPACT_STATE_AUDIT_DIR) return;
+  fs.mkdirSync(COMPACT_STATE_AUDIT_DIR, { recursive: true });
+  await page.screenshot({
+    path: path.join(COMPACT_STATE_AUDIT_DIR, fileName),
+    animations: 'disabled',
+  });
 }
 
 async function triggerShortcutAction(electronApp, action) {
@@ -3962,6 +3974,166 @@ test('compact pause opens dismissible session wrap and returns to compact paused
     await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
     await expect(page.getByRole('region', { name: 'Paused Session' })).toHaveCount(0);
     await expect(page.locator(PILL_TASK_SELECTOR)).toContainText('compact pause wrap');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('paused compact view keeps its task, timer, and resume control readable', async () => {
+  const { page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: { settings: { checkInEnabled: false } },
+  });
+
+  try {
+    const pausedTask = 'Review résumé and payment processor handoff';
+    await startFreeflowSession(page, pausedTask);
+    await page.locator('.pill-timer-button').click();
+    await page.locator('button[title="Pause"]').click();
+    await expectPauseSessionPrompt(page, pausedTask);
+    await page.getByTestId('post-session-dismiss').click();
+
+    await expect.poll(() => readWindowMode(page), { timeout: 7000 }).toBe('pill');
+    await expect(page.getByTestId('long-session-nudge')).toHaveCount(0);
+
+    const timerBefore = await page.locator('.pill-timer').textContent();
+    await page.waitForTimeout(1100);
+    await expect(page.locator('.pill-timer')).toHaveText(timerBefore || '00:00');
+    await captureCompactStateScreenshot(page, 'compact-paused.png');
+
+    await page.locator('.pill-timer-button').click();
+    await expect(page.locator('button[title="Resume"]')).toBeVisible();
+
+    const geometry = await page.evaluate(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const bounds = element.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          top: bounds.top,
+          right: bounds.right,
+          bottom: bounds.bottom,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      };
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        pill: rect('.pill'),
+        task: rect('.pill-task'),
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        overflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      };
+    });
+
+    expect(geometry.pill).toBeTruthy();
+    expect(geometry.task?.width || 0).toBeGreaterThanOrEqual(140);
+    expect(geometry.pill.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.pill.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.pill.right).toBeLessThanOrEqual(geometry.viewport.width + 1);
+    expect(geometry.pill.bottom).toBeLessThanOrEqual(geometry.viewport.height + 1);
+    expect(geometry.overflowX).toBeLessThanOrEqual(0);
+    expect(geometry.overflowY).toBeLessThanOrEqual(0);
+
+  } finally {
+    await cleanup();
+  }
+});
+
+test('compact break prompt stacks below the pill and hands off to a readable break timer', async () => {
+  const { electronApp, page, cleanup } = await launchApp({
+    background: false,
+    seedConfig: { settings: { checkInEnabled: false } },
+  });
+
+  try {
+    await installTimeOffsetControl(page);
+    await startFreeflowSession(page, 'Build payment processor');
+    await setTimeOffset(page, 91 * 60 * 1000);
+
+    const nudge = page.getByTestId('long-session-nudge');
+    await expect(nudge).toBeVisible({ timeout: 7000 });
+    await expect(nudge.getByRole('button', { name: 'Take a break' })).toBeVisible();
+    await expect(nudge.getByRole('button', { name: 'Keep going' })).toBeVisible();
+    await expect(nudge.getByRole('button', { name: 'Later' })).toBeVisible();
+
+    const geometry = await page.evaluate(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const bounds = element.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          top: bounds.top,
+          right: bounds.right,
+          bottom: bounds.bottom,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      };
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        pill: rect('.pill'),
+        pillContent: rect('.pill-content'),
+        task: rect('.pill-task'),
+        nudge: rect('[data-testid="long-session-nudge"]'),
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        overflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      };
+    });
+
+    expect(geometry.pill).toBeTruthy();
+    expect(geometry.pillContent).toBeTruthy();
+    expect(geometry.nudge).toBeTruthy();
+    expect(geometry.task?.width || 0).toBeGreaterThanOrEqual(140);
+    expect(geometry.nudge.top).toBeGreaterThanOrEqual(geometry.pillContent.bottom - 2);
+    expect(geometry.nudge.left).toBeGreaterThanOrEqual(geometry.pill.left - 1);
+    expect(geometry.nudge.right).toBeLessThanOrEqual(geometry.pill.right + 1);
+    expect(geometry.pill.right).toBeLessThanOrEqual(geometry.viewport.width + 1);
+    expect(geometry.pill.bottom).toBeLessThanOrEqual(geometry.viewport.height + 1);
+    expect(geometry.overflowX).toBeLessThanOrEqual(0);
+    expect(geometry.overflowY).toBeLessThanOrEqual(0);
+
+    await captureCompactStateScreenshot(page, 'compact-break-prompt.png');
+
+    await nudge.getByRole('button', { name: 'Take a break' }).click();
+    await expectPauseSessionPrompt(page, 'Build payment processor');
+    await setTimeOffset(page, 0);
+    await page.getByTestId('post-session-break').click();
+    await expect(page.getByRole('heading', { name: 'You deserve a break.' })).toBeVisible();
+    await page.getByRole('button', { name: 'BRB' }).click();
+
+    const floatingWindow = await waitForFloatingWindow(electronApp);
+    await expect.poll(async () => JSON.stringify(await readFloatingPromptState(floatingWindow)), { timeout: 7000 })
+      .toBe(JSON.stringify({ mode: 'break-timer', stage: null }));
+
+    const floatingGeometry = await floatingWindow.evaluate(() => {
+      const timer = document.querySelector('#timer-pill')?.getBoundingClientRect();
+      return {
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        timer: timer ? {
+          left: timer.left,
+          top: timer.top,
+          right: timer.right,
+          bottom: timer.bottom,
+          width: timer.width,
+          height: timer.height,
+        } : null,
+        overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        overflowY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      };
+    });
+    expect(floatingGeometry.timer).toBeTruthy();
+    expect(floatingGeometry.timer.width).toBeGreaterThan(100);
+    expect(floatingGeometry.timer.left).toBeGreaterThanOrEqual(-2);
+    expect(floatingGeometry.timer.top).toBeGreaterThanOrEqual(-2);
+    expect(floatingGeometry.timer.right).toBeLessThanOrEqual(floatingGeometry.viewport.width + 1);
+    expect(floatingGeometry.timer.bottom).toBeLessThanOrEqual(floatingGeometry.viewport.height + 1);
+    expect(floatingGeometry.overflowX).toBeLessThanOrEqual(0);
+    expect(floatingGeometry.overflowY).toBeLessThanOrEqual(0);
+
+    await captureCompactStateScreenshot(floatingWindow, 'compact-active-break-timer.png');
   } finally {
     await cleanup();
   }

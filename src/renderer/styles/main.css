@@ -3463,6 +3463,30 @@ html[data-window-mode='pill'] #root {
 
 /* === Compact Mode Pill === */
 
+.compact-pill-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.compact-pill-shell--long-session {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.compact-pill-shell--long-session .pill {
+  width: calc(100% - 4px);
+  flex: 0 0 auto;
+}
+
+.compact-pill-shell--long-session .long-session-nudge--compact {
+  width: calc(100% - 4px);
+  flex: 0 0 auto;
+}
+
 /* Pill — auto-sizes to content (inline-flex). Base height 44px.
    Window is set via IPC to pill-content-width + 12px margins (6px each side).
    Window height is 80px (4px top/bottom drag area + up to 72px dark-logo pill).

@@ -589,15 +589,16 @@ export default function CompactMode({
   }
 
   return (
-    <div
-      className={`pill pill--logo${planPreviewActive ? ' pill--plan-preview' : ''}${isPulseAnimating ? ' animate-pulse-compact pill--pulse-active' : ''}`}
-      style={pillStyle}
-      onPointerDown={handlePointerDown}
-      onDragStart={(e) => e.preventDefault()}
-      onClick={handlePillClick}
-      onDoubleClick={handlePillDoubleClick}
-      onContextMenu={handleContextMenu}
-    >
+    <div className={`compact-pill-shell${longSessionNudgeVisible ? ' compact-pill-shell--long-session' : ''}`}>
+      <div
+        className={`pill pill--logo${planPreviewActive ? ' pill--plan-preview' : ''}${isPulseAnimating ? ' animate-pulse-compact pill--pulse-active' : ''}`}
+        style={pillStyle}
+        onPointerDown={handlePointerDown}
+        onDragStart={(e) => e.preventDefault()}
+        onClick={handlePillClick}
+        onDoubleClick={handlePillDoubleClick}
+        onContextMenu={handleContextMenu}
+      >
       <span className="pill-pulse-border" aria-hidden="true" />
       <span className="pill-pulse-wash" aria-hidden="true" />
       <span className="pill-pulse-ripple" aria-hidden="true" />
@@ -753,16 +754,6 @@ export default function CompactMode({
         )}
       </div>
 
-      {longSessionNudgeVisible ? (
-        <LongSessionNudge
-          variant="compact"
-          taskName={taskLabel}
-          onTakeBreak={onLongSessionTakeBreak}
-          onKeepGoing={onLongSessionKeepGoing}
-          onSnooze={onLongSessionSnooze}
-        />
-      ) : null}
-
       {planPreviewActive ? (
         <div
           id="pill-task-plan-preview"
@@ -902,6 +893,17 @@ export default function CompactMode({
         <span ref={taskMeasureBlockRef} className="pill-task-text pill-task-text--measure-block" />
       </div>
 
+      </div>
+
+      {longSessionNudgeVisible ? (
+        <LongSessionNudge
+          variant="compact"
+          taskName={taskLabel}
+          onTakeBreak={onLongSessionTakeBreak}
+          onKeepGoing={onLongSessionKeepGoing}
+          onSnooze={onLongSessionSnooze}
+        />
+      ) : null}
     </div>
   );
 }

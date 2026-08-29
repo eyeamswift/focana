@@ -1,0 +1,12 @@
+{
+  "version": "2.4.11",
+  "publishedAt": "2026-08-29",
+  "summary": "Focana 2.4.11 keeps paused and break-time compact surfaces calm, readable, and correctly sized.",
+  "improvements": [
+    "Paused compact, compact break-prompt, and active break-timer states now have dedicated background regression coverage."
+  ],
+  "fixes": [
+    "The 90-minute break prompt now stacks below the compact pill instead of squeezing the task into a narrow column.",
+    "Paused compact and active break-timer handoffs now keep their controls and timer fully inside the window."
+  ]
+}
