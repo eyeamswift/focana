@@ -1,5 +1,21 @@
 [
   {
+    "version": "2.4.9",
+    "publishedAt": "2026-08-28",
+    "displayDate": "Friday, August 28, 2026",
+    "summary": "Focana 2.4.9 keeps your queued next steps visible and makes the handoff after a focus session more useful.",
+    "improvements": [
+      "Completed sessions can now offer one short, sourced Focus Fact without interrupting active focus, pauses, or breaks.",
+      "Focus Facts support lightweight feedback and an explicit one-time option to email the related article without subscribing you to marketing.",
+      "Queued Up next tasks appear at the top of What's next and can be carried directly into the next task entry."
+    ],
+    "fixes": [
+      "Queued tasks no longer disappear from What's next after the active task is marked complete.",
+      "Continuing a long paused Freeflow session as Timed starts the selected countdown instead of carrying the old count-up display forward.",
+      "Compact, full, and floating window transitions preserve the running timer and task context through repeated size changes."
+    ]
+  },
+  {
     "version": "2.4.8",
     "publishedAt": "2026-08-04",
     "displayDate": "Tuesday, August 4, 2026",
