@@ -1,5 +1,18 @@
 [
   {
+    "version": "2.4.10",
+    "publishedAt": "2026-08-29",
+    "displayDate": "Saturday, August 29, 2026",
+    "summary": "Focana 2.4.10 makes compact, full, and floating transitions steadier across changing window sizes.",
+    "improvements": [
+      "Compact, full, and floating views now hold their task and timer layout more reliably through repeated resizing and theme changes."
+    ],
+    "fixes": [
+      "Full focus view can no longer be resized shorter than its active content, preventing the task card and controls from being clipped.",
+      "Background window transitions no longer let the floating timer take focus when it first appears."
+    ]
+  },
+  {
     "version": "2.4.9",
     "publishedAt": "2026-08-28",
     "displayDate": "Friday, August 28, 2026",
